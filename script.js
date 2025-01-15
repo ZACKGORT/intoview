@@ -2,8 +2,8 @@ document.addEventListener('DOMContentLoaded', function () {
 const texts = [
     "The best way to get an interview is to bring your best into view.",
     "intoview is not a resume optimizer; it's a career contextualizer.",
-    "intoview is not about quantity; intoview is about quality.",
-    "intoview does not leverage AI; it prioritizes human-centered connections.",
+    "intoview is less about quantity; intoview is all about quality.",
+    "intoview does not lean on AI, but human-centered synergy.",
     "intoview is not LinkedIn. It is not Indeed. It brings a new perspective into view.",
     "intoview doesn't reimagine. It doesn't reinvent — intoview rethinks."
 ];
