@@ -6,147 +6,194 @@
 <title>intoview.pro — iso cubes keyboard</title>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <style>
-/* ========================  KNOBS  ======================== */
-:root{
-  /* bigger cubes; JS still scales to fit viewport */
-  --cube-size-base: 56;            /* px (width); height comes from symbol ratio */
-  --iso-cell-base:  56;            /* px per lattice cell; JS sets --iso-cell = scaled */
+  :root{
+    /* cube + lattice sizing (JS scales to fit viewport) */
+    --cube-size-base: 56;
+    --iso-cell-base:  56;
+    --iso-cell:  calc(var(--iso-cell-base) * 1px);
+    --cube-size: calc(var(--cube-size-base) * 1px);
 
-  /* tiny per-label nudges around the lattice anchor (kept subtle) */
-  --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
-  --lbl-key-dx:   4px;  --lbl-key-dy: 12px;
+    /* label nudges (labels sit two iso-cells below each cube in JS) */
+    --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
 
-  /* iso grid look */
-  --bg:#000;
-  --grid-gap: 8px;
-  --grid-alpha:.10;
-  --grid-thin: rgb(255 255 255 / calc(var(--grid-alpha) * .10));
-  --grid-bold: rgb(255 255 255 / calc(var(--grid-alpha) * .24));
-  --iso-cell:  calc(var(--iso-cell-base) * 1px); /* JS updates this */
+    /* background grid */
+    --bg:#000;
+    --grid-gap: 8px;
+    --grid-alpha:.10;
+    --grid-thin: rgb(255 255 255 / calc(var(--grid-alpha) * .10));
+    --grid-bold: rgb(255 255 255 / calc(var(--grid-alpha) * .24));
 
-  /* highlight pulses */
-  --iso-highlight-fill: 255 255 255;
-  --iso-highlight-alpha:.22;
-  --iso-stroke-alpha:.55;
-  --iso-fade-ms: 900;
-  --iso-blur-min: 0px;
-  --iso-blur-max: 12px;
-  --iso-blur-curve: 1.35;
+    /* highlight pulses (canvas) */
+    --iso-highlight-fill: 255 255 255;
+    --iso-highlight-alpha:.22;
+    --iso-stroke-alpha:.55;
+    --iso-fade-ms: 900;
+    --iso-blur-min: 0px;
+    --iso-blur-max: 12px;
+    --iso-blur-curve: 1.35;
 
-  /* facet transitions */
-  --facet-ease:.18s ease;
+    /* facets + transitions */
+    --facet-ease:.18s ease;
+    --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
 
-  /* default facet fills (exact to your SVG) */
-  --facet-top-fill:  #ffffff;
-  --facet-side-fill: #ededed;
-  --facet-dark-fill: #767676;
+    /* logo */
+    --logo-w: 172px;
+    --logo-pad-x: 20px;
+    --logo-pad-y: 14px;
 
-  /* JS writes this on layout */
-  --cube-size: calc(var(--cube-size-base) * 1px);
+    /* recorder bar */
+    --rec-h: 68px;
+    --rec-bg: rgb(0 0 0 / .50);
+    --rec-fg: #d6d6d6;
+    --rec-muted: #a8a8a8;
+    --rec-danger: #ff4d4d;
+    --rec-gap: 10px;
+    --rec-cube-w: 22px;
+    --rec-note-size: 10px;
+  }
 
-  /* logo sizing + insets */
-  --logo-w: 150px;
-  --logo-inset: clamp(12px, 2.5vw, 28px);
+  html,body{height:100%}
+  body{
+    margin:0; color:#e8e8e8; background:var(--bg);
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    overflow:hidden;
+    background-image:
+      repeating-linear-gradient(30deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(90deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(150deg, var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(30deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
+      repeating-linear-gradient(90deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
+      repeating-linear-gradient(150deg, transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4));
+    background-attachment:fixed,fixed,fixed,fixed,fixed,fixed;
+    font:14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  }
+
+  /* ===== Logo (top-left) ===== */
+  .logo-lockup{
+    position:fixed; left:var(--logo-pad-x); top:var(--logo-pad-y); z-index:3;
+    line-height:0; user-select:none; pointer-events:none;
+    mix-blend-mode:normal;
+  }
+  .logo-lockup img{ width:var(--logo-w); height:auto; display:block; }
+
+  /* ===== Stage ===== */
+  #isoCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+  #stage{ position:fixed; inset:0; z-index:1; overflow:visible; }
+
+  /* Cubes */
+  .cube{
+    cursor:pointer; outline:none;
+    --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
+    filter: blur(var(--depth-blur, 0px));
+    transition: filter .25s ease;
+  }
+  .cube:where(:hover, :focus-visible, .brighten){ filter: blur(0px); }
+  .cube *{ transition:fill var(--facet-ease); }
+  .facet-top  { fill: var(--facet-top-fill); }
+  .facet-side { fill: var(--facet-side-fill); }
+  .facet-dark { fill: var(--facet-dark-fill); }
+  .cube.brighten{
+    --facet-top-fill:#ffffff; --facet-side-fill:#f5f5f5; --facet-dark-fill:#8c8c8c;
+  }
+
+  /* Labels (single NOTE/KEY line) */
+  .note{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Overpass Mono", monospace;
+    font-size:12px; font-weight:600;
+    fill:#fff; opacity:.78; user-select:none;
+  }
+  .note.lit{ opacity:1; }
+
+/* ===== Recorder bar (wraps) ===== */
+.rec{
+  position:fixed; left:0; right:0; bottom:0; z-index:2;
+  /* now auto-height, but don’t grow too tall */
+  --rec-max-h: 40vh;
+  min-height: var(--rec-h);
+  max-height: var(--rec-max-h);
+
+  background:var(--rec-bg);
+  backdrop-filter: blur(4px);
+  display:flex; align-items:flex-end; gap:18px;   /* align to bottom edge */
+  padding:12px 14px;
+  overflow:hidden; /* keep inner scrolling on the track */
+}
+.rec .controls{
+  display:flex; align-items:center; gap:10px; flex:0 0 auto;
+  color:var(--rec-fg);
+}
+.btn{
+  display:inline-grid; place-items:center;
+  width:28px; height:28px; border-radius:8px;
+  background:rgb(255 255 255 / .06);
+  border:1px solid rgb(255 255 255 / .12);
+  cursor:pointer; user-select:none;
+  transition:transform .05s ease, background .2s ease, border-color .2s ease;
+}
+.btn:hover{ background:rgb(255 255 255 / .12); }
+.btn:active{ transform:translateY(1px); }
+.ico{ width:14px; height:14px; display:block; }
+.ico rect, .ico path{ fill:var(--rec-fg); }
+
+/* WRAPPING TRACK */
+.rec .track{
+  min-width:0; flex:1 1 auto;
+  height:100%;
+  overflow-x:hidden;      /* no sideways scroll */
+  overflow-y:auto;        /* scroll if we exceed max height */
+}
+.rec .row{
+  display:flex;
+  align-items:flex-end;
+  align-content:flex-end; /* pack rows to the bottom */
+  flex-wrap:wrap;         /* <<< allow wrap */
+  gap: var(--rec-gap) 12px;
+  padding-right:14px;
 }
 
-/* ========================  BASE + GRID  ======================== */
-html,body{height:100%}
-body{
-  margin:0; color:#e8e8e8; background:var(--bg);
-  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-  overflow:hidden;
-  background-image:
-    repeating-linear-gradient(30deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
-    repeating-linear-gradient(90deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
-    repeating-linear-gradient(150deg, var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
-    repeating-linear-gradient(30deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
-    repeating-linear-gradient(90deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
-    repeating-linear-gradient(150deg, transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4));
-  background-attachment:fixed,fixed,fixed,fixed,fixed,fixed;
-  font:14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+/* event chip */
+.rec .evt{
+  position:relative; display:inline-grid; justify-items:center; gap:4px;
+  padding-bottom:2px;
 }
-
-/* ========================  LOGO (replaces .brand) ======================== */
-.logo-lockup{
-  position:fixed;
-  left: calc(env(safe-area-inset-left, 0px) + var(--logo-inset));
-  top:  calc(env(safe-area-inset-top,  0px) + var(--logo-inset));
-  z-index:3;
-  line-height:0; user-select:none;
-  pointer-events:none; /* keep interactions clear */
+.rec .evt .mini{
+  width:var(--rec-cube-w); height:auto; display:block;
 }
-.logo-lockup img{
-  width:var(--logo-w); height:auto; display:block;
+/* outlined mini cube */
+.mini .facet-top,
+.mini .facet-side,
+.mini .facet-dark{ fill:transparent; stroke:#bdbdbd; stroke-width:.8; }
+
+.rec .evt .txt{
+  font:600 var(--rec-note-size)/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color:var(--rec-muted); letter-spacing:.02em; user-select:none;
 }
-
-/* ========================  LAYERS ======================== */
-#isoCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
-#stage{ position:fixed; inset:0; z-index:1; overflow:visible; }
-
-/* ========================  CUBES  ======================== */
-.cube{
-  cursor:pointer; outline:none;
-  --facet-top-fill:  #ffffff; /* default (normal) */
-  --facet-side-fill: #ededed;
-  --facet-dark-fill: #767676;
-  /* depth blur: per-cube via --depth-blur set in JS */
-  filter: blur(var(--depth-blur, 0px));
-  transition: filter .25s ease, transform .06s ease;
+.rec .evt:hover .txt{ color:#fff; }
+.rec .evt:hover::after{
+  content:"✕";
+  position:absolute; inset:auto auto 32px 50%; transform:translateX(-50%);
+  font:600 12px/1 ui-monospace, Menlo, monospace; color:var(--rec-danger);
+  pointer-events:none;
 }
-.cube:where(:hover, :focus-visible, .brighten){ filter: blur(0px); }
-.cube:focus-visible{ outline:2px dashed #bbb; outline-offset:4px; border-radius:6px; }
-.cube *{ transition:fill var(--facet-ease); }
-@media (prefers-reduced-motion:reduce){
-  .cube, .cube *{ transition:none !important; }
-}
-
-/* Facet fills come from CSS custom properties so they cascade through <use> */
-.facet-top  { fill: var(--facet-top-fill); }
-.facet-side { fill: var(--facet-side-fill); }
-.facet-dark { fill: var(--facet-dark-fill); }
-
-/* Brighten state only tweaks those three classes */
-.cube.brighten{
-  --facet-top-fill:#ffffff;
-  --facet-side-fill:#f5f5f5;
-  --facet-dark-fill:#8c8c8c;
-}
-
-/* ========================  LABELS  ======================== */
-.note, .key {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Overpass Mono", monospace;
-  fill:#fff; user-select:none;
-}
-.note{ font-size:12px; font-weight:600; opacity:.78; } /* default 78% */
-.key { font-size:11px; font-weight:500; opacity:.78; }
-
-/* when a cube is active, bump the *sibling* labels to 100% via JS-added class on <text> if desired,
-   or keep as-is and let JS toggle style directly. (Current implementation toggles .brighten on cube) */
-.text-active { opacity:1; }
-
-/* a11y live region */
-.visually-hidden{
-  position:fixed; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap;
-  left:0; bottom:0;
-}
+.rec .evt.hit .mini .facet-top,
+.rec .evt.hit .mini .facet-side,
+.rec .evt.hit .mini .facet-dark{ stroke:#fff; }
 
 </style>
 </head>
 <body>
 
-<!-- logo -->
+<!-- Logo -->
 <div class="logo-lockup" aria-label="intoview">
-  <img
-    src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-horizontal-lockup-small.svg"
-    alt="intoview" />
+  <img src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-horizontal-lockup-small.svg" alt="intoview" />
 </div>
 
+<!-- highlight pulses -->
 <canvas id="isoCanvas" aria-hidden="true"></canvas>
 
-<!-- Stage that holds both rows (cubes + labels) -->
+<!-- Stage for rows -->
 <svg id="stage" role="group" aria-label="Isometric note cubes">
   <defs>
-    <!-- Your cube facets in a symbol; viewBox matches the sharp “front” cube bbox -->
     <symbol id="cubeSym" viewBox="182 0 86 96">
       <path class="facet-dark" d="M262.74 65.9205L224.305 87.8222V43.5893L262.74 21.9023V65.9205Z" />
       <path class="facet-top"  d="M224.088 0L185.867 22.1164L224.303 44.0182L262.738 21.9017L224.088 0Z" />
@@ -157,109 +204,180 @@ body{
   <g id="rowBottom"></g>
 </svg>
 
-<!-- a11y live region -->
-<div id="live" class="visually-hidden" aria-live="polite"></div>
+<!-- Recorder bar -->
+<div class="rec" role="region" aria-label="Recorded notes">
+  <div class="controls">
+    <button class="btn" id="btnPlay" title="Play">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M4 2v12l10-6-10-6z"/></svg>
+    </button>
+    <button class="btn" id="btnPause" title="Pause">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M3 2h4v12H3zM9 2h4v12H9z"/></svg>
+    </button>
+    <button class="btn" id="btnClear" title="Clear">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M2 3h12v2H2zM4 6h8l-1 8H5L4 6z"/></svg>
+    </button>
+  </div>
+  <div class="track">
+    <div id="seqRow" class="row" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- a11y live region (off-screen) -->
+<div id="live" style="position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;left:0;bottom:0;" aria-live="polite"></div>
 
 <script>
-/* ========================  KNOBS (layout + mapping)  ======================== */
-/* Natural notes from B3 → C7 (23 notes). We have 24 keys; map 0 and - as C7 alias. */
-const NATURALS_B3_TO_C7 = [
-  'b3','c4','d4','e4','f4','g4','a4','b4','c5','d5','e5','f5',
-  'g5','a5','b5','c6','d6','e6','f6','g6','a6','b6','c7'
+/* ================= Layout + mapping ================= */
+/* Bottom (left→right): C4…F5 on qwertyuiop[  */
+const bottomNotes = [
+  ['c4','q'], ['d4','w'], ['e4','e'], ['f4','r'], ['g4','t'],
+  ['a4','y'], ['b4','u'], ['c5','i'], ['d5','o'], ['e5','p'], ['f5','[']
 ];
 
-/* Row orders (low→high):
-   bottom row first (12), then top row (12) */
-const bottomKeys = ['Tab','q','w','e','r','t','y','u','i','o','p','['];
-const topKeys    = ['`','1','2','3','4','5','6','7','8','9','0','-'];
+/* Top (left→right): A5…C7 on 1–0  */
+const topNotes = [
+  ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'], ['e6','5'],
+  ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
+];
 
-/* Build key→note map */
-const keyToNotePairs = [];
-// bottom 12: B3..F5 (first 12 naturals)
-for(let i=0;i<bottomKeys.length;i++){
-  keyToNotePairs.push([bottomKeys[i], NATURALS_B3_TO_C7[i]]);
-}
-// top 12: continue from G5..C7 (next 11), then alias last key to C7
-for(let j=0;j<topKeys.length;j++){
-  const idx = 12 + j;
-  const note = (idx < NATURALS_B3_TO_C7.length)
-    ? NATURALS_B3_TO_C7[idx]
-    : 'c7'; // alias for '0' and '-' keys
-  keyToNotePairs.push([topKeys[j], note]);
-}
-
-// Make two arrays of [note, key] for layout (labels show NOTE/KEY).
-const bottomNotes = bottomKeys.map((k, i)=>[NATURALS_B3_TO_C7[i], displayKey(k)]);
-const topNotes    = topKeys.map((k, j)=>{
-  const idx = 12 + j;
-  const n = (idx < NATURALS_B3_TO_C7.length) ? NATURALS_B3_TO_C7[idx] : 'c7';
-  return [n, displayKey(k)];
-});
-
-function displayKey(k){
-  // Render-friendly label for special keys
-  if(k==='Tab') return 'tab';
-  return k;
-}
-
-/* ========================  ISO math helpers  ======================== */
-const cos30 = Math.sqrt(3)/2, sin30 = 0.5;
+const cos30 = Math.sqrt(3)/2, sin30=0.5;
 function css(){ return getComputedStyle(document.documentElement); }
-function num(v, fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
-
+function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
 function readCell(){ return num(css().getPropertyValue('--iso-cell'), 32); }
 function basis(){
-  const CELL = readCell();
-  const v1 = {x: cos30*CELL,  y: sin30*CELL};   // 30°
-  const v2 = {x:-cos30*CELL,  y: sin30*CELL};   // 150°
-  const det = v1.x*v2.y - v2.x*v1.y;
-  const inv = { a: v2.y/det, b:-v2.x/det, c:-v1.y/det, d: v1.x/det };
-  return {CELL, v1, v2, inv};
+  const CELL=readCell();
+  const v1={x:cos30*CELL, y:sin30*CELL};
+  const v2={x:-cos30*CELL, y:sin30*CELL};
+  const det=v1.x*v2.y - v2.x*v1.y;
+  const inv={a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
+  return {CELL,v1,v2,inv};
 }
-let B = basis();
+let B=basis();
 addEventListener('resize', ()=>{ layoutAll(); }, {passive:true});
-
-/* lattice conversion */
-function toXY(I,J){ return { x: I*B.v1.x + J*B.v2.x, y: I*B.v1.y + J*B.v2.y }; }
+function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
 function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
 
-/* ========================  Pulses canvas  ======================== */
-(function(){
-  const canvas = document.getElementById('isoCanvas');
-  const ctx = canvas.getContext('2d');
-  function toPx(len){ const m=String(len).trim().match(/^([0-9.]+)\s*px$/i); return m?parseFloat(m[1]):0; }
+const stage=document.getElementById('stage');
+const rowTop=document.getElementById('rowTop');
+const rowBottom=document.getElementById('rowBottom');
 
-  let FILL_RGB='255 255 255', FILL_A=.22, STROKE_A=.55, FADE=900, BLUR_MIN='0px', BLUR_MAX='12px', BLUR_CURVE=1.35;
-  function read(){
-    const s=css();
-    FILL_RGB=(s.getPropertyValue('--iso-highlight-fill').trim()||'255 255 255');
-    FILL_A  =num(s.getPropertyValue('--iso-highlight-alpha'),.22);
-    STROKE_A=num(s.getPropertyValue('--iso-stroke-alpha'),.55);
-    FADE    =num(s.getPropertyValue('--iso-fade-ms'),900);
-    BLUR_MIN=s.getPropertyValue('--iso-blur-min').trim()||'0px';
-    BLUR_MAX=s.getPropertyValue('--iso-blur-max').trim()||'12px';
-    BLUR_CURVE=num(s.getPropertyValue('--iso-blur-curve'),1.35);
+function placeRow(container, startIJ, notes, blurMaxPx){
+  container.innerHTML='';
+  const w=num(css().getPropertyValue('--cube-size'), 36);
+  const h=w*(96/86);
+  const {I:ai, J:aj}=startIJ;
+  const N=notes.length;
+  notes.forEach(([note,key],idx)=>{
+    const I=ai+idx, J=aj;
+    const pC=toXY(I,J), pL=toXY(I,J+2);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','cube'); g.setAttribute('tabindex','0');
+    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
+    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
+    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
+    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+
+    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
+    u.setAttribute('width', w); u.setAttribute('height', h);
+    g.appendChild(u);
+
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('class','note');
+    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lbl.textContent=`${note.toUpperCase()}/${key}`;
+    lbl.dataset.noteFor=note;
+
+    container.appendChild(g);
+    container.appendChild(lbl);
+  });
+}
+function measureBounds(){
+  const uses=stage.querySelectorAll('use');
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  uses.forEach(u=>{
+    const x=+u.getAttribute('x'), y=+u.getAttribute('y');
+    const w=+u.getAttribute('width'), h=+u.getAttribute('height');
+    minX=Math.min(minX,x); minY=Math.min(minY,y);
+    maxX=Math.max(maxX,x+w); maxY=Math.max(maxY,y+h);
+  });
+  return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
+}
+function layoutAll(){
+  const vw=innerWidth, vh=innerHeight, margin=Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
+  const baseCell=num(css().getPropertyValue('--iso-cell-base'), 32);
+  const baseCube=num(css().getPropertyValue('--cube-size-base'), 36);
+  const sepJ = vw<560 ? 9 : 7;
+  const offsetTop={dI:2, dJ:-sepJ};
+  const tryLayout=(scale)=>{
+    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
+    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
     B=basis();
-  }
-  function resize(){
-    const dpr=Math.max(1, devicePixelRatio||1);
-    canvas.width = Math.floor(innerWidth*dpr);
-    canvas.height= Math.floor(innerHeight*dpr);
-    canvas.style.width = innerWidth+'px';
-    canvas.style.height= innerHeight+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    read();
-  }
-  addEventListener('resize', resize, {passive:true}); resize();
+    const centerIJ=snap(vw/2, vh/2 - 20);
+    const startBottomIJ={I:centerIJ.I - Math.floor(bottomNotes.length/2), J:centerIJ.J + 2};
+    const startTopIJ={I:startBottomIJ.I + offsetTop.dI, J:startBottomIJ.J + offsetTop.dJ};
+    placeRow(rowBottom, startBottomIJ, bottomNotes, 2.4*scale);
+    placeRow(rowTop,    startTopIJ,    topNotes,    2.8*scale);
+    const b=measureBounds();
+    const needW=vw-margin*2, needH=vh - margin*2 - parseInt(getComputedStyle(document.querySelector('.rec')).height);
+    const sW=needW/b.width, sH=needH/b.height;
+    return {neededScale:Math.min(1,sW,sH), bounds:b, startBottomIJ, startTopIJ};
+  };
+  let pass=tryLayout(1);
+  pass=tryLayout(pass.neededScale);
+  const dx=vw/2 - pass.bounds.cx, dy=(vh - parseInt(getComputedStyle(document.querySelector('.rec')).height))/2 - pass.bounds.cy;
+  const offsetIJ=(ij,dx,dy)=>{ const p0=toXY(ij.I,ij.J); const p={x:p0.x+dx,y:p0.y+dy}; return snap(p.x,p.y); };
+  const nb=offsetIJ(pass.startBottomIJ,dx,dy);
+  const nt=offsetIJ(pass.startTopIJ,dx,dy);
+  rowBottom.innerHTML=''; rowTop.innerHTML='';
+  placeRow(rowBottom, nb, bottomNotes, 2.4);
+  placeRow(rowTop,    nt, topNotes,    2.8);
+}
+layoutAll();
 
+/* ================= Audio + pulses ================= */
+let AC=null, master=null;
+function ensureAudio(){
+  if(!AC){ const C=window.AudioContext||window.webkitAudioContext; AC=new C(); master=AC.createGain(); master.gain.value=1.0; master.connect(AC.destination); }
+  if(AC.state==='suspended') AC.resume();
+}
+function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+function parseNote(n){
+  const p=n.toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
+  const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]]; const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
+  return 12*(oct+1)+base+alt;
+}
+function ping(note,{hold=false,vel=.95}={}){
+  ensureAudio();
+  const midi=typeof note==='number'?note:parseNote(note);
+  const f=midiToFreq(midi), t0=AC.currentTime+0.002;
+  const o1=AC.createOscillator(), o2=AC.createOscillator();
+  o1.type='triangle'; o2.type='sine'; o1.frequency.value=f; o2.frequency.value=f*2;
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=.8;
+  const g=AC.createGain(); g.gain.setValueAtTime(0.0001,t0);
+  g.gain.linearRampToValueAtTime(.85*vel,t0+.01);
+  g.gain.exponentialRampToValueAtTime(0.0002,t0+(hold?0.48:0.26));
+  lp.frequency.setValueAtTime(5200,t0); lp.frequency.exponentialRampToValueAtTime(1400,t0+.22);
+  o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(master);
+  o1.start(t0); o2.start(t0);
+  const stop=()=>{ const t=AC.currentTime; g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0.0001,t,0.25); setTimeout(()=>{ try{o1.stop();o2.stop();}catch{} },300); };
+  if(!hold) setTimeout(stop,300); return stop;
+}
+function buzz(ms=8){ if(navigator.vibrate) navigator.vibrate(ms); }
+
+/* Pulses canvas (same as before, trimmed) */
+(function(){
+  const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
+  function toPx(len){ const m=String(len).trim().match(/^([0-9.]+)\s*px$/i); return m?parseFloat(m[1]):0; }
+  let FILL_RGB='255 255 255',FILL_A=.22,STROKE_A=.55,FADE=900,BLUR_MIN='0px',BLUR_MAX='12px',BLUR_CURVE=1.35;
+  const easeOut=u=>1-(1-u)*(1-u), clamp=x=>x<0?0:x>1?1:x;
+  function read(){ const s=css(); FILL_RGB=(s.getPropertyValue('--iso-highlight-fill').trim()||'255 255 255'); FILL_A=num(s.getPropertyValue('--iso-highlight-alpha'),.22); STROKE_A=num(s.getPropertyValue('--iso-stroke-alpha'),.55); FADE=num(s.getPropertyValue('--iso-fade-ms'),900); BLUR_MIN=s.getPropertyValue('--iso-blur-min').trim()||'0px'; BLUR_MAX=s.getPropertyValue('--iso-blur-max').trim()||'12px'; BLUR_CURVE=num(s.getPropertyValue('--iso-blur-curve'),1.35); B=basis(); }
+  function resize(){ const dpr=Math.max(1,devicePixelRatio||1); canvas.width=Math.floor(innerWidth*dpr); canvas.height=Math.floor(innerHeight*dpr); canvas.style.width=innerWidth+'px'; canvas.style.height=innerHeight+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); read(); }
+  addEventListener('resize',resize,{passive:true}); resize();
   const pulses=[]; let anim=false;
-  const easeOut = u => 1-(1-u)*(1-u), clamp = x=>x<0?0:x>1?1:x;
   function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
-  function cellPoly(I,J){
-    const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
-    const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y+d.y)/4;
-    return {pts:[a,b,c,d], cx, cy};
-  }
+  function cell(I,J){ const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1); const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y+d.y)/4; return {pts:[a,b,c,d],cx,cy}; }
   function tick(now){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     let alive=0;
@@ -267,212 +385,80 @@ function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {
       const age=now-p.t; if(age>=FADE) continue; alive++;
       const u=age/FADE, inv=1-u;
       const fillA=easeOut(inv)*FILL_A, strokeA=inv*STROKE_A;
-      const {pts,cx,cy}=cellPoly(p.I,p.J);
-      const dist=Math.hypot(cx-innerWidth/2, cy-innerHeight/2);
+      const {pts,cx,cy}=cell(p.I,p.J);
+      const dist=Math.hypot(cx-innerWidth/2,cy-innerHeight/2);
       const t=Math.pow(clamp(dist/Math.hypot(innerWidth,innerHeight)/0.5), BLUR_CURVE>0?BLUR_CURVE:1);
       const blur=toPx(BLUR_MIN)+(toPx(BLUR_MAX)-toPx(BLUR_MIN))*t;
-      ctx.filter=`blur(${blur}px)`;
-      ctx.fillStyle=`rgb(${FILL_RGB} / ${fillA})`; draw(pts); ctx.fill();
-      ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${strokeA})`; ctx.stroke();
-      ctx.filter='none';
+      ctx.filter=`blur(${blur}px)`; ctx.fillStyle=`rgb(${FILL_RGB} / ${fillA})`; draw(pts); ctx.fill(); ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${strokeA})`; ctx.stroke(); ctx.filter='none';
     }
-    if(alive!==pulses.length){
-      const cut=now-FADE; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
-    }
+    if(alive!==pulses.length){ const cut=now-FADE; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1); }
     if(alive>0) requestAnimationFrame(tick); else anim=false;
   }
   function push(I,J){ pulses.push({I,J,t:performance.now()}); if(!anim){ anim=true; requestAnimationFrame(tick); } }
-  window.isoPulse = push;
-
-  // pointer trail
-  let last=null;
-  addEventListener('pointermove', e=>{
-    const {I,J}=snap(e.clientX,e.clientY); const k=I+','+J;
-    if(k!==last){ last=k; push(I,J); }
-  }, {passive:true});
+  window.isoPulse=push;
+  let last=null; addEventListener('pointermove', e=>{ const {I,J}=snap(e.clientX,e.clientY); const k=I+','+J; if(k!==last){ last=k; push(I,J); } }, {passive:true});
   addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
 })();
 
-/* ========================  Audio  ======================== */
-let AC=null, master=null;
-function ensureAudio(){
-  if(!AC){
-    const C=window.AudioContext||window.webkitAudioContext;
-    AC=new C();
-    master=AC.createGain(); master.gain.value=1.0;
-    master.connect(AC.destination);
-  }
-  if(AC.state==='suspended') AC.resume();
-}
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) try{ AC?.resume?.(); }catch{} });
+/* ================= Play + record ================= */
+const live=document.getElementById('live');
 
-function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
-function parseNote(n){
-  const p=n.toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
-  const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]]; const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
-  return 12*(oct+1) + base + alt;
-}
-function ping(note, {hold=false, vel=.95}={}){
-  ensureAudio();
-  const midi = typeof note==='number'? note : parseNote(note);
-  const f = midiToFreq(midi);
-  const t0 = AC.currentTime+0.002;
-
-  const o1=AC.createOscillator(); o1.type='triangle'; o1.frequency.value=f;
-  const o2=AC.createOscillator(); o2.type='sine';     o2.frequency.value=f*2;
-
-  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=.8;
-  const g=AC.createGain();
-
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.linearRampToValueAtTime(.85*vel, t0+.01);
-  g.gain.exponentialRampToValueAtTime(0.0002, t0 + (hold?0.48:0.26));
-
-  lp.frequency.setValueAtTime(5200, t0);
-  lp.frequency.exponentialRampToValueAtTime(1400, t0+.22);
-
-  o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(master);
-  o1.start(t0); o2.start(t0);
-
-  const stop=()=>{ const t=AC.currentTime; g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0.0001,t,0.25); setTimeout(()=>{ try{o1.stop();o2.stop();}catch{} }, 300); };
-  if(!hold) setTimeout(stop, 300);
-  return stop;
-}
-function buzz(ms=8){ if(navigator.vibrate) navigator.vibrate(ms); }
-
-/* ========================  Build + Layout ======================== */
-const stage = document.getElementById('stage');
-const rowTop = document.getElementById('rowTop');
-const rowBottom = document.getElementById('rowBottom');
-const live = document.getElementById('live');
-
-function placeRow(container, startIJ, notes, blurMaxPx){
-  container.innerHTML='';
-  const w = num(css().getPropertyValue('--cube-size'), 36);
-  const h = w * (96/86);
-  const {I:ai, J:aj} = startIJ;
-
-  const N = notes.length;
-  notes.forEach(([note, key], idx)=>{
-    const I = ai + idx, J = aj;
-
-    // cube center
-    const pC = toXY(I, J);
-
-    // label anchor: two iso cells below the cube
-    const pL = toXY(I, J + 2);
-
-    // cube group
-    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.setAttribute('class','cube');
-    g.setAttribute('tabindex','0');
-    g.setAttribute('role','button');
-    g.setAttribute('aria-label', `note ${note}`);
-    g.dataset.note = note;
-    g.dataset.I = I; g.dataset.J = J;
-
-    // progressive depth blur (farther back = blurrier)
-    const amt = blurMaxPx * ( (N-1-idx) / (N-1 || 1) );
-    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
-
-    // cube sprite
-    const u = document.createElementNS('http://www.w3.org/2000/svg','use');
-    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
-    u.setAttribute('x', pC.x - w/2);
-    u.setAttribute('y', pC.y - h/2);
-    u.setAttribute('width',  w);
-    u.setAttribute('height', h);
-    g.appendChild(u);
-
-    // label NOTE/KEY (e.g. B4/m), default opacity .78 (CSS), goes 1.0 when cube brightens
-    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
-    lbl.setAttribute('class','note');
-    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
-    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
-    lbl.textContent = `${note.toUpperCase()}/${key}`;
-
-    container.appendChild(g);
-    container.appendChild(lbl);
-  });
+function flashLabel(note){
+  const lbl=[...stage.querySelectorAll('.note')].find(n=>n.dataset.noteFor===note);
+  if(!lbl) return; lbl.classList.add('lit'); setTimeout(()=>lbl.classList.remove('lit'), 220);
 }
 
+/* Recorder state */
+const seqRow=document.getElementById('seqRow');
+const sequence=[]; // [{note, li}]
+let playing=false, playIdx=0, playTimer=null, stepMs=220;
 
-/* compute union bounds of both rows (in px, after placement) */
-function measureBounds(){
-  const uses = stage.querySelectorAll('use');
-  let minX= Infinity, minY= Infinity, maxX=-Infinity, maxY=-Infinity;
-  uses.forEach(u=>{
-    const x = parseFloat(u.getAttribute('x'));
-    const y = parseFloat(u.getAttribute('y'));
-    const w = parseFloat(u.getAttribute('width'));
-    const h = parseFloat(u.getAttribute('height'));
-    minX = Math.min(minX, x);   minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x+w); maxY = Math.max(maxY, y+h);
-  });
-  return {minX, minY, maxX, maxY, width:maxX-minX, height:maxY-minY, cx:(minX+maxX)/2, cy:(minY+maxY)/2};
+function addToSequence(note){
+  const li=document.createElement('div'); li.className='evt'; li.title=`Delete ${note}`;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('class','mini'); svg.setAttribute('viewBox','182 0 86 96'); svg.setAttribute('width','22'); svg.setAttribute('height','24');
+  const use=document.createElementNS('http://www.w3.org/2000/svg','use'); use.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+  svg.appendChild(use);
+  const cap=document.createElement('div'); cap.className='txt'; cap.textContent=note.toUpperCase();
+  li.appendChild(svg); li.appendChild(cap);
+  li.addEventListener('click', ()=>removeEvent(li));
+  li.addEventListener('mouseenter', ()=>li.classList.add('hit'));
+  li.addEventListener('mouseleave', ()=>li.classList.remove('hit'));
+  seqRow.appendChild(li);
+  sequence.push({note, li});
 }
-
-/* Main layout */
-function layoutAll(){
-  const vw = innerWidth, vh = innerHeight, margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
-
-  const baseCell = num(css().getPropertyValue('--iso-cell-base'), 32);
-  const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
-
-  const sepJ = vw < 560 ? 9 : 7;   // vertical-ish space between rows (in J)
-  const offsetTop = {dI: 2, dJ: -sepJ};
-
-  const tryLayout = (scale)=>{
-    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
-    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
-    B = basis();
-
-    const centerIJ = snap(vw/2, vh/2);
-    const startBottomIJ = { I: centerIJ.I - Math.floor(bottomNotes.length/2), J: centerIJ.J + 2 };
-    const startTopIJ    = { I: startBottomIJ.I + offsetTop.dI, J: startBottomIJ.J + offsetTop.dJ };
-
-    placeRow(rowBottom, startBottomIJ, bottomNotes, /*blurMax*/ 2.4*scale);
-    placeRow(rowTop,    startTopIJ,    topNotes,    /*blurMax*/ 2.8*scale);
-
-    const b = measureBounds();
-    const needW = vw - margin*2, needH = vh - margin*2;
-    const sW = needW / b.width,  sH = needH / b.height;
-    return {scaleUsed:scale, neededScale: Math.min(1, sW, sH), bounds:b, startBottomIJ, startTopIJ};
-  };
-
-  let pass = tryLayout(1);
-  const finalScale = pass.neededScale;
-  pass = tryLayout(finalScale);
-
-  const dx = vw/2 - pass.bounds.cx;
-  const dy = vh/2 - pass.bounds.cy;
-
-  function offsetIJ(ij, deltaX, deltaY){
-    const p0 = toXY(ij.I, ij.J);
-    const p = { x: p0.x + deltaX, y: p0.y + deltaY };
-    return snap(p.x, p.y);
-  }
-  const nb = offsetIJ(pass.startBottomIJ, dx, dy);
-  const nt = offsetIJ(pass.startTopIJ,    dx, dy);
-
-  rowBottom.innerHTML = ''; rowTop.innerHTML = '';
-  placeRow(rowBottom, nb, bottomNotes, 2.4*finalScale);
-  placeRow(rowTop,    nt, topNotes,    2.8*finalScale);
+function removeEvent(li){
+  const idx=sequence.findIndex(x=>x.li===li); if(idx>=0){ sequence.splice(idx,1); li.remove(); }
 }
-layoutAll();
+function clearAll(){ sequence.splice(0,sequence.length); seqRow.innerHTML=''; stopPlay(); }
 
-/* ========================  Interactions  ======================== */
-let sustain=false;
-const pressed = new Map();
+function stepPlay(){
+  if(sequence.length===0){ stopPlay(); return; }
+  if(playIdx>=sequence.length){ stopPlay(true); return; }
+  const {note, li}=sequence[playIdx++];
+  li.classList.add('hit'); setTimeout(()=>li.classList.remove('hit'), 180);
+  ensureAudio(); ping(note); flashLabel(note); live.textContent=`Played ${note}`;
+  playTimer=setTimeout(stepPlay, stepMs);
+}
+function startPlay(){ if(playing||sequence.length===0) return; playing=true; playIdx=0; stepPlay(); }
+function pausePlay(){ if(!playing) return; clearTimeout(playTimer); playing=false; }
+function stopPlay(end=false){ clearTimeout(playTimer); playing=false; if(end) playIdx=0; }
 
-function playCube(g, viaHover=false){
+/* UI buttons */
+document.getElementById('btnPlay').addEventListener('click', startPlay);
+document.getElementById('btnPause').addEventListener('click', pausePlay);
+document.getElementById('btnClear').addEventListener('click', clearAll);
+
+/* ================= Interactions ================= */
+let sustain=false; const pressed=new Map();
+
+function playCube(g, {viaHover=false, record=false} = {}){
   const note = g.dataset.note;
-  const stop = ping(note, {hold:sustain});
-  pressed.set(g, stop);
+  const stop = ping(note,{hold:sustain}); pressed.set(g, stop);
   g.classList.add('brighten');
   const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
-  live.textContent = `Played ${note}`;
-  buzz();
+  flashLabel(note);
+  if(record) addToSequence(note);
   if(!sustain && !viaHover){ setTimeout(()=>releaseCube(g), 240); }
 }
 function releaseCube(g){
@@ -480,66 +466,51 @@ function releaseCube(g){
   const stop=pressed.get(g); if(stop){ stop(); pressed.delete(g); }
 }
 
-/* pointer */
+/* pointer — CLICK/TAP records */
 stage.addEventListener('pointerdown', e=>{
   const g = e.target.closest('.cube'); if(!g) return;
-  e.preventDefault(); ensureAudio(); playCube(g);
+  e.preventDefault(); ensureAudio(); playCube(g, {record:true});
 }, {passive:false});
-addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
+addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten')
+  .forEach(g=>{ if(!sustain) releaseCube(g); }); });
 
-/* hover should also play (desktop). */
+/* hover — plays but DOES NOT record */
 let lastHover=null;
 stage.addEventListener('pointerenter', e=>{
   const g = e.target.closest?.('.cube'); if(!g) return;
   if(lastHover===g) return;
-  lastHover=g; ensureAudio(); playCube(g, /*viaHover*/true);
+  lastHover=g; ensureAudio(); playCube(g, {viaHover:true, record:false});
 }, true);
 stage.addEventListener('pointerleave', e=>{
   const g = e.target.closest?.('.cube'); if(!g) return;
   lastHover=null; if(!sustain) releaseCube(g);
 }, true);
 
-/* keyboard mapping */
-const keyMap = new Map(keyToNotePairs.map(([k,n])=>[k,n]));
+/* keyboard — plays AND records */
+const keyMap = new Map([...bottomNotes, ...topNotes].map(([n,k])=>[k, n]));
 document.addEventListener('keydown', e=>{
   if(e.repeat) return;
   if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
-
-  let key = e.key;
-  // normalize special keys to our labels
-  if(e.code==='Tab'){ key='Tab'; e.preventDefault(); }   // prevent focus travel
-  if(e.code==='Backquote') key='`';
-  if(e.code==='Backslash') key='\\';  // (not used now, but harmless)
-  if(e.code==='BracketLeft') key='[';
-
-  if(!keyMap.has(key)) return;
-  const note = keyMap.get(key);
-  const g = [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
-  if(!g) return;
-  ensureAudio(); playCube(g, true);
-});
-
-document.addEventListener('keyup', e=>{
-  if(e.code==='Space'){ sustain=false; document.querySelectorAll('.cube.brighten').forEach(releaseCube); return; }
-  let key = e.key;
-  if(e.code==='Tab'){ key='Tab'; e.preventDefault(); }
-  if(e.code==='Backquote') key='`';
+  let key=e.key;
   if(e.code==='Backslash') key='\\';
   if(e.code==='BracketLeft') key='[';
-  const note = keyMap.get(key); if(!note) return;
-  const g = [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(!keyMap.has(key)) return;
+  const note=keyMap.get(key);
+  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(!g) return;
+  ensureAudio(); playCube(g, {record:true});  // record keystrokes
+});
+document.addEventListener('keyup', e=>{
+  if(e.code==='Space'){ sustain=false; document.querySelectorAll('.cube.brighten').forEach(releaseCube); return; }
+  let key=e.key; if(e.code==='Backslash') key='\\'; if(e.code==='BracketLeft') key='[';
+  const note=keyMap.get(key); if(!note) return;
+  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
   if(g) releaseCube(g);
 });
 
-/* keyboard focus click */
-stage.addEventListener('keydown', e=>{
-  const g=e.target.closest('.cube'); if(!g) return;
-  if(e.key==='Enter' || e.key===' '){ e.preventDefault(); ensureAudio(); playCube(g, true); }
-});
-stage.addEventListener('keyup', e=>{
-  const g=e.target.closest('.cube'); if(!g) return;
-  if(e.key==='Enter' || e.key===' '){ if(!sustain) releaseCube(g); }
-});
+/* build rows now that handlers exist */
+layoutAll();
+
 </script>
 </body>
 </html>
