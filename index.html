@@ -301,6 +301,36 @@
 <div id="live" style="position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;left:0;bottom:0;" aria-live="polite"></div>
 
 <script>
+/* ================================
+   intoview.pro — iso cubes keyboard
+   Full JavaScript
+   ================================ */
+
+/* ===== Info tooltip (click toggle + ESC/outside close) ===== */
+(() => {
+  const infoWrap = document.getElementById('infoWrap');
+  const infoBtn  = document.getElementById('infoBtn');
+  if (!infoWrap || !infoBtn) return;
+
+  const setOpen = (open) => {
+    infoWrap.dataset.open = String(open);
+    infoBtn.setAttribute('aria-expanded', String(open));
+  };
+
+  infoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setOpen(infoWrap.dataset.open !== 'true');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!infoWrap.contains(e.target)) setOpen(false);
+  }, { passive: true });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setOpen(false);
+  }, { passive: true });
+})();
+
 /* ================= Layout + mapping ================= */
 /* Bottom (left→right) */
 const bottomNotes = [
@@ -721,14 +751,23 @@ stage.addEventListener('pointerdown', e=>{
 },{passive:false});
 addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
 
-/* hover — plays but DOES NOT record (robust bubbling) */
+/* ===== Hover logging pause (Shift to pause) ===== */
+let hoverLogPaused = false;
+addEventListener('keydown', (e) => {
+  if (e.key === 'Shift') hoverLogPaused = true;
+}, { passive: true });
+addEventListener('keyup', (e) => {
+  if (e.key === 'Shift') hoverLogPaused = false;
+}, { passive: true });
+
+/* hover — plays; logs unless Shift is held */
 let lastHover = null;
 stage.addEventListener('pointerover', (e) => {
   const g = e.target.closest('.cube');
   if (!g || lastHover === g) return;
   lastHover = g;
   ensureAudio();
-  playCube(g, { viaHover: true, record: false });
+  playCube(g, { viaHover: true, record: !hoverLogPaused });
 }, true);
 stage.addEventListener('pointerout', (e) => {
   const g = e.target.closest('.cube'); if (!g) return;
@@ -771,6 +810,7 @@ document.addEventListener('keyup', e=>{
 
 /* build rows after handlers exist */
 layoutAll();
+
 
 </script>
 </body>
