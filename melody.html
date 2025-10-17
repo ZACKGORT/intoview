@@ -11,11 +11,11 @@
     /* bigger cubes; JS still scales to fit viewport */
     --cube-size-base: 56;            /* px (width); height comes from symbol ratio */
     --iso-cell-base:  56;            /* px per lattice cell; JS sets --iso-cell = scaled */
-  
+
     /* tiny per-label nudges around the lattice anchor (kept subtle) */
     --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
     --lbl-key-dx:   4px;  --lbl-key-dy: 12px;
-  
+
     /* iso grid look */
     --bg:#000;
     --grid-gap: 8px;
@@ -23,7 +23,7 @@
     --grid-thin: rgb(255 255 255 / calc(var(--grid-alpha) * .10));
     --grid-bold: rgb(255 255 255 / calc(var(--grid-alpha) * .24));
     --iso-cell:  calc(var(--iso-cell-base) * 1px); /* JS updates this */
-  
+
     /* highlight pulses */
     --iso-highlight-fill: 255 255 255;
     --iso-highlight-alpha:.22;
@@ -32,19 +32,22 @@
     --iso-blur-min: 0px;
     --iso-blur-max: 12px;
     --iso-blur-curve: 1.35;
-  
+
     /* facet transitions */
     --facet-ease:.18s ease;
-  
+
     /* default facet fills (exact to your SVG) */
     --facet-top-fill:  #ffffff;
     --facet-side-fill: #ededed;
     --facet-dark-fill: #767676;
-  
+
     /* JS writes this on layout */
     --cube-size: calc(var(--cube-size-base) * 1px);
+
+    /* logo size */
+    --logo-w: 150px;
   }
-  
+
   /* ========================  BASE + GRID  ======================== */
   html,body{height:100%}
   body{
@@ -61,20 +64,23 @@
     background-attachment:fixed,fixed,fixed,fixed,fixed,fixed;
     font:14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   }
-  
-  /* brand, upper-left */
-  .brand{
+
+  /* logo (replaces .brand) */
+  .logo-lockup{
     position:fixed; left:14px; top:10px; z-index:3;
-    font:600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing:.12em;
-    color:#dcdcdc; opacity:.9; user-select:none;
+    line-height:0; user-select:none;
+    pointer-events:none; /* keep interactions clear */
   }
-  
+  .logo-lockup img{
+    width:var(--logo-w); height:auto; display:block;
+  }
+
   /* pulse canvas under the SVG content */
   #isoCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
-  
+
   /* staging SVG for cubes + labels */
   #stage{ position:fixed; inset:0; z-index:1; overflow:visible; }
-  
+
   /* ========================  CUBES  ======================== */
   .cube{
     cursor:pointer; outline:none;
@@ -91,19 +97,19 @@
   @media (prefers-reduced-motion:reduce){
     .cube, .cube *{ transition:none !important; }
   }
-  
+
   /* Facet fills come from CSS custom properties so they cascade through <use> */
   .facet-top  { fill: var(--facet-top-fill); }
   .facet-side { fill: var(--facet-side-fill); }
   .facet-dark { fill: var(--facet-dark-fill); }
-  
+
   /* Brighten state only tweaks those three classes */
   .cube.brighten{
     --facet-top-fill:#ffffff;
     --facet-side-fill:#f5f5f5;
     --facet-dark-fill:#8c8c8c;
   }
-  
+
   /* Labels (mono look, restrained) */
   .note, .key {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Overpass Mono", monospace;
@@ -111,17 +117,23 @@
   }
   .note{ font-size:12px; font-weight:600; opacity:.95; }
   .key { font-size:11px; font-weight:500; opacity:.75; }
-  
+
   /* a11y live region */
   .visually-hidden{
     position:fixed; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap;
     left:0; bottom:0;
   }
-  </style>
+</style>
 </head>
 <body>
 
-<div class="brand">intoview</div>
+<!-- NEW: logo lockup -->
+<div class="logo-lockup" aria-label="intoview">
+  <img
+    src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-horizontal-lockup-small.svg"
+    alt="intoview" />
+</div>
+
 <canvas id="isoCanvas" aria-hidden="true"></canvas>
 
 <!-- Stage that holds both rows (cubes + labels) -->
@@ -143,15 +155,17 @@
 
 <script>
 /* ========================  KNOBS (layout + mapping)  ======================== */
-/* Row contents (matches your screenshot) */
+// bottom row: c4..e5  (10 cubes)  → qwertyuiop
 const bottomNotes = [
-  ['c4','z'], ['d4','x'], ['e4','c'], ['f4','v'], ['g4','b'],
-  ['a4','n'], ['b4','m'], ['c5',','], ['d5','.'], ['e5','/']
+  ['c4','q'], ['d4','w'], ['e4','e'], ['f4','r'], ['g4','t'],
+  ['a4','y'], ['b4','u'], ['c5','i'], ['d5','o'], ['e5','p']
 ];
+
+// top row: f5..d7  (13 cubes) → [ \ 1 2 3 4 5 6 7 8 9 0 -
 const topNotes = [
-  ['g5','`'], ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'],
-  ['e6','5'], ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'],
-  ['c7','0'], ['d7','-'], ['d7','='] /* = as alias; both will hit d7 */
+  ['f5','['], ['g5','\\'], ['a5','1'], ['b5','2'], ['c6','3'],
+  ['d6','4'], ['e6','5'], ['f6','6'], ['g6','7'], ['a6','8'],
+  ['b6','9'], ['c7','0'], ['d7','-']
 ];
 
 /* ========================  ISO math helpers  ======================== */
@@ -307,8 +321,14 @@ function placeRow(container, startIJ, notes, blurMaxPx){
   const N = notes.length;
   notes.forEach(([note, key], idx)=>{
     const I = ai + idx, J = aj;
-    const p = toXY(I, J);
 
+    // cube center
+    const pC = toXY(I, J);
+
+    // label anchor: two iso cells below the cube
+    const pL = toXY(I, J + 2);
+
+    // cube group
     const g = document.createElementNS('http://www.w3.org/2000/svg','g');
     g.setAttribute('class','cube');
     g.setAttribute('tabindex','0');
@@ -317,35 +337,31 @@ function placeRow(container, startIJ, notes, blurMaxPx){
     g.dataset.note = note;
     g.dataset.I = I; g.dataset.J = J;
 
-    /* progressive blur: earlier index = "farther back" = blurrier */
+    // progressive depth blur (farther back = blurrier)
     const amt = blurMaxPx * ( (N-1-idx) / (N-1 || 1) );
     g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
 
+    // cube sprite
     const u = document.createElementNS('http://www.w3.org/2000/svg','use');
     u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
-    u.setAttribute('x', p.x - w/2);
-    u.setAttribute('y', p.y - h/2);
+    u.setAttribute('x', pC.x - w/2);
+    u.setAttribute('y', pC.y - h/2);
     u.setAttribute('width',  w);
     u.setAttribute('height', h);
     g.appendChild(u);
 
-    const lblNote = document.createElementNS('http://www.w3.org/2000/svg','text');
-    lblNote.setAttribute('class','note');
-    lblNote.setAttribute('x', p.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
-    lblNote.setAttribute('y', p.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
-    lblNote.textContent = note;
-
-    const lblKey = document.createElementNS('http://www.w3.org/2000/svg','text');
-    lblKey.setAttribute('class','key');
-    lblKey.setAttribute('x', p.x + parseFloat(css().getPropertyValue('--lbl-key-dx')));
-    lblKey.setAttribute('y', p.y + parseFloat(css().getPropertyValue('--lbl-key-dy')));
-    lblKey.textContent = key;
+    // single label in NOTE/KEY format (e.g., B4/m)
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('class','note'); // keep the stronger weight
+    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lbl.textContent = `${note.toUpperCase()}/${key}`;
 
     container.appendChild(g);
-    container.appendChild(lblNote);
-    container.appendChild(lblKey);
+    container.appendChild(lbl);
   });
 }
+
 
 /* compute union bounds of both rows (in px, after placement) */
 function measureBounds(){
@@ -362,31 +378,21 @@ function measureBounds(){
   return {minX, minY, maxX, maxY, width:maxX-minX, height:maxY-minY, cx:(minX+maxX)/2, cy:(minY+maxY)/2};
 }
 
-/* Main layout:
-   - pick a scale so everything fits with margin
-   - for narrow screens, increase row separation
-   - center the union in the viewport
-*/
+/* Main layout */
 function layoutAll(){
-  // base numbers
   const vw = innerWidth, vh = innerHeight, margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
 
-  // choose scale that keeps everything in view:
-  // start with a trial layout to estimate bounds
   const baseCell = num(css().getPropertyValue('--iso-cell-base'), 32);
   const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
 
-  // trial: guess separation in lattice cells (more separation on small screens)
   const sepJ = vw < 560 ? 9 : 7;   // vertical-ish space between rows (in J)
   const offsetTop = {dI: 2, dJ: -sepJ};
 
-  // We'll iterate twice: estimate → scale → finalize.
   const tryLayout = (scale)=>{
     document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
     document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
     B = basis();
 
-    // choose anchor roughly near center, then center after measuring
     const centerIJ = snap(vw/2, vh/2);
     const startBottomIJ = { I: centerIJ.I - Math.floor(bottomNotes.length/2), J: centerIJ.J + 2 };
     const startTopIJ    = { I: startBottomIJ.I + offsetTop.dI, J: startBottomIJ.J + offsetTop.dJ };
@@ -400,14 +406,10 @@ function layoutAll(){
     return {scaleUsed:scale, neededScale: Math.min(1, sW, sH), bounds:b, startBottomIJ, startTopIJ};
   };
 
-  // pass 1: estimate
   let pass = tryLayout(1);
-  // pass 2: apply tighter scale if needed
   const finalScale = pass.neededScale;
   pass = tryLayout(finalScale);
 
-  // now center by offsetting both rows by the px delta to viewport center,
-  // then snap starts again so cubes remain on the lattice rhythm.
   const dx = vw/2 - pass.bounds.cx;
   const dy = vh/2 - pass.bounds.cy;
 
@@ -451,9 +453,8 @@ stage.addEventListener('pointerdown', e=>{
 }, {passive:false});
 addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
 
-/* hover should also play (desktop).
-   Debounce so tiny mouse wiggles over the same cube don't spam. */
-let lastHover=null, hoverTO=null;
+/* hover should also play (desktop). */
+let lastHover=null;
 stage.addEventListener('pointerenter', e=>{
   const g = e.target.closest?.('.cube'); if(!g) return;
   if(lastHover===g) return;
@@ -464,21 +465,26 @@ stage.addEventListener('pointerleave', e=>{
   lastHover=null; if(!sustain) releaseCube(g);
 }, true);
 
-/* keyboard mapping (includes alias for '=') */
+/* keyboard mapping */
 const keyMap = new Map([...bottomNotes, ...topNotes].map(([n,k])=>[k, n]));
 document.addEventListener('keydown', e=>{
   if(e.repeat) return;
   if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
-  let key = e.key; if(e.code==='Backquote') key='`';
+  let key = e.key;
+  if(e.code==='Backslash') key='\\';
+  if(e.code==='BracketLeft') key='[';
   if(!keyMap.has(key)) return;
   const note = keyMap.get(key);
   const g = [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
   if(!g) return;
   ensureAudio(); playCube(g, true);
 });
+
 document.addEventListener('keyup', e=>{
   if(e.code==='Space'){ sustain=false; document.querySelectorAll('.cube.brighten').forEach(releaseCube); return; }
-  let key = e.key; if(e.code==='Backquote') key='`';
+  let key = e.key;
+  if(e.code==='Backslash') key='\\';
+  if(e.code==='BracketLeft') key='[';
   const note = keyMap.get(key); if(!note) return;
   const g = [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
   if(g) releaseCube(g);
