@@ -10,11 +10,10 @@
   :root{
     /* bigger cubes; JS still scales to fit viewport */
     --cube-size-base: 56;            /* px (width); height comes from symbol ratio */
-    --iso-cell-base:  48;            /* px per lattice cell; JS sets --iso-cell = scaled */
+    --iso-cell-base:  56;            /* px per lattice cell; JS sets --iso-cell = scaled */
 
-    /* tiny per-label nudges around the lattice anchor (kept subtle) */
+    /* label nudges (applied two iso-cells below each cube) */
     --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
-    --lbl-key-dx:   4px;  --lbl-key-dy: 12px;
 
     /* iso grid look */
     --bg:#000;
@@ -110,13 +109,15 @@
     --facet-dark-fill:#8c8c8c;
   }
 
-  /* Labels (mono look, restrained) */
-  .note, .key {
+  /* Labels: default 78% opacity; 100% when their cube is active */
+  .note {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Overpass Mono", monospace;
-    fill:#fff; user-select:none;
+    font-size:12px; font-weight:600; fill:#fff; user-select:none;
+    opacity:.78;
+    transition:opacity .12s ease;
   }
-  .note{ font-size:12px; font-weight:600; opacity:.95; }
-  .key { font-size:11px; font-weight:500; opacity:.75; }
+  /* relies on DOM order: <g.cube> immediately followed by its <text.note> */
+  g.cube.brighten + text.note{ opacity:1; }
 
   /* a11y live region */
   .visually-hidden{
@@ -127,7 +128,7 @@
 </head>
 <body>
 
-<!-- NEW: logo lockup -->
+<!-- logo -->
 <div class="logo-lockup" aria-label="intoview">
   <img
     src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-horizontal-lockup-small.svg"
@@ -155,19 +156,45 @@
 
 <script>
 /* ========================  KNOBS (layout + mapping)  ======================== */
-// bottom row: b3..e5  (11 cubes)  → Tab + qwertyuiop
-const bottomNotes = [
-  ['b3','Tab'], ['c4','q'], ['d4','w'], ['e4','e'], ['f4','r'], ['g4','t'],
-  ['a4','y'], ['b4','u'], ['c5','i'], ['d5','o'], ['e5','p']
+/* Natural notes from B3 → C7 (23 notes). We have 24 keys; map 0 and - as C7 alias. */
+const NATURALS_B3_TO_C7 = [
+  'b3','c4','d4','e4','f4','g4','a4','b4','c5','d5','e5','f5',
+  'g5','a5','b5','c6','d6','e6','f6','g6','a6','b6','c7'
 ];
 
+/* Row orders (low→high):
+   bottom row first (12), then top row (12) */
+const bottomKeys = ['Tab','q','w','e','r','t','y','u','i','o','p','['];
+const topKeys    = ['`','1','2','3','4','5','6','7','8','9','0','-'];
 
-// top row: f5..d7  (13 cubes) → [ \ 1 2 3 4 5 6 7 8 9 0 -
-const topNotes = [
-  ['f5','['], ['g5','\\'], ['a5','1'], ['b5','2'], ['c6','3'],
-  ['d6','4'], ['e6','5'], ['f6','6'], ['g6','7'], ['a6','8'],
-  ['b6','9'], ['c7','0'], ['d7','-']
-];
+/* Build key→note map */
+const keyToNotePairs = [];
+// bottom 12: B3..F5 (first 12 naturals)
+for(let i=0;i<bottomKeys.length;i++){
+  keyToNotePairs.push([bottomKeys[i], NATURALS_B3_TO_C7[i]]);
+}
+// top 12: continue from G5..C7 (next 11), then alias last key to C7
+for(let j=0;j<topKeys.length;j++){
+  const idx = 12 + j;
+  const note = (idx < NATURALS_B3_TO_C7.length)
+    ? NATURALS_B3_TO_C7[idx]
+    : 'c7'; // alias for '0' and '-' keys
+  keyToNotePairs.push([topKeys[j], note]);
+}
+
+// Make two arrays of [note, key] for layout (labels show NOTE/KEY).
+const bottomNotes = bottomKeys.map((k, i)=>[NATURALS_B3_TO_C7[i], displayKey(k)]);
+const topNotes    = topKeys.map((k, j)=>{
+  const idx = 12 + j;
+  const n = (idx < NATURALS_B3_TO_C7.length) ? NATURALS_B3_TO_C7[idx] : 'c7';
+  return [n, displayKey(k)];
+});
+
+function displayKey(k){
+  // Render-friendly label for special keys
+  if(k==='Tab') return 'tab';
+  return k;
+}
 
 /* ========================  ISO math helpers  ======================== */
 const cos30 = Math.sqrt(3)/2, sin30 = 0.5;
@@ -351,9 +378,9 @@ function placeRow(container, startIJ, notes, blurMaxPx){
     u.setAttribute('height', h);
     g.appendChild(u);
 
-    // single label in NOTE/KEY format (e.g., B4/m)
+    // label NOTE/KEY (e.g. B4/m), default opacity .78 (CSS), goes 1.0 when cube brightens
     const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
-    lbl.setAttribute('class','note'); // keep the stronger weight
+    lbl.setAttribute('class','note');
     lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
     lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
     lbl.textContent = `${note.toUpperCase()}/${key}`;
@@ -467,17 +494,17 @@ stage.addEventListener('pointerleave', e=>{
 }, true);
 
 /* keyboard mapping */
-const keyMap = new Map([...bottomNotes, ...topNotes].map(([n,k])=>[k, n]));
+const keyMap = new Map(keyToNotePairs.map(([k,n])=>[k,n]));
 document.addEventListener('keydown', e=>{
   if(e.repeat) return;
   if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
 
   let key = e.key;
-  if(e.code==='Backslash') key='\\';
+  // normalize special keys to our labels
+  if(e.code==='Tab'){ key='Tab'; e.preventDefault(); }   // prevent focus travel
+  if(e.code==='Backquote') key='`';
+  if(e.code==='Backslash') key='\\';  // (not used now, but harmless)
   if(e.code==='BracketLeft') key='[';
-
-  // If we’re using Tab as a note, don't let it move focus
-  if(key === 'Tab') e.preventDefault();
 
   if(!keyMap.has(key)) return;
   const note = keyMap.get(key);
@@ -486,21 +513,17 @@ document.addEventListener('keydown', e=>{
   ensureAudio(); playCube(g, true);
 });
 
-
 document.addEventListener('keyup', e=>{
   if(e.code==='Space'){ sustain=false; document.querySelectorAll('.cube.brighten').forEach(releaseCube); return; }
-
   let key = e.key;
+  if(e.code==='Tab'){ key='Tab'; e.preventDefault(); }
+  if(e.code==='Backquote') key='`';
   if(e.code==='Backslash') key='\\';
   if(e.code==='BracketLeft') key='[';
-
-  if(key === 'Tab') e.preventDefault();
-
   const note = keyMap.get(key); if(!note) return;
   const g = [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
   if(g) releaseCube(g);
 });
-
 
 /* keyboard focus click */
 stage.addEventListener('keydown', e=>{
