@@ -8,8 +8,8 @@
 <style>
   :root{
     /* cube + lattice sizing (JS scales to fit viewport) */
-    --cube-size-base: 56;
-    --iso-cell-base:  56;
+    --cube-size-base: 64;
+    --iso-cell-base:  48;
     --iso-cell:  calc(var(--iso-cell-base) * 1px);
     --cube-size: calc(var(--cube-size-base) * 1px);
 
@@ -18,7 +18,7 @@
 
     /* background grid */
     --bg:#000;
-    --grid-gap: 8px;
+    --grid-gap: 4px;
     --grid-alpha:.10;
     --grid-thin: rgb(255 255 255 / calc(var(--grid-alpha) * .10));
     --grid-bold: rgb(255 255 255 / calc(var(--grid-alpha) * .24));
@@ -29,7 +29,7 @@
     --iso-stroke-alpha:.55;
     --iso-fade-ms: 900;
     --iso-blur-min: 0px;
-    --iso-blur-max: 12px;
+    --iso-blur-max: 72px;
     --iso-blur-curve: 1.35;
 
     /* facets + transitions */
@@ -37,9 +37,9 @@
     --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
 
     /* logo */
-    --logo-w: 172px;
-    --logo-pad-x: 20px;
-    --logo-pad-y: 14px;
+    --logo-w: 220px;
+    --logo-pad-x: 2rem;
+    --logo-pad-y: 2rem;
 
     /* recorder bar */
     --rec-h: 68px;
@@ -75,6 +75,47 @@
     mix-blend-mode:normal;
   }
   .logo-lockup img{ width:var(--logo-w); height:auto; display:block; }
+
+  /* ===== Info badge (top-right) ===== */
+  .info-wrap{
+    position:fixed; right:var(--logo-pad-x); top:var(--logo-pad-y); z-index:3;
+    display:inline-block; line-height:0;
+  }
+  .info-btn{
+    width:28px; height:28px; border-radius:999px;
+    display:grid; place-items:center;
+    background:rgb(255 255 255 / .06);
+    border:1px solid rgb(255 255 255 / .18);
+    color:#e8e8e8; font:700 14px/1 ui-monospace, Menlo, monospace;
+    cursor:pointer; user-select:none;
+    transition:background .2s ease, border-color .2s ease, transform .06s ease;
+  }
+  .info-btn:hover{ background:rgb(255 255 255 / .12); }
+  .info-btn:active{ transform:translateY(1px); }
+  .info-btn:focus-visible{ outline:2px solid #bbb; outline-offset:3px; }
+  .info-tooltip{
+    position:absolute; right:0; top:calc(100% + 10px);
+    width:min(64ch, 44vw); max-width:460px;
+    background:rgb(12 12 12 / .94); color:#e8e8e8;
+    border:1px solid rgb(255 255 255 / .14);
+    border-radius:12px; padding:12px 14px;
+    box-shadow:0 8px 24px rgb(0 0 0 / .45);
+    font:13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    pointer-events:none; opacity:0; transform:translateY(-6px);
+    transition:opacity .16s ease, transform .16s ease;
+  }
+  .info-tooltip::after{
+    content:""; position:absolute; top:-6px; right:14px; width:10px; height:10px;
+    background:inherit; border-left:1px solid rgb(255 255 255 / .14); border-top:1px solid rgb(255 255 255 / .14);
+    transform:rotate(45deg);
+  }
+  .info-wrap[data-open="true"] .info-tooltip,
+  .info-wrap:hover .info-tooltip{
+    opacity:1; transform:translateY(0); pointer-events:auto;
+  }
+  @media (max-width:520px){
+    .info-tooltip{ width:min(68vw, 56ch); right:-2px; }
+  }
 
   /* ===== Stage ===== */
   #isoCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
@@ -196,6 +237,16 @@
 <!-- Logo -->
 <div class="logo-lockup" aria-label="intoview">
   <img src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-horizontal-lockup-small.svg" alt="intoview" />
+</div>
+
+<!-- Info badge -->
+<div class="info-wrap" id="infoWrap" data-open="false">
+  <button class="info-btn" id="infoBtn" aria-expanded="false" aria-controls="infoTip" title="About this">
+    i
+  </button>
+  <div class="info-tooltip" id="infoTip" role="dialog" aria-modal="false">
+    I was working on a design system for my SaaS concept, when I got distracted:
+  </div>
 </div>
 
 <!-- highlight pulses -->
@@ -349,7 +400,7 @@ function layoutAll(){
   placeRow(rowBottom, nb, bottomNotes, 2.4);
   placeRow(rowTop,    nt, topNotes,    2.8);
 
-  // 🔧 Re-sync the pulse canvas basis after layout tweaks
+  // Re-sync the pulse canvas basis after layout tweaks
   window.dispatchEvent(new Event('resize'));
   window.dispatchEvent(new Event('iso:refresh'));
 }
@@ -705,9 +756,29 @@ document.addEventListener('keyup', e=>{
   if(g) releaseCube(g);
 });
 
+/* ===== Info badge interactions ===== */
+(function(){
+  const wrap = document.getElementById('infoWrap');
+  const btn  = document.getElementById('infoBtn');
+  function openTip(v){
+    wrap.dataset.open = String(!!v);
+    btn.setAttribute('aria-expanded', String(!!v));
+  }
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    openTip(wrap.dataset.open !== 'true');
+  });
+  document.addEventListener('pointerdown', (e)=>{
+    if(wrap.dataset.open !== 'true') return;
+    if(!wrap.contains(e.target)) openTip(false);
+  }, {passive:true});
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape') openTip(false);
+  });
+})();
+
 /* build rows after handlers exist */
 layoutAll();
-
 </script>
 </body>
 </html>
