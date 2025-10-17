@@ -247,7 +247,7 @@
   <div class="info-tooltip" id="infoTip" role="dialog" aria-modal="false">
     <strong>intoview.pro</strong> is a concept being crafted from 0-1, to showcase, you know, your craft. Simply, picture a platform & place that puts your best into view.
     <br><br>
-    <small>Meanwhile, I was working on a design system using my shiny new logo, when I got distracted... So, enjoy!</small>
+    <small>Meanwhile, I was working on a design system using my shiny, when I got distracted...</small>
   </div>
 </div>
 
@@ -295,561 +295,477 @@
 <div id="live" style="position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;left:0;bottom:0;" aria-live="polite"></div>
 
 <script>
-  /* ================= Layout + mapping ================= */
-  /* Bottom (left→right) */
-  const bottomNotes = [
-    ['b2','q'], ['c3','w'], ['d3','e'], ['g3','r'], ['a3','t'],
-    ['b3','y'], ['c4','u'], ['d4','i'], ['e4','o'], ['f4','p'], ['g4','[']
-  ];
-  /* Top (left→right) */
-  const topNotes = [
-    ['a4','1'], ['b4','2'], ['c5','3'], ['d5','4'], ['e5','5'],
-    ['f5','6'], ['g5','7'], ['a5','8'], ['b5','9'], ['c6','0']
-  ];
-  
+/* ================= Layout + mapping ================= */
+/* Bottom (left→right) */
+const bottomNotes = [
+  ['b3','q'], ['c4','w'], ['d4','e'], ['g4','r'], ['a4','t'],
+  ['b4','y'], ['c5','u'], ['d5','i'], ['e5','o'], ['f5','p'], ['g5','[']
+];
+/* Top (left→right) */
+const topNotes = [
+  ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'], ['e6','5'],
+  ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
+];
+
+const cos30 = Math.sqrt(3)/2, sin30=0.5;
+function css(){ return getComputedStyle(document.documentElement); }
+function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
+function readCell(){ return num(css().getPropertyValue('--iso-cell'), 32); }
+function basis(){
+  const CELL=readCell();
+  const v1={x:cos30*CELL, y:sin30*CELL};
+  const v2={x:-cos30*CELL, y:sin30*CELL};
+  const det=v1.x*v2.y - v2.x*v1.y;
+  const inv={a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
+  return {CELL,v1,v2,inv};
+}
+let B=basis();
+addEventListener('resize', ()=>{ layoutAll(); }, {passive:true});
+function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
+function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
+
+const stage=document.getElementById('stage');
+const rowTop=document.getElementById('rowTop');
+const rowBottom=document.getElementById('rowBottom');
+
+function placeRow(container, startIJ, notes, blurMaxPx){
+  container.innerHTML='';
+  const w=num(css().getPropertyValue('--cube-size'), 36);
+  const h=w*(96/86);
+  const {I:ai, J:aj}=startIJ;
+  const N=notes.length;
+  notes.forEach(([note,key],idx)=>{
+    const I=ai+idx, J=aj;
+    const pC=toXY(I,J), pL=toXY(I,J+2);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','cube'); g.setAttribute('tabindex','0');
+    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
+    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
+    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
+    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+
+    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
+    u.setAttribute('width', w); u.setAttribute('height', h);
+    g.appendChild(u);
+
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('class','note');
+    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lbl.textContent=`${note.toUpperCase()}/${key}`;
+    lbl.dataset.noteFor=note;
+
+    container.appendChild(g);
+    container.appendChild(lbl);
+  });
+}
+function measureBounds(){
+  const uses=stage.querySelectorAll('use');
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  uses.forEach(u=>{
+    const x=+u.getAttribute('x'), y=+u.getAttribute('y');
+    const w=+u.getAttribute('width'), h=+u.getAttribute('height');
+    minX=Math.min(minX,x); minY=Math.min(minY,y);
+    maxX=Math.max(maxX,x+w); maxY=Math.max(maxY,y+h);
+  });
+  return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
+}
+function layoutAll(){
+  const vw=innerWidth, vh=innerHeight, margin=Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
+  const baseCell=num(css().getPropertyValue('--iso-cell-base'), 32);
+  const baseCube=num(css().getPropertyValue('--cube-size-base'), 36);
+  const sepJ = vw<560 ? 9 : 7;
+  const offsetTop={dI:2, dJ:-sepJ};
+  const tryLayout=(scale)=>{
+    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
+    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
+    B=basis();
+    const centerIJ=snap(vw/2, vh/2 - 20);
+    const startBottomIJ={I:centerIJ.I - Math.floor(bottomNotes.length/2), J:centerIJ.J + 2};
+    const startTopIJ={I:startBottomIJ.I + offsetTop.dI, J:startBottomIJ.J + offsetTop.dJ};
+    placeRow(rowBottom, startBottomIJ, bottomNotes, 2.4*scale);
+    placeRow(rowTop,    startTopIJ,    topNotes,    2.8*scale);
+    const b=measureBounds();
+    const needW=vw-margin*2, needH=vh - margin*2 - parseInt(getComputedStyle(document.querySelector('.rec')).height);
+    const sW=needW/b.width, sH=needH/b.height;
+    return {neededScale:Math.min(1,sW,sH), bounds:b, startBottomIJ, startTopIJ};
+  };
+  let pass=tryLayout(1);
+  pass=tryLayout(pass.neededScale);
+  const dx=vw/2 - pass.bounds.cx, dy=(vh - parseInt(getComputedStyle(document.querySelector('.rec')).height))/2 - pass.bounds.cy;
+  const offsetIJ=(ij,dx,dy)=>{ const p0=toXY(ij.I,ij.J); const p={x:p0.x+dx,y:p0.y+dy}; return snap(p.x,p.y); };
+  const nb=offsetIJ(pass.startBottomIJ,dx,dy);
+  const nt=offsetIJ(pass.startTopIJ,dx,dy);
+  rowBottom.innerHTML=''; rowTop.innerHTML='';
+  placeRow(rowBottom, nb, bottomNotes, 2.4);
+  placeRow(rowTop,    nt, topNotes,    2.8);
+
+  // Re-sync the pulse canvas basis after layout tweaks
+  window.dispatchEvent(new Event('resize'));
+  window.dispatchEvent(new Event('iso:refresh'));
+}
+layoutAll();
+
+/* ================= Pulses canvas (self-contained + refresh hooks) ================= */
+(function(){
+  const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
   const cos30 = Math.sqrt(3)/2, sin30=0.5;
+  const toPx = (len)=> (String(len).match(/^([0-9.]+)\s*px$/i)?.[1] ? parseFloat(RegExp.$1) : 0);
+  const clamp01 = x=>x<0?0:x>1?1:x;
+  const easeOut = u=>1-(1-u)*(1-u);
+
   function css(){ return getComputedStyle(document.documentElement); }
   function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
-  function readCell(){ return num(css().getPropertyValue('--iso-cell'), 32); }
-  function basis(){
-    const CELL=readCell();
-    const v1={x:cos30*CELL, y:sin30*CELL};
-    const v2={x:-cos30*CELL, y:sin30*CELL};
-    const det=v1.x*v2.y - v2.x*v1.y;
-    const inv={a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
-    return {CELL,v1,v2,inv};
+
+  let CELL=56, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:1,b:0,c:0,d:1};
+  let FILL_RGB='255 255 255',FILL_A=.22,STROKE_A=.55,FADE=900,BLUR_MIN='0px',BLUR_MAX='12px',BLUR_CURVE=1.35;
+  let canFilter = 'filter' in ctx;
+
+  function read(){
+    const s = css();
+    CELL = num(s.getPropertyValue('--iso-cell'), 56);
+    v1 = {x: cos30*CELL, y: sin30*CELL};
+    v2 = {x:-cos30*CELL, y: sin30*CELL};
+    det = v1.x*v2.y - v2.x*v1.y;
+    inv = {a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
+
+    FILL_RGB  = (s.getPropertyValue('--iso-highlight-fill').trim() || '255 255 255');
+    FILL_A    = num(s.getPropertyValue('--iso-highlight-alpha'), .22);
+    STROKE_A  = num(s.getPropertyValue('--iso-stroke-alpha'), .55);
+    FADE      = num(s.getPropertyValue('--iso-fade-ms'), 900);
+    BLUR_MIN  = s.getPropertyValue('--iso-blur-min').trim() || '0px';
+    BLUR_MAX  = s.getPropertyValue('--iso-blur-max').trim() || '12px';
+    BLUR_CURVE= num(s.getPropertyValue('--iso-blur-curve'), 1.35);
   }
-  let B=basis();
-  addEventListener('resize', ()=>{ layoutAll(); }, {passive:true});
-  function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
-  function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
-  
-  const stage=document.getElementById('stage');
-  const rowTop=document.getElementById('rowTop');
-  const rowBottom=document.getElementById('rowBottom');
-  
-  function placeRow(container, startIJ, notes, blurMaxPx){
-    container.innerHTML='';
-    const w=num(css().getPropertyValue('--cube-size'), 36);
-    const h=w*(96/86);
-    const {I:ai, J:aj}=startIJ;
-    const N=notes.length;
-    notes.forEach(([note,key],idx)=>{
-      const I=ai+idx, J=aj;
-      const pC=toXY(I,J), pL=toXY(I,J+2);
-      const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-      g.setAttribute('class','cube'); g.setAttribute('tabindex','0');
-      g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
-      g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
-      const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
-      g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
-  
-      const u=document.createElementNS('http://www.w3.org/2000/svg','use');
-      u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
-      u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
-      u.setAttribute('width', w); u.setAttribute('height', h);
-      g.appendChild(u);
-  
-      const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-      lbl.setAttribute('class','note');
-      lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
-      lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
-      lbl.textContent=`${note.toUpperCase()}/${key}`;
-      lbl.dataset.noteFor=note;
-  
-      container.appendChild(g);
-      container.appendChild(lbl);
-    });
+
+  function resize(){
+    const dpr=Math.max(1,devicePixelRatio||1);
+    canvas.width=Math.floor(innerWidth*dpr);
+    canvas.height=Math.floor(innerHeight*dpr);
+    canvas.style.width=innerWidth+'px';
+    canvas.style.height=innerHeight+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    read();
   }
-  function measureBounds(){
-    const uses=stage.querySelectorAll('use');
-    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    uses.forEach(u=>{
-      const x=+u.getAttribute('x'), y=+u.getAttribute('y');
-      const w=+u.getAttribute('width'), h=+u.getAttribute('height');
-      minX=Math.min(minX,x); minY=Math.min(minY,y);
-      maxX=Math.max(maxX,x+w); maxY=Math.max(maxY,y+h);
-    });
-    return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
+  addEventListener('resize', resize, {passive:true});
+  addEventListener('iso:refresh', read, {passive:true});
+  resize();
+
+  function toXY(I,J){ return { x:I*v1.x + J*v2.x, y:I*v1.y + J*v2.y }; }
+  function snapLocal(x,y){ const i=inv.a*x+inv.b*y, j=inv.c*x+inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
+  function cell(I,J){
+    const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
+    const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y+d.y)/4;
+    return {pts:[a,b,c,d], cx, cy};
   }
-  function layoutAll(){
-    const vw=innerWidth, vh=innerHeight, margin=Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
-    const baseCell=num(css().getPropertyValue('--iso-cell-base'), 32);
-    const baseCube=num(css().getPropertyValue('--cube-size-base'), 36);
-    const sepJ = vw<560 ? 9 : 7;
-    const offsetTop={dI:2, dJ:-sepJ};
-    const tryLayout=(scale)=>{
-      document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
-      document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
-      B=basis();
-      const centerIJ=snap(vw/2, vh/2 - 20);
-      const startBottomIJ={I:centerIJ.I - Math.floor(bottomNotes.length/2), J:centerIJ.J + 2};
-      const startTopIJ={I:startBottomIJ.I + offsetTop.dI, J:startBottomIJ.J + offsetTop.dJ};
-      placeRow(rowBottom, startBottomIJ, bottomNotes, 2.4*scale);
-      placeRow(rowTop,    startTopIJ,    topNotes,    2.8*scale);
-      const b=measureBounds();
-      const needW=vw-margin*2, needH=vh - margin*2 - parseInt(getComputedStyle(document.querySelector('.rec')).height);
-      const sW=needW/b.width, sH=needH/b.height;
-      return {neededScale:Math.min(1,sW,sH), bounds:b, startBottomIJ, startTopIJ};
-    };
-    let pass=tryLayout(1);
-    pass=tryLayout(pass.neededScale);
-    const dx=vw/2 - pass.bounds.cx, dy=(vh - parseInt(getComputedStyle(document.querySelector('.rec')).height))/2 - pass.bounds.cy;
-    const offsetIJ=(ij,dx,dy)=>{ const p0=toXY(ij.I,ij.J); const p={x:p0.x+dx,y:p0.y+dy}; return snap(p.x,p.y); };
-    const nb=offsetIJ(pass.startBottomIJ,dx,dy);
-    const nt=offsetIJ(pass.startTopIJ,dx,dy);
-    rowBottom.innerHTML=''; rowTop.innerHTML='';
-    placeRow(rowBottom, nb, bottomNotes, 2.4);
-    placeRow(rowTop,    nt, topNotes,    2.8);
-  
-    // keep the pulse canvas in sync with scale changes
-    window.dispatchEvent(new Event('resize'));
-    window.dispatchEvent(new Event('iso:refresh'));
-  }
-  layoutAll();
-  
-  /* ================= Pulses canvas (self-contained + refresh hooks) ================= */
-  (function(){
-    const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
-    const cos30 = Math.sqrt(3)/2, sin30=0.5;
-    const toPx = (len)=> (String(len).match(/^([0-9.]+)\s*px$/i)?.[1] ? parseFloat(RegExp.$1) : 0);
-    const clamp01 = x=>x<0?0:x>1?1:x;
-    const easeOut = u=>1-(1-u)*(1-u);
-  
-    function css(){ return getComputedStyle(document.documentElement); }
-    function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
-  
-    let CELL=56, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:1,b:0,c:0,d:1};
-    let FILL_RGB='255 255 255',FILL_A=.22,STROKE_A=.55,FADE=900,BLUR_MIN='0px',BLUR_MAX='12px',BLUR_CURVE=1.35;
-    let canFilter = 'filter' in ctx;
-  
-    function read(){
-      const s = css();
-      CELL = num(s.getPropertyValue('--iso-cell'), 56);
-      v1 = {x: cos30*CELL, y: sin30*CELL};
-      v2 = {x:-cos30*CELL, y: sin30*CELL};
-      det = v1.x*v2.y - v2.x*v1.y;
-      inv = {a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
-  
-      FILL_RGB  = (s.getPropertyValue('--iso-highlight-fill').trim() || '255 255 255');
-      FILL_A    = num(s.getPropertyValue('--iso-highlight-alpha'), .22);
-      STROKE_A  = num(s.getPropertyValue('--iso-stroke-alpha'), .55);
-      FADE      = num(s.getPropertyValue('--iso-fade-ms'), 900);
-      BLUR_MIN  = s.getPropertyValue('--iso-blur-min').trim() || '0px';
-      BLUR_MAX  = s.getPropertyValue('--iso-blur-max').trim() || '12px';
-      BLUR_CURVE= num(s.getPropertyValue('--iso-blur-curve'), 1.35);
+  function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
+
+  const pulses=[]; let anim=false;
+  function push(I,J){ pulses.push({I,J,t:performance.now()}); if(!anim){ anim=true; requestAnimationFrame(tick); } }
+  window.isoPulse = push;
+
+  function tick(now){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let alive=0;
+    for(const p of pulses){
+      const age=now-p.t; if(age>=FADE) continue; alive++;
+      const u=age/FADE, invU=1-u;
+      const {pts,cx,cy}=cell(p.I,p.J);
+      const dist=Math.hypot(cx-innerWidth/2, cy-innerHeight/2);
+      const t=Math.pow(clamp01(dist/Math.hypot(innerWidth,innerHeight)), BLUR_CURVE>0?BLUR_CURVE:1);
+      const blur=toPx(BLUR_MIN)+(toPx(BLUR_MAX)-toPx(BLUR_MIN))*t;
+
+      if(canFilter) ctx.filter=`blur(${blur}px)`;
+      ctx.fillStyle=`rgb(${FILL_RGB} / ${easeOut(invU)*FILL_A})`;
+      draw(pts); ctx.fill();
+      ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${invU*STROKE_A})`;
+      ctx.stroke();
+      if(canFilter) ctx.filter='none';
     }
-  
-    function resize(){
-      const dpr=Math.max(1,devicePixelRatio||1);
-      canvas.width=Math.floor(innerWidth*dpr);
-      canvas.height=Math.floor(innerHeight*dpr);
-      canvas.style.width=innerWidth+'px';
-      canvas.style.height=innerHeight+'px';
-      ctx.setTransform(dpr,0,0,dpr,0,0);
-      read();
+    if(alive!==pulses.length){
+      const cut=now-FADE; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
     }
-    addEventListener('resize', resize, {passive:true});
-    addEventListener('iso:refresh', read, {passive:true});
-    resize();
-  
-    function toXY(I,J){ return { x:I*v1.x + J*v2.x, y:I*v1.y + J*v2.y }; }
-    function snapLocal(x,y){ const i=inv.a*x+inv.b*y, j=inv.c*x+inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
-    function cell(I,J){
-      const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
-      const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y+d.y)/4;
-      return {pts:[a,b,c,d], cx, cy};
+    if(alive>0) requestAnimationFrame(tick); else anim=false;
+  }
+
+  // robust feed: whole document + stage
+  let last=null;
+  function handleMove(e){
+    const {I,J}=snapLocal(e.clientX, e.clientY);
+    const k=I+','+J;
+    if(k!==last){ last=k; push(I,J); }
+  }
+  document.addEventListener('pointermove', handleMove, {passive:true});
+  const stageEl=document.getElementById('stage');
+  if(stageEl) stageEl.addEventListener('pointermove', handleMove, {passive:true});
+  addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
+})();
+
+/* ================= Self-contained piano synth (no files/folders) ================= */
+let AC=null, master=null;
+let pianoGroup=null;
+const activeVoices=new Set();
+let synthReady=false;
+
+function ensureAudio(){
+  if(!AC){
+    const C=window.AudioContext||window.webkitAudioContext;
+    AC=new C();
+    master=AC.createGain(); master.gain.value=0.5; // default volume = 50%
+    master.connect(AC.destination);
+    pianoGroup=AC.createGain(); pianoGroup.gain.value=1.0; pianoGroup.connect(master);
+    buildReverb();
+    const vs=document.getElementById('volSlider');
+    if(vs) vs.value = Math.round(master.gain.value*100);
+  }
+  if(AC.state==='suspended') AC.resume();
+}
+function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+function parseNote(n){
+  const p=String(n).toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
+  const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]]; const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
+  return 12*(oct+1)+base+alt;
+}
+
+/* tiny reverb (generated impulse) */
+let convolver=null, dry=null, wet=null;
+function buildReverb(){
+  convolver=AC.createConvolver();
+  const rate=AC.sampleRate, length=Math.floor(rate*0.9);
+  const impulse=AC.createBuffer(2,length,rate);
+  for(let ch=0; ch<2; ch++){
+    const d=impulse.getChannelData(ch);
+    for(let i=0;i<length;i++){
+      const t=i/length;
+      d[i]=(Math.random()*2-1)*Math.pow(1-t, 2.6)*0.4;
     }
-    function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
-  
-    const pulses=[]; let anim=false;
-    function push(I,J){ pulses.push({I,J,t:performance.now()}); if(!anim){ anim=true; requestAnimationFrame(tick); } }
-    window.isoPulse = push;
-  
-    function tick(now){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      let alive=0;
-      for(const p of pulses){
-        const age=now-p.t; if(age>=FADE) continue; alive++;
-        const u=age/FADE, invU=1-u;
-        const {pts,cx,cy}=cell(p.I,p.J);
-        const dist=Math.hypot(cx-innerWidth/2, cy-innerHeight/2);
-        const t=Math.pow(clamp01(dist/Math.hypot(innerWidth,innerHeight)), BLUR_CURVE>0?BLUR_CURVE:1);
-        const blur=toPx(BLUR_MIN)+(toPx(BLUR_MAX)-toPx(BLUR_MIN))*t;
-  
-        if(canFilter) ctx.filter=`blur(${blur}px)`;
-        ctx.fillStyle=`rgb(${FILL_RGB} / ${easeOut(invU)*FILL_A})`;
-        draw(pts); ctx.fill();
-        ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${invU*STROKE_A})`;
-        ctx.stroke();
-        if(canFilter) ctx.filter='none';
-      }
-      if(alive!==pulses.length){
-        const cut=now-FADE; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
-      }
-      if(alive>0) requestAnimationFrame(tick); else anim=false;
-    }
-  
-    // feed from entire doc (so background pulses even outside SVG)
-    let last=null;
-    function handleMove(e){
-      const {I,J}=snapLocal(e.clientX, e.clientY);
-      const k=I+','+J;
-      if(k!==last){ last=k; push(I,J); }
-    }
-    document.addEventListener('pointermove', handleMove, {passive:true});
-    addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
-  })();
-  
-  /* ================= Self-contained piano synth (no files/folders) ================= */
-  let AC=null, master=null;
-  let pianoGroup=null;
-  const activeVoices=new Set();
-  let synthReady=false;
-  
-  function ensureAudio(){
-    if(!AC){
-      const C=window.AudioContext||window.webkitAudioContext;
-      AC=new C();
-      master=AC.createGain(); master.gain.value=0.5; // default volume = 50%
-      master.connect(AC.destination);
-      pianoGroup=AC.createGain(); pianoGroup.gain.value=1.0; pianoGroup.connect(master);
-      buildReverb();
-      const vs=document.getElementById('volSlider');
-      if(vs) vs.value = Math.round(master.gain.value*100);
-    }
-    if(AC.state==='suspended') AC.resume();
   }
-  function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
-  function parseNote(n){
-    const p=String(n).toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
-    const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]]; const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
-    return 12*(oct+1)+base+alt;
+  convolver.buffer=impulse;
+  dry=AC.createGain(); dry.gain.value=0.88;
+  wet=AC.createGain(); wet.gain.value=0.22;
+  pianoGroup.disconnect();
+  pianoGroup.connect(dry).connect(master);
+  pianoGroup.connect(wet).connect(convolver).connect(master);
+}
+
+/* mild soft-clip shaper */
+function makeShaper(k=1.35){
+  const n=1024, curve=new Float32Array(n);
+  for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; curve[i]=Math.tanh(k*x); }
+  const sh=AC.createWaveShaper(); sh.curve=curve; sh.oversample='2x';
+  return sh;
+}
+
+/* Piano-ish modal voice */
+function createPianoVoice(freq, vel){
+  const now=AC.currentTime;
+  const voiceGain=AC.createGain(); voiceGain.gain.value=0.0001;
+  const shaper=makeShaper(1.35);
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=Math.min(12000, freq*12); lp.Q.value=0.6;
+  const ap=AC.createBiquadFilter(); ap.type='allpass'; ap.frequency.value=freq*2; ap.Q.value=0.6;
+
+  // hammer noise
+  const nbuf=AC.createBuffer(1, Math.floor(AC.sampleRate*0.02), AC.sampleRate);
+  const nd=nbuf.getChannelData(0);
+  for(let i=0;i<nd.length;i++){ nd[i]=(Math.random()*2-1)*Math.pow(1-i/nd.length,2.0); }
+  const nsrc=AC.createBufferSource(); nsrc.buffer=nbuf;
+  const ng=AC.createGain(); ng.gain.value=0.0;
+
+  const partials=[
+    {ratio:1.0,  amp:0.95, decay:1.0},
+    {ratio:2.01, amp:0.38, decay:0.75},
+    {ratio:3.02, amp:0.18, decay:0.55},
+    {ratio:4.05, amp:0.10, decay:0.42},
+    {ratio:5.07, amp:0.06, decay:0.36},
+  ];
+  const oscNodes=[];
+  for(const p of partials){
+    const o=AC.createOscillator(); o.type='sine'; o.frequency.value=freq*p.ratio;
+    const g=AC.createGain(); g.gain.value=0.0;
+    const a=0.003 + 0.002*(1/p.ratio);
+    const d=0.04 + 0.03*(1/p.ratio);
+    const peak=p.amp*vel;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.linearRampToValueAtTime(peak, now+a);
+    g.gain.linearRampToValueAtTime(peak*0.55, now+a+d);
+    g.gain.setTargetAtTime(0.0001, now+a+d, p.decay);
+    o.connect(g).connect(voiceGain);
+    o.start(now);
+    oscNodes.push({o,g});
   }
-  
-  /* tiny reverb (generated impulse) */
-  let convolver=null, dry=null, wet=null;
-  function buildReverb(){
-    convolver=AC.createConvolver();
-    const rate=AC.sampleRate, length=Math.floor(rate*0.9);
-    const impulse=AC.createBuffer(2,length,rate);
-    for(let ch=0; ch<2; ch++){
-      const d=impulse.getChannelData(ch);
-      for(let i=0;i<length;i++){
-        const t=i/length;
-        d[i]=(Math.random()*2-1)*Math.pow(1-t, 2.6)*0.4;
-      }
-    }
-    convolver.buffer=impulse;
-    dry=AC.createGain(); dry.gain.value=0.88;
-    wet=AC.createGain(); wet.gain.value=0.22;
-    pianoGroup.disconnect();
-    pianoGroup.connect(dry).connect(master);
-    pianoGroup.connect(wet).connect(convolver).connect(master);
+  ng.gain.setValueAtTime(0.0001, now);
+  ng.gain.linearRampToValueAtTime(0.25*vel, now+0.002);
+  ng.gain.linearRampToValueAtTime(0.0001, now+0.025);
+  nsrc.connect(ng).connect(voiceGain);
+  nsrc.start(now);
+
+  const atk=0.002, peak=0.85*vel;
+  voiceGain.gain.setValueAtTime(0.0001, now);
+  voiceGain.gain.linearRampToValueAtTime(peak, now+atk);
+
+  voiceGain.connect(ap).connect(lp).connect(shaper).connect(pianoGroup);
+
+  const stop=(releaseTime=0.8)=>{
+    const t=AC.currentTime;
+    voiceGain.gain.cancelScheduledValues(t);
+    voiceGain.gain.setTargetAtTime(0.0001, t, Math.max(0.08, releaseTime/4));
+    setTimeout(()=>{ try{ oscNodes.forEach(({o})=>o.stop()); nsrc.stop(); }catch{} }, Math.ceil(releaseTime*1000)+100);
+  };
+  return { stop };
+}
+
+function playPiano(note,{hold=false, vel=.95}={}){
+  ensureAudio();
+  const midi = typeof note==='number'?note:parseNote(note);
+  const f = midiToFreq(midi);
+  const v = createPianoVoice(f, vel);
+  activeVoices.add(v);
+  return ()=>{ v.stop(hold?1.2:0.8); activeVoices.delete(v); };
+}
+
+/* Prime synth on first user action */
+document.addEventListener('pointerdown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true, passive:true});
+document.addEventListener('keydown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true});
+
+/* ===== Volume wiring ===== */
+const volSlider = document.getElementById('volSlider');
+function setMasterFromSlider(){
+  const v = (parseInt(volSlider.value,10) || 0) / 100;
+  if(AC && master){ master.gain.setTargetAtTime(v, AC.currentTime, 0.01); }
+}
+volSlider?.addEventListener('input', ()=>{ if(!AC) ensureAudio(); setMasterFromSlider(); });
+setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
+
+/* ================= Play + record UI helpers ================= */
+const live=document.getElementById('live');
+const seqRow=document.getElementById('seqRow');
+const sequence=[]; // [{note, li}]
+let playing=false, playIdx=0, playTimer=null, stepMs=220;
+
+function flashLabel(note){
+  const lbl=[...stage.querySelectorAll('.note')].find(n=>n.dataset.noteFor===note);
+  if(!lbl) return; lbl.classList.add('lit'); setTimeout(()=>lbl.classList.remove('lit'), 220);
+}
+function getCubeByNote(note){ return [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note); }
+function flashCube(note){
+  const g=getCubeByNote(note); if(!g) return;
+  g.classList.add('brighten');
+  const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
+  setTimeout(()=>g.classList.remove('brighten'),240);
+}
+function addToSequence(note){
+  const li=document.createElement('div'); li.className='evt'; li.title=`Delete ${note}`;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('class','mini'); svg.setAttribute('viewBox','182 0 86 96'); svg.setAttribute('width','22'); svg.setAttribute('height','24');
+  const use=document.createElementNS('http://www.w3.org/2000/svg','use'); use.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+  svg.appendChild(use);
+  const cap=document.createElement('div'); cap.className='txt'; cap.textContent=note.toUpperCase();
+  li.appendChild(svg); li.appendChild(cap);
+  li.addEventListener('click', ()=>removeEvent(li));
+  li.addEventListener('mouseenter', ()=>li.classList.add('hit'));
+  li.addEventListener('mouseleave', ()=>li.classList.remove('hit'));
+  seqRow.appendChild(li);
+  sequence.push({note, li});
+}
+function removeEvent(li){
+  const idx=sequence.findIndex(x=>x.li===li); if(idx>=0){ sequence.splice(idx,1); li.remove(); }
+}
+function clearAll(){ sequence.splice(0,sequence.length); seqRow.innerHTML=''; stopPlay(); }
+
+function stepPlay(){
+  if(sequence.length===0){ stopPlay(); return; }
+  if(playIdx>=sequence.length){ stopPlay(true); return; }
+  const {note, li}=sequence[playIdx++];
+  li.classList.add('hit'); setTimeout(()=>li.classList.remove('hit'), 180);
+  ensureAudio(); playPiano(note); flashLabel(note); flashCube(note); live.textContent=`Played ${note}`;
+  playTimer=setTimeout(stepPlay, stepMs);
+}
+function startPlay(){ if(playing||sequence.length===0) return; playing=true; playIdx=0; stepPlay(); }
+function pausePlay(){ if(!playing) return; clearTimeout(playTimer); playing=false; }
+function stopPlay(end=false){ clearTimeout(playTimer); playing=false; if(end) playIdx=0; }
+document.getElementById('btnPlay').addEventListener('click', startPlay);
+document.getElementById('btnPause').addEventListener('click', pausePlay);
+document.getElementById('btnClear').addEventListener('click', clearAll);
+
+/* ================= Interactions (sustain + record) ================= */
+let sustain=false;                 // Space = pedal
+const pressed=new Map();           // cube -> releaseFn
+
+function playCube(g, {viaHover=false, record=false} = {}){
+  const note=g.dataset.note;
+  const release=playPiano(note,{hold:sustain});  // synth voice
+  pressed.set(g, release);
+  g.classList.add('brighten');
+  const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
+  flashLabel(note);
+  if(record) addToSequence(note);
+  if(!sustain && !viaHover){ setTimeout(()=>releaseCube(g), 240); }
+}
+function releaseCube(g){
+  g.classList.remove('brighten');
+  const stop=pressed.get(g); if(stop){ stop(); pressed.delete(g); }
+}
+
+/* pointer — CLICK/TAP records */
+stage.addEventListener('pointerdown', e=>{
+  const g=e.target.closest('.cube'); if(!g) return;
+  e.preventDefault(); ensureAudio(); playCube(g,{record:true});
+},{passive:false});
+addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
+
+/* hover — plays but DOES NOT record (robust bubbling) */
+let lastHover = null;
+stage.addEventListener('pointerover', (e) => {
+  const g = e.target.closest('.cube');
+  if (!g || lastHover === g) return;
+  lastHover = g;
+  ensureAudio();
+  playCube(g, { viaHover: true, record: false });
+}, true);
+stage.addEventListener('pointerout', (e) => {
+  const g = e.target.closest('.cube'); if (!g) return;
+  const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('.cube') : null;
+  if (to === g) return;
+  if (lastHover === g) lastHover = null;
+  if (!sustain) releaseCube(g);
+}, true);
+
+/* keyboard — plays AND records, Space = sustain pedal
+   (maps \, [, and ` to the same as [, per your request) */
+const keyMap=new Map([...bottomNotes, ...topNotes].map(([n,k])=>[k, n]));
+document.addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
+  let key=e.key;
+  if(e.code==='Backslash') key='\\';
+  if(e.code==='BracketLeft') key='[';
+  if(e.code==='Backquote') key='[';   // ← map ` to [
+  if(!keyMap.has(key)) return;
+  const note=keyMap.get(key);
+  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(!g) return;
+  ensureAudio(); playCube(g,{record:true});
+});
+document.addEventListener('keyup', e=>{
+  if(e.code==='Space'){
+    sustain=false;
+    document.querySelectorAll('.cube.brighten').forEach(releaseCube);
+    return;
   }
-  
-  /* mild soft-clip shaper */
-  function makeShaper(k=1.35){
-    const n=1024, curve=new Float32Array(n);
-    for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; curve[i]=Math.tanh(k*x); }
-    const sh=AC.createWaveShaper(); sh.curve=curve; sh.oversample='2x';
-    return sh;
-  }
-  
-  /* Piano-ish modal voice */
-  function createPianoVoice(freq, vel){
-    const now=AC.currentTime;
-    const voiceGain=AC.createGain(); voiceGain.gain.value=0.0001;
-    const shaper=makeShaper(1.35);
-    const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=Math.min(12000, freq*12); lp.Q.value=0.6;
-    const ap=AC.createBiquadFilter(); ap.type='allpass'; ap.frequency.value=freq*2; ap.Q.value=0.6;
-  
-    // hammer noise
-    const nbuf=AC.createBuffer(1, Math.floor(AC.sampleRate*0.02), AC.sampleRate);
-    const nd=nbuf.getChannelData(0);
-    for(let i=0;i<nd.length;i++){ nd[i]=(Math.random()*2-1)*Math.pow(1-i/nd.length,2.0); }
-    const nsrc=AC.createBufferSource(); nsrc.buffer=nbuf;
-    const ng=AC.createGain(); ng.gain.value=0.0;
-  
-    const partials=[
-      {ratio:1.0,  amp:0.95, decay:1.0},
-      {ratio:2.01, amp:0.38, decay:0.75},
-      {ratio:3.02, amp:0.18, decay:0.55},
-      {ratio:4.05, amp:0.10, decay:0.42},
-      {ratio:5.07, amp:0.06, decay:0.36},
-    ];
-    const oscNodes=[];
-    for(const p of partials){
-      const o=AC.createOscillator(); o.type='sine'; o.frequency.value=freq*p.ratio;
-      const g=AC.createGain(); g.gain.value=0.0;
-      const a=0.003 + 0.002*(1/p.ratio);
-      const d=0.04 + 0.03*(1/p.ratio);
-      const peak=p.amp*vel;
-      g.gain.setValueAtTime(0.0001, now);
-      g.gain.linearRampToValueAtTime(peak, now+a);
-      g.gain.linearRampToValueAtTime(peak*0.55, now+a+d);
-      g.gain.setTargetAtTime(0.0001, now+a+d, p.decay);
-      o.connect(g).connect(voiceGain);
-      o.start(now);
-      oscNodes.push({o,g});
-    }
-    ng.gain.setValueAtTime(0.0001, now);
-    ng.gain.linearRampToValueAtTime(0.25*vel, now+0.002);
-    ng.gain.linearRampToValueAtTime(0.0001, now+0.025);
-    nsrc.connect(ng).connect(voiceGain);
-    nsrc.start(now);
-  
-    const atk=0.002, peak=0.85*vel;
-    voiceGain.gain.setValueAtTime(0.0001, now);
-    voiceGain.gain.linearRampToValueAtTime(peak, now+atk);
-  
-    voiceGain.connect(ap).connect(lp).connect(shaper).connect(pianoGroup);
-  
-    const stop=(releaseTime=0.8)=>{
-      const t=AC.currentTime;
-      voiceGain.gain.cancelScheduledValues(t);
-      voiceGain.gain.setTargetAtTime(0.0001, t, Math.max(0.08, releaseTime/4));
-      setTimeout(()=>{ try{ oscNodes.forEach(({o})=>o.stop()); nsrc.stop(); }catch{} }, Math.ceil(releaseTime*1000)+100);
-    };
-    return { stop };
-  }
-  
-  function playPiano(note,{hold=false, vel=.95}={}){
-    ensureAudio();
-    const midi = typeof note==='number'?note:parseNote(note);
-    const f = midiToFreq(midi);
-    const v = createPianoVoice(f, vel);
-    activeVoices.add(v);
-    return ()=>{ v.stop(hold?1.2:0.8); activeVoices.delete(v); };
-  }
-  
-  /* Prime synth on first user action */
-  document.addEventListener('pointerdown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true, passive:true});
-  document.addEventListener('keydown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true});
-  
-  /* ===== Volume wiring ===== */
-  const volSlider = document.getElementById('volSlider');
-  function setMasterFromSlider(){
-    const v = (parseInt(volSlider?.value||'50',10) || 0) / 100;
-    if(AC && master){ master.gain.setTargetAtTime(v, AC.currentTime, 0.01); }
-  }
-  volSlider?.addEventListener('input', ()=>{ if(!AC) ensureAudio(); setMasterFromSlider(); });
-  setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
-  
-  /* ================= Play + record UI helpers ================= */
-  const live=document.getElementById('live');
-  const seqRow=document.getElementById('seqRow');
-  const sequence=[]; // [{note, li}]
-  let playing=false, playIdx=0, playTimer=null, stepMs=220;
-  
-  function flashLabel(note){
-    const lbl=[...stage.querySelectorAll('.note')].find(n=>n.dataset.noteFor===note);
-    if(!lbl) return; lbl.classList.add('lit'); setTimeout(()=>lbl.classList.remove('lit'), 220);
-  }
-  function getCubeByNote(note){ return [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note); }
-  function flashCube(note){
-    const g=getCubeByNote(note); if(!g) return;
-    g.classList.add('brighten');
-    const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
-    setTimeout(()=>g.classList.remove('brighten'),240);
-  }
-  function addToSequence(note){
-    const li=document.createElement('div'); li.className='evt'; li.title=`Delete ${note}`;
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('class','mini'); svg.setAttribute('viewBox','182 0 86 96'); svg.setAttribute('width','22'); svg.setAttribute('height','24');
-    const use=document.createElementNS('http://www.w3.org/2000/svg','use'); use.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
-    svg.appendChild(use);
-    const cap=document.createElement('div'); cap.className='txt'; cap.textContent=note.toUpperCase();
-    li.appendChild(svg); li.appendChild(cap);
-    li.addEventListener('click', ()=>removeEvent(li));
-    li.addEventListener('mouseenter', ()=>li.classList.add('hit'));
-    li.addEventListener('mouseleave', ()=>li.classList.remove('hit'));
-    seqRow.appendChild(li);
-    sequence.push({note, li});
-  }
-  function removeEvent(li){
-    const idx=sequence.findIndex(x=>x.li===li); if(idx>=0){ sequence.splice(idx,1); li.remove(); }
-  }
-  function clearAll(){ sequence.splice(0,sequence.length); seqRow.innerHTML=''; stopPlay(); }
-  
-  function stepPlay(){
-    if(sequence.length===0){ stopPlay(); return; }
-    if(playIdx>=sequence.length){ stopPlay(true); return; }
-    const {note, li}=sequence[playIdx++];
-    li.classList.add('hit'); setTimeout(()=>li.classList.remove('hit'), 180);
-    ensureAudio(); playPiano(note); flashLabel(note); flashCube(note); live.textContent=`Played ${note}`;
-    playTimer=setTimeout(stepPlay, stepMs);
-  }
-  function startPlay(){ if(playing||sequence.length===0) return; playing=true; playIdx=0; stepPlay(); }
-  function pausePlay(){ if(!playing) return; clearTimeout(playTimer); playing=false; }
-  function stopPlay(end=false){ clearTimeout(playTimer); playing=false; if(end) playIdx=0; }
-  document.getElementById('btnPlay')?.addEventListener('click', startPlay);
-  document.getElementById('btnPause')?.addEventListener('click', pausePlay);
-  document.getElementById('btnClear')?.addEventListener('click', clearAll);
-  
-  /* ================= Interactions (sustain + record) ================= */
-  let sustain=false;                 // Space = pedal
-  const pressed=new Map();           // cube -> releaseFn
-  
-  function playCube(g, {viaHover=false, record=false} = {}){
-    const note=g.dataset.note;
-    const release=playPiano(note,{hold:sustain});  // synth voice
-    pressed.set(g, release);
-    g.classList.add('brighten');
-    const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
-    flashLabel(note);
-    if(record) addToSequence(note);
-    if(!sustain && !viaHover){ setTimeout(()=>releaseCube(g), 240); }
-  }
-  function releaseCube(g){
-    g.classList.remove('brighten');
-    const stop=pressed.get(g); if(stop){ stop(); pressed.delete(g); }
-  }
-  
-  /* pointer — CLICK/TAP records */
-  stage.addEventListener('pointerdown', e=>{
-    const g=e.target.closest('.cube'); if(!g) return;
-    e.preventDefault(); ensureAudio(); playCube(g,{record:true});
-  },{passive:false});
-  addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
-  
-  /* ===== Shift-to-preview (no log on hover while Shift is held) ===== */
-  let shiftDown = false;
-  document.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftDown = true; }, {passive:true});
-  document.addEventListener('keyup',   (e) => { if (e.key === 'Shift') shiftDown = false; }, {passive:true});
-  
-  /* hover — plays and logs, unless Shift is held */
-  let lastHover = null;
-  stage.addEventListener('pointerover', (e) => {
-    const g = e.target.closest('.cube');
-    if (!g || lastHover === g) return;
-    lastHover = g;
-    ensureAudio();
-    const shouldRecord = !(e.shiftKey || shiftDown);
-    playCube(g, { viaHover: true, record: shouldRecord });
-  }, true);
-  stage.addEventListener('pointerout', (e) => {
-    const g = e.target.closest('.cube'); if (!g) return;
-    const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('.cube') : null;
-    if (to === g) return; // still within same cube
-    if (lastHover === g) lastHover = null;
-    if (!sustain) releaseCube(g);
-  }, true);
-  
-  /* ================= Keyboard mapping ================= */
-  const keyMap=new Map([...bottomNotes, ...topNotes].map(([n,k])=>[k, n]));
-  // Backslash + BracketLeft normalization already handled below.
-  // Map backquote (`) to the same note as '['
-  keyMap.set('`', keyMap.get('['));
-  
-  document.addEventListener('keydown', e=>{
-    if(e.repeat) return;
-    if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
-    let key=e.key;
-    if(e.code==='Backslash') key='\\';
-    if(e.code==='BracketLeft') key='[';
-    if(e.code==='Backquote') key='`';
-    if(!keyMap.has(key)) return;
-    const note=keyMap.get(key);
-    const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
-    if(!g) return;
-    ensureAudio(); playCube(g,{record:true});
-  });
-  document.addEventListener('keyup', e=>{
-    if(e.code==='Space'){
-      sustain=false;
-      document.querySelectorAll('.cube.brighten').forEach(releaseCube);
-      return;
-    }
-    let key=e.key;
-    if(e.code==='Backslash') key='\\';
-    if(e.code==='BracketLeft') key='[';
-    if(e.code==='Backquote') key='`';
-    const note=keyMap.get(key); if(!note) return;
-    const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
-    if(g) releaseCube(g);
-  });
-  
-  /* build rows after handlers exist */
-  layoutAll();
-  
-  /* ================= Info icon (top-right) + tooltips ================= */
-  (function makeInfoAndTooltips(){
-    // Logo tooltip text
-    const logo = document.querySelector('.logo-lockup');
-    if (logo) {
-      const logoTip = 'intoview.pro is a concept being crafted from ground-up, to showcase craft. Simply, it is a platform that puts your best into view.';
-      logo.setAttribute('title', logoTip);
-      logo.setAttribute('aria-label', logoTip);
-    }
-  
-    // Create an info button with tooltip, positioned with same padding as logo
-    const s = getComputedStyle(document.documentElement);
-    const padX = s.getPropertyValue('--logo-pad-x').trim() || '20px';
-    const padY = s.getPropertyValue('--logo-pad-y').trim() || '14px';
-  
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.setAttribute('aria-label','About this demo');
-    btn.style.position = 'fixed';
-    btn.style.top = padY;
-    btn.style.right = padX;
-    btn.style.zIndex = '3';
-    btn.style.width = '28px';
-    btn.style.height = '28px';
-    btn.style.borderRadius = '999px';
-    btn.style.border = '1px solid rgb(255 255 255 / .22)';
-    btn.style.background = 'rgb(255 255 255 / .06)';
-    btn.style.backdropFilter = 'blur(4px)';
-    btn.style.color = '#e8e8e8';
-    btn.style.display = 'grid';
-    btn.style.placeItems = 'center';
-    btn.style.cursor = 'pointer';
-    btn.style.userSelect = 'none';
-    btn.style.font = '600 14px/1 ui-monospace, Menlo, monospace';
-    btn.style.padding = '0';
-    btn.textContent = 'i';
-  
-    const tip = document.createElement('div');
-    tip.textContent = 'I was exploring a design system using my shiny new logo while thinking about some features for my SaaS concept "intoview"; when I got distracted. Here are the fruits from my wanderings.';
-    tip.style.position = 'fixed';
-    tip.style.maxWidth = 'min(440px, 86vw)';
-    tip.style.right = padX;
-    tip.style.top = `calc(${padY} + 36px)`;
-    tip.style.zIndex = '3';
-    tip.style.background = 'rgb(0 0 0 / .78)';
-    tip.style.border = '1px solid rgb(255 255 255 / .18)';
-    tip.style.borderRadius = '10px';
-    tip.style.padding = '10px 12px';
-    tip.style.font = '12px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
-    tip.style.color = '#dcdcdc';
-    tip.style.boxShadow = '0 6px 24px rgb(0 0 0 / .35)';
-    tip.style.backdropFilter = 'blur(6px)';
-    tip.style.opacity = '0';
-    tip.style.pointerEvents = 'none';
-    tip.style.transition = 'opacity .15s ease';
-    tip.style.userSelect = 'none';
-  
-    function showTip(){ tip.style.opacity = '1'; tip.style.pointerEvents = 'auto'; }
-    function hideTip(){ tip.style.opacity = '0'; tip.style.pointerEvents = 'none'; }
-  
-    btn.addEventListener('mouseenter', showTip);
-    btn.addEventListener('mouseleave', hideTip);
-    btn.addEventListener('focus', showTip);
-    btn.addEventListener('blur', hideTip);
-    // Tap/click toggles on mobile
-    btn.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      if (tip.style.opacity === '1') hideTip(); else showTip();
-    }, {passive:false});
-    document.addEventListener('click', (e)=>{
-      if (e.target !== btn) hideTip();
-    });
-  
-    document.body.appendChild(btn);
-    document.body.appendChild(tip);
-  })();
-  </script>
-  
+  let key=e.key;
+  if(e.code==='Backslash') key='\\';
+  if(e.code==='BracketLeft') key='[';
+  if(e.code==='Backquote') key='[';   // ← map ` to [
+  const note=keyMap.get(key); if(!note) return;
+  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(g) releaseCube(g);
+});
+
+/* build rows after handlers exist */
+layoutAll();
+
+</script>
 </body>
 </html>
