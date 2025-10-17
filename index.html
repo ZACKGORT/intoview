@@ -532,19 +532,45 @@ layoutAll();
 })();
 
 /* Synth */
+/* Overload guards */
+const POLY_MAX = 10;                     // cap simultaneous voices
+const NOTE_COOLDOWN_MS = 90;             // avoid micro re-triggers
+const lastTrigByNote = new Map();        // note -> timestamp
+
+
+
 let AC=null, master=null; let pianoGroup=null; const activeVoices=new Set(); let synthReady=false;
 function ensureAudio(){
   if(!AC){
-    const C=window.AudioContext||window.webkitAudioContext;
-    AC=new C();
-    master=AC.createGain(); master.gain.value=0.5;
-    master.connect(AC.destination);
-    pianoGroup=AC.createGain(); pianoGroup.gain.value=1.0; pianoGroup.connect(master);
+    const C = window.AudioContext || window.webkitAudioContext;
+    AC = new C();
+
+    // Master & dynamics
+    master = AC.createGain();
+    master.gain.value = 0.5;
+
+    const comp = AC.createDynamicsCompressor();
+    comp.threshold.setValueAtTime(-22, AC.currentTime);
+    comp.knee.setValueAtTime(24, AC.currentTime);
+    comp.ratio.setValueAtTime(4, AC.currentTime);
+    comp.attack.setValueAtTime(0.003, AC.currentTime);
+    comp.release.setValueAtTime(0.25, AC.currentTime);
+
+    master.connect(comp);
+    comp.connect(AC.destination);
+
+    // Instrument bus
+    pianoGroup = AC.createGain();
+    pianoGroup.gain.value = 1.0;
+    pianoGroup.connect(master);
+
     buildReverb();
-    const vs=document.getElementById('volSlider'); if(vs) vs.value = Math.round(master.gain.value*100);
+    const vs = document.getElementById('volSlider');
+    if (vs) vs.value = Math.round(master.gain.value * 100);
   }
-  if(AC.state==='suspended') AC.resume();
+  if (AC.state === 'suspended') AC.resume();
 }
+
 function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
 function parseNote(n){
   const p=String(n).toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
@@ -632,14 +658,32 @@ function createPianoVoice(freq, vel){
   };
   return { stop };
 }
-function playPiano(note,{hold=false, vel=.95}={}){
+function playPiano(note, {hold=false, vel=.95} = {}){
   ensureAudio();
-  const midi = typeof note==='number'?note:parseNote(note);
+
+  // Cooldown: avoid micro-bursts of the same note
+  const nStr = String(note).toLowerCase();
+  const nowMs = performance.now();
+  const last = lastTrigByNote.get(nStr) || 0;
+  if (nowMs - last < NOTE_COOLDOWN_MS) {
+    return () => {}; // ignore ultra-rapid retrigger
+  }
+  lastTrigByNote.set(nStr, nowMs);
+
+  // Polyphony cap with polite voice-stealing (oldest first)
+  if (activeVoices.size >= POLY_MAX) {
+    const oldest = activeVoices.values().next().value;
+    try { oldest?.stop(0.2); } catch {}
+    activeVoices.delete(oldest);
+  }
+
+  const midi = typeof note === 'number' ? note : parseNote(note);
   const f = midiToFreq(midi);
   const v = createPianoVoice(f, vel);
   activeVoices.add(v);
-  return ()=>{ v.stop(hold?1.2:0.8); activeVoices.delete(v); };
+  return () => { v.stop(hold ? 1.2 : 0.8); activeVoices.delete(v); };
 }
+
 document.addEventListener('pointerdown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true, passive:true});
 document.addEventListener('keydown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true});
 
