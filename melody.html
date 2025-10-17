@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>intoview.pro — iso cubes keyboard</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<style>
+  /* ========================  KNOBS  ======================== */
+  :root{
+    /* bigger cubes; JS still scales to fit viewport */
+    --cube-size-base: 56;            /* px (width); height comes from symbol ratio */
+    --iso-cell-base:  56;            /* px per lattice cell; JS sets --iso-cell = scaled */
+  
+    /* tiny per-label nudges around the lattice anchor (kept subtle) */
+    --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
+    --lbl-key-dx:   4px;  --lbl-key-dy: 12px;
+  
+    /* iso grid look */
+    --bg:#000;
+    --grid-gap: 8px;
+    --grid-alpha:.10;
+    --grid-thin: rgb(255 255 255 / calc(var(--grid-alpha) * .10));
+    --grid-bold: rgb(255 255 255 / calc(var(--grid-alpha) * .24));
+    --iso-cell:  calc(var(--iso-cell-base) * 1px); /* JS updates this */
+  
+    /* highlight pulses */
+    --iso-highlight-fill: 255 255 255;
+    --iso-highlight-alpha:.22;
+    --iso-stroke-alpha:.55;
+    --iso-fade-ms: 900;
+    --iso-blur-min: 0px;
+    --iso-blur-max: 12px;
+    --iso-blur-curve: 1.35;
+  
+    /* facet transitions */
+    --facet-ease:.18s ease;
+  
+    /* default facet fills (exact to your SVG) */
+    --facet-top-fill:  #ffffff;
+    --facet-side-fill: #ededed;
+    --facet-dark-fill: #767676;
+  
+    /* JS writes this on layout */
+    --cube-size: calc(var(--cube-size-base) * 1px);
+  }
+  
+  /* ========================  BASE + GRID  ======================== */
+  html,body{height:100%}
+  body{
+    margin:0; color:#e8e8e8; background:var(--bg);
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    overflow:hidden;
+    background-image:
+      repeating-linear-gradient(30deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(90deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(150deg, var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(30deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
+      repeating-linear-gradient(90deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
+      repeating-linear-gradient(150deg, transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4));
+    background-attachment:fixed,fixed,fixed,fixed,fixed,fixed;
+    font:14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  }
+  
+  /* brand, upper-left */
+  .brand{
+    position:fixed; left:14px; top:10px; z-index:3;
+    font:600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing:.12em;
+    color:#dcdcdc; opacity:.9; user-select:none;
+  }
+  
+  /* pulse canvas under the SVG content */
+  #isoCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+  
+  /* staging SVG for cubes + labels */
+  #stage{ position:fixed; inset:0; z-index:1; overflow:visible; }
+  
+  /* ========================  CUBES  ======================== */
+  .cube{
+    cursor:pointer; outline:none;
+    --facet-top-fill:  #ffffff; /* default (normal) */
+    --facet-side-fill: #ededed;
+    --facet-dark-fill: #767676;
+    /* depth blur: per-cube via --depth-blur set in JS */
+    filter: blur(var(--depth-blur, 0px));
+    transition: filter .25s ease, transform .06s ease;
+  }
+  .cube:where(:hover, :focus-visible, .brighten){ filter: blur(0px); }
+  .cube:focus-visible{ outline:2px dashed #bbb; outline-offset:4px; border-radius:6px; }
+  .cube *{ transition:fill var(--facet-ease); }
+  @media (prefers-reduced-motion:reduce){
+    .cube, .cube *{ transition:none !important; }
+  }
+  
+  /* Facet fills come from CSS custom properties so they cascade through <use> */
+  .facet-top  { fill: var(--facet-top-fill); }
+  .facet-side { fill: var(--facet-side-fill); }
+  .facet-dark { fill: var(--facet-dark-fill); }
+  
+  /* Brighten state only tweaks those three classes */
+  .cube.brighten{
+    --facet-top-fill:#ffffff;
+    --facet-side-fill:#f5f5f5;
+    --facet-dark-fill:#8c8c8c;
+  }
+  
+  /* Labels (mono look, restrained) */
+  .note, .key {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Overpass Mono", monospace;
+    fill:#fff; user-select:none;
+  }
+  .note{ font-size:12px; font-weight:600; opacity:.95; }
+  .key { font-size:11px; font-weight:500; opacity:.75; }
+  
+  /* a11y live region */
+  .visually-hidden{
+    position:fixed; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap;
+    left:0; bottom:0;
+  }
+  </style>
+</head>
+<body>
+
+<div class="brand">intoview</div>
+<canvas id="isoCanvas" aria-hidden="true"></canvas>
+
+<!-- Stage that holds both rows (cubes + labels) -->
+<svg id="stage" role="group" aria-label="Isometric note cubes">
+  <defs>
+    <!-- Your cube facets in a symbol; viewBox matches the sharp “front” cube bbox -->
+    <symbol id="cubeSym" viewBox="182 0 86 96">
+      <path class="facet-dark" d="M262.74 65.9205L224.305 87.8222V43.5893L262.74 21.9023V65.9205Z" />
+      <path class="facet-top"  d="M224.088 0L185.867 22.1164L224.303 44.0182L262.738 21.9017L224.088 0Z" />
+      <path class="facet-side" d="M186.082 65.9206L224.303 87.8223V44.0189L185.867 22.1172L186.082 65.9206Z" />
+    </symbol>
+  </defs>
+  <g id="rowTop"></g>
+  <g id="rowBottom"></g>
+</svg>
+
+<!-- a11y live region -->
+<div id="live" class="visually-hidden" aria-live="polite"></div>
+
+<script>
+/* ========================  KNOBS (layout + mapping)  ======================== */
+/* Row contents (matches your screenshot) */
+const bottomNotes = [
+  ['c4','z'], ['d4','x'], ['e4','c'], ['f4','v'], ['g4','b'],
+  ['a4','n'], ['b4','m'], ['c5',','], ['d5','.'], ['e5','/']
+];
+const topNotes = [
+  ['g5','`'], ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'],
+  ['e6','5'], ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'],
+  ['c7','0'], ['d7','-'], ['d7','='] /* = as alias; both will hit d7 */
+];
+
+/* ========================  ISO math helpers  ======================== */
+const cos30 = Math.sqrt(3)/2, sin30 = 0.5;
+function css(){ return getComputedStyle(document.documentElement); }
+function num(v, fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
+
+function readCell(){ return num(css().getPropertyValue('--iso-cell'), 32); }
+function basis(){
+  const CELL = readCell();
+  const v1 = {x: cos30*CELL,  y: sin30*CELL};   // 30°
+  const v2 = {x:-cos30*CELL,  y: sin30*CELL};   // 150°
+  const det = v1.x*v2.y - v2.x*v1.y;
+  const inv = { a: v2.y/det, b:-v2.x/det, c:-v1.y/det, d: v1.x/det };
+  return {CELL, v1, v2, inv};
+}
+let B = basis();
+addEventListener('resize', ()=>{ layoutAll(); }, {passive:true});
+
+/* lattice conversion */
+function toXY(I,J){ return { x: I*B.v1.x + J*B.v2.x, y: I*B.v1.y + J*B.v2.y }; }
+function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
+
+/* ========================  Pulses canvas  ======================== */
+(function(){
+  const canvas = document.getElementById('isoCanvas');
+  const ctx = canvas.getContext('2d');
+  function toPx(len){ const m=String(len).trim().match(/^([0-9.]+)\s*px$/i); return m?parseFloat(m[1]):0; }
+
+  let FILL_RGB='255 255 255', FILL_A=.22, STROKE_A=.55, FADE=900, BLUR_MIN='0px', BLUR_MAX='12px', BLUR_CURVE=1.35;
+  function read(){
+    const s=css();
+    FILL_RGB=(s.getPropertyValue('--iso-highlight-fill').trim()||'255 255 255');
+    FILL_A  =num(s.getPropertyValue('--iso-highlight-alpha'),.22);
+    STROKE_A=num(s.getPropertyValue('--iso-stroke-alpha'),.55);
+    FADE    =num(s.getPropertyValue('--iso-fade-ms'),900);
+    BLUR_MIN=s.getPropertyValue('--iso-blur-min').trim()||'0px';
+    BLUR_MAX=s.getPropertyValue('--iso-blur-max').trim()||'12px';
+    BLUR_CURVE=num(s.getPropertyValue('--iso-blur-curve'),1.35);
+    B=basis();
+  }
+  function resize(){
+    const dpr=Math.max(1, devicePixelRatio||1);
+    canvas.width = Math.floor(innerWidth*dpr);
+    canvas.height= Math.floor(innerHeight*dpr);
+    canvas.style.width = innerWidth+'px';
+    canvas.style.height= innerHeight+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    read();
+  }
+  addEventListener('resize', resize, {passive:true}); resize();
+
+  const pulses=[]; let anim=false;
+  const easeOut = u => 1-(1-u)*(1-u), clamp = x=>x<0?0:x>1?1:x;
+  function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
+  function cellPoly(I,J){
+    const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
+    const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y+d.y)/4;
+    return {pts:[a,b,c,d], cx, cy};
+  }
+  function tick(now){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let alive=0;
+    for(const p of pulses){
+      const age=now-p.t; if(age>=FADE) continue; alive++;
+      const u=age/FADE, inv=1-u;
+      const fillA=easeOut(inv)*FILL_A, strokeA=inv*STROKE_A;
+      const {pts,cx,cy}=cellPoly(p.I,p.J);
+      const dist=Math.hypot(cx-innerWidth/2, cy-innerHeight/2);
+      const t=Math.pow(clamp(dist/Math.hypot(innerWidth,innerHeight)/0.5), BLUR_CURVE>0?BLUR_CURVE:1);
+      const blur=toPx(BLUR_MIN)+(toPx(BLUR_MAX)-toPx(BLUR_MIN))*t;
+      ctx.filter=`blur(${blur}px)`;
+      ctx.fillStyle=`rgb(${FILL_RGB} / ${fillA})`; draw(pts); ctx.fill();
+      ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${strokeA})`; ctx.stroke();
+      ctx.filter='none';
+    }
+    if(alive!==pulses.length){
+      const cut=now-FADE; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
+    }
+    if(alive>0) requestAnimationFrame(tick); else anim=false;
+  }
+  function push(I,J){ pulses.push({I,J,t:performance.now()}); if(!anim){ anim=true; requestAnimationFrame(tick); } }
+  window.isoPulse = push;
+
+  // pointer trail
+  let last=null;
+  addEventListener('pointermove', e=>{
+    const {I,J}=snap(e.clientX,e.clientY); const k=I+','+J;
+    if(k!==last){ last=k; push(I,J); }
+  }, {passive:true});
+  addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
+})();
+
+/* ========================  Audio  ======================== */
+let AC=null, master=null;
+function ensureAudio(){
+  if(!AC){
+    const C=window.AudioContext||window.webkitAudioContext;
+    AC=new C();
+    master=AC.createGain(); master.gain.value=1.0;
+    master.connect(AC.destination);
+  }
+  if(AC.state==='suspended') AC.resume();
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) try{ AC?.resume?.(); }catch{} });
+
+function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+function parseNote(n){
+  const p=n.toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
+  const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]]; const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
+  return 12*(oct+1) + base + alt;
+}
+function ping(note, {hold=false, vel=.95}={}){
+  ensureAudio();
+  const midi = typeof note==='number'? note : parseNote(note);
+  const f = midiToFreq(midi);
+  const t0 = AC.currentTime+0.002;
+
+  const o1=AC.createOscillator(); o1.type='triangle'; o1.frequency.value=f;
+  const o2=AC.createOscillator(); o2.type='sine';     o2.frequency.value=f*2;
+
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=.8;
+  const g=AC.createGain();
+
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(.85*vel, t0+.01);
+  g.gain.exponentialRampToValueAtTime(0.0002, t0 + (hold?0.48:0.26));
+
+  lp.frequency.setValueAtTime(5200, t0);
+  lp.frequency.exponentialRampToValueAtTime(1400, t0+.22);
+
+  o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(master);
+  o1.start(t0); o2.start(t0);
+
+  const stop=()=>{ const t=AC.currentTime; g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0.0001,t,0.25); setTimeout(()=>{ try{o1.stop();o2.stop();}catch{} }, 300); };
+  if(!hold) setTimeout(stop, 300);
+  return stop;
+}
+function buzz(ms=8){ if(navigator.vibrate) navigator.vibrate(ms); }
+
+/* ========================  Build + Layout ======================== */
+const stage = document.getElementById('stage');
+const rowTop = document.getElementById('rowTop');
+const rowBottom = document.getElementById('rowBottom');
+const live = document.getElementById('live');
+
+function placeRow(container, startIJ, notes, blurMaxPx){
+  container.innerHTML='';
+  const w = num(css().getPropertyValue('--cube-size'), 36);
+  const h = w * (96/86);
+  const {I:ai, J:aj} = startIJ;
+
+  const N = notes.length;
+  notes.forEach(([note, key], idx)=>{
+    const I = ai + idx, J = aj;
+    const p = toXY(I, J);
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','cube');
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','button');
+    g.setAttribute('aria-label', `note ${note}`);
+    g.dataset.note = note;
+    g.dataset.I = I; g.dataset.J = J;
+
+    /* progressive blur: earlier index = "farther back" = blurrier */
+    const amt = blurMaxPx * ( (N-1-idx) / (N-1 || 1) );
+    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+
+    const u = document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+    u.setAttribute('x', p.x - w/2);
+    u.setAttribute('y', p.y - h/2);
+    u.setAttribute('width',  w);
+    u.setAttribute('height', h);
+    g.appendChild(u);
+
+    const lblNote = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lblNote.setAttribute('class','note');
+    lblNote.setAttribute('x', p.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lblNote.setAttribute('y', p.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lblNote.textContent = note;
+
+    const lblKey = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lblKey.setAttribute('class','key');
+    lblKey.setAttribute('x', p.x + parseFloat(css().getPropertyValue('--lbl-key-dx')));
+    lblKey.setAttribute('y', p.y + parseFloat(css().getPropertyValue('--lbl-key-dy')));
+    lblKey.textContent = key;
+
+    container.appendChild(g);
+    container.appendChild(lblNote);
+    container.appendChild(lblKey);
+  });
+}
+
+/* compute union bounds of both rows (in px, after placement) */
+function measureBounds(){
+  const uses = stage.querySelectorAll('use');
+  let minX= Infinity, minY= Infinity, maxX=-Infinity, maxY=-Infinity;
+  uses.forEach(u=>{
+    const x = parseFloat(u.getAttribute('x'));
+    const y = parseFloat(u.getAttribute('y'));
+    const w = parseFloat(u.getAttribute('width'));
+    const h = parseFloat(u.getAttribute('height'));
+    minX = Math.min(minX, x);   minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x+w); maxY = Math.max(maxY, y+h);
+  });
+  return {minX, minY, maxX, maxY, width:maxX-minX, height:maxY-minY, cx:(minX+maxX)/2, cy:(minY+maxY)/2};
+}
+
+/* Main layout:
+   - pick a scale so everything fits with margin
+   - for narrow screens, increase row separation
+   - center the union in the viewport
+*/
+function layoutAll(){
+  // base numbers
+  const vw = innerWidth, vh = innerHeight, margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
+
+  // choose scale that keeps everything in view:
+  // start with a trial layout to estimate bounds
+  const baseCell = num(css().getPropertyValue('--iso-cell-base'), 32);
+  const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
+
+  // trial: guess separation in lattice cells (more separation on small screens)
+  const sepJ = vw < 560 ? 9 : 7;   // vertical-ish space between rows (in J)
+  const offsetTop = {dI: 2, dJ: -sepJ};
+
+  // We'll iterate twice: estimate → scale → finalize.
+  const tryLayout = (scale)=>{
+    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
+    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
+    B = basis();
+
+    // choose anchor roughly near center, then center after measuring
+    const centerIJ = snap(vw/2, vh/2);
+    const startBottomIJ = { I: centerIJ.I - Math.floor(bottomNotes.length/2), J: centerIJ.J + 2 };
+    const startTopIJ    = { I: startBottomIJ.I + offsetTop.dI, J: startBottomIJ.J + offsetTop.dJ };
+
+    placeRow(rowBottom, startBottomIJ, bottomNotes, /*blurMax*/ 2.4*scale);
+    placeRow(rowTop,    startTopIJ,    topNotes,    /*blurMax*/ 2.8*scale);
+
+    const b = measureBounds();
+    const needW = vw - margin*2, needH = vh - margin*2;
+    const sW = needW / b.width,  sH = needH / b.height;
+    return {scaleUsed:scale, neededScale: Math.min(1, sW, sH), bounds:b, startBottomIJ, startTopIJ};
+  };
+
+  // pass 1: estimate
+  let pass = tryLayout(1);
+  // pass 2: apply tighter scale if needed
+  const finalScale = pass.neededScale;
+  pass = tryLayout(finalScale);
+
+  // now center by offsetting both rows by the px delta to viewport center,
+  // then snap starts again so cubes remain on the lattice rhythm.
+  const dx = vw/2 - pass.bounds.cx;
+  const dy = vh/2 - pass.bounds.cy;
+
+  function offsetIJ(ij, deltaX, deltaY){
+    const p0 = toXY(ij.I, ij.J);
+    const p = { x: p0.x + deltaX, y: p0.y + deltaY };
+    return snap(p.x, p.y);
+  }
+  const nb = offsetIJ(pass.startBottomIJ, dx, dy);
+  const nt = offsetIJ(pass.startTopIJ,    dx, dy);
+
+  rowBottom.innerHTML = ''; rowTop.innerHTML = '';
+  placeRow(rowBottom, nb, bottomNotes, 2.4*finalScale);
+  placeRow(rowTop,    nt, topNotes,    2.8*finalScale);
+}
+layoutAll();
+
+/* ========================  Interactions  ======================== */
+let sustain=false;
+const pressed = new Map();
+
+function playCube(g, viaHover=false){
+  const note = g.dataset.note;
+  const stop = ping(note, {hold:sustain});
+  pressed.set(g, stop);
+  g.classList.add('brighten');
+  const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
+  live.textContent = `Played ${note}`;
+  buzz();
+  if(!sustain && !viaHover){ setTimeout(()=>releaseCube(g), 240); }
+}
+function releaseCube(g){
+  g.classList.remove('brighten');
+  const stop=pressed.get(g); if(stop){ stop(); pressed.delete(g); }
+}
+
+/* pointer */
+stage.addEventListener('pointerdown', e=>{
+  const g = e.target.closest('.cube'); if(!g) return;
+  e.preventDefault(); ensureAudio(); playCube(g);
+}, {passive:false});
+addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
+
+/* hover should also play (desktop).
+   Debounce so tiny mouse wiggles over the same cube don't spam. */
+let lastHover=null, hoverTO=null;
+stage.addEventListener('pointerenter', e=>{
+  const g = e.target.closest?.('.cube'); if(!g) return;
+  if(lastHover===g) return;
+  lastHover=g; ensureAudio(); playCube(g, /*viaHover*/true);
+}, true);
+stage.addEventListener('pointerleave', e=>{
+  const g = e.target.closest?.('.cube'); if(!g) return;
+  lastHover=null; if(!sustain) releaseCube(g);
+}, true);
+
+/* keyboard mapping (includes alias for '=') */
+const keyMap = new Map([...bottomNotes, ...topNotes].map(([n,k])=>[k, n]));
+document.addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
+  let key = e.key; if(e.code==='Backquote') key='`';
+  if(!keyMap.has(key)) return;
+  const note = keyMap.get(key);
+  const g = [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(!g) return;
+  ensureAudio(); playCube(g, true);
+});
+document.addEventListener('keyup', e=>{
+  if(e.code==='Space'){ sustain=false; document.querySelectorAll('.cube.brighten').forEach(releaseCube); return; }
+  let key = e.key; if(e.code==='Backquote') key='`';
+  const note = keyMap.get(key); if(!note) return;
+  const g = [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(g) releaseCube(g);
+});
+
+/* keyboard focus click */
+stage.addEventListener('keydown', e=>{
+  const g=e.target.closest('.cube'); if(!g) return;
+  if(e.key==='Enter' || e.key===' '){ e.preventDefault(); ensureAudio(); playCube(g, true); }
+});
+stage.addEventListener('keyup', e=>{
+  const g=e.target.closest('.cube'); if(!g) return;
+  if(e.key==='Enter' || e.key===' '){ if(!sustain) releaseCube(g); }
+});
+</script>
+</body>
+</html>
