@@ -916,12 +916,29 @@ function loadSong(notesArray) {
   notesArray.forEach(n => addToSequence(n));
 }
 
-/* ===== Custom pattern: low → high (no intro/ending) ===== */
+/* ===== Load key pattern (low → high → alternating) ===== */
 (function(){
-  // Pull tokens like c5, d#5, etc., from a concatenated string.
-  function parseNoteRun(s){
-    const toks = s.match(/[a-g](?:#|b)?\d/gi) || [];
-    return toks.map(t => t.toLowerCase());
+  // Build key -> note from your current layout
+  const keyToNote = new Map(
+    [...bottomNotes, ...topNotes, ...sharpNotes].map(([note, key]) => [key, note])
+  );
+
+  // Treat ` as [ (you already map Backquote→[ in handlers)
+  const normalize = ch => (ch === '`' ? '[' : ch);
+
+  // Your pattern (typed keys). Spaces/newlines ignored.
+  const keyPattern =
+    "357357357357357257257246246357357357357257257246246" +
+    "etuetuetuetuwtuwtuwrywryetuetuetuetuwtuwtuwrywry" +
+    "e3t5u7e3t5u7e3t5u7e3t5u7w2t5u7w2t5u7w2r4y6w2r4y6" +
+    "e3t5u7e3t5u7e3t5u7e3t5u7w2t5u7w2t5u7w2r4y6w2r4y6";
+
+  // Map to notes (LOW)
+  const seqLow = [];
+  for (const raw of keyPattern.replace(/\s+/g, '')) {
+    const k = normalize(raw);
+    const n = keyToNote.get(k);
+    if (n) seqLow.push(n);
   }
 
   // Helpers for transposition (uses your global parseNote)
@@ -936,22 +953,25 @@ function loadSong(notesArray) {
     return midiToName(m + semis);
   }
 
-  // Low-register motif (your transition)
-  const transitionRun =
-    "c5e5g5c5e5g5c5e5g5c5e5g5b4e5g5b4e5g5b4d5f5b4d5f5" +
-    "c5e5g5c5e5g5c5e5g5b4e5g5b4e5g5b45f5b45f5";
-  const transitionLow  = parseNoteRun(transitionRun);
+  // HIGH = LOW + 12 semitones
+  const seqHigh = seqLow.map(n => transpose(n, 12));
 
-  // Same motif one octave higher
-  const transitionHigh = transitionLow.map(n => transpose(n, 12));
+  // ALTERNATING: L1, H1, L2, H2, ...
+  const seqAlt = [];
+  const N = Math.max(seqLow.length, seqHigh.length);
+  for (let i = 0; i < N; i++){
+    if (i < seqLow.length)  seqAlt.push(seqLow[i]);
+    if (i < seqHigh.length) seqAlt.push(seqHigh[i]);
+  }
 
-  // Final: low → high
-  const finalSeq = [...transitionLow, ...transitionHigh];
+  // Final order: low → high → alternating
+  const finalSeq = [...seqLow, ...seqHigh, ...seqAlt];
 
   clearAll();
   loadSong(finalSeq);
-  stepMs = 120; // a touch brisk
+  stepMs = 120; // adjust to taste
 })();
+
 
 
 
