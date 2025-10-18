@@ -296,9 +296,10 @@
 
 /* Layout + mapping */
 const bottomNotes = [
-  ['b3','q'], ['c4','w'], ['d4','e'], ['g4','r'], ['a4','t'],
-  ['b4','y'], ['c5','u'], ['d5','i'], ['e5','o'], ['f5','p'], ['g5','[']
+  ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t'],
+  ['f5','y'], ['g5','u'], ['a5','i'], ['b5','o'], ['c6','p']
 ];
+
 const topNotes = [
   ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'], ['e6','5'],
   ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
@@ -856,19 +857,42 @@ function loadSong(notesArray) {
   notesArray.forEach(n => addToSequence(n));
 }
 
-// Für Elise — opening motif + climb
-const furElise_motif_plus_climb = [
-  // motif
-  'e5','d#5','e5','d#5','e5','b4','d5','c5','a4',
-  // climb from the low A back up
-  'c4','e4','a4','b4',
-  'e4','g#4','b4','c5',
-  'e5','e6','d#6','e6','d#6','e6','b5','d6','c6','a5'
-];
+/* ===== Custom pattern: low → high (no intro/ending) ===== */
+(function(){
+  // Pull tokens like c5, d#5, etc., from a concatenated string.
+  function parseNoteRun(s){
+    const toks = s.match(/[a-g](?:#|b)?\d/gi) || [];
+    return toks.map(t => t.toLowerCase());
+  }
 
-loadSong(furElise_motif_plus_climb);
-stepMs = 185; // feels right for this passage
+  // Helpers for transposition (uses your global parseNote)
+  function midiToName(m){
+    const pcs = ['c','c#','d','d#','e','f','f#','g','g#','a','a#','b'];
+    const pc  = pcs[((m % 12) + 12) % 12];
+    const oct = Math.floor(m / 12) - 1;
+    return pc + oct;
+  }
+  function transpose(note, semis){
+    const m = typeof note === 'number' ? note : parseNote(note);
+    return midiToName(m + semis);
+  }
 
+  // Low-register motif (your transition)
+  const transitionRun =
+    "c5e5g5c5e5g5c5e5g5c5e5g5b4e5g5b4e5g5b4d5f5b4d5f5" +
+    "c5e5g5c5e5g5c5e5g5b4e5g5b4e5g5b45f5b45f5";
+  const transitionLow  = parseNoteRun(transitionRun);
+
+  // Same motif one octave higher
+  const transitionHigh = transitionLow.map(n => transpose(n, 12));
+
+  // Final: low → high
+  const finalSeq = [...transitionLow, ...transitionHigh];
+
+  clearAll();
+  loadSong(finalSeq);
+  stepMs = 120; // a touch brisk
+})();
 
 
 
