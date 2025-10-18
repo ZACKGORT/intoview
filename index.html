@@ -732,55 +732,68 @@ function flashCube(note){
   setTimeout(()=>g.classList.remove('brighten'),240);
 }
 function addToSequence(note){
-  // Inject minimal CSS once (dot + tooltip + hover red)
-  if (!document.getElementById('recDotStyles')) {
-    const st = document.createElement('style');
+  // Inject/refresh CSS for outlined squares + active glow + tooltip
+  let st = document.getElementById('recDotStyles');
+  if (!st) {
+    st = document.createElement('style');
     st.id = 'recDotStyles';
-    st.textContent = `
-      .rec .evt{ position:relative; }
-      .rec .evt .dot{
-        width: 8px; height: 8px;
-        background:#fff; border-radius:2px;
-        opacity:.9;
-        transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease, background-color .12s ease;
-      }
-      /* hover state: turn red, add subtle ring */
-      .rec .evt:hover .dot{
-        background: var(--rec-danger, #ff4d4d);
-        opacity:1;
-        box-shadow:0 0 0 2px rgb(255 255 255 / .35);
-      }
-      /* player "hit" flash */
-      .rec .evt.hit .dot{
-        transform: scale(1.25);
-        box-shadow:0 0 0 2px rgb(255 255 255 / .55);
-      }
-
-      /* Tooltip using data-tip text */
-      .rec .evt::after{
-        content: attr(data-tip);
-        position:absolute;
-        bottom: calc(100% + 6px);
-        left:50%;
-        transform: translateX(-50%) translateY(4px);
-        background: rgb(20 20 20 / .95);
-        color:#fff;
-        border:1px solid rgb(255 255 255 / .12);
-        border-radius:6px;
-        padding:4px 6px;
-        font:600 11px/1.2 ui-monospace, Menlo, monospace;
-        white-space:nowrap;
-        opacity:0;
-        pointer-events:none;
-        transition: opacity .12s ease, transform .12s ease;
-      }
-      .rec .evt:hover::after{
-        opacity:1;
-        transform: translateX(-50%) translateY(0);
-      }
-    `;
     document.head.appendChild(st);
   }
+  st.textContent = `
+    .rec .evt{ position:relative; }
+    .rec .evt .dot{
+      width: 8px; height: 8px;
+      background: transparent;            /* outline only by default */
+      border: 1px solid #3f3f3f;
+      border-radius: 100px;
+      opacity: .9;
+      box-shadow: none;
+      transition:
+        transform .12s ease,
+        opacity .12s ease,
+        box-shadow .12s ease,
+        background-color .12s ease,
+        border-color .12s ease,
+        filter .12s ease;
+    }
+    /* Hover: keep no fill; accent the outline + ring */
+    .rec .evt:hover .dot{
+      border-color: var(--rec-danger, #ff4d4d);
+      box-shadow: 0 0 0 2px rgb(255 255 255 / .25);
+      opacity: 1;
+    }
+    /* Active step: white fill + soft blur/glow */
+    .rec .evt.hit .dot{
+      background: #fff;
+      border-color: #fff;
+      filter: blur(0.5px);
+      box-shadow: 0 0 10px 2px rgb(255 255 255 / .65);
+      transform: scale(1.15);
+    }
+
+    /* Tooltip using data-tip text */
+    .rec .evt::after{
+      content: attr(data-tip);
+      position:absolute;
+      bottom: calc(100% + 6px);
+      left:50%;
+      transform: translateX(-50%) translateY(4px);
+      background: rgb(20 20 20 / .95);
+      color:#fff;
+      border:1px solid rgb(255 255 255 / .12);
+      border-radius:6px;
+      padding:4px 6px;
+      font:600 11px/1.2 ui-monospace, Menlo, monospace;
+      white-space:nowrap;
+      opacity:0;
+      pointer-events:none;
+      transition: opacity .12s ease, transform .12s ease;
+    }
+    .rec .evt:hover::after{
+      opacity:1;
+      transform: translateX(-50%) translateY(0);
+    }
+  `;
 
   const li = document.createElement('div');
   li.className = 'evt';
@@ -788,21 +801,22 @@ function addToSequence(note){
   // Tooltip text (custom) + native title as fallback
   const tipText = `${note.toUpperCase()} — click to delete`;
   li.dataset.tip = tipText;
-  li.title = tipText; // native tooltip fallback
+  li.title = tipText;
 
-  // tiny square
+  // outlined square
   const dot = document.createElement('div');
   dot.className = 'dot';
   li.appendChild(dot);
 
   // interactions
   li.addEventListener('click', () => removeEvent(li));
-  li.addEventListener('mouseenter', () => li.classList.add('hit'));
-  li.addEventListener('mouseleave', () => li.classList.remove('hit'));
+  li.addEventListener('mouseenter', () => li.classList.add('hit'));    // shows active preview glow
+  li.addEventListener('mouseleave', () => li.classList.remove('hit')); // remove active preview glow
 
   seqRow.appendChild(li);
   sequence.push({ note, li });
 }
+
 
 function removeEvent(li){
   const idx=sequence.findIndex(x=>x.li===li); if(idx>=0){ sequence.splice(idx,1); li.remove(); }
