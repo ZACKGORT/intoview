@@ -270,7 +270,7 @@
   <div class="info-tooltip" id="infoTip" role="dialog" aria-modal="false">
     <strong>intoview.pro</strong> is a concept being crafted from 0-1, to showcase, you know, your craft. Simply, picture a platform & place that puts your best into view.
     <br><br>
-    <small>Meanwhile, I was working on a design system using my shiny new logo, when I got distracted... anyway, <strong>enjoy!</strong></small>
+    <small>Meanwhile, I was working on a design system using my shiny new logo, when I got distracted... anyway, <strong>enjoy!</strong><br><br>ps. this is an original composition. Look at the source code for the meta data ;)</small>
   </div>
 </div>
 
@@ -287,11 +287,11 @@
     </symbol>
   </defs>
   <!-- Five rows (naturals only) -->
+  <g id="row0"></g>
   <g id="row1"></g>
   <g id="row2"></g>
   <g id="row3"></g>
   <g id="row4"></g>
-  <g id="row5"></g>
 </svg>
 
 <!-- Recorder bar -->
@@ -330,8 +330,11 @@
 
 <script>
 /* ================================
-   intoview.pro — full JavaScript
+   intoview.pro — FULL JavaScript
    (isometric cubes + padded, mobile-safe histogram)
+   Updates:
+   • New bottom row on punctuation: F4 G4 A4 B4 C5
+   • Rows ascend left→right; hover NEVER logs
    ================================ */
 
 /* ---------- Info tooltip ---------- */
@@ -346,6 +349,9 @@
 })();
 
 /* ---------- Layout + mapping ---------- */
+const row0Notes = [
+  ['f4','-'], ['g4','='], ['a4','['], ['b4',']'], ['c5','\\']   // punctuation row, ascending
+];
 const row1Notes = [
   ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t']
 ];
@@ -358,10 +364,7 @@ const row3Notes = [
 const row4Notes = [
   ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
 ];
-const row5Notes = [
-  ['f7','-'], ['g7','='], ['a7','['], ['b7',']'], ['c8','\\']
-];
-const allNotes = [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes];
+const allNotes = [...row0Notes, ...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes];
 
 const cos30 = Math.sqrt(3)/2, sin30=0.5;
 function css(){ return getComputedStyle(document.documentElement); }
@@ -376,16 +379,15 @@ function basis(){
   return {CELL,v1,v2,inv};
 }
 let B=basis();
-addEventListener('resize', ()=>{ layoutAll(); }, {passive:true});
 function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
 function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
 
 const stage=document.getElementById('stage');
+const row0 = document.getElementById('row0');
 const row1 = document.getElementById('row1');
 const row2 = document.getElementById('row2');
 const row3 = document.getElementById('row3');
 const row4 = document.getElementById('row4');
-const row5 = document.getElementById('row5');
 
 /* Place a single horizontal row (desktop) */
 function placeRow(container, startIJ, notes, blurMaxPx){
@@ -402,11 +404,13 @@ function placeRow(container, startIJ, notes, blurMaxPx){
     g.setAttribute('tabindex','0');
     g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
     g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
+
     const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
     g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
 
     const u=document.createElementNS('http://www.w3.org/2000/svg','use');
-    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+    u.setAttribute('href', '#cubeSym');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#cubeSym');
     u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
     u.setAttribute('width', w); u.setAttribute('height', h);
     g.appendChild(u);
@@ -446,7 +450,8 @@ function placeBlock(container, startIJ, notes, cols, blurMaxPx){
     g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
 
     const u=document.createElementNS('http://www.w3.org/2000/svg','use');
-    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+    u.setAttribute('href', '#cubeSym');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#cubeSym');
     u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
     u.setAttribute('width', w); u.setAttribute('height', h);
     g.appendChild(u);
@@ -465,6 +470,7 @@ function placeBlock(container, startIJ, notes, cols, blurMaxPx){
 
 function measureBounds(){
   const uses=stage.querySelectorAll('use');
+  if(!uses.length) return {minX:0,minY:0,maxX:0,maxY:0,width:0,height:0,cx:0,cy:0};
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   uses.forEach(u=>{
     const x=+u.getAttribute('x'), y=+u.getAttribute('y');
@@ -490,11 +496,9 @@ function layoutAll(){
 
   /* ——— Histogram: add bottom padding inside the track ——— */
   const track = document.querySelector('.rec .track');
-  if (track) track.style.paddingBottom = '14px'; // tweak to taste
+  if (track) track.style.paddingBottom = '14px';
 
-  /* ——— Mobile-safe vertical scaling for bars ———
-     Narrower screens get a lower BAR_MAX so the histogram never feels cramped.
-     You can tune these thresholds as you like. */
+  /* ——— Mobile-safe vertical scaling for bars ——— */
   if (vw <= 360)      { BAR_SCALE = 0.34; BAR_MAX = 32; BAR_MIN = 6; }
   else if (vw <= 420) { BAR_SCALE = 0.36; BAR_MAX = 36; BAR_MIN = 6; }
   else if (vw <= 520) { BAR_SCALE = 0.37; BAR_MAX = 40; BAR_MIN = 6; }
@@ -508,19 +512,18 @@ function layoutAll(){
   const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
 
   // clear rows
-  row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
+  row0.innerHTML = row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
 
   if (MOBILE){
-    // mobile: 5 columns x 5 rows block
-    const N = allNotes.length;                 // 25
+    // mobile: 5 columns x 5 rows block (all 25 keys)
+    const N = allNotes.length; // 25
     const cols = 5;
     const rows = Math.ceil(N / cols);
     const center = snap(vw/2, (vh - recH)/2 - 6);
-
     const startI = center.I - Math.floor(cols/2);
     const startJ = center.J - Math.floor(rows/2);
 
-    placeBlock(row1, {I:startI, J:startJ}, allNotes, cols, 1.6);
+    placeBlock(row0, {I:startI, J:startJ}, allNotes, cols, 1.6);
 
     const b = measureBounds();
     const needW = vw - margin*2;
@@ -537,8 +540,8 @@ function layoutAll(){
     const startI2 = center2.I - Math.floor(cols/2);
     const startJ2 = center2.J - Math.floor(rows/2);
 
-    row1.innerHTML='';
-    placeBlock(row1, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
+    row0.innerHTML='';
+    placeBlock(row0, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
 
   } else {
     // desktop: five rows with tightened gap
@@ -555,11 +558,11 @@ function layoutAll(){
     const start4 = { I: startI, J: startJTop + rowGap * 3 };
     const start5 = { I: startI, J: startJTop + rowGap * 4 };
 
-    placeRow(row1, start1, row1Notes, 2.0);
-    placeRow(row2, start2, row2Notes, 2.2);
-    placeRow(row3, start3, row3Notes, 2.4);
-    placeRow(row4, start4, row4Notes, 2.6);
-    placeRow(row5, start5, row5Notes, 2.8);
+    placeRow(row0, start1, row0Notes, 2.0);
+    placeRow(row1, start2, row1Notes, 2.2);
+    placeRow(row2, start3, row2Notes, 2.4);
+    placeRow(row3, start4, row3Notes, 2.6);
+    placeRow(row4, start5, row4Notes, 2.8);
 
     const b = measureBounds();
     const needW = vw - margin*2;
@@ -582,18 +585,17 @@ function layoutAll(){
     const start4b = { I: startI2, J: startJTop2 + rowGap * 3 };
     const start5b = { I: startI2, J: startJTop2 + rowGap * 4 };
 
-    row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
-    placeRow(row1, start1b, row1Notes, 2.0);
-    placeRow(row2, start2b, row2Notes, 2.2);
-    placeRow(row3, start3b, row3Notes, 2.4);
-    placeRow(row4, start4b, row4Notes, 2.6);
-    placeRow(row5, start5b, row5Notes, 2.8);
+    row0.innerHTML = row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
+    placeRow(row0, start1b, row0Notes, 2.0);
+    placeRow(row1, start2b, row1Notes, 2.2);
+    placeRow(row2, start3b, row2Notes, 2.4);
+    placeRow(row3, start4b, row3Notes, 2.6);
+    placeRow(row4, start5b, row4Notes, 2.8);
   }
 
   window.dispatchEvent(new Event('resize'));
   window.dispatchEvent(new Event('iso:refresh'));
 }
-
 layoutAll();
 
 /* ---------- Pulses canvas ---------- */
@@ -705,8 +707,15 @@ function ensureAudio(){
 function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
 function parseNote(n){
   const p=String(n).toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
-  const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]]; const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
+  const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]];
+  const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
   return 12*(oct+1)+base+alt;
+}
+function midiToName(m){
+  const pcs = ['c','c#','d','d#','e','f','f#','g','g#','a','a#','b'];
+  const pc  = pcs[((m % 12) + 12) % 12];
+  const oct = Math.floor(m / 12) - 1;
+  return (pc + oct);
 }
 let convolver=null, dry=null, wet=null;
 function buildReverb(){
@@ -788,14 +797,14 @@ function createPianoVoice(freq, vel){
   };
   return { stop };
 }
-function playPiano(note, {hold=false, vel=.95} = {}){
+function playPiano(noteOrMidi, {hold=false, vel=.95} = {}){
   ensureAudio();
 
-  const nStr = String(note).toLowerCase();
+  const key = typeof noteOrMidi === 'number' ? noteOrMidi : String(noteOrMidi).toLowerCase();
   const nowMs = performance.now();
-  const last = lastTrigByNote.get(nStr) || 0;
+  const last = lastTrigByNote.get(key) || 0;
   if (nowMs - last < NOTE_COOLDOWN_MS) return () => {};
-  lastTrigByNote.set(nStr, nowMs);
+  lastTrigByNote.set(key, nowMs);
 
   if (activeVoices.size >= POLY_MAX) {
     const oldest = activeVoices.values().next().value;
@@ -803,7 +812,7 @@ function playPiano(note, {hold=false, vel=.95} = {}){
     activeVoices.delete(oldest);
   }
 
-  const midi = typeof note === 'number' ? note : parseNote(note);
+  const midi = (typeof noteOrMidi === 'number') ? noteOrMidi : parseNote(noteOrMidi);
   const f = midiToFreq(midi);
   const v = createPianoVoice(f, vel);
   activeVoices.add(v);
@@ -814,10 +823,7 @@ document.addEventListener('pointerdown',()=>{ if(!synthReady){ ensureAudio(); sy
 document.addEventListener('keydown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true});
 
 /* ---------- Transport ---------- */
-let stepMs = 190;
-
-
-
+let stepMs = 120;
 
 /* Loop toggle (in controls) */
 let isLooping = false;
@@ -845,10 +851,9 @@ setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
 /* ---------- Recorder / player — histogram ---------- */
 const live=document.getElementById('live');
 const seqRow=document.getElementById('seqRow');
-/* Fill the track by default; bar heights are controlled via % + our mobile caps */
 if (seqRow) { seqRow.style.height = '10%'; seqRow.style.width = '100%'; }
 
-const sequence=[]; // [{note, li:HTMLElement, midi:number}]
+const sequence=[]; // [{note: number|string, li:HTMLElement, midi:number}]
 let playing=false, playIdx=0, playTimer=null;
 
 function flashLabel(note){
@@ -874,33 +879,26 @@ function degreeHeightFromMidi(midi){
   return Math.max(12, Math.min(92, h));
 }
 
-/* Short bars with adaptive caps (set in layoutAll) */
-function barHeightPercentFromMidi(m){
-  const raw = degreeHeightFromMidi(m);
-  const scaled = raw * BAR_SCALE;
-  return Math.max(BAR_MIN, Math.min(BAR_MAX, scaled));
-}
-
-function addToSequence(note){
+function addMidiToSequence(m){
   const bar = document.createElement('div');
   bar.className = 'bar';
-  bar.dataset.note = note;
-  bar.title = `${note.toUpperCase()} — click to delete`;
+  bar.dataset.note = String(m); // store midi for reference
+  bar.title = `${midiToName(m).toUpperCase()} — click to delete`;
   bar.addEventListener('click', () => removeEvent(bar));
   bar.addEventListener('mouseenter', () => bar.classList.add('hit'));
   bar.addEventListener('mouseleave', () => bar.classList.remove('hit'));
-
   seqRow.appendChild(bar);
-  sequence.push({ note, li: bar, midi: parseNote(note) });
-
-  updateHistogramBars();
+  sequence.push({ note: m, li: bar, midi: m });
+  fitHistogramToViewport();           // keep bars fitting width
 }
+
 function removeEvent(el){
   const idx = sequence.findIndex(x => x.li === el);
   if (idx >= 0){
     sequence.splice(idx, 1);
     el.remove();
     updateHistogramBars();
+    fitHistogramToViewport();
   }
 }
 function clearAll(){
@@ -908,39 +906,33 @@ function clearAll(){
   seqRow.innerHTML = '';
   seqRow.style.setProperty('--n', 1);
   stopPlay();
+  fitHistogramToViewport();
 }
 function updateHistogramBars(){
   const n = sequence.length;
-  // keep bars squishing horizontally to fit width
   seqRow.style.setProperty('--n', Math.max(1, n));
   if (n === 0) return;
 
-  // 1) compute raw heights (your musical mapping)
   const raws = sequence.map(s => {
     const m = (typeof s.midi === 'number') ? s.midi : parseNote(s.note);
     s.midi = m;
-    return degreeHeightFromMidi(m);   // returns a relative “percent-like” value
+    return degreeHeightFromMidi(m);
   });
 
-  // 2) establish dynamic scaling: min -> 4px, others proportional
-  const MIN_PX = 4;                   // requested height for the lowest note
-  const TOP_PAD_PX = 6;               // a little headroom so tallest doesn’t kiss the top
-  const rowH = seqRow.clientHeight || 1; // avoid 0 before layout
+  const MIN_PX = 4;
+  const TOP_PAD_PX = 6;
+  const rowH = seqRow.clientHeight || 1;
   const minRaw = Math.min(...raws);
   const maxRaw = Math.max(...raws);
-
-  // available vertical space for growth (beyond the 4px baseline)
   const avail = Math.max(8, rowH - (MIN_PX + TOP_PAD_PX));
-  const denom = Math.max(1e-6, (maxRaw - minRaw)); // prevent divide-by-zero
+  const denom = Math.max(1e-6, (maxRaw - minRaw));
   const slope = avail / denom;
 
-  // 3) apply pixel heights
   sequence.forEach((s, i) => {
     const hPx = MIN_PX + (raws[i] - minRaw) * slope;
     s.li.style.height = hPx.toFixed(1) + 'px';
   });
 }
-
 
 function stepPlay(){
   if(sequence.length===0){ stopPlay(); return; }
@@ -953,9 +945,13 @@ function stepPlay(){
     }
     return;
   }
-  const {note, li}=sequence[playIdx++];
-  li.classList.add('hit'); setTimeout(()=>li.classList.remove('hit'), 180);
-  ensureAudio(); playPiano(note); flashLabel(note); flashCube(note); live.textContent=`Played ${note}`;
+  const cur = sequence[playIdx++];
+  const midi = (typeof cur.midi === 'number') ? cur.midi : parseNote(cur.note);
+  const labelName = midiToName(midi);
+  cur.li.classList.add('hit'); setTimeout(()=>cur.li.classList.remove('hit'), 180);
+  ensureAudio(); playPiano(midi);
+  flashLabel(labelName); flashCube(labelName);
+  live.textContent=`Played ${labelName.toUpperCase()} (${midi})`;
   playTimer=setTimeout(stepPlay, stepMs);
 }
 function startPlay(){ if(playing||sequence.length===0) return; playing=true; playIdx=0; stepPlay(); }
@@ -970,12 +966,14 @@ let sustain=false;
 const pressed=new Map();
 function playCube(g, {viaHover=false, record=false} = {}){
   const note=g.dataset.note;
-  const release=playPiano(note,{hold:sustain});
+  const midi = parseNote(note);
+  const release=playPiano(midi,{hold:sustain});
   pressed.set(g, release);
   g.classList.add('brighten');
   const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
   flashLabel(note);
-  if(record) addToSequence(note);
+  if(record) addMidiToSequence(midi);
+  if(record) updateHistogramBars();
   if(!sustain && !viaHover){ setTimeout(()=>releaseCube(g), 240); }
 }
 function releaseCube(g){
@@ -988,19 +986,14 @@ stage.addEventListener('pointerdown', e=>{
 },{passive:false});
 addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
 
-/* Shift pauses hover logging */
-let hoverLogPaused = false;
-addEventListener('keydown', (e) => { if (e.key === 'Shift') hoverLogPaused = true; }, { passive: true });
-addEventListener('keyup',   (e) => { if (e.key === 'Shift') hoverLogPaused = false; }, { passive: true });
-
-/* hover — plays; logs unless Shift is held */
+/* Hover — plays; NEVER logs */
 let lastHover = null;
 stage.addEventListener('pointerover', (e) => {
   const g = e.target.closest('.cube');
   if (!g || lastHover === g) return;
   lastHover = g;
   ensureAudio();
-  playCube(g, { viaHover: true, record: !hoverLogPaused });
+  playCube(g, { viaHover: true, record: false });
 }, true);
 stage.addEventListener('pointerout', (e) => {
   const g = e.target.closest('.cube'); if (!g) return;
@@ -1012,7 +1005,7 @@ stage.addEventListener('pointerout', (e) => {
 
 /* ---------- Keyboard mapping (five rows) ---------- */
 const keyMap=new Map(
-  [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes].map(([n,k])=>[k, n])
+  [...row0Notes, ...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes].map(([n,k])=>[k, n])
 );
 document.addEventListener('keydown', e=>{
   if(e.repeat) return;
@@ -1052,79 +1045,431 @@ document.addEventListener('keyup', e=>{
   if(g) releaseCube(g);
 });
 
-/* ---------- Loader ---------- */
-function loadSong(notesArray) {
-  sequence.splice(0, sequence.length);
-  seqRow.innerHTML = '';
-  notesArray.forEach(n => addToSequence(n));
+/* ---------- Load EXACT composition from your CSV (optional demo) ---------- */
+function loadFromCSV(csvText){
+  clearAll();
+  const lines = csvText.trim().split(/\r?\n/);
+  for(let i=1;i<lines.length;i++){
+    const parts = lines[i].split(',');
+    if (parts.length < 3) continue;
+    const midi = parseInt(parts[1], 10);
+    if (!Number.isFinite(midi)) continue;
+    addMidiToSequence(midi);
+  }
   updateHistogramBars();
+  fitHistogramToViewport();
 }
 
-/* Robust parsing of key pattern */
-(function(){
-  const keyToNote = new Map(
-    [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes]
-      .map(([note, key]) => [key, note])
-  );
-  const normalize = ch => (ch === '`' ? '[' : ch);
+// (You can swap in your own CSV or remove this block.)
+const CSV_COMPOSITION = `
+time,midi,name
+2025-10-20T19:06:19.372Z,96,C7
+2025-10-20T19:06:19.659Z,91,G6
+2025-10-20T19:06:19.825Z,84,C6
+2025-10-20T19:06:20.034Z,96,C7
+2025-10-20T19:06:20.215Z,91,G6
+2025-10-20T19:06:20.409Z,84,C6
+2025-10-20T19:06:20.603Z,96,C7
+2025-10-20T19:06:20.793Z,91,G6
+2025-10-20T19:06:20.980Z,84,C6
+2025-10-20T19:06:21.182Z,96,C7
+2025-10-20T19:06:21.324Z,91,G6
+2025-10-20T19:06:21.539Z,84,C6
+2025-10-20T19:06:22.070Z,96,C7
+2025-10-20T19:06:22.301Z,91,G6
+2025-10-20T19:06:22.470Z,84,C6
+2025-10-20T19:06:22.669Z,96,C7
+2025-10-20T19:06:22.881Z,91,G6
+2025-10-20T19:06:23.041Z,84,C6
+2025-10-20T19:06:23.222Z,96,C7
+2025-10-20T19:06:23.383Z,91,G6
+2025-10-20T19:06:23.577Z,84,C6
+2025-10-20T19:06:23.765Z,96,C7
+2025-10-20T19:06:23.913Z,91,G6
+2025-10-20T19:06:24.101Z,84,C6
+2025-10-20T19:06:24.587Z,95,B6
+2025-10-20T19:06:24.819Z,91,G6
+2025-10-20T19:06:24.958Z,84,C6
+2025-10-20T19:06:25.138Z,95,B6
+2025-10-20T19:06:25.328Z,91,G6
+2025-10-20T19:06:25.509Z,84,C6
+2025-10-20T19:06:25.703Z,95,B6
+2025-10-20T19:06:25.858Z,91,G6
+2025-10-20T19:06:26.043Z,84,C6
+2025-10-20T19:06:26.244Z,95,B6
+2025-10-20T19:06:26.383Z,91,G6
+2025-10-20T19:06:26.560Z,84,C6
+2025-10-20T19:06:26.972Z,95,B6
+2025-10-20T19:06:27.134Z,91,G6
+2025-10-20T19:06:27.308Z,84,C6
+2025-10-20T19:06:27.497Z,95,B6
+2025-10-20T19:06:27.657Z,91,G6
+2025-10-20T19:06:27.829Z,84,C6
+2025-10-20T19:06:28.026Z,95,B6
+2025-10-20T19:06:28.191Z,91,G6
+2025-10-20T19:06:28.372Z,84,C6
+2025-10-20T19:06:28.561Z,95,B6
+2025-10-20T19:06:28.707Z,91,G6
+2025-10-20T19:06:28.872Z,84,C6
+2025-10-20T19:06:29.301Z,93,A6
+2025-10-20T19:06:29.483Z,89,F6
+2025-10-20T19:06:29.656Z,84,C6
+2025-10-20T19:06:29.822Z,93,A6
+2025-10-20T19:06:29.983Z,89,F6
+2025-10-20T19:06:30.157Z,84,C6
+2025-10-20T19:06:30.365Z,93,A6
+2025-10-20T19:06:30.505Z,89,F6
+2025-10-20T19:06:30.692Z,84,C6
+2025-10-20T19:06:30.880Z,93,A6
+2025-10-20T19:06:31.019Z,89,F6
+2025-10-20T19:06:31.199Z,84,C6
+2025-10-20T19:06:31.601Z,93,A6
+2025-10-20T19:06:31.741Z,89,F6
+2025-10-20T19:06:31.928Z,84,C6
+2025-10-20T19:06:32.130Z,93,A6
+2025-10-20T19:06:32.290Z,89,F6
+2025-10-20T19:06:32.457Z,84,C6
+2025-10-20T19:06:32.660Z,93,A6
+2025-10-20T19:06:32.800Z,89,F6
+2025-10-20T19:06:32.982Z,84,C6
+2025-10-20T19:06:33.167Z,93,A6
+2025-10-20T19:06:33.315Z,89,F6
+2025-10-20T19:06:33.517Z,84,C6
+2025-10-20T19:06:34.063Z,91,G6
+2025-10-20T19:06:34.261Z,88,E6
+2025-10-20T19:06:34.449Z,84,C6
+2025-10-20T19:06:34.650Z,91,G6
+2025-10-20T19:06:34.781Z,88,E6
+2025-10-20T19:06:34.989Z,84,C6
+2025-10-20T19:06:35.192Z,91,G6
+2025-10-20T19:06:35.343Z,88,E6
+2025-10-20T19:06:35.530Z,84,C6
+2025-10-20T19:06:35.724Z,91,G6
+2025-10-20T19:06:35.864Z,88,E6
+2025-10-20T19:06:36.039Z,84,C6
+2025-10-20T19:06:36.765Z,89,F6
+2025-10-20T19:06:36.927Z,86,D6
+2025-10-20T19:06:37.085Z,83,B5
+2025-10-20T19:06:37.288Z,89,F6
+2025-10-20T19:06:37.414Z,86,D6
+2025-10-20T19:06:37.602Z,83,B5
+2025-10-20T19:06:37.821Z,89,F6
+2025-10-20T19:06:37.965Z,86,D6
+2025-10-20T19:06:38.172Z,83,B5
+2025-10-20T19:06:38.362Z,89,F6
+2025-10-20T19:06:38.500Z,86,D6
+2025-10-20T19:06:38.673Z,83,B5
+2025-10-20T19:06:39.061Z,88,E6
+2025-10-20T19:06:39.278Z,84,C6
+2025-10-20T19:06:39.444Z,81,A5
+2025-10-20T19:06:39.638Z,88,E6
+2025-10-20T19:06:39.778Z,84,C6
+2025-10-20T19:06:39.959Z,81,A5
+2025-10-20T19:06:40.160Z,88,E6
+2025-10-20T19:06:40.299Z,84,C6
+2025-10-20T19:06:40.472Z,81,A5
+2025-10-20T19:06:40.674Z,88,E6
+2025-10-20T19:06:40.800Z,84,C6
+2025-10-20T19:06:40.994Z,81,A5
+2025-10-20T19:06:41.784Z,89,F6
+2025-10-20T19:06:41.966Z,86,D6
+2025-10-20T19:06:42.140Z,83,B5
+2025-10-20T19:06:42.341Z,89,F6
+2025-10-20T19:06:42.500Z,86,D6
+2025-10-20T19:06:42.716Z,83,B5
+2025-10-20T19:06:42.920Z,89,F6
+2025-10-20T19:06:43.093Z,86,D6
+2025-10-20T19:06:43.271Z,83,B5
+2025-10-20T19:06:43.494Z,89,F6
+2025-10-20T19:06:43.809Z,86,D6
+2025-10-20T19:06:44.189Z,83,B5
+2025-10-20T19:06:45.519Z,86,D6
+2025-10-20T19:06:46.039Z,83,B5
+2025-10-20T19:06:46.228Z,79,G5
+2025-10-20T19:06:46.409Z,86,D6
+2025-10-20T19:06:46.548Z,83,B5
+2025-10-20T19:06:46.722Z,79,G5
+2025-10-20T19:06:46.930Z,86,D6
+2025-10-20T19:06:47.049Z,83,B5
+2025-10-20T19:06:47.252Z,79,G5
+2025-10-20T19:06:47.451Z,86,D6
+2025-10-20T19:06:47.571Z,83,B5
+2025-10-20T19:06:47.743Z,79,G5
+2025-10-20T19:06:47.924Z,88,E6
+2025-10-20T19:06:48.057Z,84,C6
+2025-10-20T19:06:48.231Z,81,A5
+2025-10-20T19:06:48.439Z,88,E6
+2025-10-20T19:06:48.563Z,84,C6
+2025-10-20T19:06:48.751Z,81,A5
+2025-10-20T19:06:48.939Z,88,E6
+2025-10-20T19:06:49.072Z,84,C6
+2025-10-20T19:06:49.245Z,81,A5
+2025-10-20T19:06:49.432Z,88,E6
+2025-10-20T19:06:49.559Z,84,C6
+2025-10-20T19:06:49.745Z,81,A5
+2025-10-20T19:06:50.245Z,84,C6
+2025-10-20T19:06:50.384Z,81,A5
+2025-10-20T19:06:50.572Z,77,F5
+2025-10-20T19:06:50.786Z,84,C6
+2025-10-20T19:06:50.932Z,81,A5
+2025-10-20T19:06:51.100Z,77,F5
+2025-10-20T19:06:51.288Z,84,C6
+2025-10-20T19:06:51.414Z,81,A5
+2025-10-20T19:06:51.593Z,77,F5
+2025-10-20T19:06:51.794Z,84,C6
+2025-10-20T19:06:51.920Z,81,A5
+2025-10-20T19:06:52.074Z,77,F5
+2025-10-20T19:06:52.719Z,86,D6
+2025-10-20T19:06:52.892Z,83,B5
+2025-10-20T19:06:53.065Z,79,G5
+2025-10-20T19:06:53.239Z,86,D6
+2025-10-20T19:06:53.379Z,83,B5
+2025-10-20T19:06:53.573Z,79,G5
+2025-10-20T19:06:53.767Z,86,D6
+2025-10-20T19:06:53.908Z,83,B5
+2025-10-20T19:06:54.094Z,79,G5
+2025-10-20T19:06:54.289Z,86,D6
+2025-10-20T19:06:54.415Z,83,B5
+2025-10-20T19:06:54.608Z,79,G5
+2025-10-20T19:06:55.114Z,83,B5
+2025-10-20T19:06:55.330Z,79,G5
+2025-10-20T19:06:55.504Z,76,E5
+2025-10-20T19:06:55.685Z,83,B5
+2025-10-20T19:06:55.810Z,79,G5
+2025-10-20T19:06:55.977Z,76,E5
+2025-10-20T19:06:56.179Z,83,B5
+2025-10-20T19:06:56.298Z,79,G5
+2025-10-20T19:06:56.471Z,76,E5
+2025-10-20T19:06:56.701Z,83,B5
+2025-10-20T19:06:56.819Z,79,G5
+2025-10-20T19:06:56.999Z,76,E5
+2025-10-20T19:06:57.165Z,84,C6
+2025-10-20T19:06:57.285Z,81,A5
+2025-10-20T19:06:57.472Z,77,F5
+2025-10-20T19:06:57.674Z,84,C6
+2025-10-20T19:06:57.806Z,81,A5
+2025-10-20T19:06:58.000Z,77,F5
+2025-10-20T19:06:58.191Z,84,C6
+2025-10-20T19:06:58.327Z,81,A5
+2025-10-20T19:06:58.522Z,77,F5
+2025-10-20T19:06:58.729Z,84,C6
+2025-10-20T19:06:58.856Z,81,A5
+2025-10-20T19:06:59.039Z,77,F5
+2025-10-20T19:07:00.228Z,60,C4
+2025-10-20T19:07:00.430Z,64,E4
+2025-10-20T19:07:00.630Z,67,G4
+2025-10-20T19:07:00.810Z,60,C4
+2025-10-20T19:07:01.019Z,64,E4
+2025-10-20T19:07:01.200Z,67,G4
+2025-10-20T19:07:01.396Z,60,C4
+2025-10-20T19:07:01.595Z,64,E4
+2025-10-20T19:07:01.791Z,67,G4
+2025-10-20T19:07:01.971Z,60,C4
+2025-10-20T19:07:02.173Z,64,E4
+2025-10-20T19:07:02.364Z,67,G4
+2025-10-20T19:07:02.644Z,62,D4
+2025-10-20T19:07:02.839Z,65,F4
+2025-10-20T19:07:03.029Z,69,A4
+2025-10-20T19:07:03.213Z,62,D4
+2025-10-20T19:07:03.400Z,65,F4
+2025-10-20T19:07:03.588Z,69,A4
+2025-10-20T19:07:03.770Z,62,D4
+2025-10-20T19:07:03.951Z,65,F4
+2025-10-20T19:07:04.138Z,69,A4
+2025-10-20T19:07:04.333Z,62,D4
+2025-10-20T19:07:04.529Z,65,F4
+2025-10-20T19:07:04.703Z,69,A4
+2025-10-20T19:07:05.214Z,59,B3
+2025-10-20T19:07:05.409Z,62,D4
+2025-10-20T19:07:05.603Z,65,F4
+2025-10-20T19:07:05.784Z,59,B3
+2025-10-20T19:07:05.971Z,62,D4
+2025-10-20T19:07:06.172Z,65,F4
+2025-10-20T19:07:06.360Z,59,B3
+2025-10-20T19:07:06.551Z,62,D4
+2025-10-20T19:07:06.729Z,65,F4
+2025-10-20T19:07:06.922Z,59,B3
+2025-10-20T19:07:07.123Z,62,D4
+2025-10-20T19:07:07.325Z,65,F4
+2025-10-20T19:07:07.520Z,60,C4
+2025-10-20T19:07:07.715Z,64,E4
+2025-10-20T19:07:07.916Z,67,G4
+2025-10-20T19:07:08.120Z,60,C4
+2025-10-20T19:07:08.320Z,64,E4
+2025-10-20T19:07:08.521Z,67,G4
+2025-10-20T19:07:08.723Z,60,C4
+2025-10-20T19:07:08.912Z,64,E4
+2025-10-20T19:07:09.111Z,67,G4
+2025-10-20T19:07:09.305Z,60,C4
+2025-10-20T19:07:09.514Z,64,E4
+2025-10-20T19:07:09.701Z,67,G4
+2025-10-20T19:07:12.683Z,64,E4
+2025-10-20T19:07:12.842Z,67,G4
+2025-10-20T19:07:13.024Z,71,B4
+2025-10-20T19:07:13.219Z,64,E4
+2025-10-20T19:07:13.426Z,67,G4
+2025-10-20T19:07:13.624Z,71,B4
+2025-10-20T19:07:13.824Z,64,E4
+2025-10-20T19:07:14.022Z,67,G4
+2025-10-20T19:07:14.214Z,71,B4
+2025-10-20T19:07:14.409Z,64,E4
+2025-10-20T19:07:14.612Z,67,G4
+2025-10-20T19:07:14.800Z,71,B4
+2025-10-20T19:07:15.436Z,62,D4
+2025-10-20T19:07:15.644Z,65,F4
+2025-10-20T19:07:15.825Z,69,A4
+2025-10-20T19:07:16.020Z,62,D4
+2025-10-20T19:07:16.213Z,65,F4
+2025-10-20T19:07:16.409Z,69,A4
+2025-10-20T19:07:16.602Z,62,D4
+2025-10-20T19:07:16.792Z,65,F4
+2025-10-20T19:07:16.992Z,69,A4
+2025-10-20T19:07:17.193Z,62,D4
+2025-10-20T19:07:17.386Z,65,F4
+2025-10-20T19:07:17.568Z,69,A4
+2025-10-20T19:07:18.135Z,65,F4
+2025-10-20T19:07:18.331Z,69,A4
+2025-10-20T19:07:18.525Z,72,C5
+2025-10-20T19:07:18.704Z,65,F4
+2025-10-20T19:07:18.915Z,69,A4
+2025-10-20T19:07:19.116Z,72,C5
+2025-10-20T19:07:19.304Z,65,F4
+2025-10-20T19:07:19.511Z,69,A4
+2025-10-20T19:07:19.699Z,72,C5
+2025-10-20T19:07:19.894Z,65,F4
+2025-10-20T19:07:20.088Z,69,A4
+2025-10-20T19:07:20.292Z,72,C5
+2025-10-20T19:07:21.719Z,67,G4
+2025-10-20T19:07:21.923Z,71,B4
+2025-10-20T19:07:22.138Z,74,D5
+2025-10-20T19:07:22.348Z,67,G4
+2025-10-20T19:07:22.561Z,71,B4
+2025-10-20T19:07:22.757Z,74,D5
+2025-10-20T19:07:22.944Z,67,G4
+2025-10-20T19:07:23.130Z,71,B4
+2025-10-20T19:07:23.335Z,74,D5
+2025-10-20T19:07:23.495Z,67,G4
+2025-10-20T19:07:23.689Z,71,B4
+2025-10-20T19:07:23.884Z,74,D5
+2025-10-20T19:07:25.732Z,79,G5
+2025-10-20T19:07:25.982Z,76,E5
+2025-10-20T19:07:26.176Z,72,C5
+2025-10-20T19:07:26.385Z,79,G5
+2025-10-20T19:07:26.592Z,76,E5
+2025-10-20T19:07:26.810Z,72,C5
+2025-10-20T19:07:27.023Z,79,G5
+2025-10-20T19:07:27.213Z,76,E5
+2025-10-20T19:07:27.428Z,72,C5
+2025-10-20T19:07:27.653Z,79,G5
+2025-10-20T19:07:27.880Z,76,E5
+2025-10-20T19:07:28.074Z,72,C5
+2025-10-20T19:07:28.338Z,77,F5
+2025-10-20T19:07:28.540Z,74,D5
+2025-10-20T19:07:28.762Z,71,B4
+2025-10-20T19:07:28.993Z,77,F5
+2025-10-20T19:07:29.223Z,74,D5
+2025-10-20T19:07:29.415Z,71,B4
+2025-10-20T19:07:29.637Z,77,F5
+2025-10-20T19:07:29.855Z,74,D5
+2025-10-20T19:07:30.111Z,71,B4
+2025-10-20T19:07:30.332Z,77,F5
+2025-10-20T19:07:30.582Z,74,D5
+2025-10-20T19:07:30.787Z,71,B4
+2025-10-20T19:07:31.022Z,76,E5
+2025-10-20T19:07:31.236Z,72,C5
+2025-10-20T19:07:31.425Z,69,A4
+2025-10-20T19:07:31.654Z,76,E5
+2025-10-20T19:07:31.870Z,72,C5
+2025-10-20T19:07:32.104Z,69,A4
+2025-10-20T19:07:32.322Z,76,E5
+2025-10-20T19:07:32.556Z,72,C5
+2025-10-20T19:07:32.770Z,69,A4
+2025-10-20T19:07:33.000Z,76,E5
+2025-10-20T19:07:33.242Z,72,C5
+2025-10-20T19:07:33.450Z,69,A4
+2025-10-20T19:07:33.695Z,74,D5
+2025-10-20T19:07:33.915Z,71,B4
+2025-10-20T19:07:34.116Z,67,G4
+2025-10-20T19:07:34.352Z,74,D5
+2025-10-20T19:07:34.547Z,71,B4
+2025-10-20T19:07:34.775Z,67,G4
+2025-10-20T19:07:34.984Z,74,D5
+2025-10-20T19:07:35.202Z,71,B4
+2025-10-20T19:07:35.394Z,67,G4
+2025-10-20T19:07:35.644Z,74,D5
+2025-10-20T19:07:35.867Z,71,B4
+2025-10-20T19:07:36.062Z,67,G4
+2025-10-20T19:07:36.587Z,79,G5
+2025-10-20T19:07:36.832Z,76,E5
+2025-10-20T19:07:37.073Z,72,C5
+2025-10-20T19:07:37.323Z,79,G5
+2025-10-20T19:07:37.561Z,76,E5
+2025-10-20T19:07:37.763Z,72,C5
+2025-10-20T19:07:38.003Z,79,G5
+2025-10-20T19:07:38.227Z,76,E5
+2025-10-20T19:07:38.430Z,72,C5
+2025-10-20T19:07:38.671Z,79,G5
+2025-10-20T19:07:38.909Z,76,E5
+2025-10-20T19:07:39.152Z,72,C5
+2025-10-20T19:07:39.408Z,81,A5
+2025-10-20T19:07:39.654Z,77,F5
+2025-10-20T19:07:39.859Z,72,C5
+2025-10-20T19:07:40.104Z,81,A5
+2025-10-20T19:07:40.314Z,77,F5
+2025-10-20T19:07:40.540Z,72,C5
+2025-10-20T19:07:40.770Z,81,A5
+2025-10-20T19:07:41.018Z,77,F5
+2025-10-20T19:07:41.289Z,72,C5
+2025-10-20T19:07:41.554Z,81,A5
+2025-10-20T19:07:41.799Z,77,F5
+2025-10-20T19:07:42.054Z,72,C5
+2025-10-20T19:07:42.485Z,83,B5
+2025-10-20T19:07:42.820Z,79,G5
+2025-10-20T19:07:43.095Z,72,C5
+2025-10-20T19:07:43.411Z,83,B5
+2025-10-20T19:07:43.724Z,79,G5
+2025-10-20T19:07:44.022Z,72,C5
+2025-10-20T19:07:44.335Z,83,B5
+2025-10-20T19:07:44.614Z,79,G5
+2025-10-20T19:07:44.911Z,72,C5
+2025-10-20T19:07:45.232Z,83,B5
+2025-10-20T19:07:45.524Z,79,G5
+2025-10-20T19:07:45.852Z,72,C5
+2025-10-20T19:07:46.185Z,84,C6
+2025-10-20T19:07:46.629Z,79,G5
+2025-10-20T19:07:46.976Z,72,C5
+2025-10-20T19:07:47.281Z,84,C6
+2025-10-20T19:07:47.590Z,79,G5
+2025-10-20T19:07:47.900Z,72,C5
+2025-10-20T19:07:48.198Z,84,C6
+2025-10-20T19:07:48.496Z,79,G5
+2025-10-20T19:07:48.795Z,72,C5
+2025-10-20T19:07:49.079Z,84,C6
+2025-10-20T19:07:49.407Z,79,G5
+2025-10-20T19:07:49.717Z,72,C5
+2025-10-20T19:07:50.044Z,84,C6
+2025-10-20T19:07:50.336Z,79,G5
+2025-10-20T19:07:50.703Z,72,C5
+2025-10-20T19:07:52.657Z,84,C6
+2025-10-20T19:07:53.093Z,79,G5
+2025-10-20T19:07:56.534Z,72,C5
+2025-10-20T19:07:58.356Z,84,C6
+2025-10-20T19:07:58.889Z,79,G5
+2025-10-20T19:07:59.436Z,72,C5
+2025-10-20T19:08:01.736Z,84,C6
+2025-10-20T19:08:02.255Z,79,G5
+2025-10-20T19:08:03.002Z,72,C5
+`;
 
-  const cleaned = (`
-    ${"357357357357 257257246246357357357357257257246246"}
-    ${"etuetuetuetuwtuwtuwrywryetuetuetuetuwtuwtuwrywry"}
-    ${"e3t5u7e3t5u7e3t5u7e3t5u7w2t5u7w2t5u7w2r4y6w2r4y6"}
-  `.toLowerCase()).replace(/[^a-z0-9\-\=\[\]\\\\]/g, '');
 
-  const seqLow = [];
-  for (const raw of cleaned) {
-    const k = normalize(raw);
-    const n = keyToNote.get(k);
-    if (n) seqLow.push(n);
-  }
+// Demo load (comment out if you don't want auto bars):
+loadFromCSV(CSV_COMPOSITION);
 
-  function midiToName(m){
-    const pcs = ['c','c#','d','d#','e','f','f#','g','g#','a','a#','b'];
-    const pc  = pcs[((m % 12) + 12) % 12];
-    const oct = Math.floor(m / 12) - 1;
-    return pc + oct;
-  }
-  function transpose(note, semis){
-    const m = typeof note === 'number' ? note : parseNote(note);
-    return midiToName(m + semis);
-  }
-
-  const seqHigh = seqLow.map(n => transpose(n, 12));
-  const seqAlt  = [];
-  const N = Math.max(seqLow.length, seqHigh.length);
-  for (let i = 0; i < N; i++){
-    if (i < seqLow.length)  seqAlt.push(seqLow[i]);
-    if (i < seqHigh.length) seqAlt.push(seqHigh[i]);
-  }
-
-  const finalSeq = [...seqLow, ...seqHigh, ...seqAlt];
-
-  clearAll();
-  loadSong(finalSeq);
-  stepMs = 133;
-})();
-
-layoutAll();
-
-
-
-
-
-
-
-
+/* ---------- Fit histogram to viewport (min bar width, adaptive gaps) ---------- */
 function trackWidthPx(){
   const track = document.querySelector('.rec .track');
   return track ? track.clientWidth : innerWidth;
 }
-
-/* Ensure bars fill the viewport width but don't become unreadably thin.
-   - Shrinks gaps as n grows
-   - Enforces a minimum bar width (px)
-   - Always sets --n so the flex formula still fills exactly 100% */
 function fitHistogramToViewport(){
   const row = document.getElementById('seqRow');
   if(!row) return;
@@ -1132,25 +1477,19 @@ function fitHistogramToViewport(){
   const n = Math.max(1, sequence.length);
   const trackW = trackWidthPx();
 
-  // knobs (can be tuned)
-  const minBar = parseFloat(getComputedStyle(row).getPropertyValue('--min-bar-px')) || 6;   // px
-  const minGap = parseFloat(getComputedStyle(row).getPropertyValue('--min-gap-px')) || 1;   // px
-  const niceGap =  Math.max(1, Math.min(10, Math.round(trackW / 680))); // default gap scaling
+  const minBar = parseFloat(getComputedStyle(row).getPropertyValue('--min-bar-px')) || 6;
+  const minGap = parseFloat(getComputedStyle(row).getPropertyValue('--min-gap-px')) || 1;
+  const niceGap =  Math.max(1, Math.min(10, Math.round(trackW / 680)));
 
-  // How many bars can we fit at our minimum bar size?
   const maxBarsAtMin = Math.floor((trackW + minGap) / (minBar + minGap));
-
-  // Tighten gap if needed
   const gapPx = (n <= maxBarsAtMin) ? niceGap : minGap;
 
-  // Tell the row how many columns we want and what gap to use.
-  // The flex-basis calc in CSS uses these to guarantee a perfect fit.
   row.style.setProperty('--n', String(n));
   row.style.setProperty('--rec-gap', `${gapPx}px`);
-
-  // Defensive: make sure the row itself never grows wider than the track
   row.style.width = '100%';
 }
+addEventListener('resize', fitHistogramToViewport, { passive: true });
+fitHistogramToViewport();
 
 </script>
 </body>
