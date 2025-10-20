@@ -145,6 +145,11 @@
   }
   .note.lit{ opacity:1; }
 
+  /* MOBILE: hide labels for compact packed grid */
+  @media (max-width:520px){
+    .note{ display:none; }
+  }
+
   /* ===== Recorder bar ===== */
   .rec{
     position:fixed; left:0; right:0; bottom:0; z-index:2;
@@ -270,7 +275,7 @@
 <script>
 /* ================================
    intoview.pro — iso cubes keyboard
-   (4×5 naturals A4→C7 + mobile stack + fixed centering)
+   (4×5 naturals A4→C7 + mobile compact block)
    ================================ */
 
 /* Info tooltip */
@@ -298,6 +303,7 @@ const row3Notes = [
 const row4Notes = [
   ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
 ];
+const allNotes = [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes];
 
 const cos30 = Math.sqrt(3)/2, sin30=0.5;
 function css(){ return getComputedStyle(document.documentElement); }
@@ -317,14 +323,12 @@ function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
 function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
 
 const stage=document.getElementById('stage');
-/* IMPORTANT: ensure your SVG has:
-   <g id="row1"></g><g id="row2"></g><g id="row3"></g><g id="row4"></g> */
 const row1 = document.getElementById('row1');
 const row2 = document.getElementById('row2');
 const row3 = document.getElementById('row3');
 const row4 = document.getElementById('row4');
 
-/* Horizontal row placement (default) */
+/* Place a single horizontal row (desktop) */
 function placeRow(container, startIJ, notes, blurMaxPx){
   container.innerHTML='';
   const w=num(css().getPropertyValue('--cube-size'), 36);
@@ -333,42 +337,6 @@ function placeRow(container, startIJ, notes, blurMaxPx){
   const N=notes.length;
   notes.forEach(([note,key],idx)=>{
     const I=ai+idx, J=aj;
-    const pC=toXY(I,J), pL=toXY(I,J+2);
-    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.setAttribute('class','cube'); // white cubes only (black keys removed)
-    g.setAttribute('tabindex','0');
-    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
-    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
-    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
-    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
-
-    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
-    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
-    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
-    u.setAttribute('width', w); u.setAttribute('height', h);
-    g.appendChild(u);
-
-    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-    lbl.setAttribute('class','note');
-    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
-    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
-    lbl.textContent=`${note.toUpperCase()}/${key}`;
-    lbl.dataset.noteFor=note;
-
-    container.appendChild(g);
-    container.appendChild(lbl);
-  });
-}
-
-/* Vertical placement (mobile single-column mode) */
-function placeRowVertical(container, startIJ, notes, blurMaxPx){
-  container.innerHTML='';
-  const w=num(css().getPropertyValue('--cube-size'), 36);
-  const h=w*(96/86);
-  const {I:ai, J:aj}=startIJ;
-  const N=notes.length;
-  notes.forEach(([note,key],idx)=>{
-    const I=ai, J=aj+idx;                         // stack vertically
     const pC=toXY(I,J), pL=toXY(I,J+2);
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
     g.setAttribute('class','cube');
@@ -396,6 +364,48 @@ function placeRowVertical(container, startIJ, notes, blurMaxPx){
   });
 }
 
+/* Compact block for mobile: packs all cubes in a tight grid (even spacing) */
+function placeBlock(container, startIJ, notes, cols, blurMaxPx){
+  container.innerHTML='';
+  const w=num(css().getPropertyValue('--cube-size'), 36);
+  const h=w*(96/86);
+  const {I:ai, J:aj}=startIJ;
+  const N=notes.length;
+  notes.forEach(([note,key],idx)=>{
+    const c = idx % cols;
+    const r = Math.floor(idx / cols);
+    const I=ai + c;         // 1 iso step apart horizontally
+    const J=aj + r;         // 1 iso step apart vertically
+    const pC=toXY(I,J), pL=toXY(I,J+2);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','cube');
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
+    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
+
+    // subtle depth blur from back-right to front-left (optional)
+    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
+    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+
+    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
+    u.setAttribute('width', w); u.setAttribute('height', h);
+    g.appendChild(u);
+
+    // label still created (keeps a11y + keyboard highlight), but CSS hides on mobile
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('class','note');
+    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lbl.textContent=`${note.toUpperCase()}/${key}`;
+    lbl.dataset.noteFor=note;
+
+    container.appendChild(g);
+    container.appendChild(lbl);
+  });
+}
+
 function measureBounds(){
   const uses=stage.querySelectorAll('use');
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -408,13 +418,13 @@ function measureBounds(){
   return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
 }
 
-/* UPDATED: layoutAll with mobile <-> desktop branching + recorder-bar-aware centering */
+/* UPDATED: layoutAll with mobile compact block + recorder-bar-aware centering */
 function layoutAll(){
   const vw = innerWidth, vh = innerHeight;
   const margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
   const baseCell = num(css().getPropertyValue('--iso-cell-base'), 32);
   const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
-  const MOBILE = vw < 520; // breakpoint: stack rows vertically on small screens
+  const MOBILE = vw < 520; // breakpoint
 
   // initialize at base scale
   document.documentElement.style.setProperty('--iso-cell', `${baseCell}px`);
@@ -423,62 +433,91 @@ function layoutAll(){
 
   const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
 
-  // ------- FIRST RENDER (unscaled) -------
-  const rowLen = 5; // 5 notes per row
-  const rowGap = MOBILE ? 9 : (vw < 560 ? 9 : 7); // a bit more vertical space on mobile
-
-  // center within available space (above recorder bar)
-  const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
-  const startI = centerIJ.I - Math.floor(rowLen/2);
-
-  // top row J such that rows are vertically centered as a block
-  const totalJSpan = rowGap * (4 - 1);
-  const startJTop = centerIJ.J - totalJSpan/2;
-
-  const start1 = { I: startI, J: startJTop + rowGap * 0 };
-  const start2 = { I: startI, J: startJTop + rowGap * 1 };
-  const start3 = { I: startI, J: startJTop + rowGap * 2 };
-  const start4 = { I: startI, J: startJTop + rowGap * 3 };
-
-  // render 4 horizontal rows (same on desktop & mobile)
+  // clear rows
   row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
-  placeRow(row1, start1, row1Notes, 2.0);
-  placeRow(row2, start2, row2Notes, 2.2);
-  placeRow(row3, start3, row3Notes, 2.4);
-  placeRow(row4, start4, row4Notes, 2.6);
 
-  // ------- FIT PASS (scale to viewport), then re-render -------
-  const b = measureBounds();
-  const needW = vw - margin*2;
-  const needH = vh - margin*2 - recH;
-  const sW = needW / b.width;
-  const sH = needH / b.height;
-  const scale = Math.min(1, sW, sH);
+  if (MOBILE){
+    // --- MOBILE: pack all 20 cubes into a compact block, centered above recorder ---
+    const N = allNotes.length;                 // 20
+    const cols = 5;                            // 5×4 block (even spacing)
+    const rows = Math.ceil(N / cols);          // 4
+    const center = snap(vw/2, (vh - recH)/2 - 6);
 
-  document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
-  document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
-  B = basis();
+    const startI = center.I - Math.floor(cols/2);
+    const startJ = center.J - Math.floor(rows/2);
 
-  // recenter after scaling
-  const center2 = snap(vw/2, (vh - recH)/2 - 10);
-  const startI2 = center2.I - Math.floor(rowLen/2);
-  const startJTop2 = center2.J - totalJSpan/2;
+    // first pass (unscaled)
+    placeBlock(row1, {I:startI, J:startJ}, allNotes, cols, 1.6);
 
-  const start1b = { I: startI2, J: startJTop2 + rowGap * 0 };
-  const start2b = { I: startI2, J: startJTop2 + rowGap * 1 };
-  const start3b = { I: startI2, J: startJTop2 + rowGap * 2 };
-  const start4b = { I: startI2, J: startJTop2 + rowGap * 3 };
+    // fit + re-render
+    const b = measureBounds();
+    const needW = vw - margin*2;
+    const needH = vh - margin*2 - recH;
+    const sW = needW / b.width;
+    const sH = needH / b.height;
+    const scale = Math.min(1, sW, sH);
 
-  row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
-  placeRow(row1, start1b, row1Notes, 2.0);
-  placeRow(row2, start2b, row2Notes, 2.2);
-  placeRow(row3, start3b, row3Notes, 2.4);
-  placeRow(row4, start4b, row4Notes, 2.6);
+    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
+    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
+    B = basis();
+
+    const center2 = snap(vw/2, (vh - recH)/2 - 6);
+    const startI2 = center2.I - Math.floor(cols/2);
+    const startJ2 = center2.J - Math.floor(rows/2);
+
+    row1.innerHTML='';
+    placeBlock(row1, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
+
+  } else {
+    // --- DESKTOP: original 4 horizontal rows, with generous vertical spacing ---
+    const rowLen = 5;
+    const rowGap = (vw < 560 ? 9 : 7);
+    const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
+    const startI = centerIJ.I - Math.floor(rowLen/2);
+    const totalJSpan = rowGap * (4 - 1);
+    const startJTop = centerIJ.J - totalJSpan/2;
+
+    const start1 = { I: startI, J: startJTop + rowGap * 0 };
+    const start2 = { I: startI, J: startJTop + rowGap * 1 };
+    const start3 = { I: startI, J: startJTop + rowGap * 2 };
+    const start4 = { I: startI, J: startJTop + rowGap * 3 };
+
+    placeRow(row1, start1, row1Notes, 2.0);
+    placeRow(row2, start2, row2Notes, 2.2);
+    placeRow(row3, start3, row3Notes, 2.4);
+    placeRow(row4, start4, row4Notes, 2.6);
+
+    // fit + re-render
+    const b = measureBounds();
+    const needW = vw - margin*2;
+    const needH = vh - margin*2 - recH;
+    const sW = needW / b.width;
+    const sH = needH / b.height;
+    const scale = Math.min(1, sW, sH);
+
+    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
+    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
+    B = basis();
+
+    const center2 = snap(vw/2, (vh - recH)/2 - 10);
+    const startI2 = center2.I - Math.floor(rowLen/2);
+    const startJTop2 = center2.J - totalJSpan/2;
+
+    const start1b = { I: startI2, J: startJTop2 + rowGap * 0 };
+    const start2b = { I: startI2, J: startJTop2 + rowGap * 1 };
+    const start3b = { I: startI2, J: startJTop2 + rowGap * 2 };
+    const start4b = { I: startI2, J: startJTop2 + rowGap * 3 };
+
+    row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
+    placeRow(row1, start1b, row1Notes, 2.0);
+    placeRow(row2, start2b, row2Notes, 2.2);
+    placeRow(row3, start3b, row3Notes, 2.4);
+    placeRow(row4, start4b, row4Notes, 2.6);
+  }
 
   window.dispatchEvent(new Event('resize'));
   window.dispatchEvent(new Event('iso:refresh'));
 }
-
 
 layoutAll();
 
@@ -526,7 +565,7 @@ layoutAll();
   function snapLocal(x,y){ const i=inv.a*x+inv.b*y, j=inv.c*x+inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
   function cell(I,J){
     const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
-    const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y+d.y)/4;
+    const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y)/4;
     return {pts:[a,b,c,d], cx, cy};
   }
   function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
@@ -957,7 +996,7 @@ function loadSong(notesArray) {
   notesArray.forEach(n => addToSequence(n));
 }
 
-/* ===== Load key pattern (uses new rows) ===== */
+/* ===== Load key pattern (kept) ===== */
 (function(){
   const keyToNote = new Map(
     [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes].map(([note, key]) => [key, note])
