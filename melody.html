@@ -189,6 +189,9 @@
     <input id="volSlider" type="range" min="0" max="100" value="60" />
     <button class="btn" id="btnClear">Clear Log</button>
     <button class="btn" id="btnCopy">Copy</button>
+    <button class="btn" id="btnUndo" title="Undo last note">Undo</button>
+<button class="btn" id="btnCopy">Copy</button>
+
   </div>
 </header>
 
@@ -583,6 +586,33 @@ document.getElementById('btnCopy').addEventListener('click', async ()=>{
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   }
+});
+document.getElementById('btnUndo').addEventListener('click', () => {
+  if (!entries.length) return;
+
+  // 1) Remove last entry
+  const removed = entries.pop();
+
+  // 2) Trim last line from the log text
+  const lines = logElRef.textContent.split('\n');
+  lines.pop();
+  logElRef.textContent = lines.join('\n');
+  countEl.textContent = `(${entries.length})`;
+  logElRef.scrollTop = logElRef.scrollHeight;
+
+  // 3) Clear “playing” on that key (if any)
+  const removedBtn = keyTargets.find(b => +b.dataset.midi === removed.midi);
+  removedBtn?.classList.remove('playing');
+
+  // 4) Rebuild the 3-note memory highlights from the end
+  document.querySelectorAll('.mem0,.mem1,.mem2')
+    .forEach(el => el.classList.remove('mem0','mem1','mem2'));
+  memory.length = 0;
+  for (let i = entries.length - 1; i >= 0 && memory.length < 3; i--) {
+    const btn = keyTargets.find(b => +b.dataset.midi === entries[i].midi);
+    if (btn) memory.push(btn);
+  }
+  memory.forEach((el, idx) => el?.classList.add(`mem${idx}`));
 });
 
 /* =======================
