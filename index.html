@@ -47,8 +47,7 @@
     --rec-fg: #d6d6d6;
     --rec-muted: #a8a8a8;
     --rec-danger: #ff4d4d;
-    --rec-gap: .08em;
-
+    --rec-gap: 1px; /* default; JS will override as n grows */
   }
 
   html,body{height:100%}
@@ -184,24 +183,20 @@
   .btn.toggle[data-on="true"] .ico path{ fill:#dff7ef; }
 
   /* ===== Histogram (replaces dot log) ===== */
-  .rec .track{ min-width:0; flex:1 1 auto; height:100%; overflow-x:hidden; overflow-y:auto; }
+  .rec .track{ min-width:0; flex:1 1 auto; height:100%; overflow-x:hidden; overflow-y:hidden; }
   .rec .row{
     display:flex;
-    align-items:flex-end;            /* bars grow up from bottom */
+    align-items:flex-end;     /* bars grow up from bottom */
     gap: var(--rec-gap);
     padding-right:14px;
-    --n: 1;                          /* set dynamically from JS */
+    height: 100%;            /* take all available recorder height */
+    width: auto;             /* fill track width */
+    --n: 1;                  /* set dynamically from JS */
   }
-
-  /* Make the histogram row fill the recorder height */
-.rec .row{
-  height: 4%;
-  width: 20%;
-}
-
   .rec .row .bar{
+    box-sizing: border-box;  /* include borders in width calc */
     flex: 0 0 calc((100% - (var(--rec-gap) * (var(--n) - 1))) / var(--n));
-    height: 40%;                     /* JS will set this via % */
+    height: 16%;             /* JS will set this via % */
     background: rgb(255 255 255 / .14);
     border: 1px solid rgb(255 255 255 / .22);
     border-bottom-color: rgb(255 255 255 / .28);
@@ -225,13 +220,37 @@
     box-shadow: 0 0 12px 2px rgb(255 255 255 / .65);
   }
 
-  /* Smaller cubes on mobile (you can tweak these) */
+  /* Smaller cubes on mobile */
   @media (max-width:520px){
     :root{
       --iso-cell-base: 40;  /* spacing scale */
       --cube-size-base: 54; /* face size */
     }
   }
+
+
+  /* Mobile: put histogram above controls and center it */
+@media (max-width:520px){
+  .rec{
+    flex-direction: column-reverse;   /* track on top, controls on bottom */
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 14px 12px;
+  }
+  .rec .track{
+    width: 100%;
+    display: flex;
+    justify-content: center;          /* center the histogram container */
+    overflow: visible;                /* allow centered inline width */
+  }
+  .rec .row{
+    display: inline-flex;             /* shrink to content and be centerable */
+    width: auto;                      /* override desktop 20% */
+    margin: 0 auto;                   /* center within .track */
+    align-items: flex-end;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -284,14 +303,14 @@
       <svg class="ico" viewBox="0 0 16 16"><path d="M2 3h12v2H2zM4 6h8l-1 8H5L4 6z"/></svg>
     </button>
 
-    <!-- Loop button (now in controls) -->
+    <!-- Loop button -->
     <button class="btn toggle" id="btnLoop" title="Loop sequence (L)" aria-pressed="false">
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M17 1l4 4-4 4V6H7a3 3 0 000 6h2v2H7a5 5 0 010-10h10V1zm-10 22l-4-4 4-4v3h10a3 3 0 000-6h-2v-2h2a5 5 0 010 10H7v3z" fill="currentColor"/>
       </svg>
     </button>
 
-    <!-- Simple Volume -->
+    <!-- Volume -->
     <div class="vol-wrap" title="Volume">
       <label for="volSlider">Vol</label>
       <input id="volSlider" type="range" min="0" max="100" value="50" step="1" aria-label="Volume (0 to 100)">
@@ -307,8 +326,8 @@
 
 <script>
 /* ================================
-   intoview.pro — iso cubes keyboard
-   (5×5 naturals A4→C8 + mobile compact block)
+   intoview.pro — full JavaScript
+   (isometric cubes + short histogram log)
    ================================ */
 
 /* ---------- Info tooltip ---------- */
@@ -460,19 +479,17 @@ function layoutAll(){
   const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
   const MOBILE = vw < 520;
 
-  // initialize at base scale
   document.documentElement.style.setProperty('--iso-cell', `${baseCell}px`);
   document.documentElement.style.setProperty('--cube-size', `${baseCube}px`);
   B = basis();
 
-  const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
+  const rec = document.querySelector('.rec');
+  const recH = parseInt(getComputedStyle(rec).height) || 0;
 
-  // clear rows
   row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
 
   if (MOBILE){
-    // mobile: 5 columns x 5 rows block
-    const N = allNotes.length;                 // 25
+    const N = allNotes.length;
     const cols = 5;
     const rows = Math.ceil(N / cols);
     const center = snap(vw/2, (vh - recH)/2 - 6);
@@ -501,7 +518,6 @@ function layoutAll(){
     placeBlock(row1, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
 
   } else {
-    // desktop: five rows with tightened gap
     const rowLen = 5;
     const rowGap = (vw < 560 ? 7 : 5);
     const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
@@ -560,13 +576,11 @@ layoutAll();
 (function(){
   const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
   const cos30 = Math.sqrt(3)/2, sin30=0.5;
-  const toPx = (len)=> (String(len).match(/^([0-9.]+)\s*px$/i)?.[1] ? parseFloat(RegExp.$1) : 0);
   const clamp01 = x=>x<0?0:x>1?1:x;
   const easeOut = u=>1-(1-u)*(1-u);
   function css(){ return getComputedStyle(document.documentElement); }
   function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
   let CELL=56, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:1,b:0,c:0,d:1};
-  let FILL_RGB='255 255 255',FILL_A=.22,STROKE_A=.55,FADE=900,BLUR_MIN='0px',BLUR_MAX='12px',BLUR_CURVE=1.35;
 
   function read(){
     const s = css();
@@ -575,13 +589,6 @@ layoutAll();
     v2 = {x:-cos30*CELL, y: sin30*CELL};
     det = v1.x*v2.y - v2.x*v1.y;
     inv = {a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
-    FILL_RGB  = (s.getPropertyValue('--iso-highlight-fill').trim() || '255 255 255');
-    FILL_A    = num(s.getPropertyValue('--iso-highlight-alpha'), .22);
-    STROKE_A  = num(s.getPropertyValue('--iso-stroke-alpha'), .55);
-    FADE      = num(s.getPropertyValue('--iso-fade-ms'), 900);
-    BLUR_MIN  = s.getPropertyValue('--iso-blur-min').trim() || '0px';
-    BLUR_MAX  = s.getPropertyValue('--iso-blur-max').trim() || '12px';
-    BLUR_CURVE= num(s.getPropertyValue('--iso-blur-curve'), 1.35);
   }
   function resize(){
     const dpr=Math.max(1,devicePixelRatio||1);
@@ -600,8 +607,7 @@ layoutAll();
   function snapLocal(x,y){ const i=inv.a*x+inv.b*y, j=inv.c*x+inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
   function cell(I,J){
     const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
-    const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y+d.y)/4;
-    return {pts:[a,b,c,d], cx, cy};
+    return {pts:[a,b,c,d]};
   }
   function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
 
@@ -613,16 +619,16 @@ layoutAll();
     ctx.clearRect(0,0,canvas.width,canvas.height);
     let alive=0;
     for(const p of pulses){
-      const age=now-p.t; if(age>=FADE) continue; alive++;
-      const u=age/FADE, invU=1-u;
+      const age=now-p.t; if(age>=900) continue; alive++;
+      const u=age/900, invU=1-u;
       const {pts}=cell(p.I,p.J);
-      ctx.fillStyle=`rgb(${FILL_RGB} / ${easeOut(1-u)*FILL_A})`;
+      ctx.fillStyle=`rgb(255 255 255 / ${easeOut(1-u)*.22})`;
       draw(pts); ctx.fill();
-      ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${invU*STROKE_A})`;
+      ctx.lineWidth=1; ctx.strokeStyle=`rgb(255 255 255 / ${invU*.55})`;
       ctx.stroke();
     }
     if(alive!==pulses.length){
-      const cut=now-FADE; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
+      const cut=now-900; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
     }
     if(alive>0) requestAnimationFrame(tick); else anim=false;
   }
@@ -796,7 +802,7 @@ function setLoop(on){
   loopBtn.setAttribute('aria-pressed', String(isLooping));
   loopBtn.title = isLooping ? 'Looping: On (L)' : 'Loop sequence (L)';
 }
-loopBtn.addEventListener('click', () => setLoop(!isLooping));
+loopBtn?.addEventListener('click', () => setLoop(!isLooping));
 document.addEventListener('keydown', (e)=>{
   if (e.key.toLowerCase() === 'l' && !e.repeat) setLoop(!isLooping);
 });
@@ -813,6 +819,9 @@ setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
 /* ---------- Recorder / player — histogram ---------- */
 const live=document.getElementById('live');
 const seqRow=document.getElementById('seqRow');
+/* Ensure the histogram row actually fills the recorder track even if CSS was overriding it */
+if (seqRow) { seqRow.style.height = '100%'; seqRow.style.width = '100%'; }
+
 const sequence=[]; // [{note, li:HTMLElement, midi:number}]
 let playing=false, playIdx=0, playTimer=null;
 
@@ -828,16 +837,21 @@ function flashCube(note){
   setTimeout(()=>g.classList.remove('brighten'),240);
 }
 
-/* HEIGHT = C-major scale degree (C=lowest … B=highest), tiny octave nudge */
+/* Scale-degree → height %, with octave accent */
 function degreeHeightFromMidi(midi){
   const pc = ((midi % 12) + 12) % 12;                     // 0..11
-  const degreeIndex = ({0:0,2:1,4:2,5:3,7:4,9:5,11:6})[pc] ?? 0; // C,D,E,F,G,A,B -> 0..6
-  const base = 18, span = 70;                              // % range -> 18..88
+  const degreeIndex = ({0:0,2:1,4:2,5:3,7:4,9:5,11:6})[pc] ?? 0; // C D E F G A B
+  const base = 18, span = 70;                              // raw range 18..88
   let h = base + span * (degreeIndex / 6);
   const octave = Math.floor(midi / 12) - 1;
   h += (octave - 4) * 2.5;                                 // subtle octave accent
-  return Math.max(12, Math.min(92, h));
+  return Math.max(12, Math.min(92, h));                    // raw %
 }
+
+/* Make the bars shorter (tweak to taste) */
+const BAR_SCALE = 0.07;   // global vertical compression
+const BAR_MIN   = 6;      // % floor so nothing disappears
+const BAR_MAX   = 42;     // % ceiling to keep them short
 
 function addToSequence(note){
   const bar = document.createElement('div');
@@ -869,12 +883,16 @@ function clearAll(){
 }
 function updateHistogramBars(){
   const n = sequence.length;
-  seqRow.style.setProperty('--n', Math.max(1, n));   // drives flex calc to fit viewport width
+  /* This single custom property makes the bars squish to any count */
+  seqRow.style.setProperty('--n', Math.max(1, n));
   if (n === 0) return;
   for (const s of sequence){
     const m = typeof s.midi === 'number' ? s.midi : parseNote(s.note);
     s.midi = m;
-    s.li.style.height = degreeHeightFromMidi(m).toFixed(1) + '%';
+    const raw = degreeHeightFromMidi(m);
+    const scaled = raw * BAR_SCALE;
+    const clamped = Math.max(BAR_MIN, Math.min(BAR_MAX, scaled));
+    s.li.style.height = clamped.toFixed(1) + '%';
   }
 }
 
@@ -897,9 +915,9 @@ function stepPlay(){
 function startPlay(){ if(playing||sequence.length===0) return; playing=true; playIdx=0; stepPlay(); }
 function pausePlay(){ if(!playing) return; clearTimeout(playTimer); playing=false; }
 function stopPlay(end=false){ clearTimeout(playTimer); playing=false; if(end) playIdx=0; }
-document.getElementById('btnPlay').addEventListener('click', startPlay);
-document.getElementById('btnPause').addEventListener('click', pausePlay);
-document.getElementById('btnClear').addEventListener('click', clearAll);
+document.getElementById('btnPlay')?.addEventListener('click', startPlay);
+document.getElementById('btnPause')?.addEventListener('click', pausePlay);
+document.getElementById('btnClear')?.addEventListener('click', clearAll);
 
 /* ---------- Interactions ---------- */
 let sustain=false;
@@ -996,7 +1014,7 @@ function loadSong(notesArray) {
   updateHistogramBars();
 }
 
-/* Robust parsing of key pattern */
+/* Robust parsing of key pattern (uses your edited pattern) */
 (function(){
   const keyToNote = new Map(
     [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes]
@@ -1044,7 +1062,6 @@ function loadSong(notesArray) {
 })();
 
 layoutAll();
-
 
 </script>
 </body>
