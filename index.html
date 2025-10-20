@@ -12,7 +12,6 @@
     --iso-cell-base:  48;
     --iso-cell:  calc(var(--iso-cell-base) * 1px);
     --cube-size: calc(var(--cube-size-base) * 1px);
-    
 
     /* label nudges (labels sit two iso-cells below each cube in JS) */
     --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
@@ -49,13 +48,10 @@
     --rec-muted: #a8a8a8;
     --rec-danger: #ff4d4d;
     --rec-gap: 10px;
-    --rec-cube-w: 22px;
-    --rec-note-size: 10px;
+    --rec-cube-w: 22px;     /* legacy; no longer used by histogram */
+    --rec-note-size: 10px;  /* legacy; no longer used by histogram */
   }
 
-
-
-  
   html,body{height:100%}
   body{
     margin:0; color:#e8e8e8; background:var(--bg);
@@ -114,9 +110,7 @@
     transform:rotate(45deg);
   }
   .info-wrap[data-open="true"] .info-tooltip,
-  .info-wrap:hover .info-tooltip{
-    opacity:1; transform:translateY(0); pointer-events:auto;
-  }
+  .info-wrap:hover .info-tooltip{ opacity:1; transform:translateY(0); pointer-events:auto; }
   @media (max-width:520px){
     .info-tooltip{ width:min(68vw, 56ch); right:-2px; }
   }
@@ -179,25 +173,10 @@
   .btn:active{ transform:translateY(1px); }
   .ico{ width:14px; height:14px; display:block; }
   .ico rect, .ico path{ fill:var(--rec-fg); }
-
-  .rec .track{ min-width:0; flex:1 1 auto; height:100%; overflow-x:hidden; overflow-y:auto; }
-  .rec .row{ display:flex; align-items:flex-end; align-content:flex-end; flex-wrap:wrap; gap: var(--rec-gap) 12px; padding-right:14px; }
-
-  .rec .evt{ position:relative; display:inline-grid; justify-items:center; gap:4px; padding-bottom:2px; }
-  .rec .evt .mini{ width:var(--rec-cube-w); height:auto; display:block; }
-  .mini .facet-top, .mini .facet-side, .mini .facet-dark{ fill:transparent; stroke:#bdbdbd; stroke-width:.8; }
-  .rec .evt .txt{ font:600 var(--rec-note-size)/1 ui-monospace, Menlo, monospace; color:var(--rec-muted); letter-spacing:.02em; user-select:none; }
-  .rec .evt:hover .txt{ color:#fff; }
-  .rec .evt:hover::after{
-    content:"✕"; position:absolute; inset:auto auto 32px 50%; transform:translateX(-50%);
-    font:600 12px/1 ui-monospace, Menlo, monospace; color:var(--rec-danger); pointer-events:none;
-  }
-  .rec .evt.hit .mini .facet-top, .rec .evt.hit .mini .facet-side, .rec .evt.hit .mini .facet-dark{ stroke:#fff; }
-
   .vol-wrap{ display:flex; align-items:center; gap:8px; padding-left:6px; font:600 11px/1 ui-monospace, Menlo, monospace; color:var(--rec-fg); user-select:none; }
   .vol-wrap input[type="range"]{ width:120px; height:18px; accent-color:#d6d6d6; cursor:pointer; }
 
-  /* loop toggle state (uses the existing .btn styles) */
+  /* loop toggle state */
   .btn.toggle[data-on="true"]{
     background:rgb(0 204 136 / .18);
     border-color:rgb(0 204 136 / .45);
@@ -205,19 +184,48 @@
   }
   .btn.toggle[data-on="true"] .ico path{ fill:#dff7ef; }
 
-
-
-/* Smaller cubes on mobile */
-@media (max-width:520px){
-  :root{
-    /* keep the same proportion between cell + cube */
-    --iso-cell-base: 64;   /* was 48 */
-    --cube-size-base: 48;  /* was 64 (≈0.84x) */
+  /* ===== Histogram (replaces dot log) ===== */
+  .rec .track{ min-width:0; flex:1 1 auto; height:100%; overflow-x:hidden; overflow-y:auto; }
+  .rec .row{
+    display:flex;
+    align-items:flex-end;            /* bars grow up from bottom */
+    gap: var(--rec-gap);
+    padding-right:14px;
+    --n: 1;                          /* set dynamically from JS */
   }
-}
+  .rec .row .bar{
+    flex: 0 0 calc((100% - (var(--rec-gap) * (var(--n) - 1))) / var(--n));
+    height: 40%;                     /* JS will set this via % */
+    background: rgb(255 255 255 / .14);
+    border: 1px solid rgb(255 255 255 / .22);
+    border-bottom-color: rgb(255 255 255 / .28);
+    border-radius: 6px 6px 0 0;
+    box-shadow: inset 0 -6px 12px rgb(0 0 0 / .35);
+    transition:
+      height .12s ease,
+      background .15s ease,
+      border-color .15s ease,
+      box-shadow .15s ease,
+      transform .05s ease;
+    cursor: pointer;
+  }
+  .rec .row .bar:hover{
+    background: rgb(255 255 255 / .22);
+    border-color: rgb(255 255 255 / .45);
+  }
+  .rec .row .bar.hit{
+    background:#fff;
+    border-color:#fff;
+    box-shadow: 0 0 12px 2px rgb(255 255 255 / .65);
+  }
 
-
-  
+  /* Smaller cubes on mobile (you can tweak these) */
+  @media (max-width:520px){
+    :root{
+      --iso-cell-base: 40;  /* spacing scale */
+      --cube-size-base: 54; /* face size */
+    }
+  }
 </style>
 </head>
 <body>
@@ -309,7 +317,6 @@
 })();
 
 /* ===== Layout + mapping ===== */
-/* Four original rows + one new row to C8 (naturals only) */
 const row1Notes = [
   ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t']
 ];
@@ -322,7 +329,6 @@ const row3Notes = [
 const row4Notes = [
   ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
 ];
-/* NEW: Row 5 to C8 */
 const row5Notes = [
   ['f7','-'], ['g7','='], ['a7','['], ['b7',']'], ['c8','\\']
 ];
@@ -455,15 +461,13 @@ function layoutAll(){
 
   const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
 
-  
-
   // clear rows
   row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
 
   if (MOBILE){
-    // --- MOBILE: pack all 25 cubes into a compact block ---
+    // --- MOBILE: pack all 25 cubes into a tidy 5-col block ---
     const N = allNotes.length;                 // 25
-    const cols = 5;                            // keep 4-col mobile pack for vertical feel
+    const cols = 5;
     const rows = Math.ceil(N / cols);
     const center = snap(vw/2, (vh - recH)/2 - 6);
 
@@ -495,7 +499,7 @@ function layoutAll(){
   } else {
     // --- DESKTOP: five horizontal rows with closer vertical spacing ---
     const rowLen = 5;
-    const rowGap = (vw < 560 ? 7 : 5); // tightened gap (was 7)
+    const rowGap = (vw < 560 ? 7 : 5); // tightened gap
     const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
     const startI = centerIJ.I - Math.floor(rowLen/2);
     const totalJSpan = rowGap * (5 - 1); // five rows
@@ -549,7 +553,7 @@ function layoutAll(){
 
 layoutAll();
 
-/* ===== Pulses canvas (unchanged) ===== */
+/* ===== Pulses canvas ===== */
 (function(){
   const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
   const cos30 = Math.sqrt(3)/2, sin30=0.5;
@@ -610,18 +614,16 @@ layoutAll();
       const u=age/FADE, invU=1-u;
       const {pts,cx,cy}=cell(p.I,p.J);
       const dist=Math.hypot(cx-innerWidth/2, cy-innerHeight/2);
-      const t=Math.pow(clamp01(dist/Math.hypot(innerWidth,innerHeight)), BLUR_CURVE>0?BLUR_CURVE:1);
-      const blur=toPx(BLUR_MIN)+(toPx(BLUR_MAX)-toPx(BLUR_MIN))*t;
+      const t=Math.pow(clamp01(dist/Math.hypot(innerWidth,innerHeight)), Math.max(0.01, 1.35));
+      const blur=toPx('0px')+(toPx('12px')-toPx('0px'))*t;
 
-      if(canFilter) ctx.filter=`blur(${blur}px)`;
-      ctx.fillStyle=`rgb(${FILL_RGB} / ${easeOut(invU)*FILL_A})`;
+      ctx.fillStyle=`rgb(255 255 255 / ${easeOut(1-u)*.22})`;
       draw(pts); ctx.fill();
-      ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${invU*STROKE_A})`;
+      ctx.lineWidth=1; ctx.strokeStyle=`rgb(255 255 255 / ${(1-u)*.55})`;
       ctx.stroke();
-      if(canFilter) ctx.filter='none';
     }
     if(alive!==pulses.length){
-      const cut=now-FADE; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
+      const cut=now-900; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
     }
     if(alive>0) requestAnimationFrame(tick); else anim=false;
   }
@@ -638,10 +640,10 @@ layoutAll();
   addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
 })();
 
-/* ===== Synth (unchanged) ===== */
-const POLY_MAX = 10;                     
-const NOTE_COOLDOWN_MS = 90;             
-const lastTrigByNote = new Map();        
+/* ===== Synth ===== */
+const POLY_MAX = 10;
+const NOTE_COOLDOWN_MS = 90;
+const lastTrigByNote = new Map();
 
 let AC=null, master=null; let pianoGroup=null; const activeVoices=new Set(); let synthReady=false;
 function ensureAudio(){
@@ -649,7 +651,6 @@ function ensureAudio(){
     const C = window.AudioContext || window.webkitAudioContext;
     AC = new C();
 
-    // Master & dynamics
     master = AC.createGain();
     master.gain.value = 0.5;
 
@@ -663,7 +664,6 @@ function ensureAudio(){
     master.connect(comp);
     comp.connect(AC.destination);
 
-    // Instrument bus
     pianoGroup = AC.createGain();
     pianoGroup.gain.value = 1.0;
     pianoGroup.connect(master);
@@ -693,7 +693,7 @@ function buildReverb(){
     }
   }
   convolver.buffer=impulse;
-  dry=AC.createGain(); dry.gain.value=0.84; 
+  dry=AC.createGain(); dry.gain.value=0.84;
   wet=AC.createGain(); wet.gain.value=0.26;
   pianoGroup.disconnect();
   pianoGroup.connect(dry).connect(master);
@@ -712,7 +712,6 @@ function createPianoVoice(freq, vel){
   const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=Math.min(12000, freq*12); lp.Q.value=0.6;
   const ap=AC.createBiquadFilter(); ap.type='allpass'; ap.frequency.value=freq*2; ap.Q.value=0.6;
 
-  // hammer noise
   const nbuf=AC.createBuffer(1, Math.floor(AC.sampleRate*0.02), AC.sampleRate);
   const nd=nbuf.getChannelData(0);
   for(let i=0;i<nd.length;i++){ nd[i]=(Math.random()*2-1)*Math.pow(1-i/nd.length,2.0); }
@@ -764,16 +763,12 @@ function createPianoVoice(freq, vel){
 function playPiano(note, {hold=false, vel=.95} = {}){
   ensureAudio();
 
-  // Cooldown: avoid micro-bursts of the same note
   const nStr = String(note).toLowerCase();
   const nowMs = performance.now();
   const last = lastTrigByNote.get(nStr) || 0;
-  if (nowMs - last < NOTE_COOLDOWN_MS) {
-    return () => {}; 
-  }
+  if (nowMs - last < NOTE_COOLDOWN_MS) return () => {};
   lastTrigByNote.set(nStr, nowMs);
 
-  // Polyphony cap with polite voice-stealing (oldest first)
   if (activeVoices.size >= POLY_MAX) {
     const oldest = activeVoices.values().next().value;
     try { oldest?.stop(0.2); } catch {}
@@ -816,10 +811,10 @@ function setMasterFromSlider(){
 volSlider?.addEventListener('input', ()=>{ if(!AC) ensureAudio(); setMasterFromSlider(); });
 setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
 
-/* Recorder / player */
+/* Recorder / player — histogram-based */
 const live=document.getElementById('live');
 const seqRow=document.getElementById('seqRow');
-const sequence=[]; // [{note, li}]
+const sequence=[]; // [{note, li:HTMLElement, midi:number}]
 let playing=false, playIdx=0, playTimer=null;
 
 function flashLabel(note){
@@ -833,89 +828,54 @@ function flashCube(note){
   const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
   setTimeout(()=>g.classList.remove('brighten'),240);
 }
+
 function addToSequence(note){
-  // Inject/refresh CSS for outlined squares + active glow + tooltip
-  let st = document.getElementById('recDotStyles');
-  if (!st) {
-    st = document.createElement('style');
-    st.id = 'recDotStyles';
-    document.head.appendChild(st);
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  bar.dataset.note = note;
+  bar.title = `${note.toUpperCase()} — click to delete`;
+  bar.addEventListener('click', () => removeEvent(bar));
+  bar.addEventListener('mouseenter', () => bar.classList.add('hit'));
+  bar.addEventListener('mouseleave', () => bar.classList.remove('hit'));
+
+  seqRow.appendChild(bar);
+  sequence.push({ note, li: bar, midi: parseNote(note) });
+
+  updateHistogramBars();
+}
+function removeEvent(el){
+  const idx = sequence.findIndex(x => x.li === el);
+  if (idx >= 0){
+    sequence.splice(idx, 1);
+    el.remove();
+    updateHistogramBars();
   }
-  st.textContent = `
-    .rec .evt{ position:relative; }
-    .rec .evt .dot{
-      width: 8px; height: 8px;
-      background: transparent;
-      border: 1px solid #3f3f3f;
-      border-radius: 100px;
-      opacity: .9;
-      box-shadow: none;
-      transition:
-        transform .12s ease,
-        opacity .12s ease,
-        box-shadow .12s ease,
-        background-color .12s ease,
-        border-color .12s ease,
-        filter .12s ease;
-    }
-    .rec .evt:hover .dot{
-      border-color: var(--rec-danger, #ff4d4d);
-      box-shadow: 0 0 0 2px rgb(255 255 255 / .25);
-      opacity: 1;
-    }
-    .rec .evt.hit .dot{
-      background: #fff;
-      border-color: #fff;
-      filter: blur(0.5px);
-      box-shadow: 0 0 10px 2px rgb(255 255 255 / .65);
-      transform: scale(1.15);
-    }
-    .rec .evt::after{
-      content: attr(data-tip);
-      position:absolute;
-      bottom: calc(100% + 6px);
-      left:50%;
-      transform: translateX(-50%) translateY(4px);
-      background: rgb(20 20 20 / .95);
-      color:#fff;
-      border:1px solid rgb(255 255 255 / .12);
-      border-radius:6px;
-      padding:4px 6px;
-      font:600 11px/1.2 ui-monospace, Menlo, monospace;
-      white-space:nowrap;
-      opacity:0;
-      pointer-events:none;
-      transition: opacity .12s ease, transform .12s ease;
-    }
-    .rec .evt:hover::after{
-      opacity:1;
-      transform: translateX(-50%) translateY(0);
-    }
-  `;
-
-  const li = document.createElement('div');
-  li.className = 'evt';
-
-  const tipText = `${note.toUpperCase()} — click to delete`;
-  li.dataset.tip = tipText;
-  li.title = tipText;
-
-  const dot = document.createElement('div');
-  dot.className = 'dot';
-  li.appendChild(dot);
-
-  li.addEventListener('click', () => removeEvent(li));
-  li.addEventListener('mouseenter', () => li.classList.add('hit'));
-  li.addEventListener('mouseleave', () => li.classList.remove('hit'));
-
-  seqRow.appendChild(li);
-  sequence.push({ note, li });
 }
-
-function removeEvent(li){
-  const idx=sequence.findIndex(x=>x.li===li); if(idx>=0){ sequence.splice(idx,1); li.remove(); }
+function clearAll(){
+  sequence.splice(0, sequence.length);
+  seqRow.innerHTML = '';
+  seqRow.style.setProperty('--n', 1);
+  stopPlay();
 }
-function clearAll(){ sequence.splice(0,sequence.length); seqRow.innerHTML=''; stopPlay(); }
+function updateHistogramBars(){
+  const n = sequence.length;
+  seqRow.style.setProperty('--n', Math.max(1, n));
+  if (n === 0) return;
+
+  let min = Infinity, max = -Infinity;
+  for (const s of sequence){
+    const m = typeof s.midi === 'number' ? s.midi : parseNote(s.note);
+    s.midi = m;
+    if (m < min) min = m;
+    if (m > max) max = m;
+  }
+  const span = Math.max(1, max - min);
+  for (const s of sequence){
+    const t = (s.midi - min) / span;   // 0..1
+    const h = 18 + t * 70;             // 18%..88%
+    s.li.style.height = h.toFixed(1) + '%';
+  }
+}
 
 function stepPlay(){
   if(sequence.length===0){ stopPlay(); return; }
@@ -1032,22 +992,25 @@ function loadSong(notesArray) {
   sequence.splice(0, sequence.length);
   seqRow.innerHTML = '';
   notesArray.forEach(n => addToSequence(n));
+  updateHistogramBars();
 }
 
-/* ===== Load key pattern (kept) ===== */
+/* ===== Load key pattern (robust parsing) ===== */
 (function(){
   const keyToNote = new Map(
-    [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes].map(([note, key]) => [key, note])
+    [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes]
+      .map(([note, key]) => [key, note])
   );
   const normalize = ch => (ch === '`' ? '[' : ch);
-  const keyPattern =
-    "357357357357357257257246246357357357357257257246246" +
-    "etuetuetuetuwtuwtuwrywryetuetuetuetuwtuwtuwrywry" +
-    "e3t5u7e3t5u7e3t5u7e3t5u7w2t5u7w2t5u7w2r4y6w2r4y6" +
-    "e3t5u7e3t5u7e3t5u7e3t5u7w2t5u7w2t5u7w2r4y6w2r4y6";
+
+  const cleaned = (`
+    ${"357357357357 257257246246357357357357257257246246"}
+    ${"etuetuetuetuwtuwtuwrywryetuetuetuetuwtuwtuwrywry"}
+    ${"e3t5u7e3t5u7e3t5u7e3t5u7w2t5u7w2t5u7w2r4y6w2r4y6"}
+  `.toLowerCase()).replace(/[^a-z0-9\-\=\[\]\\\\]/g, '');
 
   const seqLow = [];
-  for (const raw of keyPattern.replace(/\s+/g, '')) {
+  for (const raw of cleaned) {
     const k = normalize(raw);
     const n = keyToNote.get(k);
     if (n) seqLow.push(n);
@@ -1065,7 +1028,7 @@ function loadSong(notesArray) {
   }
 
   const seqHigh = seqLow.map(n => transpose(n, 12));
-  const seqAlt = [];
+  const seqAlt  = [];
   const N = Math.max(seqLow.length, seqHigh.length);
   for (let i = 0; i < N; i++){
     if (i < seqLow.length)  seqAlt.push(seqLow[i]);
