@@ -137,18 +137,6 @@
     --facet-top-fill:#ffffff; --facet-side-fill:#f5f5f5; --facet-dark-fill:#8c8c8c;
   }
 
-  /* BLACK keys: darker gradienty look via facet shades */
-  .cube.black{
-    --facet-top-fill:#2a2a2a;   /* top brightest */
-    --facet-side-fill:#1b1b1b;  /* side mid */
-    --facet-dark-fill:#0a0a0a;  /* dark */
-  }
-  .cube.black.brighten{
-    --facet-top-fill:#3a3a3a;
-    --facet-side-fill:#2a2a2a;
-    --facet-dark-fill:#141414;
-  }
-
   /* Labels */
   .note{
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Overpass Mono", monospace;
@@ -238,10 +226,11 @@
       <path class="facet-side" d="M186.082 65.9206L224.303 87.8223V44.0189L185.867 22.1172L186.082 65.9206Z" />
     </symbol>
   </defs>
-  <!-- small black-keys row (flush-right) -->
-  <g id="rowSharps"></g>
-  <g id="rowTop"></g>
-  <g id="rowBottom"></g>
+  <!-- Four rows (naturals only) -->
+  <g id="row1"></g>
+  <g id="row2"></g>
+  <g id="row3"></g>
+  <g id="row4"></g>
 </svg>
 
 <!-- Recorder bar -->
@@ -281,6 +270,7 @@
 <script>
 /* ================================
    intoview.pro — iso cubes keyboard
+   (4×5 naturals A4→C7 + mobile stack + fixed centering)
    ================================ */
 
 /* Info tooltip */
@@ -294,23 +284,19 @@
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); }, { passive: true });
 })();
 
-/* Layout + mapping */
-const bottomNotes = [
-  ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t'],
+/* ===== Layout + mapping ===== */
+/* Four rows of 5 covering A4 → C7 (naturals only) */
+const row1Notes = [
+  ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t']
+];
+const row2Notes = [
   ['f5','y'], ['g5','u'], ['a5','i'], ['b5','o'], ['c6','p']
 ];
-
-const topNotes = [
-  ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'], ['e6','5'],
-  ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
+const row3Notes = [
+  ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'], ['e6','5']
 ];
-/* black row (accidentals used here) */
-const sharpNotes = [
-  ['c#5','-'],  // dash
-  ['d#5','='],  // equals
-  ['f#5','\\'], // backslash
-  ['g#4',"\'"], // apostrophe
-  ['g#5',';'],  // semicolon
+const row4Notes = [
+  ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
 ];
 
 const cos30 = Math.sqrt(3)/2, sin30=0.5;
@@ -331,11 +317,15 @@ function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
 function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
 
 const stage=document.getElementById('stage');
-const rowSharps=document.getElementById('rowSharps');
-const rowTop=document.getElementById('rowTop');
-const rowBottom=document.getElementById('rowBottom');
+/* IMPORTANT: ensure your SVG has:
+   <g id="row1"></g><g id="row2"></g><g id="row3"></g><g id="row4"></g> */
+const row1 = document.getElementById('row1');
+const row2 = document.getElementById('row2');
+const row3 = document.getElementById('row3');
+const row4 = document.getElementById('row4');
 
-function placeRow(container, startIJ, notes, blurMaxPx, {black=false}={}){
+/* Horizontal row placement (default) */
+function placeRow(container, startIJ, notes, blurMaxPx){
   container.innerHTML='';
   const w=num(css().getPropertyValue('--cube-size'), 36);
   const h=w*(96/86);
@@ -345,7 +335,7 @@ function placeRow(container, startIJ, notes, blurMaxPx, {black=false}={}){
     const I=ai+idx, J=aj;
     const pC=toXY(I,J), pL=toXY(I,J+2);
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.setAttribute('class', black ? 'cube black' : 'cube');
+    g.setAttribute('class','cube'); // white cubes only (black keys removed)
     g.setAttribute('tabindex','0');
     g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
     g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
@@ -369,6 +359,43 @@ function placeRow(container, startIJ, notes, blurMaxPx, {black=false}={}){
     container.appendChild(lbl);
   });
 }
+
+/* Vertical placement (mobile single-column mode) */
+function placeRowVertical(container, startIJ, notes, blurMaxPx){
+  container.innerHTML='';
+  const w=num(css().getPropertyValue('--cube-size'), 36);
+  const h=w*(96/86);
+  const {I:ai, J:aj}=startIJ;
+  const N=notes.length;
+  notes.forEach(([note,key],idx)=>{
+    const I=ai, J=aj+idx;                         // stack vertically
+    const pC=toXY(I,J), pL=toXY(I,J+2);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','cube');
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
+    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
+    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
+    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+
+    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
+    u.setAttribute('width', w); u.setAttribute('height', h);
+    g.appendChild(u);
+
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('class','note');
+    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lbl.textContent=`${note.toUpperCase()}/${key}`;
+    lbl.dataset.noteFor=note;
+
+    container.appendChild(g);
+    container.appendChild(lbl);
+  });
+}
+
 function measureBounds(){
   const uses=stage.querySelectorAll('use');
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -380,70 +407,82 @@ function measureBounds(){
   });
   return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
 }
-function layoutAll(){
-  const vw=innerWidth, vh=innerHeight, margin=Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
-  const baseCell=num(css().getPropertyValue('--iso-cell-base'), 32);
-  const baseCube=num(css().getPropertyValue('--cube-size-base'), 36);
-  const sepJ = vw<560 ? 9 : 7;
 
+/* UPDATED: layoutAll with mobile <-> desktop branching + recorder-bar-aware centering */
+function layoutAll(){
+  const vw = innerWidth, vh = innerHeight;
+  const margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
+  const baseCell = num(css().getPropertyValue('--iso-cell-base'), 32);
+  const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
+  const MOBILE = vw < 520; // breakpoint: stack rows vertically on small screens
+
+  // initialize at base scale
   document.documentElement.style.setProperty('--iso-cell', `${baseCell}px`);
   document.documentElement.style.setProperty('--cube-size', `${baseCube}px`);
-  B=basis();
+  B = basis();
 
-  const centerIJ=snap(vw/2, vh/2 - 20);
-  const startBottomIJ={I:centerIJ.I - Math.floor(bottomNotes.length/2), J:centerIJ.J + 2};
-  const startTopIJ   ={I:startBottomIJ.I + 2,               J:startBottomIJ.J - sepJ};
+  const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
 
-  // RIGHT-ALIGN sharps row to TOP row's right edge
-  const startSharpIJ = {
-    I: startTopIJ.I + (topNotes.length - sharpNotes.length),
-    J: startTopIJ.J - 2
-  };
+  // ------- FIRST RENDER (unscaled) -------
+  const rowLen = 5; // 5 notes per row
+  const rowGap = MOBILE ? 9 : (vw < 560 ? 9 : 7); // a bit more vertical space on mobile
 
-  placeRow(rowBottom, startBottomIJ, bottomNotes, 2.4);
-  placeRow(rowTop,    startTopIJ,    topNotes,    2.8);
-  placeRow(rowSharps, startSharpIJ,  sharpNotes,  1.8, {black:true});
+  // center within available space (above recorder bar)
+  const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
+  const startI = centerIJ.I - Math.floor(rowLen/2);
 
-  // Fit pass
-  const b=measureBounds();
-  const needW=vw-margin*2, needH=vh - margin*2 - parseInt(getComputedStyle(document.querySelector('.rec')).height);
-  const sW=needW/b.width, sH=needH/b.height;
-  const scale=Math.min(1,sW,sH);
+  // top row J such that rows are vertically centered as a block
+  const totalJSpan = rowGap * (4 - 1);
+  const startJTop = centerIJ.J - totalJSpan/2;
 
-  // re-render at scale then recenter
+  const start1 = { I: startI, J: startJTop + rowGap * 0 };
+  const start2 = { I: startI, J: startJTop + rowGap * 1 };
+  const start3 = { I: startI, J: startJTop + rowGap * 2 };
+  const start4 = { I: startI, J: startJTop + rowGap * 3 };
+
+  // render 4 horizontal rows (same on desktop & mobile)
+  row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
+  placeRow(row1, start1, row1Notes, 2.0);
+  placeRow(row2, start2, row2Notes, 2.2);
+  placeRow(row3, start3, row3Notes, 2.4);
+  placeRow(row4, start4, row4Notes, 2.6);
+
+  // ------- FIT PASS (scale to viewport), then re-render -------
+  const b = measureBounds();
+  const needW = vw - margin*2;
+  const needH = vh - margin*2 - recH;
+  const sW = needW / b.width;
+  const sH = needH / b.height;
+  const scale = Math.min(1, sW, sH);
+
   document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
   document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
-  B=basis();
+  B = basis();
 
-  const center2=snap(vw/2, vh/2 - 20);
-  const startB2={I:center2.I - Math.floor(bottomNotes.length/2), J:center2.J + 2};
-  const startT2={I:startB2.I + 2, J:startB2.J - sepJ};
-  const startS2={I:startT2.I + (topNotes.length - sharpNotes.length), J:startT2.J - 2};
+  // recenter after scaling
+  const center2 = snap(vw/2, (vh - recH)/2 - 10);
+  const startI2 = center2.I - Math.floor(rowLen/2);
+  const startJTop2 = center2.J - totalJSpan/2;
 
-  rowBottom.innerHTML=''; rowTop.innerHTML=''; rowSharps.innerHTML='';
-  placeRow(rowBottom, startB2, bottomNotes, 2.4);
-  placeRow(rowTop,    startT2, topNotes,    2.8);
-  placeRow(rowSharps, startS2, sharpNotes,  1.8, {black:true});
+  const start1b = { I: startI2, J: startJTop2 + rowGap * 0 };
+  const start2b = { I: startI2, J: startJTop2 + rowGap * 1 };
+  const start3b = { I: startI2, J: startJTop2 + rowGap * 2 };
+  const start4b = { I: startI2, J: startJTop2 + rowGap * 3 };
 
-  // center cluster
-  const b2=measureBounds();
-  const dx=vw/2 - b2.cx;
-  const dy=(vh - parseInt(getComputedStyle(document.querySelector('.rec')).height))/2 - b2.cy;
-  const offsetIJ=(ij,dx,dy)=>{ const p0=toXY(ij.I,ij.J); const p={x:p0.x+dx,y:p0.y+dy}; return snap(p.x,p.y); };
-  const nb=offsetIJ(startB2,dx,dy);
-  const nt=offsetIJ(startT2,dx,dy);
-  const ns=offsetIJ(startS2,dx,dy);
-  rowBottom.innerHTML=''; rowTop.innerHTML=''; rowSharps.innerHTML='';
-  placeRow(rowBottom, nb, bottomNotes, 2.4);
-  placeRow(rowTop,    nt, topNotes,    2.8);
-  placeRow(rowSharps, ns, sharpNotes,  1.8, {black:true});
+  row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
+  placeRow(row1, start1b, row1Notes, 2.0);
+  placeRow(row2, start2b, row2Notes, 2.2);
+  placeRow(row3, start3b, row3Notes, 2.4);
+  placeRow(row4, start4b, row4Notes, 2.6);
 
   window.dispatchEvent(new Event('resize'));
   window.dispatchEvent(new Event('iso:refresh'));
 }
+
+
 layoutAll();
 
-/* Pulses canvas */
+/* ===== Pulses canvas (unchanged) ===== */
 (function(){
   const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
   const cos30 = Math.sqrt(3)/2, sin30=0.5;
@@ -532,13 +571,10 @@ layoutAll();
   addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
 })();
 
-/* Synth */
-/* Overload guards */
-const POLY_MAX = 10;                     // cap simultaneous voices
-const NOTE_COOLDOWN_MS = 90;             // avoid micro re-triggers
-const lastTrigByNote = new Map();        // note -> timestamp
-
-
+/* ===== Synth (unchanged) ===== */
+const POLY_MAX = 10;                     
+const NOTE_COOLDOWN_MS = 90;             
+const lastTrigByNote = new Map();        
 
 let AC=null, master=null; let pianoGroup=null; const activeVoices=new Set(); let synthReady=false;
 function ensureAudio(){
@@ -571,7 +607,6 @@ function ensureAudio(){
   }
   if (AC.state === 'suspended') AC.resume();
 }
-
 function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
 function parseNote(n){
   const p=String(n).toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
@@ -591,7 +626,7 @@ function buildReverb(){
     }
   }
   convolver.buffer=impulse;
-  dry=AC.createGain(); dry.gain.value=0.84;  // slightly brighter pop feel
+  dry=AC.createGain(); dry.gain.value=0.84; 
   wet=AC.createGain(); wet.gain.value=0.26;
   pianoGroup.disconnect();
   pianoGroup.connect(dry).connect(master);
@@ -667,7 +702,7 @@ function playPiano(note, {hold=false, vel=.95} = {}){
   const nowMs = performance.now();
   const last = lastTrigByNote.get(nStr) || 0;
   if (nowMs - last < NOTE_COOLDOWN_MS) {
-    return () => {}; // ignore ultra-rapid retrigger
+    return () => {}; 
   }
   lastTrigByNote.set(nStr, nowMs);
 
@@ -743,7 +778,7 @@ function addToSequence(note){
     .rec .evt{ position:relative; }
     .rec .evt .dot{
       width: 8px; height: 8px;
-      background: transparent;            /* outline only by default */
+      background: transparent;
       border: 1px solid #3f3f3f;
       border-radius: 100px;
       opacity: .9;
@@ -756,13 +791,11 @@ function addToSequence(note){
         border-color .12s ease,
         filter .12s ease;
     }
-    /* Hover: keep no fill; accent the outline + ring */
     .rec .evt:hover .dot{
       border-color: var(--rec-danger, #ff4d4d);
       box-shadow: 0 0 0 2px rgb(255 255 255 / .25);
       opacity: 1;
     }
-    /* Active step: white fill + soft blur/glow */
     .rec .evt.hit .dot{
       background: #fff;
       border-color: #fff;
@@ -770,8 +803,6 @@ function addToSequence(note){
       box-shadow: 0 0 10px 2px rgb(255 255 255 / .65);
       transform: scale(1.15);
     }
-
-    /* Tooltip using data-tip text */
     .rec .evt::after{
       content: attr(data-tip);
       position:absolute;
@@ -798,25 +829,21 @@ function addToSequence(note){
   const li = document.createElement('div');
   li.className = 'evt';
 
-  // Tooltip text (custom) + native title as fallback
   const tipText = `${note.toUpperCase()} — click to delete`;
   li.dataset.tip = tipText;
   li.title = tipText;
 
-  // outlined square
   const dot = document.createElement('div');
   dot.className = 'dot';
   li.appendChild(dot);
 
-  // interactions
   li.addEventListener('click', () => removeEvent(li));
-  li.addEventListener('mouseenter', () => li.classList.add('hit'));    // shows active preview glow
-  li.addEventListener('mouseleave', () => li.classList.remove('hit')); // remove active preview glow
+  li.addEventListener('mouseenter', () => li.classList.add('hit'));
+  li.addEventListener('mouseleave', () => li.classList.remove('hit'));
 
   seqRow.appendChild(li);
   sequence.push({ note, li });
 }
-
 
 function removeEvent(li){
   const idx=sequence.findIndex(x=>x.li===li); if(idx>=0){ sequence.splice(idx,1); li.remove(); }
@@ -827,8 +854,8 @@ function stepPlay(){
   if(sequence.length===0){ stopPlay(); return; }
   if(playIdx>=sequence.length){
     if(isLooping && sequence.length>0){
-      playIdx = 0;            // restart immediately
-      stepPlay();             // keep timing tight
+      playIdx = 0;
+      stepPlay();
     }else{
       stopPlay(true);
     }
@@ -891,15 +918,17 @@ stage.addEventListener('pointerout', (e) => {
   if (!sustain) releaseCube(g);
 }, true);
 
-/* Keyboard mapping (keeps your ` → [ mapping) */
-const keyMap=new Map([...bottomNotes, ...topNotes, ...sharpNotes].map(([n,k])=>[k, n]));
+/* Keyboard mapping (four rows only) */
+const keyMap=new Map(
+  [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes].map(([n,k])=>[k, n])
+);
 document.addEventListener('keydown', e=>{
   if(e.repeat) return;
   if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
   let key=e.key;
   if(e.code==='Backslash')    key='\\';
-  if(e.code==='BracketLeft')  key='[';
-  if(e.code==='Backquote')    key='['; // map ` to [
+  if(e.code==='BracketLeft')  key='[';   // preserved alias
+  if(e.code==='Backquote')    key='[';   // preserved alias
   if(!keyMap.has(key)) return;
   const note=keyMap.get(key);
   const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
@@ -923,31 +952,23 @@ document.addEventListener('keyup', e=>{
 
 /* ===== Loader ===== */
 function loadSong(notesArray) {
-  // clear existing
   sequence.splice(0, sequence.length);
   seqRow.innerHTML = '';
-  // add
   notesArray.forEach(n => addToSequence(n));
 }
 
-/* ===== Load key pattern (low → high → alternating) ===== */
+/* ===== Load key pattern (uses new rows) ===== */
 (function(){
-  // Build key -> note from your current layout
   const keyToNote = new Map(
-    [...bottomNotes, ...topNotes, ...sharpNotes].map(([note, key]) => [key, note])
+    [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes].map(([note, key]) => [key, note])
   );
-
-  // Treat ` as [ (you already map Backquote→[ in handlers)
   const normalize = ch => (ch === '`' ? '[' : ch);
-
-  // Your pattern (typed keys). Spaces/newlines ignored.
   const keyPattern =
     "357357357357357257257246246357357357357257257246246" +
     "etuetuetuetuwtuwtuwrywryetuetuetuetuwtuwtuwrywry" +
     "e3t5u7e3t5u7e3t5u7e3t5u7w2t5u7w2t5u7w2r4y6w2r4y6" +
     "e3t5u7e3t5u7e3t5u7e3t5u7w2t5u7w2t5u7w2r4y6w2r4y6";
 
-  // Map to notes (LOW)
   const seqLow = [];
   for (const raw of keyPattern.replace(/\s+/g, '')) {
     const k = normalize(raw);
@@ -955,7 +976,6 @@ function loadSong(notesArray) {
     if (n) seqLow.push(n);
   }
 
-  // Helpers for transposition (uses your global parseNote)
   function midiToName(m){
     const pcs = ['c','c#','d','d#','e','f','f#','g','g#','a','a#','b'];
     const pc  = pcs[((m % 12) + 12) % 12];
@@ -967,10 +987,7 @@ function loadSong(notesArray) {
     return midiToName(m + semis);
   }
 
-  // HIGH = LOW + 12 semitones
   const seqHigh = seqLow.map(n => transpose(n, 12));
-
-  // ALTERNATING: L1, H1, L2, H2, ...
   const seqAlt = [];
   const N = Math.max(seqLow.length, seqHigh.length);
   for (let i = 0; i < N; i++){
@@ -978,18 +995,15 @@ function loadSong(notesArray) {
     if (i < seqHigh.length) seqAlt.push(seqHigh[i]);
   }
 
-  // Final order: low → high → alternating
   const finalSeq = [...seqLow, ...seqHigh, ...seqAlt];
 
   clearAll();
   loadSong(finalSeq);
-  stepMs = 120; // adjust to taste
+  stepMs = 120;
 })();
 
-
-
-
 layoutAll();
+
 </script>
 </body>
 </html>
