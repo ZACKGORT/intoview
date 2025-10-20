@@ -1,0 +1,1158 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>intoview.pro</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<style>
+  :root{
+    /* cube + lattice sizing (JS scales to fit viewport) */
+    --cube-size-base: 64;
+    --iso-cell-base:  48;
+    --iso-cell:  calc(var(--iso-cell-base) * 1px);
+    --cube-size: calc(var(--cube-size-base) * 1px);
+
+    /* label nudges (labels sit two iso-cells below each cube in JS) */
+    --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
+
+    /* background grid */
+    --bg:#000;
+    --grid-gap: 4px;
+    --grid-alpha:.10;
+    --grid-thin: rgb(255 255 255 / calc(var(--grid-alpha) * .10));
+    --grid-bold: rgb(255 255 255 / calc(var(--grid-alpha) * .24));
+
+    /* highlight pulses (canvas) */
+    --iso-highlight-fill: 255 255 255;
+    --iso-highlight-alpha:.22;
+    --iso-stroke-alpha:.55;
+    --iso-fade-ms: 900;
+    --iso-blur-min: 0px;
+    --iso-blur-max: 72px;
+    --iso-blur-curve: 1.35;
+
+    /* facets + transitions */
+    --facet-ease:.18s ease;
+    --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
+
+    /* logo */
+    --logo-w: 280px;
+    --logo-pad-x: 1.8rem;
+    --logo-pad-y: 1.8rem;
+
+    /* recorder bar */
+    --rec-h: 48px;
+    --rec-bg: transparent;
+    --rec-fg: #d6d6d6;
+    --rec-muted: #a8a8a8;
+    --rec-danger: #ff4d4d;
+    --rec-gap: 1px; /* default; JS will override as n grows */
+  }
+
+  html,body{height:100%}
+  body{
+    margin:0; color:#e8e8e8; background:var(--bg);
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    overflow:hidden;
+    background-image:
+      repeating-linear-gradient(30deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(90deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(150deg, var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(30deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
+      repeating-linear-gradient(90deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
+      repeating-linear-gradient(150deg, transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4));
+    background-attachment:fixed,fixed,fixed,fixed,fixed,fixed;
+    font:14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  }
+
+  /* ===== Logo (top-left) ===== */
+  .logo-lockup{
+    position:fixed; left:var(--logo-pad-x); top:var(--logo-pad-y); z-index:3;
+    line-height:0; user-select:none; pointer-events:none;
+    mix-blend-mode:normal;
+  }
+  .logo-lockup img{ width:var(--logo-w); height:auto; display:block; }
+
+  /* ===== Info badge (top-right) ===== */
+  .info-wrap{
+    position:fixed; right:var(--logo-pad-x); top:var(--logo-pad-y); z-index:3;
+    display:inline-block; line-height:0;
+  }
+  .info-btn{
+    width:28px; height:28px; border-radius:999px;
+    display:grid; place-items:center;
+    background:rgb(255 255 255 / .06);
+    border:1px solid rgb(255 255 255 / .18);
+    color:#e8e8e8; font:700 14px/1 ui-monospace, Menlo, monospace;
+    cursor:pointer; user-select:none;
+    transition:background .2s ease, border-color .2s ease, transform .06s ease;
+  }
+  .info-btn:hover{ background:rgb(255 255 255 / .12); }
+  .info-btn:active{ transform:translateY(1px); }
+  .info-btn:focus-visible{ outline:2px solid #bbb; outline-offset:3px; }
+  .info-tooltip{
+    position:absolute; right:0; top:calc(100% + 10px);
+    width:min(64ch, 44vw); max-width:460px;
+    background:rgb(12 12 12 / .94); color:#e8e8e8;
+    border:1px solid rgb(255 255 255 / .14);
+    border-radius:12px; padding:12px 14px;
+    box-shadow:0 8px 24px rgb(0 0 0 / .45);
+    font:13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    pointer-events:none; opacity:0; transform:translateY(-6px);
+    transition:opacity .16s ease, transform .16s ease;
+  }
+  .info-tooltip::after{
+    content:""; position:absolute; top:-6px; right:14px; width:10px; height:10px;
+    background:inherit; border-left:1px solid rgb(255 255 255 / .14); border-top:1px solid rgb(255 255 255 / .14);
+    transform:rotate(45deg);
+  }
+  .info-wrap[data-open="true"] .info-tooltip,
+  .info-wrap:hover .info-tooltip{ opacity:1; transform:translateY(0); pointer-events:auto; }
+  @media (max-width:520px){
+    .info-tooltip{ width:min(68vw, 56ch); right:-2px; }
+  }
+
+  /* ===== Stage ===== */
+  #isoCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+  #stage{ position:fixed; inset:0; z-index:1; overflow:visible; }
+
+  /* Cubes (white default) */
+  .cube{
+    cursor:pointer; outline:none;
+    --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
+    filter: blur(var(--depth-blur, 0px));
+    transition: filter .25s ease;
+  }
+  .cube:where(:hover, :focus-visible, .brighten){ filter: blur(0px); }
+  .cube *{ transition:fill var(--facet-ease); }
+  .facet-top  { fill: var(--facet-top-fill); }
+  .facet-side { fill: var(--facet-side-fill); }
+  .facet-dark { fill: var(--facet-dark-fill); }
+  .cube.brighten{
+    --facet-top-fill:#ffffff; --facet-side-fill:#f5f5f5; --facet-dark-fill:#8c8c8c;
+  }
+
+  /* Labels */
+  .note{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Overpass Mono", monospace;
+    font-size:12px; font-weight:600;
+    fill:#fff; opacity:.78; user-select:none;
+  }
+  .note.lit{ opacity:1; }
+
+  /* MOBILE: hide labels for compact packed grid */
+  @media (max-width:520px){
+    .note{ display:none; }
+  }
+
+  /* ===== Recorder bar (centered controls + centered histogram) ===== */
+  .rec{
+    position:fixed; left:0; right:0; bottom:0; z-index:2;
+    --rec-max-h: 40vh;
+    height: clamp(var(--rec-h), 22vh, var(--rec-max-h));
+    max-height: var(--rec-max-h);
+    background:var(--rec-bg);
+    backdrop-filter: blur(4px);
+
+    /* stacked layout on ALL sizes: controls below, histogram above */
+    display:flex;
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 14px 12px;
+    overflow:hidden;
+  }
+
+  /* Center the controls row */
+  .rec .controls{
+    margin-bottom: calc(clamp(3rem, 2.5vh, 20px) + env(safe-area-inset-bottom));
+    display:flex;
+    justify-content:center;          /* centered controls */
+    align-items:center;
+    gap:10px;
+    flex:0 0 auto;
+    color:var(--rec-fg);
+  }
+
+  .btn{
+    display:inline-grid; place-items:center;
+    width:28px; height:28px; border-radius:8px;
+    background:rgb(255 255 255 / .06);
+    border:1px solid rgb(255 255 255 / .12);
+    cursor:pointer; user-select:none;
+    transition:transform .05s ease, background .2s ease, border-color .2s ease;
+  }
+  .btn:hover{ background:rgb(255 255 255 / .12); }
+  .btn:active{ transform:translateY(1px); }
+  .ico{ width:14px; height:14px; display:block; }
+  .ico rect, .ico path{ fill:var(--rec-fg); }
+  .vol-wrap{ display:flex; align-items:center; gap:8px; padding-left:6px; font:600 11px/1 ui-monospace, Menlo, monospace; color:var(--rec-fg); user-select:none; }
+  .vol-wrap input[type="range"]{ width:120px; height:18px; accent-color:#d6d6d6; cursor:pointer; }
+
+  /* loop toggle state */
+  .btn.toggle[data-on="true"]{
+    background:rgb(0 204 136 / .18);
+    border-color:rgb(0 204 136 / .45);
+    box-shadow:0 6px 18px rgb(0 0 0 / .35), inset 0 0 0 1px rgb(0 204 136 / .35);
+  }
+  .btn.toggle[data-on="true"] .ico path{ fill:#dff7ef; }
+
+  /* ===== Histogram ===== */
+  .rec .track{
+    min-width:0;
+    height:100%;
+    display:flex;
+    justify-content:center;          /* center the histogram row */
+    overflow:hidden;                 /* never overflow the viewport */
+  }
+
+  .rec .row{
+    display:flex;
+    align-items:flex-end;            /* bars grow up from bottom */
+    gap: var(--rec-gap);
+    height: 100%;                    /* take all available recorder height */
+    margin: 0 auto;                  /* centered within .track */
+    max-width: 100%;                 /* clamp to viewport width */
+    --n: 1;                          /* set dynamically from JS */
+  }
+
+  .rec .row .bar{
+    box-sizing: border-box;          /* include borders in width calc */
+    flex: 0 0 calc((100% - (var(--rec-gap) * (var(--n) - 1))) / var(--n));
+    height: 8%;                      /* JS will set actual pixel height */
+    background: rgb(255 255 255 / .14);
+    border: 1px solid rgb(255 255 255 / .22);
+    border-bottom-color: rgb(255 255 255 / .28);
+    border-radius: 6px 6px 0 0;
+    box-shadow: inset 0 -6px 12px rgb(0 0 0 / .35);
+    transition:
+      height .12s ease,
+      background .15s ease,
+      border-color .15s ease,
+      box-shadow .15s ease,
+      transform .05s ease;
+    cursor: pointer;
+  }
+
+  .rec .row{ --min-bar-px: 6; --min-gap-px: 1; }
+
+  .rec .row .bar:hover{
+    background: rgb(255 255 255 / .22);
+    border-color: rgb(255 255 255 / .45);
+  }
+  .rec .row .bar.hit{
+    background:#fff;
+    border-color:#fff;
+    box-shadow: 0 0 12px 2px rgb(255 255 255 / .65);
+  }
+
+  /* Smaller cubes on mobile */
+  @media (max-width:520px){
+    :root{
+      --iso-cell-base: 56;  /* spacing scale */
+      --cube-size-base: 48; /* face size */
+    }
+  }
+</style>
+
+</head>
+<body>
+
+<!-- Logo -->
+<div class="logo-lockup" aria-label="intoview">
+  <img src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-horizontal-lockup-small.svg" alt="intoview" />
+</div>
+
+<!-- Info badge -->
+<div class="info-wrap" id="infoWrap" data-open="false">
+  <button class="info-btn" id="infoBtn" aria-expanded="false" aria-controls="infoTip" aria-label="About this">i</button>
+  <div class="info-tooltip" id="infoTip" role="dialog" aria-modal="false">
+    <strong>intoview.pro</strong> is a concept being crafted from 0-1, to showcase, you know, your craft. Simply, picture a platform & place that puts your best into view.
+    <br><br>
+    <small>Meanwhile, I was working on a design system using my shiny new logo, when I got distracted... anyway, <strong>enjoy!</strong></small>
+  </div>
+</div>
+
+<!-- highlight pulses -->
+<canvas id="isoCanvas" aria-hidden="true"></canvas>
+
+<!-- Stage for rows -->
+<svg id="stage" role="group" aria-label="Isometric note cubes">
+  <defs>
+    <symbol id="cubeSym" viewBox="182 0 86 96">
+      <path class="facet-dark" d="M262.74 65.9205L224.305 87.8222V43.5893L262.74 21.9023V65.9205Z" />
+      <path class="facet-top"  d="M224.088 0L185.867 22.1164L224.303 44.0182L262.738 21.9017L224.088 0Z" />
+      <path class="facet-side" d="M186.082 65.9206L224.303 87.8223V44.0189L185.867 22.1172L186.082 65.9206Z" />
+    </symbol>
+  </defs>
+  <!-- Five rows (naturals only) -->
+  <g id="row1"></g>
+  <g id="row2"></g>
+  <g id="row3"></g>
+  <g id="row4"></g>
+  <g id="row5"></g>
+</svg>
+
+<!-- Recorder bar -->
+<div class="rec" role="region" aria-label="Recorded notes">
+  <div class="controls">
+    <button class="btn" id="btnPlay" title="Play">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M4 2v12l10-6-10-6z"/></svg>
+    </button>
+    <button class="btn" id="btnPause" title="Pause">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M3 2h4v12H3zM9 2h4v12H9z"/></svg>
+    </button>
+    <button class="btn" id="btnClear" title="Clear">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M2 3h12v2H2zM4 6h8l-1 8H5L4 6z"/></svg>
+    </button>
+
+    <!-- Loop button -->
+    <button class="btn toggle" id="btnLoop" title="Loop sequence (L)" aria-pressed="false">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M17 1l4 4-4 4V6H7a3 3 0 000 6h2v2H7a5 5 0 010-10h10V1zm-10 22l-4-4 4-4v3h10a3 3 0 000-6h-2v-2h2a5 5 0 010 10H7v3z" fill="currentColor"/>
+      </svg>
+    </button>
+
+    <!-- Volume -->
+    <div class="vol-wrap" title="Volume">
+      <label for="volSlider">Vol</label>
+      <input id="volSlider" type="range" min="0" max="100" value="50" step="1" aria-label="Volume (0 to 100)">
+    </div>
+  </div>
+  <div class="track">
+    <div id="seqRow" class="row" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- a11y live region (off-screen) -->
+<div id="live" style="position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;left:0;bottom:0;" aria-live="polite"></div>
+
+<script>
+/* ================================
+   intoview.pro — full JavaScript
+   (isometric cubes + padded, mobile-safe histogram)
+   ================================ */
+
+/* ---------- Info tooltip ---------- */
+(() => {
+  const infoWrap = document.getElementById('infoWrap');
+  const infoBtn  = document.getElementById('infoBtn');
+  if (!infoWrap || !infoBtn) return;
+  const setOpen = (open) => { infoWrap.dataset.open = String(open); infoBtn.setAttribute('aria-expanded', String(open)); };
+  infoBtn.addEventListener('click', (e) => { e.stopPropagation(); setOpen(infoWrap.dataset.open !== 'true'); });
+  document.addEventListener('click', (e) => { if (!infoWrap.contains(e.target)) setOpen(false); }, { passive: true });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); }, { passive: true });
+})();
+
+/* ---------- Layout + mapping ---------- */
+const row1Notes = [
+  ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t']
+];
+const row2Notes = [
+  ['f5','y'], ['g5','u'], ['a5','i'], ['b5','o'], ['c6','p']
+];
+const row3Notes = [
+  ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'], ['e6','5']
+];
+const row4Notes = [
+  ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
+];
+const row5Notes = [
+  ['f7','-'], ['g7','='], ['a7','['], ['b7',']'], ['c8','\\']
+];
+const allNotes = [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes];
+
+const cos30 = Math.sqrt(3)/2, sin30=0.5;
+function css(){ return getComputedStyle(document.documentElement); }
+function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
+function readCell(){ return num(css().getPropertyValue('--iso-cell'), 32); }
+function basis(){
+  const CELL=readCell();
+  const v1={x:cos30*CELL, y:sin30*CELL};
+  const v2={x:-cos30*CELL, y:sin30*CELL};
+  const det=v1.x*v2.y - v2.x*v1.y;
+  const inv={a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
+  return {CELL,v1,v2,inv};
+}
+let B=basis();
+addEventListener('resize', ()=>{ layoutAll(); }, {passive:true});
+function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
+function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
+
+const stage=document.getElementById('stage');
+const row1 = document.getElementById('row1');
+const row2 = document.getElementById('row2');
+const row3 = document.getElementById('row3');
+const row4 = document.getElementById('row4');
+const row5 = document.getElementById('row5');
+
+/* Place a single horizontal row (desktop) */
+function placeRow(container, startIJ, notes, blurMaxPx){
+  container.innerHTML='';
+  const w=num(css().getPropertyValue('--cube-size'), 36);
+  const h=w*(96/86);
+  const {I:ai, J:aj}=startIJ;
+  const N=notes.length;
+  notes.forEach(([note,key],idx)=>{
+    const I=ai+idx, J=aj;
+    const pC=toXY(I,J), pL=toXY(I,J+2);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','cube');
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
+    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
+    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
+    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+
+    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
+    u.setAttribute('width', w); u.setAttribute('height', h);
+    g.appendChild(u);
+
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('class','note');
+    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lbl.textContent=`${note.toUpperCase()}/${key}`;
+    lbl.dataset.noteFor=note;
+
+    container.appendChild(g);
+    container.appendChild(lbl);
+  });
+}
+
+/* Compact block for mobile */
+function placeBlock(container, startIJ, notes, cols, blurMaxPx){
+  container.innerHTML='';
+  const w=num(css().getPropertyValue('--cube-size'), 36);
+  const h=w*(96/86);
+  const {I:ai, J:aj}=startIJ;
+  const N=notes.length;
+  notes.forEach(([note,key],idx)=>{
+    const c = idx % cols;
+    const r = Math.floor(idx / cols);
+    const I=ai + c;
+    const J=aj + r;
+    const pC=toXY(I,J), pL=toXY(I,J+2);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','cube');
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
+    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
+
+    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
+    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+
+    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','href','#cubeSym');
+    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
+    u.setAttribute('width', w); u.setAttribute('height', h);
+    g.appendChild(u);
+
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('class','note');
+    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lbl.textContent=`${note.toUpperCase()}/${key}`;
+    lbl.dataset.noteFor=note;
+
+    container.appendChild(g);
+    container.appendChild(lbl);
+  });
+}
+
+function measureBounds(){
+  const uses=stage.querySelectorAll('use');
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  uses.forEach(u=>{
+    const x=+u.getAttribute('x'), y=+u.getAttribute('y');
+    const w=+u.getAttribute('width'), h=+u.getAttribute('height');
+    minX=Math.min(minX,x); minY=Math.min(minY,y);
+    maxX=Math.max(maxX,x+w); maxY=Math.max(maxY,y+h);
+  });
+  return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
+}
+
+/* ---------- Adaptive bar scaling (updated in layoutAll) ---------- */
+let BAR_SCALE = 0.08;   // global vertical compression
+let BAR_MIN   = 6;      // % floor so nothing disappears
+let BAR_MAX   = 42;     // % ceiling to keep them short
+
+/* recorder-bar-aware layout (+ histogram bottom padding + mobile fit) */
+function layoutAll(){
+  const vw = innerWidth, vh = innerHeight;
+  const margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
+  const baseCell = num(css().getPropertyValue('--iso-cell-base'), 32);
+  const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
+  const MOBILE = vw < 520;
+
+  /* ——— Histogram: add bottom padding inside the track ——— */
+  const track = document.querySelector('.rec .track');
+  if (track) track.style.paddingBottom = '14px'; // tweak to taste
+
+  /* ——— Mobile-safe vertical scaling for bars ———
+     Narrower screens get a lower BAR_MAX so the histogram never feels cramped.
+     You can tune these thresholds as you like. */
+  if (vw <= 360)      { BAR_SCALE = 0.34; BAR_MAX = 32; BAR_MIN = 6; }
+  else if (vw <= 420) { BAR_SCALE = 0.36; BAR_MAX = 36; BAR_MIN = 6; }
+  else if (vw <= 520) { BAR_SCALE = 0.37; BAR_MAX = 40; BAR_MIN = 6; }
+  else                { BAR_SCALE = 0.38; BAR_MAX = 42; BAR_MIN = 6; }
+
+  // initialize at base scale
+  document.documentElement.style.setProperty('--iso-cell', `${baseCell}px`);
+  document.documentElement.style.setProperty('--cube-size', `${baseCube}px`);
+  B = basis();
+
+  const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
+
+  // clear rows
+  row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
+
+  if (MOBILE){
+    // mobile: 5 columns x 5 rows block
+    const N = allNotes.length;                 // 25
+    const cols = 5;
+    const rows = Math.ceil(N / cols);
+    const center = snap(vw/2, (vh - recH)/2 - 6);
+
+    const startI = center.I - Math.floor(cols/2);
+    const startJ = center.J - Math.floor(rows/2);
+
+    placeBlock(row1, {I:startI, J:startJ}, allNotes, cols, 1.6);
+
+    const b = measureBounds();
+    const needW = vw - margin*2;
+    const needH = vh - margin*2 - recH;
+    const sW = needW / b.width;
+    const sH = needH / b.height;
+    const scale = Math.min(1, sW, sH);
+
+    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
+    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
+    B = basis();
+
+    const center2 = snap(vw/2, (vh - recH)/2 - 6);
+    const startI2 = center2.I - Math.floor(cols/2);
+    const startJ2 = center2.J - Math.floor(rows/2);
+
+    row1.innerHTML='';
+    placeBlock(row1, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
+
+  } else {
+    // desktop: five rows with tightened gap
+    const rowLen = 5;
+    const rowGap = (vw < 560 ? 7 : 5);
+    const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
+    const startI = centerIJ.I - Math.floor(rowLen/2);
+    const totalJSpan = rowGap * (5 - 1);
+    const startJTop = centerIJ.J - totalJSpan/2;
+
+    const start1 = { I: startI, J: startJTop + rowGap * 0 };
+    const start2 = { I: startI, J: startJTop + rowGap * 1 };
+    const start3 = { I: startI, J: startJTop + rowGap * 2 };
+    const start4 = { I: startI, J: startJTop + rowGap * 3 };
+    const start5 = { I: startI, J: startJTop + rowGap * 4 };
+
+    placeRow(row1, start1, row1Notes, 2.0);
+    placeRow(row2, start2, row2Notes, 2.2);
+    placeRow(row3, start3, row3Notes, 2.4);
+    placeRow(row4, start4, row4Notes, 2.6);
+    placeRow(row5, start5, row5Notes, 2.8);
+
+    const b = measureBounds();
+    const needW = vw - margin*2;
+    const needH = vh - margin*2 - recH;
+    const sW = needW / b.width;
+    const sH = needH / b.height;
+    const scale = Math.min(1, sW, sH);
+
+    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
+    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
+    B = basis();
+
+    const center2 = snap(vw/2, (vh - recH)/2 - 10);
+    const startI2 = center2.I - Math.floor(rowLen/2);
+    const startJTop2 = center2.J - totalJSpan/2;
+
+    const start1b = { I: startI2, J: startJTop2 + rowGap * 0 };
+    const start2b = { I: startI2, J: startJTop2 + rowGap * 1 };
+    const start3b = { I: startI2, J: startJTop2 + rowGap * 2 };
+    const start4b = { I: startI2, J: startJTop2 + rowGap * 3 };
+    const start5b = { I: startI2, J: startJTop2 + rowGap * 4 };
+
+    row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
+    placeRow(row1, start1b, row1Notes, 2.0);
+    placeRow(row2, start2b, row2Notes, 2.2);
+    placeRow(row3, start3b, row3Notes, 2.4);
+    placeRow(row4, start4b, row4Notes, 2.6);
+    placeRow(row5, start5b, row5Notes, 2.8);
+  }
+
+  window.dispatchEvent(new Event('resize'));
+  window.dispatchEvent(new Event('iso:refresh'));
+}
+
+layoutAll();
+
+/* ---------- Pulses canvas ---------- */
+(function(){
+  const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
+  const cos30 = Math.sqrt(3)/2, sin30=0.5;
+  const easeOut = u=>1-(1-u)*(1-u);
+  function css(){ return getComputedStyle(document.documentElement); }
+  function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
+  let CELL=56, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:1,b:0,c:0,d:1};
+
+  function read(){
+    const s = css();
+    CELL = num(s.getPropertyValue('--iso-cell'), 56);
+    v1 = {x: cos30*CELL, y: sin30*CELL};
+    v2 = {x:-cos30*CELL, y: sin30*CELL};
+    det = v1.x*v2.y - v2.x*v1.y;
+    inv = {a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
+  }
+  function resize(){
+    const dpr=Math.max(1,devicePixelRatio||1);
+    canvas.width=Math.floor(innerWidth*dpr);
+    canvas.height=Math.floor(innerHeight*dpr);
+    canvas.style.width=innerWidth+'px';
+    canvas.style.height=innerHeight+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    read();
+  }
+  addEventListener('resize', resize, {passive:true});
+  addEventListener('iso:refresh', read, {passive:true});
+  resize();
+
+  function toXY(I,J){ return { x:I*v1.x + J*v2.x, y:I*v1.y + J*v2.y }; }
+  function snapLocal(x,y){ const i=inv.a*x+inv.b*y, j=inv.c*x+inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
+  function cell(I,J){
+    const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
+    return {pts:[a,b,c,d]};
+  }
+  function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
+
+  const pulses=[]; let anim=false;
+  function push(I,J){ pulses.push({I,J,t:performance.now()}); if(!anim){ anim=true; requestAnimationFrame(tick); } }
+  window.isoPulse = push;
+
+  function tick(now){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let alive=0;
+    for(const p of pulses){
+      const age=now-p.t; if(age>=900) continue; alive++;
+      const u=age/900, invU=1-u;
+      const {pts}=cell(p.I,p.J);
+      ctx.fillStyle=`rgb(255 255 255 / ${easeOut(1-u)*.22})`;
+      draw(pts); ctx.fill();
+      ctx.lineWidth=1; ctx.strokeStyle=`rgb(255 255 255 / ${invU*.55})`;
+      ctx.stroke();
+    }
+    if(alive!==pulses.length){
+      const cut=now-900; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
+    }
+    if(alive>0) requestAnimationFrame(tick); else anim=false;
+  }
+
+  let last=null;
+  function handleMove(e){
+    const {I,J}=snapLocal(e.clientX, e.clientY);
+    const k=I+','+J;
+    if(k!==last){ last=k; push(I,J); }
+  }
+  document.addEventListener('pointermove', handleMove, {passive:true});
+  const stageEl=document.getElementById('stage');
+  if(stageEl) stageEl.addEventListener('pointermove', handleMove, {passive:true});
+  addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
+})();
+
+/* ---------- Synth ---------- */
+const POLY_MAX = 10;
+const NOTE_COOLDOWN_MS = 90;
+const lastTrigByNote = new Map();
+
+let AC=null, master=null; let pianoGroup=null; const activeVoices=new Set(); let synthReady=false;
+function ensureAudio(){
+  if(!AC){
+    const C = window.AudioContext || window.webkitAudioContext;
+    AC = new C();
+
+    master = AC.createGain();
+    master.gain.value = 0.5;
+
+    const comp = AC.createDynamicsCompressor();
+    comp.threshold.setValueAtTime(-22, AC.currentTime);
+    comp.knee.setValueAtTime(24, AC.currentTime);
+    comp.ratio.setValueAtTime(4, AC.currentTime);
+    comp.attack.setValueAtTime(0.003, AC.currentTime);
+    comp.release.setValueAtTime(0.25, AC.currentTime);
+
+    master.connect(comp);
+    comp.connect(AC.destination);
+
+    pianoGroup = AC.createGain();
+    pianoGroup.gain.value = 1.0;
+    pianoGroup.connect(master);
+
+    buildReverb();
+    const vs = document.getElementById('volSlider');
+    if (vs) vs.value = Math.round(master.gain.value * 100);
+  }
+  if (AC.state === 'suspended') AC.resume();
+}
+function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+function parseNote(n){
+  const p=String(n).toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
+  const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]]; const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
+  return 12*(oct+1)+base+alt;
+}
+let convolver=null, dry=null, wet=null;
+function buildReverb(){
+  convolver=AC.createConvolver();
+  const rate=AC.sampleRate, length=Math.floor(rate*0.9);
+  const impulse=AC.createBuffer(2,length,rate);
+  for(let ch=0; ch<2; ch++){
+    const d=impulse.getChannelData(ch);
+    for(let i=0;i<length;i++){
+      const t=i/length;
+      d[i]=(Math.random()*2-1)*Math.pow(1-t, 2.6)*0.4;
+    }
+  }
+  convolver.buffer=impulse;
+  dry=AC.createGain(); dry.gain.value=0.84;
+  wet=AC.createGain(); wet.gain.value=0.26;
+  pianoGroup.disconnect();
+  pianoGroup.connect(dry).connect(master);
+  pianoGroup.connect(wet).connect(convolver).connect(master);
+}
+function makeShaper(k=1.35){
+  const n=1024, curve=new Float32Array(n);
+  for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; curve[i]=Math.tanh(k*x); }
+  const sh=AC.createWaveShaper(); sh.curve=curve; sh.oversample='2x';
+  return sh;
+}
+function createPianoVoice(freq, vel){
+  const now=AC.currentTime;
+  const voiceGain=AC.createGain(); voiceGain.gain.value=0.0001;
+  const shaper=makeShaper(1.35);
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=Math.min(12000, freq*12); lp.Q.value=0.6;
+  const ap=AC.createBiquadFilter(); ap.type='allpass'; ap.frequency.value=freq*2; ap.Q.value=0.6;
+
+  const nbuf=AC.createBuffer(1, Math.floor(AC.sampleRate*0.02), AC.sampleRate);
+  const nd=nbuf.getChannelData(0);
+  for(let i=0;i<nd.length;i++){ nd[i]=(Math.random()*2-1)*Math.pow(1-i/nd.length,2.0); }
+  const nsrc=AC.createBufferSource(); nsrc.buffer=nbuf;
+  const ng=AC.createGain(); ng.gain.value=0.0;
+
+  const partials=[
+    {ratio:1.0,  amp:0.95, decay:1.0},
+    {ratio:2.01, amp:0.38, decay:0.75},
+    {ratio:3.02, amp:0.18, decay:0.55},
+    {ratio:4.05, amp:0.10, decay:0.42},
+    {ratio:5.07, amp:0.06, decay:0.36},
+  ];
+  const oscNodes=[];
+  for(const p of partials){
+    const o=AC.createOscillator(); o.type='sine'; o.frequency.value=freq*p.ratio;
+    const g=AC.createGain(); g.gain.value=0.0;
+    const a=0.003 + 0.002*(1/p.ratio);
+    const d=0.04 + 0.03*(1/p.ratio);
+    const peak=p.amp*vel;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.linearRampToValueAtTime(peak, now+a);
+    g.gain.linearRampToValueAtTime(peak*0.55, now+a+d);
+    g.gain.setTargetAtTime(0.0001, now+a+d, p.decay);
+    o.connect(g).connect(voiceGain);
+    o.start(now);
+    oscNodes.push({o,g});
+  }
+  ng.gain.setValueAtTime(0.0001, now);
+  ng.gain.linearRampToValueAtTime(0.25*vel, now+0.002);
+  ng.gain.linearRampToValueAtTime(0.0001, now+0.025);
+  nsrc.connect(ng).connect(voiceGain);
+  nsrc.start(now);
+
+  const atk=0.002, peak=0.85*vel;
+  voiceGain.gain.setValueAtTime(0.0001, now);
+  voiceGain.gain.linearRampToValueAtTime(peak, now+atk);
+
+  voiceGain.connect(ap).connect(lp).connect(shaper).connect(pianoGroup);
+
+  const stop=(releaseTime=0.8)=>{
+    const t=AC.currentTime;
+    voiceGain.gain.cancelScheduledValues(t);
+    voiceGain.gain.setTargetAtTime(0.0001, t, Math.max(0.08, releaseTime/4));
+    setTimeout(()=>{ try{ oscNodes.forEach(({o})=>o.stop()); nsrc.stop(); }catch{} }, Math.ceil(releaseTime*1000)+100);
+  };
+  return { stop };
+}
+function playPiano(note, {hold=false, vel=.95} = {}){
+  ensureAudio();
+
+  const nStr = String(note).toLowerCase();
+  const nowMs = performance.now();
+  const last = lastTrigByNote.get(nStr) || 0;
+  if (nowMs - last < NOTE_COOLDOWN_MS) return () => {};
+  lastTrigByNote.set(nStr, nowMs);
+
+  if (activeVoices.size >= POLY_MAX) {
+    const oldest = activeVoices.values().next().value;
+    try { oldest?.stop(0.2); } catch {}
+    activeVoices.delete(oldest);
+  }
+
+  const midi = typeof note === 'number' ? note : parseNote(note);
+  const f = midiToFreq(midi);
+  const v = createPianoVoice(f, vel);
+  activeVoices.add(v);
+  return () => { v.stop(hold ? 1.2 : 0.8); activeVoices.delete(v); };
+}
+
+document.addEventListener('pointerdown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true, passive:true});
+document.addEventListener('keydown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true});
+
+/* ---------- Transport ---------- */
+let stepMs = 190;
+
+
+
+
+/* Loop toggle (in controls) */
+let isLooping = false;
+const loopBtn = document.getElementById('btnLoop');
+function setLoop(on){
+  isLooping = !!on;
+  loopBtn.dataset.on = String(isLooping);
+  loopBtn.setAttribute('aria-pressed', String(isLooping));
+  loopBtn.title = isLooping ? 'Looping: On (L)' : 'Loop sequence (L)';
+}
+loopBtn?.addEventListener('click', () => setLoop(!isLooping));
+document.addEventListener('keydown', (e)=>{
+  if (e.key.toLowerCase() === 'l' && !e.repeat) setLoop(!isLooping);
+});
+
+/* Volume */
+const volSlider = document.getElementById('volSlider');
+function setMasterFromSlider(){
+  const v = (parseInt(volSlider.value,10) || 0) / 100;
+  if(AC && master){ master.gain.setTargetAtTime(v, AC.currentTime, 0.01); }
+}
+volSlider?.addEventListener('input', ()=>{ if(!AC) ensureAudio(); setMasterFromSlider(); });
+setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
+
+/* ---------- Recorder / player — histogram ---------- */
+const live=document.getElementById('live');
+const seqRow=document.getElementById('seqRow');
+/* Fill the track by default; bar heights are controlled via % + our mobile caps */
+if (seqRow) { seqRow.style.height = '10%'; seqRow.style.width = '100%'; }
+
+const sequence=[]; // [{note, li:HTMLElement, midi:number}]
+let playing=false, playIdx=0, playTimer=null;
+
+function flashLabel(note){
+  const lbl=[...stage.querySelectorAll('.note')].find(n=>n.dataset.noteFor===note);
+  if(!lbl) return; lbl.classList.add('lit'); setTimeout(()=>lbl.classList.remove('lit'), 220);
+}
+function getCubeByNote(note){ return [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note); }
+function flashCube(note){
+  const g=getCubeByNote(note); if(!g) return;
+  g.classList.add('brighten');
+  const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
+  setTimeout(()=>g.classList.remove('brighten'),240);
+}
+
+/* HEIGHT = C-major scale degree (C=lowest … B=highest), tiny octave nudge */
+function degreeHeightFromMidi(midi){
+  const pc = ((midi % 12) + 12) % 12;                     // 0..11
+  const degreeIndex = ({0:0,2:1,4:2,5:3,7:4,9:5,11:6})[pc] ?? 0; // C,D,E,F,G,A,B -> 0..6
+  const base = 18, span = 70;                              // % range -> 18..88
+  let h = base + span * (degreeIndex / 6);
+  const octave = Math.floor(midi / 12) - 1;
+  h += (octave - 4) * 2.5;                                 // subtle octave accent
+  return Math.max(12, Math.min(92, h));
+}
+
+/* Short bars with adaptive caps (set in layoutAll) */
+function barHeightPercentFromMidi(m){
+  const raw = degreeHeightFromMidi(m);
+  const scaled = raw * BAR_SCALE;
+  return Math.max(BAR_MIN, Math.min(BAR_MAX, scaled));
+}
+
+function addToSequence(note){
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  bar.dataset.note = note;
+  bar.title = `${note.toUpperCase()} — click to delete`;
+  bar.addEventListener('click', () => removeEvent(bar));
+  bar.addEventListener('mouseenter', () => bar.classList.add('hit'));
+  bar.addEventListener('mouseleave', () => bar.classList.remove('hit'));
+
+  seqRow.appendChild(bar);
+  sequence.push({ note, li: bar, midi: parseNote(note) });
+
+  updateHistogramBars();
+}
+function removeEvent(el){
+  const idx = sequence.findIndex(x => x.li === el);
+  if (idx >= 0){
+    sequence.splice(idx, 1);
+    el.remove();
+    updateHistogramBars();
+  }
+}
+function clearAll(){
+  sequence.splice(0, sequence.length);
+  seqRow.innerHTML = '';
+  seqRow.style.setProperty('--n', 1);
+  stopPlay();
+}
+function updateHistogramBars(){
+  const n = sequence.length;
+  // keep bars squishing horizontally to fit width
+  seqRow.style.setProperty('--n', Math.max(1, n));
+  if (n === 0) return;
+
+  // 1) compute raw heights (your musical mapping)
+  const raws = sequence.map(s => {
+    const m = (typeof s.midi === 'number') ? s.midi : parseNote(s.note);
+    s.midi = m;
+    return degreeHeightFromMidi(m);   // returns a relative “percent-like” value
+  });
+
+  // 2) establish dynamic scaling: min -> 4px, others proportional
+  const MIN_PX = 4;                   // requested height for the lowest note
+  const TOP_PAD_PX = 6;               // a little headroom so tallest doesn’t kiss the top
+  const rowH = seqRow.clientHeight || 1; // avoid 0 before layout
+  const minRaw = Math.min(...raws);
+  const maxRaw = Math.max(...raws);
+
+  // available vertical space for growth (beyond the 4px baseline)
+  const avail = Math.max(8, rowH - (MIN_PX + TOP_PAD_PX));
+  const denom = Math.max(1e-6, (maxRaw - minRaw)); // prevent divide-by-zero
+  const slope = avail / denom;
+
+  // 3) apply pixel heights
+  sequence.forEach((s, i) => {
+    const hPx = MIN_PX + (raws[i] - minRaw) * slope;
+    s.li.style.height = hPx.toFixed(1) + 'px';
+  });
+}
+
+
+function stepPlay(){
+  if(sequence.length===0){ stopPlay(); return; }
+  if(playIdx>=sequence.length){
+    if(isLooping && sequence.length>0){
+      playIdx = 0;
+      stepPlay();
+    }else{
+      stopPlay(true);
+    }
+    return;
+  }
+  const {note, li}=sequence[playIdx++];
+  li.classList.add('hit'); setTimeout(()=>li.classList.remove('hit'), 180);
+  ensureAudio(); playPiano(note); flashLabel(note); flashCube(note); live.textContent=`Played ${note}`;
+  playTimer=setTimeout(stepPlay, stepMs);
+}
+function startPlay(){ if(playing||sequence.length===0) return; playing=true; playIdx=0; stepPlay(); }
+function pausePlay(){ if(!playing) return; clearTimeout(playTimer); playing=false; }
+function stopPlay(end=false){ clearTimeout(playTimer); playing=false; if(end) playIdx=0; }
+document.getElementById('btnPlay')?.addEventListener('click', startPlay);
+document.getElementById('btnPause')?.addEventListener('click', pausePlay);
+document.getElementById('btnClear')?.addEventListener('click', clearAll);
+
+/* ---------- Interactions ---------- */
+let sustain=false;
+const pressed=new Map();
+function playCube(g, {viaHover=false, record=false} = {}){
+  const note=g.dataset.note;
+  const release=playPiano(note,{hold:sustain});
+  pressed.set(g, release);
+  g.classList.add('brighten');
+  const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
+  flashLabel(note);
+  if(record) addToSequence(note);
+  if(!sustain && !viaHover){ setTimeout(()=>releaseCube(g), 240); }
+}
+function releaseCube(g){
+  g.classList.remove('brighten');
+  const stop=pressed.get(g); if(stop){ stop(); pressed.delete(g); }
+}
+stage.addEventListener('pointerdown', e=>{
+  const g=e.target.closest('.cube'); if(!g) return;
+  e.preventDefault(); ensureAudio(); playCube(g,{record:true});
+},{passive:false});
+addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
+
+/* Shift pauses hover logging */
+let hoverLogPaused = false;
+addEventListener('keydown', (e) => { if (e.key === 'Shift') hoverLogPaused = true; }, { passive: true });
+addEventListener('keyup',   (e) => { if (e.key === 'Shift') hoverLogPaused = false; }, { passive: true });
+
+/* hover — plays; logs unless Shift is held */
+let lastHover = null;
+stage.addEventListener('pointerover', (e) => {
+  const g = e.target.closest('.cube');
+  if (!g || lastHover === g) return;
+  lastHover = g;
+  ensureAudio();
+  playCube(g, { viaHover: true, record: !hoverLogPaused });
+}, true);
+stage.addEventListener('pointerout', (e) => {
+  const g = e.target.closest('.cube'); if (!g) return;
+  const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('.cube') : null;
+  if (to === g) return;
+  if (lastHover === g) lastHover = null;
+  if (!sustain) releaseCube(g);
+}, true);
+
+/* ---------- Keyboard mapping (five rows) ---------- */
+const keyMap=new Map(
+  [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes].map(([n,k])=>[k, n])
+);
+document.addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
+
+  // normalize special keys to their character form
+  let key=e.key;
+  if(e.code==='Minus')          key='-';
+  if(e.code==='Equal')          key='=';
+  if(e.code==='BracketRight')   key=']';
+  if(e.code==='Backslash')      key='\\';
+  if(e.code==='BracketLeft')    key='[';
+  if(e.code==='Backquote')      key='[';
+
+  if(!keyMap.has(key)) return;
+  const note=keyMap.get(key);
+  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(!g) return;
+  ensureAudio(); playCube(g,{record:true});
+});
+document.addEventListener('keyup', e=>{
+  if(e.code==='Space'){
+    sustain=false;
+    document.querySelectorAll('.cube.brighten').forEach(releaseCube);
+    return;
+  }
+  let key=e.key;
+  if(e.code==='Minus')          key='-';
+  if(e.code==='Equal')          key='=';
+  if(e.code==='BracketRight')   key=']';
+  if(e.code==='Backslash')      key='\\';
+  if(e.code==='BracketLeft')    key='[';
+  if(e.code==='Backquote')      key='[';
+
+  const note=keyMap.get(key); if(!note) return;
+  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(g) releaseCube(g);
+});
+
+/* ---------- Loader ---------- */
+function loadSong(notesArray) {
+  sequence.splice(0, sequence.length);
+  seqRow.innerHTML = '';
+  notesArray.forEach(n => addToSequence(n));
+  updateHistogramBars();
+}
+
+/* Robust parsing of key pattern */
+(function(){
+  const keyToNote = new Map(
+    [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes]
+      .map(([note, key]) => [key, note])
+  );
+  const normalize = ch => (ch === '`' ? '[' : ch);
+
+  const cleaned = (`
+    ${"357357357357 257257246246357357357357257257246246"}
+    ${"etuetuetuetuwtuwtuwrywryetuetuetuetuwtuwtuwrywry"}
+    ${"e3t5u7e3t5u7e3t5u7e3t5u7w2t5u7w2t5u7w2r4y6w2r4y6"}
+  `.toLowerCase()).replace(/[^a-z0-9\-\=\[\]\\\\]/g, '');
+
+  const seqLow = [];
+  for (const raw of cleaned) {
+    const k = normalize(raw);
+    const n = keyToNote.get(k);
+    if (n) seqLow.push(n);
+  }
+
+  function midiToName(m){
+    const pcs = ['c','c#','d','d#','e','f','f#','g','g#','a','a#','b'];
+    const pc  = pcs[((m % 12) + 12) % 12];
+    const oct = Math.floor(m / 12) - 1;
+    return pc + oct;
+  }
+  function transpose(note, semis){
+    const m = typeof note === 'number' ? note : parseNote(note);
+    return midiToName(m + semis);
+  }
+
+  const seqHigh = seqLow.map(n => transpose(n, 12));
+  const seqAlt  = [];
+  const N = Math.max(seqLow.length, seqHigh.length);
+  for (let i = 0; i < N; i++){
+    if (i < seqLow.length)  seqAlt.push(seqLow[i]);
+    if (i < seqHigh.length) seqAlt.push(seqHigh[i]);
+  }
+
+  const finalSeq = [...seqLow, ...seqHigh, ...seqAlt];
+
+  clearAll();
+  loadSong(finalSeq);
+  stepMs = 133;
+})();
+
+layoutAll();
+
+
+
+
+
+
+
+
+function trackWidthPx(){
+  const track = document.querySelector('.rec .track');
+  return track ? track.clientWidth : innerWidth;
+}
+
+/* Ensure bars fill the viewport width but don't become unreadably thin.
+   - Shrinks gaps as n grows
+   - Enforces a minimum bar width (px)
+   - Always sets --n so the flex formula still fills exactly 100% */
+function fitHistogramToViewport(){
+  const row = document.getElementById('seqRow');
+  if(!row) return;
+
+  const n = Math.max(1, sequence.length);
+  const trackW = trackWidthPx();
+
+  // knobs (can be tuned)
+  const minBar = parseFloat(getComputedStyle(row).getPropertyValue('--min-bar-px')) || 6;   // px
+  const minGap = parseFloat(getComputedStyle(row).getPropertyValue('--min-gap-px')) || 1;   // px
+  const niceGap =  Math.max(1, Math.min(10, Math.round(trackW / 680))); // default gap scaling
+
+  // How many bars can we fit at our minimum bar size?
+  const maxBarsAtMin = Math.floor((trackW + minGap) / (minBar + minGap));
+
+  // Tighten gap if needed
+  const gapPx = (n <= maxBarsAtMin) ? niceGap : minGap;
+
+  // Tell the row how many columns we want and what gap to use.
+  // The flex-basis calc in CSS uses these to guarantee a perfect fit.
+  row.style.setProperty('--n', String(n));
+  row.style.setProperty('--rec-gap', `${gapPx}px`);
+
+  // Defensive: make sure the row itself never grows wider than the track
+  row.style.width = '100%';
+}
+
+</script>
+</body>
+</html>
