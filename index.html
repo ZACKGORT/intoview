@@ -37,9 +37,9 @@
     --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
 
     /* logo */
-    --logo-w: 220px;
-    --logo-pad-x: 2rem;
-    --logo-pad-y: 2rem;
+    --logo-w: 320px;
+    --logo-pad-x: 2.4rem;
+    --logo-pad-y: 2.4rem;
 
     /* recorder bar */
     --rec-h: 68px;
@@ -47,9 +47,8 @@
     --rec-fg: #d6d6d6;
     --rec-muted: #a8a8a8;
     --rec-danger: #ff4d4d;
-    --rec-gap: 10px;
-    --rec-cube-w: 22px;     /* legacy; no longer used by histogram */
-    --rec-note-size: 10px;  /* legacy; no longer used by histogram */
+    --rec-gap: .08em;
+
   }
 
   html,body{height:100%}
@@ -152,7 +151,7 @@
   .rec{
     position:fixed; left:0; right:0; bottom:0; z-index:2;
     --rec-max-h: 40vh;
-    min-height: var(--rec-h);
+    height: clamp(var(--rec-h), 22vh, var(--rec-max-h));
     max-height: var(--rec-max-h);
     background:var(--rec-bg);
     backdrop-filter: blur(4px);
@@ -193,6 +192,13 @@
     padding-right:14px;
     --n: 1;                          /* set dynamically from JS */
   }
+
+  /* Make the histogram row fill the recorder height */
+.rec .row{
+  height: 4%;
+  width: 20%;
+}
+
   .rec .row .bar{
     flex: 0 0 calc((100% - (var(--rec-gap) * (var(--n) - 1))) / var(--n));
     height: 40%;                     /* JS will set this via % */
@@ -305,7 +311,7 @@
    (5×5 naturals A4→C8 + mobile compact block)
    ================================ */
 
-/* Info tooltip */
+/* ---------- Info tooltip ---------- */
 (() => {
   const infoWrap = document.getElementById('infoWrap');
   const infoBtn  = document.getElementById('infoBtn');
@@ -316,7 +322,7 @@
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); }, { passive: true });
 })();
 
-/* ===== Layout + mapping ===== */
+/* ---------- Layout + mapping ---------- */
 const row1Notes = [
   ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t']
 ];
@@ -394,7 +400,7 @@ function placeRow(container, startIJ, notes, blurMaxPx){
   });
 }
 
-/* Compact block for mobile: packs all cubes in a tight grid (even spacing) */
+/* Compact block for mobile */
 function placeBlock(container, startIJ, notes, cols, blurMaxPx){
   container.innerHTML='';
   const w=num(css().getPropertyValue('--cube-size'), 36);
@@ -446,13 +452,13 @@ function measureBounds(){
   return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
 }
 
-/* UPDATED: layoutAll with mobile compact block + recorder-bar-aware centering */
+/* recorder-bar-aware layout */
 function layoutAll(){
   const vw = innerWidth, vh = innerHeight;
   const margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
   const baseCell = num(css().getPropertyValue('--iso-cell-base'), 32);
   const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
-  const MOBILE = vw < 520; // breakpoint
+  const MOBILE = vw < 520;
 
   // initialize at base scale
   document.documentElement.style.setProperty('--iso-cell', `${baseCell}px`);
@@ -465,7 +471,7 @@ function layoutAll(){
   row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
 
   if (MOBILE){
-    // --- MOBILE: pack all 25 cubes into a tidy 5-col block ---
+    // mobile: 5 columns x 5 rows block
     const N = allNotes.length;                 // 25
     const cols = 5;
     const rows = Math.ceil(N / cols);
@@ -474,10 +480,8 @@ function layoutAll(){
     const startI = center.I - Math.floor(cols/2);
     const startJ = center.J - Math.floor(rows/2);
 
-    // first pass (unscaled)
     placeBlock(row1, {I:startI, J:startJ}, allNotes, cols, 1.6);
 
-    // fit + re-render
     const b = measureBounds();
     const needW = vw - margin*2;
     const needH = vh - margin*2 - recH;
@@ -497,12 +501,12 @@ function layoutAll(){
     placeBlock(row1, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
 
   } else {
-    // --- DESKTOP: five horizontal rows with closer vertical spacing ---
+    // desktop: five rows with tightened gap
     const rowLen = 5;
-    const rowGap = (vw < 560 ? 7 : 5); // tightened gap
+    const rowGap = (vw < 560 ? 7 : 5);
     const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
     const startI = centerIJ.I - Math.floor(rowLen/2);
-    const totalJSpan = rowGap * (5 - 1); // five rows
+    const totalJSpan = rowGap * (5 - 1);
     const startJTop = centerIJ.J - totalJSpan/2;
 
     const start1 = { I: startI, J: startJTop + rowGap * 0 };
@@ -517,7 +521,6 @@ function layoutAll(){
     placeRow(row4, start4, row4Notes, 2.6);
     placeRow(row5, start5, row5Notes, 2.8);
 
-    // fit + re-render
     const b = measureBounds();
     const needW = vw - margin*2;
     const needH = vh - margin*2 - recH;
@@ -553,7 +556,7 @@ function layoutAll(){
 
 layoutAll();
 
-/* ===== Pulses canvas ===== */
+/* ---------- Pulses canvas ---------- */
 (function(){
   const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
   const cos30 = Math.sqrt(3)/2, sin30=0.5;
@@ -564,7 +567,7 @@ layoutAll();
   function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
   let CELL=56, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:1,b:0,c:0,d:1};
   let FILL_RGB='255 255 255',FILL_A=.22,STROKE_A=.55,FADE=900,BLUR_MIN='0px',BLUR_MAX='12px',BLUR_CURVE=1.35;
-  let canFilter = 'filter' in ctx;
+
   function read(){
     const s = css();
     CELL = num(s.getPropertyValue('--iso-cell'), 56);
@@ -597,7 +600,7 @@ layoutAll();
   function snapLocal(x,y){ const i=inv.a*x+inv.b*y, j=inv.c*x+inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
   function cell(I,J){
     const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
-    const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y)/4;
+    const cx=(a.x+b.x+c.x+d.x)/4, cy=(a.y+b.y+c.y+d.y)/4;
     return {pts:[a,b,c,d], cx, cy};
   }
   function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
@@ -612,18 +615,14 @@ layoutAll();
     for(const p of pulses){
       const age=now-p.t; if(age>=FADE) continue; alive++;
       const u=age/FADE, invU=1-u;
-      const {pts,cx,cy}=cell(p.I,p.J);
-      const dist=Math.hypot(cx-innerWidth/2, cy-innerHeight/2);
-      const t=Math.pow(clamp01(dist/Math.hypot(innerWidth,innerHeight)), Math.max(0.01, 1.35));
-      const blur=toPx('0px')+(toPx('12px')-toPx('0px'))*t;
-
-      ctx.fillStyle=`rgb(255 255 255 / ${easeOut(1-u)*.22})`;
+      const {pts}=cell(p.I,p.J);
+      ctx.fillStyle=`rgb(${FILL_RGB} / ${easeOut(1-u)*FILL_A})`;
       draw(pts); ctx.fill();
-      ctx.lineWidth=1; ctx.strokeStyle=`rgb(255 255 255 / ${(1-u)*.55})`;
+      ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${invU*STROKE_A})`;
       ctx.stroke();
     }
     if(alive!==pulses.length){
-      const cut=now-900; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
+      const cut=now-FADE; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
     }
     if(alive>0) requestAnimationFrame(tick); else anim=false;
   }
@@ -640,7 +639,7 @@ layoutAll();
   addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
 })();
 
-/* ===== Synth ===== */
+/* ---------- Synth ---------- */
 const POLY_MAX = 10;
 const NOTE_COOLDOWN_MS = 90;
 const lastTrigByNote = new Map();
@@ -785,7 +784,7 @@ function playPiano(note, {hold=false, vel=.95} = {}){
 document.addEventListener('pointerdown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true, passive:true});
 document.addEventListener('keydown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true});
 
-/* Tempo */
+/* ---------- Transport ---------- */
 let stepMs = 190;
 
 /* Loop toggle (in controls) */
@@ -811,7 +810,7 @@ function setMasterFromSlider(){
 volSlider?.addEventListener('input', ()=>{ if(!AC) ensureAudio(); setMasterFromSlider(); });
 setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
 
-/* Recorder / player — histogram-based */
+/* ---------- Recorder / player — histogram ---------- */
 const live=document.getElementById('live');
 const seqRow=document.getElementById('seqRow');
 const sequence=[]; // [{note, li:HTMLElement, midi:number}]
@@ -827,6 +826,17 @@ function flashCube(note){
   g.classList.add('brighten');
   const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
   setTimeout(()=>g.classList.remove('brighten'),240);
+}
+
+/* HEIGHT = C-major scale degree (C=lowest … B=highest), tiny octave nudge */
+function degreeHeightFromMidi(midi){
+  const pc = ((midi % 12) + 12) % 12;                     // 0..11
+  const degreeIndex = ({0:0,2:1,4:2,5:3,7:4,9:5,11:6})[pc] ?? 0; // C,D,E,F,G,A,B -> 0..6
+  const base = 18, span = 70;                              // % range -> 18..88
+  let h = base + span * (degreeIndex / 6);
+  const octave = Math.floor(midi / 12) - 1;
+  h += (octave - 4) * 2.5;                                 // subtle octave accent
+  return Math.max(12, Math.min(92, h));
 }
 
 function addToSequence(note){
@@ -859,21 +869,12 @@ function clearAll(){
 }
 function updateHistogramBars(){
   const n = sequence.length;
-  seqRow.style.setProperty('--n', Math.max(1, n));
+  seqRow.style.setProperty('--n', Math.max(1, n));   // drives flex calc to fit viewport width
   if (n === 0) return;
-
-  let min = Infinity, max = -Infinity;
   for (const s of sequence){
     const m = typeof s.midi === 'number' ? s.midi : parseNote(s.note);
     s.midi = m;
-    if (m < min) min = m;
-    if (m > max) max = m;
-  }
-  const span = Math.max(1, max - min);
-  for (const s of sequence){
-    const t = (s.midi - min) / span;   // 0..1
-    const h = 18 + t * 70;             // 18%..88%
-    s.li.style.height = h.toFixed(1) + '%';
+    s.li.style.height = degreeHeightFromMidi(m).toFixed(1) + '%';
   }
 }
 
@@ -900,7 +901,7 @@ document.getElementById('btnPlay').addEventListener('click', startPlay);
 document.getElementById('btnPause').addEventListener('click', pausePlay);
 document.getElementById('btnClear').addEventListener('click', clearAll);
 
-/* Interactions */
+/* ---------- Interactions ---------- */
 let sustain=false;
 const pressed=new Map();
 function playCube(g, {viaHover=false, record=false} = {}){
@@ -945,7 +946,7 @@ stage.addEventListener('pointerout', (e) => {
   if (!sustain) releaseCube(g);
 }, true);
 
-/* Keyboard mapping (five rows) */
+/* ---------- Keyboard mapping (five rows) ---------- */
 const keyMap=new Map(
   [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes].map(([n,k])=>[k, n])
 );
@@ -987,7 +988,7 @@ document.addEventListener('keyup', e=>{
   if(g) releaseCube(g);
 });
 
-/* ===== Loader ===== */
+/* ---------- Loader ---------- */
 function loadSong(notesArray) {
   sequence.splice(0, sequence.length);
   seqRow.innerHTML = '';
@@ -995,7 +996,7 @@ function loadSong(notesArray) {
   updateHistogramBars();
 }
 
-/* ===== Load key pattern (robust parsing) ===== */
+/* Robust parsing of key pattern */
 (function(){
   const keyToNote = new Map(
     [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes]
@@ -1043,6 +1044,7 @@ function loadSong(notesArray) {
 })();
 
 layoutAll();
+
 
 </script>
 </body>
