@@ -42,7 +42,7 @@
     --logo-pad-y: 2.4rem;
 
     /* recorder bar */
-    --rec-h: 68px;
+    --rec-h: 48px;
     --rec-bg: transparent;
     --rec-fg: #d6d6d6;
     --rec-muted: #a8a8a8;
@@ -146,7 +146,7 @@
     .note{ display:none; }
   }
 
-  /* ===== Recorder bar ===== */
+  /* ===== Recorder bar (centered controls + centered histogram) ===== */
   .rec{
     position:fixed; left:0; right:0; bottom:0; z-index:2;
     --rec-max-h: 40vh;
@@ -154,11 +154,26 @@
     max-height: var(--rec-max-h);
     background:var(--rec-bg);
     backdrop-filter: blur(4px);
-    display:flex; align-items:flex-end; gap:18px;
-    padding:12px 14px;
+
+    /* stacked layout on ALL sizes: controls below, histogram above */
+    display:flex;
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 14px 12px;
     overflow:hidden;
   }
-  .rec .controls{ display:flex; align-items:center; gap:10px; flex:0 0 auto; color:var(--rec-fg); }
+
+  /* Center the controls row */
+  .rec .controls{
+    display:flex;
+    justify-content:center;          /* centered controls */
+    align-items:center;
+    gap:10px;
+    flex:0 0 auto;
+    color:var(--rec-fg);
+  }
+
   .btn{
     display:inline-grid; place-items:center;
     width:28px; height:28px; border-radius:8px;
@@ -182,21 +197,29 @@
   }
   .btn.toggle[data-on="true"] .ico path{ fill:#dff7ef; }
 
-  /* ===== Histogram (replaces dot log) ===== */
-  .rec .track{ min-width:0; flex:1 1 auto; height:100%; overflow-x:hidden; overflow-y:hidden; }
+  /* ===== Histogram ===== */
+  .rec .track{
+    min-width:0;
+    height:100%;
+    display:flex;
+    justify-content:center;          /* center the histogram row */
+    overflow:hidden;                 /* never overflow the viewport */
+  }
+
   .rec .row{
     display:flex;
-    align-items:flex-end;     /* bars grow up from bottom */
+    align-items:flex-end;            /* bars grow up from bottom */
     gap: var(--rec-gap);
-    padding-right:14px;
-    height: 100%;            /* take all available recorder height */
-    width: auto;             /* fill track width */
-    --n: 1;                  /* set dynamically from JS */
+    height: 100%;                    /* take all available recorder height */
+    margin: 0 auto;                  /* centered within .track */
+    max-width: 100%;                 /* clamp to viewport width */
+    --n: 1;                          /* set dynamically from JS */
   }
+
   .rec .row .bar{
-    box-sizing: border-box;  /* include borders in width calc */
+    box-sizing: border-box;          /* include borders in width calc */
     flex: 0 0 calc((100% - (var(--rec-gap) * (var(--n) - 1))) / var(--n));
-    height: 16%;             /* JS will set this via % */
+    height: 8%;                      /* JS will set actual pixel height */
     background: rgb(255 255 255 / .14);
     border: 1px solid rgb(255 255 255 / .22);
     border-bottom-color: rgb(255 255 255 / .28);
@@ -210,6 +233,9 @@
       transform .05s ease;
     cursor: pointer;
   }
+
+  .rec .row{ --min-bar-px: 6; --min-gap-px: 1; }
+
   .rec .row .bar:hover{
     background: rgb(255 255 255 / .22);
     border-color: rgb(255 255 255 / .45);
@@ -227,32 +253,8 @@
       --cube-size-base: 54; /* face size */
     }
   }
-
-
-/* Mobile: stack with histogram on top and center it */
-@media (max-width:520px){
-  .rec{
-    flex-direction: column-reverse;   /* histogram on top, controls below */
-    align-items: stretch;
-    gap: 10px;
-    padding: 10px 14px 12px;
-  }
-  .rec .track{
-    width: 100%;
-    display: flex;
-    justify-content: center;          /* center the histogram container width set by JS */
-    overflow: hidden;                 /* never overflow the viewport */
-  }
-  .rec .row{
-    display: flex;                    /* width will be set by JS (px), then centered */
-    height: 100%;
-    margin: 0 auto;
-    max-width: 100%;
-  }
-}
-
-
 </style>
+
 </head>
 <body>
 
@@ -328,7 +330,7 @@
 <script>
 /* ================================
    intoview.pro — full JavaScript
-   (isometric cubes + short histogram log)
+   (isometric cubes + padded, mobile-safe histogram)
    ================================ */
 
 /* ---------- Info tooltip ---------- */
@@ -472,7 +474,12 @@ function measureBounds(){
   return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
 }
 
-/* recorder-bar-aware layout */
+/* ---------- Adaptive bar scaling (updated in layoutAll) ---------- */
+let BAR_SCALE = 0.08;   // global vertical compression
+let BAR_MIN   = 6;      // % floor so nothing disappears
+let BAR_MAX   = 42;     // % ceiling to keep them short
+
+/* recorder-bar-aware layout (+ histogram bottom padding + mobile fit) */
 function layoutAll(){
   const vw = innerWidth, vh = innerHeight;
   const margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
@@ -480,17 +487,31 @@ function layoutAll(){
   const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
   const MOBILE = vw < 520;
 
+  /* ——— Histogram: add bottom padding inside the track ——— */
+  const track = document.querySelector('.rec .track');
+  if (track) track.style.paddingBottom = '14px'; // tweak to taste
+
+  /* ——— Mobile-safe vertical scaling for bars ———
+     Narrower screens get a lower BAR_MAX so the histogram never feels cramped.
+     You can tune these thresholds as you like. */
+  if (vw <= 360)      { BAR_SCALE = 0.34; BAR_MAX = 32; BAR_MIN = 6; }
+  else if (vw <= 420) { BAR_SCALE = 0.36; BAR_MAX = 36; BAR_MIN = 6; }
+  else if (vw <= 520) { BAR_SCALE = 0.37; BAR_MAX = 40; BAR_MIN = 6; }
+  else                { BAR_SCALE = 0.38; BAR_MAX = 42; BAR_MIN = 6; }
+
+  // initialize at base scale
   document.documentElement.style.setProperty('--iso-cell', `${baseCell}px`);
   document.documentElement.style.setProperty('--cube-size', `${baseCube}px`);
   B = basis();
 
-  const rec = document.querySelector('.rec');
-  const recH = parseInt(getComputedStyle(rec).height) || 0;
+  const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
 
+  // clear rows
   row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
 
   if (MOBILE){
-    const N = allNotes.length;
+    // mobile: 5 columns x 5 rows block
+    const N = allNotes.length;                 // 25
     const cols = 5;
     const rows = Math.ceil(N / cols);
     const center = snap(vw/2, (vh - recH)/2 - 6);
@@ -519,6 +540,7 @@ function layoutAll(){
     placeBlock(row1, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
 
   } else {
+    // desktop: five rows with tightened gap
     const rowLen = 5;
     const rowGap = (vw < 560 ? 7 : 5);
     const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
@@ -577,7 +599,6 @@ layoutAll();
 (function(){
   const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
   const cos30 = Math.sqrt(3)/2, sin30=0.5;
-  const clamp01 = x=>x<0?0:x>1?1:x;
   const easeOut = u=>1-(1-u)*(1-u);
   function css(){ return getComputedStyle(document.documentElement); }
   function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
@@ -794,6 +815,9 @@ document.addEventListener('keydown',()=>{ if(!synthReady){ ensureAudio(); synthR
 /* ---------- Transport ---------- */
 let stepMs = 190;
 
+
+
+
 /* Loop toggle (in controls) */
 let isLooping = false;
 const loopBtn = document.getElementById('btnLoop');
@@ -808,54 +832,6 @@ document.addEventListener('keydown', (e)=>{
   if (e.key.toLowerCase() === 'l' && !e.repeat) setLoop(!isLooping);
 });
 
-
-/* --- Fit + center histogram to viewport (mobile) --- */
-function fitHistogramToViewport(){
-  const track = document.querySelector('.rec .track');
-  const row   = document.getElementById('seqRow');
-  if (!track || !row) return;
-
-  // Only do the pixel-width fitting on small screens; desktop uses fluid 100%.
-  const MOBILE = innerWidth < 520;
-  if (!MOBILE){
-    row.style.width = '100%';
-    return;
-  }
-
-  const n = Math.max(1, row.children.length);          // number of bars
-  const trackW = track.clientWidth || innerWidth;      // available width
-
-  // Target a comfortable minimum bar width on mobile; feel free to tweak.
-  const MIN_BAR_W = 10;                                // px (visual target)
-  const GAP_PX    = 1;                                 // matches --rec-gap default
-  const BORDER_PX = 2;                                 // 1px left + 1px right per bar (border-box)
-
-  // Desired "natural" content width if we weren't squeezing
-  const naturalW = n * (MIN_BAR_W + BORDER_PX) + (n - 1) * GAP_PX;
-
-  // Choose the content width that fits in the track (no overflow), then center via CSS.
-  const contentW = Math.min(trackW, naturalW);
-
-  // Apply: row width in pixels; bars still use flex-basis math and will auto-squish.
-  row.style.width = Math.max(0, Math.floor(contentW)) + 'px';
-}
-
-/* Re-fit when sequence changes or layout changes */
-addEventListener('resize', fitHistogramToViewport, { passive:true });
-addEventListener('orientationchange', fitHistogramToViewport, { passive:true });
-
-const _origUpdate = updateHistogramBars;
-updateHistogramBars = function(){
-  _origUpdate();
-  fitHistogramToViewport();
-};
-
-// first pass after initial layout
-setTimeout(fitHistogramToViewport, 0);
-
-
-
-
 /* Volume */
 const volSlider = document.getElementById('volSlider');
 function setMasterFromSlider(){
@@ -868,8 +844,8 @@ setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
 /* ---------- Recorder / player — histogram ---------- */
 const live=document.getElementById('live');
 const seqRow=document.getElementById('seqRow');
-/* Ensure the histogram row actually fills the recorder track even if CSS was overriding it */
-if (seqRow) { seqRow.style.height = '100%'; seqRow.style.width = '100%'; }
+/* Fill the track by default; bar heights are controlled via % + our mobile caps */
+if (seqRow) { seqRow.style.height = '10%'; seqRow.style.width = '100%'; }
 
 const sequence=[]; // [{note, li:HTMLElement, midi:number}]
 let playing=false, playIdx=0, playTimer=null;
@@ -886,21 +862,23 @@ function flashCube(note){
   setTimeout(()=>g.classList.remove('brighten'),240);
 }
 
-/* Scale-degree → height %, with octave accent */
+/* HEIGHT = C-major scale degree (C=lowest … B=highest), tiny octave nudge */
 function degreeHeightFromMidi(midi){
   const pc = ((midi % 12) + 12) % 12;                     // 0..11
-  const degreeIndex = ({0:0,2:1,4:2,5:3,7:4,9:5,11:6})[pc] ?? 0; // C D E F G A B
-  const base = 18, span = 70;                              // raw range 18..88
+  const degreeIndex = ({0:0,2:1,4:2,5:3,7:4,9:5,11:6})[pc] ?? 0; // C,D,E,F,G,A,B -> 0..6
+  const base = 18, span = 70;                              // % range -> 18..88
   let h = base + span * (degreeIndex / 6);
   const octave = Math.floor(midi / 12) - 1;
   h += (octave - 4) * 2.5;                                 // subtle octave accent
-  return Math.max(12, Math.min(92, h));                    // raw %
+  return Math.max(12, Math.min(92, h));
 }
 
-/* Make the bars shorter (tweak to taste) */
-const BAR_SCALE = 0.07;   // global vertical compression
-const BAR_MIN   = 6;      // % floor so nothing disappears
-const BAR_MAX   = 42;     // % ceiling to keep them short
+/* Short bars with adaptive caps (set in layoutAll) */
+function barHeightPercentFromMidi(m){
+  const raw = degreeHeightFromMidi(m);
+  const scaled = raw * BAR_SCALE;
+  return Math.max(BAR_MIN, Math.min(BAR_MAX, scaled));
+}
 
 function addToSequence(note){
   const bar = document.createElement('div');
@@ -932,18 +910,36 @@ function clearAll(){
 }
 function updateHistogramBars(){
   const n = sequence.length;
-  /* This single custom property makes the bars squish to any count */
+  // keep bars squishing horizontally to fit width
   seqRow.style.setProperty('--n', Math.max(1, n));
   if (n === 0) return;
-  for (const s of sequence){
-    const m = typeof s.midi === 'number' ? s.midi : parseNote(s.note);
+
+  // 1) compute raw heights (your musical mapping)
+  const raws = sequence.map(s => {
+    const m = (typeof s.midi === 'number') ? s.midi : parseNote(s.note);
     s.midi = m;
-    const raw = degreeHeightFromMidi(m);
-    const scaled = raw * BAR_SCALE;
-    const clamped = Math.max(BAR_MIN, Math.min(BAR_MAX, scaled));
-    s.li.style.height = clamped.toFixed(1) + '%';
-  }
+    return degreeHeightFromMidi(m);   // returns a relative “percent-like” value
+  });
+
+  // 2) establish dynamic scaling: min -> 4px, others proportional
+  const MIN_PX = 4;                   // requested height for the lowest note
+  const TOP_PAD_PX = 6;               // a little headroom so tallest doesn’t kiss the top
+  const rowH = seqRow.clientHeight || 1; // avoid 0 before layout
+  const minRaw = Math.min(...raws);
+  const maxRaw = Math.max(...raws);
+
+  // available vertical space for growth (beyond the 4px baseline)
+  const avail = Math.max(8, rowH - (MIN_PX + TOP_PAD_PX));
+  const denom = Math.max(1e-6, (maxRaw - minRaw)); // prevent divide-by-zero
+  const slope = avail / denom;
+
+  // 3) apply pixel heights
+  sequence.forEach((s, i) => {
+    const hPx = MIN_PX + (raws[i] - minRaw) * slope;
+    s.li.style.height = hPx.toFixed(1) + 'px';
+  });
 }
+
 
 function stepPlay(){
   if(sequence.length===0){ stopPlay(); return; }
@@ -1063,7 +1059,7 @@ function loadSong(notesArray) {
   updateHistogramBars();
 }
 
-/* Robust parsing of key pattern (uses your edited pattern) */
+/* Robust parsing of key pattern */
 (function(){
   const keyToNote = new Map(
     [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes]
@@ -1107,10 +1103,53 @@ function loadSong(notesArray) {
 
   clearAll();
   loadSong(finalSeq);
-  stepMs = 126;
+  stepMs = 120;
 })();
 
 layoutAll();
+
+
+
+
+
+
+
+
+function trackWidthPx(){
+  const track = document.querySelector('.rec .track');
+  return track ? track.clientWidth : innerWidth;
+}
+
+/* Ensure bars fill the viewport width but don't become unreadably thin.
+   - Shrinks gaps as n grows
+   - Enforces a minimum bar width (px)
+   - Always sets --n so the flex formula still fills exactly 100% */
+function fitHistogramToViewport(){
+  const row = document.getElementById('seqRow');
+  if(!row) return;
+
+  const n = Math.max(1, sequence.length);
+  const trackW = trackWidthPx();
+
+  // knobs (can be tuned)
+  const minBar = parseFloat(getComputedStyle(row).getPropertyValue('--min-bar-px')) || 6;   // px
+  const minGap = parseFloat(getComputedStyle(row).getPropertyValue('--min-gap-px')) || 1;   // px
+  const niceGap =  Math.max(1, Math.min(10, Math.round(trackW / 680))); // default gap scaling
+
+  // How many bars can we fit at our minimum bar size?
+  const maxBarsAtMin = Math.floor((trackW + minGap) / (minBar + minGap));
+
+  // Tighten gap if needed
+  const gapPx = (n <= maxBarsAtMin) ? niceGap : minGap;
+
+  // Tell the row how many columns we want and what gap to use.
+  // The flex-basis calc in CSS uses these to guarantee a perfect fit.
+  row.style.setProperty('--n', String(n));
+  row.style.setProperty('--rec-gap', `${gapPx}px`);
+
+  // Defensive: make sure the row itself never grows wider than the track
+  row.style.width = '100%';
+}
 
 </script>
 </body>
