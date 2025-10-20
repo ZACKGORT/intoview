@@ -229,10 +229,10 @@
   }
 
 
-  /* Mobile: put histogram above controls and center it */
+/* Mobile: stack with histogram on top and center it */
 @media (max-width:520px){
   .rec{
-    flex-direction: column-reverse;   /* track on top, controls on bottom */
+    flex-direction: column-reverse;   /* histogram on top, controls below */
     align-items: stretch;
     gap: 10px;
     padding: 10px 14px 12px;
@@ -240,16 +240,17 @@
   .rec .track{
     width: 100%;
     display: flex;
-    justify-content: center;          /* center the histogram container */
-    overflow: visible;                /* allow centered inline width */
+    justify-content: center;          /* center the histogram container width set by JS */
+    overflow: hidden;                 /* never overflow the viewport */
   }
   .rec .row{
-    display: inline-flex;             /* shrink to content and be centerable */
-    width: auto;                      /* override desktop 20% */
-    margin: 0 auto;                   /* center within .track */
-    align-items: flex-end;
+    display: flex;                    /* width will be set by JS (px), then centered */
+    height: 100%;
+    margin: 0 auto;
+    max-width: 100%;
   }
 }
+
 
 </style>
 </head>
@@ -807,6 +808,54 @@ document.addEventListener('keydown', (e)=>{
   if (e.key.toLowerCase() === 'l' && !e.repeat) setLoop(!isLooping);
 });
 
+
+/* --- Fit + center histogram to viewport (mobile) --- */
+function fitHistogramToViewport(){
+  const track = document.querySelector('.rec .track');
+  const row   = document.getElementById('seqRow');
+  if (!track || !row) return;
+
+  // Only do the pixel-width fitting on small screens; desktop uses fluid 100%.
+  const MOBILE = innerWidth < 520;
+  if (!MOBILE){
+    row.style.width = '100%';
+    return;
+  }
+
+  const n = Math.max(1, row.children.length);          // number of bars
+  const trackW = track.clientWidth || innerWidth;      // available width
+
+  // Target a comfortable minimum bar width on mobile; feel free to tweak.
+  const MIN_BAR_W = 10;                                // px (visual target)
+  const GAP_PX    = 1;                                 // matches --rec-gap default
+  const BORDER_PX = 2;                                 // 1px left + 1px right per bar (border-box)
+
+  // Desired "natural" content width if we weren't squeezing
+  const naturalW = n * (MIN_BAR_W + BORDER_PX) + (n - 1) * GAP_PX;
+
+  // Choose the content width that fits in the track (no overflow), then center via CSS.
+  const contentW = Math.min(trackW, naturalW);
+
+  // Apply: row width in pixels; bars still use flex-basis math and will auto-squish.
+  row.style.width = Math.max(0, Math.floor(contentW)) + 'px';
+}
+
+/* Re-fit when sequence changes or layout changes */
+addEventListener('resize', fitHistogramToViewport, { passive:true });
+addEventListener('orientationchange', fitHistogramToViewport, { passive:true });
+
+const _origUpdate = updateHistogramBars;
+updateHistogramBars = function(){
+  _origUpdate();
+  fitHistogramToViewport();
+};
+
+// first pass after initial layout
+setTimeout(fitHistogramToViewport, 0);
+
+
+
+
 /* Volume */
 const volSlider = document.getElementById('volSlider');
 function setMasterFromSlider(){
@@ -1058,7 +1107,7 @@ function loadSong(notesArray) {
 
   clearAll();
   loadSong(finalSeq);
-  stepMs = 120;
+  stepMs = 126;
 })();
 
 layoutAll();
