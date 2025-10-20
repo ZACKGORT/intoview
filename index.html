@@ -12,6 +12,7 @@
     --iso-cell-base:  48;
     --iso-cell:  calc(var(--iso-cell-base) * 1px);
     --cube-size: calc(var(--cube-size-base) * 1px);
+    
 
     /* label nudges (labels sit two iso-cells below each cube in JS) */
     --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
@@ -52,6 +53,9 @@
     --rec-note-size: 10px;
   }
 
+
+
+  
   html,body{height:100%}
   body{
     margin:0; color:#e8e8e8; background:var(--bg);
@@ -200,6 +204,20 @@
     box-shadow:0 6px 18px rgb(0 0 0 / .35), inset 0 0 0 1px rgb(0 204 136 / .35);
   }
   .btn.toggle[data-on="true"] .ico path{ fill:#dff7ef; }
+
+
+
+/* Smaller cubes on mobile */
+@media (max-width:520px){
+  :root{
+    /* keep the same proportion between cell + cube */
+    --iso-cell-base: 64;   /* was 48 */
+    --cube-size-base: 48;  /* was 64 (≈0.84x) */
+  }
+}
+
+
+  
 </style>
 </head>
 <body>
@@ -231,11 +249,12 @@
       <path class="facet-side" d="M186.082 65.9206L224.303 87.8223V44.0189L185.867 22.1172L186.082 65.9206Z" />
     </symbol>
   </defs>
-  <!-- Four rows (naturals only) -->
+  <!-- Five rows (naturals only) -->
   <g id="row1"></g>
   <g id="row2"></g>
   <g id="row3"></g>
   <g id="row4"></g>
+  <g id="row5"></g>
 </svg>
 
 <!-- Recorder bar -->
@@ -275,7 +294,7 @@
 <script>
 /* ================================
    intoview.pro — iso cubes keyboard
-   (4×5 naturals A4→C7 + mobile compact block)
+   (5×5 naturals A4→C8 + mobile compact block)
    ================================ */
 
 /* Info tooltip */
@@ -290,7 +309,7 @@
 })();
 
 /* ===== Layout + mapping ===== */
-/* Four rows of 5 covering A4 → C7 (naturals only) */
+/* Four original rows + one new row to C8 (naturals only) */
 const row1Notes = [
   ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t']
 ];
@@ -303,7 +322,11 @@ const row3Notes = [
 const row4Notes = [
   ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
 ];
-const allNotes = [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes];
+/* NEW: Row 5 to C8 */
+const row5Notes = [
+  ['f7','-'], ['g7','='], ['a7','['], ['b7',']'], ['c8','\\']
+];
+const allNotes = [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes];
 
 const cos30 = Math.sqrt(3)/2, sin30=0.5;
 function css(){ return getComputedStyle(document.documentElement); }
@@ -327,6 +350,7 @@ const row1 = document.getElementById('row1');
 const row2 = document.getElementById('row2');
 const row3 = document.getElementById('row3');
 const row4 = document.getElementById('row4');
+const row5 = document.getElementById('row5');
 
 /* Place a single horizontal row (desktop) */
 function placeRow(container, startIJ, notes, blurMaxPx){
@@ -374,8 +398,8 @@ function placeBlock(container, startIJ, notes, cols, blurMaxPx){
   notes.forEach(([note,key],idx)=>{
     const c = idx % cols;
     const r = Math.floor(idx / cols);
-    const I=ai + c;         // 1 iso step apart horizontally
-    const J=aj + r;         // 1 iso step apart vertically
+    const I=ai + c;
+    const J=aj + r;
     const pC=toXY(I,J), pL=toXY(I,J+2);
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
     g.setAttribute('class','cube');
@@ -383,7 +407,6 @@ function placeBlock(container, startIJ, notes, cols, blurMaxPx){
     g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
     g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
 
-    // subtle depth blur from back-right to front-left (optional)
     const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
     g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
 
@@ -393,7 +416,6 @@ function placeBlock(container, startIJ, notes, cols, blurMaxPx){
     u.setAttribute('width', w); u.setAttribute('height', h);
     g.appendChild(u);
 
-    // label still created (keeps a11y + keyboard highlight), but CSS hides on mobile
     const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
     lbl.setAttribute('class','note');
     lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
@@ -433,14 +455,16 @@ function layoutAll(){
 
   const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
 
+  
+
   // clear rows
-  row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
+  row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
 
   if (MOBILE){
-    // --- MOBILE: pack all 20 cubes into a compact block, centered above recorder ---
-    const N = allNotes.length;                 // 20
-    const cols = 5;                            // 5×4 block (even spacing)
-    const rows = Math.ceil(N / cols);          // 4
+    // --- MOBILE: pack all 25 cubes into a compact block ---
+    const N = allNotes.length;                 // 25
+    const cols = 5;                            // keep 4-col mobile pack for vertical feel
+    const rows = Math.ceil(N / cols);
     const center = snap(vw/2, (vh - recH)/2 - 6);
 
     const startI = center.I - Math.floor(cols/2);
@@ -469,23 +493,25 @@ function layoutAll(){
     placeBlock(row1, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
 
   } else {
-    // --- DESKTOP: original 4 horizontal rows, with generous vertical spacing ---
+    // --- DESKTOP: five horizontal rows with closer vertical spacing ---
     const rowLen = 5;
-    const rowGap = (vw < 560 ? 9 : 7);
+    const rowGap = (vw < 560 ? 7 : 5); // tightened gap (was 7)
     const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
     const startI = centerIJ.I - Math.floor(rowLen/2);
-    const totalJSpan = rowGap * (4 - 1);
+    const totalJSpan = rowGap * (5 - 1); // five rows
     const startJTop = centerIJ.J - totalJSpan/2;
 
     const start1 = { I: startI, J: startJTop + rowGap * 0 };
     const start2 = { I: startI, J: startJTop + rowGap * 1 };
     const start3 = { I: startI, J: startJTop + rowGap * 2 };
     const start4 = { I: startI, J: startJTop + rowGap * 3 };
+    const start5 = { I: startI, J: startJTop + rowGap * 4 };
 
     placeRow(row1, start1, row1Notes, 2.0);
     placeRow(row2, start2, row2Notes, 2.2);
     placeRow(row3, start3, row3Notes, 2.4);
     placeRow(row4, start4, row4Notes, 2.6);
+    placeRow(row5, start5, row5Notes, 2.8);
 
     // fit + re-render
     const b = measureBounds();
@@ -507,12 +533,14 @@ function layoutAll(){
     const start2b = { I: startI2, J: startJTop2 + rowGap * 1 };
     const start3b = { I: startI2, J: startJTop2 + rowGap * 2 };
     const start4b = { I: startI2, J: startJTop2 + rowGap * 3 };
+    const start5b = { I: startI2, J: startJTop2 + rowGap * 4 };
 
-    row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
+    row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
     placeRow(row1, start1b, row1Notes, 2.0);
     placeRow(row2, start2b, row2Notes, 2.2);
     placeRow(row3, start3b, row3Notes, 2.4);
     placeRow(row4, start4b, row4Notes, 2.6);
+    placeRow(row5, start5b, row5Notes, 2.8);
   }
 
   window.dispatchEvent(new Event('resize'));
@@ -957,17 +985,23 @@ stage.addEventListener('pointerout', (e) => {
   if (!sustain) releaseCube(g);
 }, true);
 
-/* Keyboard mapping (four rows only) */
+/* Keyboard mapping (five rows) */
 const keyMap=new Map(
-  [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes].map(([n,k])=>[k, n])
+  [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes].map(([n,k])=>[k, n])
 );
 document.addEventListener('keydown', e=>{
   if(e.repeat) return;
   if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
+
+  // normalize special keys to their character form
   let key=e.key;
-  if(e.code==='Backslash')    key='\\';
-  if(e.code==='BracketLeft')  key='[';   // preserved alias
-  if(e.code==='Backquote')    key='[';   // preserved alias
+  if(e.code==='Minus')          key='-';
+  if(e.code==='Equal')          key='=';
+  if(e.code==='BracketRight')   key=']';
+  if(e.code==='Backslash')      key='\\';
+  if(e.code==='BracketLeft')    key='[';
+  if(e.code==='Backquote')      key='[';
+
   if(!keyMap.has(key)) return;
   const note=keyMap.get(key);
   const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
@@ -981,9 +1015,13 @@ document.addEventListener('keyup', e=>{
     return;
   }
   let key=e.key;
-  if(e.code==='Backslash')    key='\\';
-  if(e.code==='BracketLeft')  key='[';
-  if(e.code==='Backquote')    key='[';
+  if(e.code==='Minus')          key='-';
+  if(e.code==='Equal')          key='=';
+  if(e.code==='BracketRight')   key=']';
+  if(e.code==='Backslash')      key='\\';
+  if(e.code==='BracketLeft')    key='[';
+  if(e.code==='Backquote')      key='[';
+
   const note=keyMap.get(key); if(!note) return;
   const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
   if(g) releaseCube(g);
@@ -999,7 +1037,7 @@ function loadSong(notesArray) {
 /* ===== Load key pattern (kept) ===== */
 (function(){
   const keyToNote = new Map(
-    [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes].map(([note, key]) => [key, note])
+    [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes].map(([note, key]) => [key, note])
   );
   const normalize = ch => (ch === '`' ? '[' : ch);
   const keyPattern =
