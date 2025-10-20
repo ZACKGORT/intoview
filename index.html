@@ -119,11 +119,13 @@
 
   /* Cubes (white default) */
   .cube{
-    cursor:pointer; outline:none;
-    --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
-    filter: blur(var(--depth-blur, 0px));
-    transition: filter .25s ease;
-  }
+  cursor:pointer; outline:none;
+  --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
+  /* was: filter: blur(var(--depth-blur, 0px)); */
+  filter: blur(calc(var(--depth-blur, 0px) + var(--focus-blur, 0px)));
+  transition: filter .25s ease;
+}
+
   .cube:where(:hover, :focus-visible, .brighten){ filter: blur(0px); }
   .cube *{ transition:fill var(--facet-ease); }
   .facet-top  { fill: var(--facet-top-fill); }
@@ -330,11 +332,12 @@
 
 <script>
 /* ================================
-   intoview.pro — FULL JavaScript
-   (isometric cubes + padded, mobile-safe histogram)
+   intoview.pro — FULL JavaScript (single file)
+   (isometric cubes + padded, mobile-safe histogram + tilt-shift pulses)
    Updates:
    • New bottom row on punctuation: F4 G4 A4 B4 C5
    • Rows ascend left→right; hover NEVER logs
+   • Pulses canvas uses tilt-shift blur band (CSS-tunable), with radial fallback
    ================================ */
 
 /* ---------- Info tooltip ---------- */
@@ -598,14 +601,25 @@ function layoutAll(){
 }
 layoutAll();
 
-/* ---------- Pulses canvas ---------- */
+/* ---------- Pulses canvas (tilt-shift blur) ---------- */
 (function(){
   const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
-  const cos30 = Math.sqrt(3)/2, sin30=0.5;
   const easeOut = u=>1-(1-u)*(1-u);
-  function css(){ return getComputedStyle(document.documentElement); }
-  function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
+  const clamp01 = x => x<0?0:x>1?1:x;
+  const toPx = (len) => {
+    const m = String(len).trim().match(/^([0-9.]+)\s*px$/i);
+    return m ? parseFloat(m[1]) : 0;
+  };
+
+  // CSS-driven params (refreshed on resize / iso:refresh)
   let CELL=56, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:1,b:0,c:0,d:1};
+  let FILL_RGB='255 255 255', FILL_ALPHA=.22, STROKE_ALPHA=.55, FADE_MS=900;
+  let BLUR_MIN='0px', BLUR_MAX='12px', BLUR_CURVE=1.35;
+
+  // Tilt-shift controls
+  let TILT_ENABLE=1, TILT_ANGLE=Math.PI/15, TILT_WIDTH=140, TILT_OFFSET=0, TILT_FALLOFF=1.5, SIN_T=0, COS_T=1;
+
+  let view = { w: innerWidth, h: innerHeight, cx: innerWidth/2, cy: innerHeight/2, R: Math.hypot(innerWidth, innerHeight)/2 };
 
   function read(){
     const s = css();
@@ -614,6 +628,23 @@ layoutAll();
     v2 = {x:-cos30*CELL, y: sin30*CELL};
     det = v1.x*v2.y - v2.x*v1.y;
     inv = {a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
+
+    FILL_RGB     = (s.getPropertyValue('--iso-highlight-fill').trim() || '255 255 255');
+    FILL_ALPHA   = num(s.getPropertyValue('--iso-highlight-alpha'), .22);
+    STROKE_ALPHA = num(s.getPropertyValue('--iso-stroke-alpha'), .55);
+    FADE_MS      = num(s.getPropertyValue('--iso-fade-ms'), 900);
+
+    BLUR_MIN     = (s.getPropertyValue('--iso-blur-min').trim() || '0px');
+    BLUR_MAX     = (s.getPropertyValue('--iso-blur-max').trim() || '12px');
+    BLUR_CURVE   = num(s.getPropertyValue('--iso-blur-curve'), 1.35);
+
+    // tilt-shift
+    TILT_ENABLE  = (num(s.getPropertyValue('--tilt-enable'), 1) > 0) ? 1 : 0;
+    TILT_ANGLE   = (Math.PI/180) * num(s.getPropertyValue('--tilt-angle-deg'), 12);
+    TILT_WIDTH   = num(s.getPropertyValue('--tilt-width'), 140);
+    TILT_OFFSET  = num(s.getPropertyValue('--tilt-offset'), 0);
+    TILT_FALLOFF = num(s.getPropertyValue('--tilt-falloff'), 1.5);
+    SIN_T = Math.sin(TILT_ANGLE); COS_T = Math.cos(TILT_ANGLE);
   }
   function resize(){
     const dpr=Math.max(1,devicePixelRatio||1);
@@ -623,6 +654,7 @@ layoutAll();
     canvas.style.height=innerHeight+'px';
     ctx.setTransform(dpr,0,0,dpr,0,0);
     read();
+    view = { w: innerWidth, h: innerHeight, cx: innerWidth/2, cy: innerHeight/2, R: Math.hypot(innerWidth, innerHeight)/2 };
   }
   addEventListener('resize', resize, {passive:true});
   addEventListener('iso:refresh', read, {passive:true});
@@ -632,31 +664,13 @@ layoutAll();
   function snapLocal(x,y){ const i=inv.a*x+inv.b*y, j=inv.c*x+inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
   function cell(I,J){
     const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
-    return {pts:[a,b,c,d]};
+    return {pts:[a,b,c,d], cx:(a.x+b.x+c.x+d.x)/4, cy:(a.y+b.y+c.y+d.y)/4};
   }
   function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
 
   const pulses=[]; let anim=false;
   function push(I,J){ pulses.push({I,J,t:performance.now()}); if(!anim){ anim=true; requestAnimationFrame(tick); } }
   window.isoPulse = push;
-
-  function tick(now){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    let alive=0;
-    for(const p of pulses){
-      const age=now-p.t; if(age>=900) continue; alive++;
-      const u=age/900, invU=1-u;
-      const {pts}=cell(p.I,p.J);
-      ctx.fillStyle=`rgb(255 255 255 / ${easeOut(1-u)*.22})`;
-      draw(pts); ctx.fill();
-      ctx.lineWidth=1; ctx.strokeStyle=`rgb(255 255 255 / ${invU*.55})`;
-      ctx.stroke();
-    }
-    if(alive!==pulses.length){
-      const cut=now-900; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
-    }
-    if(alive>0) requestAnimationFrame(tick); else anim=false;
-  }
 
   let last=null;
   function handleMove(e){
@@ -668,6 +682,56 @@ layoutAll();
   const stageEl=document.getElementById('stage');
   if(stageEl) stageEl.addEventListener('pointermove', handleMove, {passive:true});
   addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
+
+  function tiltShiftBlurPx(cx, cy){
+    if (!TILT_ENABLE){
+      // Radial fallback
+      const dist = Math.hypot(cx - view.cx, cy - view.cy);
+      const dNorm = clamp01(dist / view.R);
+      const t = Math.pow(dNorm, BLUR_CURVE > 0 ? BLUR_CURVE : 1);
+      return toPx(BLUR_MIN) + (toPx(BLUR_MAX) - toPx(BLUR_MIN)) * t;
+    }
+    // Translate about screen center
+    const dx = cx - view.cx;
+    const dy = cy - view.cy;
+    // Rotate so band is horizontal
+    const xr = dx * COS_T + dy * SIN_T;
+    const yr = -dx * SIN_T + dy * COS_T;
+    // Distance from band centerline (yr == TILT_OFFSET)
+    const d = Math.abs(yr - TILT_OFFSET);
+    const over = Math.max(0, d - TILT_WIDTH);
+    const denom = Math.max(1, 0.5 * view.h);
+    const t = clamp01(Math.pow(over / denom, TILT_FALLOFF));
+    return toPx(BLUR_MIN) + (toPx(BLUR_MAX) - toPx(BLUR_MIN)) * t;
+  }
+
+  function tick(now){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let alive=0;
+    for(const p of pulses){
+      const age=now-p.t; if(age>=FADE_MS) continue; alive++;
+      const u=age/FADE_MS, invU=1-u;
+      const {pts, cx, cy}=cell(p.I,p.J);
+
+      const fillA = easeOut(1-u)*FILL_ALPHA;
+      const strokeA = invU*STROKE_ALPHA;
+
+      const blurPx = tiltShiftBlurPx(cx, cy);
+      ctx.filter = `blur(${blurPx}px)`;
+
+      ctx.fillStyle=`rgb(${FILL_RGB} / ${fillA})`;
+      draw(pts); ctx.fill();
+
+      ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${strokeA})`;
+      ctx.stroke();
+
+      ctx.filter = 'none';
+    }
+    if(alive!==pulses.length){
+      const cut=now-FADE_MS; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
+    }
+    if(alive>0) requestAnimationFrame(tick); else anim=false;
+  }
 })();
 
 /* ---------- Synth ---------- */
@@ -830,9 +894,9 @@ let isLooping = false;
 const loopBtn = document.getElementById('btnLoop');
 function setLoop(on){
   isLooping = !!on;
-  loopBtn.dataset.on = String(isLooping);
-  loopBtn.setAttribute('aria-pressed', String(isLooping));
-  loopBtn.title = isLooping ? 'Looping: On (L)' : 'Loop sequence (L)';
+  loopBtn?.dataset && (loopBtn.dataset.on = String(isLooping));
+  loopBtn?.setAttribute?.('aria-pressed', String(isLooping));
+  if (loopBtn) loopBtn.title = isLooping ? 'Looping: On (L)' : 'Loop sequence (L)';
 }
 loopBtn?.addEventListener('click', () => setLoop(!isLooping));
 document.addEventListener('keydown', (e)=>{
@@ -951,7 +1015,7 @@ function stepPlay(){
   cur.li.classList.add('hit'); setTimeout(()=>cur.li.classList.remove('hit'), 180);
   ensureAudio(); playPiano(midi);
   flashLabel(labelName); flashCube(labelName);
-  live.textContent=`Played ${labelName.toUpperCase()} (${midi})`;
+  if (live) live.textContent=`Played ${labelName.toUpperCase()} (${midi})`;
   playTimer=setTimeout(stepPlay, stepMs);
 }
 function startPlay(){ if(playing||sequence.length===0) return; playing=true; playIdx=0; stepPlay(); }
@@ -1461,8 +1525,6 @@ time,midi,name
 2025-10-20T19:08:03.002Z,72,C5
 `;
 
-
-// Demo load (comment out if you don't want auto bars):
 loadFromCSV(CSV_COMPOSITION);
 
 /* ---------- Fit histogram to viewport (min bar width, adaptive gaps) ---------- */
@@ -1491,6 +1553,7 @@ function fitHistogramToViewport(){
 addEventListener('resize', fitHistogramToViewport, { passive: true });
 fitHistogramToViewport();
 
-</script>
+  </script>
+  
 </body>
 </html>
