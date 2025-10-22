@@ -7,8 +7,7 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <style>
   :root{
-    /* layout heights (draggable) */
-    --bottom-h: 32vh;   /* keyboard row (FIXED to bottom; user-resizable) */
+    --bottom-h: 32vh;
 
     /* isometric cubes (fretboard only) */
     --cube-size-base: 36;
@@ -19,9 +18,9 @@
     /* labels */
     --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
 
-    /* background grid (more breathing room for labels) */
+    /* background grid */
     --bg:#000;
-    --grid-gap: 12px;  /* increased spacing */
+    --grid-gap: 12px;
     --grid-alpha:.12;
     --grid-thin: rgb(160 190 255 / calc(var(--grid-alpha) * .20));
     --grid-bold: rgb(84 140 255 / calc(var(--grid-alpha) * .36));
@@ -41,7 +40,7 @@
     --gutter-size: 10px;
     --gutter-hit:  18px;
 
-    /* BG hover/pulses (unchanged) */
+    /* BG hover/pulses */
     --iso-highlight-fill: 255 255 255;
     --iso-highlight-alpha: .25;
     --iso-stroke-alpha: .55;
@@ -67,8 +66,10 @@
     font:14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   }
 
+  /* BG hover/pulses canvas sits behind everything */
   .iso-canvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
 
+  /* ===== Main area above fixed keyboard ===== */
   .top-pane{
     position:relative;
     height:100vh;
@@ -79,6 +80,7 @@
     z-index:1;
   }
 
+  /* fretboard + gutter */
   .fretboard-wrap{
     height: calc(100vh - var(--bottom-h) - var(--gutter-size));
     position:relative; overflow:hidden; min-height:220px;
@@ -86,7 +88,7 @@
   .gutter{
     position:relative; height: var(--gutter-size);
     background: linear-gradient(90deg, rgb(255 255 255 / .06), transparent 40%, transparent 60%, rgb(255 255 255 / .06));
-    cursor: row-resize; flex: 0 0 auto; z-index:1;
+    cursor: row-resize; flex: 0 0 auto; z-index:3;
   }
   .gutter::after{ content:""; position:absolute; inset:calc((var(--gutter-size) - var(--gutter-hit))/2 * -1) 0; }
 
@@ -94,29 +96,38 @@
   #isoCanvas{ position:absolute; inset:0; z-index:1; pointer-events:none; }
   #stage{ position:absolute; inset:0; z-index:2; overflow:visible; width:100%; height:100%; }
 
-  .cube{ cursor:pointer; outline:none;
+  .cube{
+    cursor:pointer; outline:none;
     --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
     filter: blur(calc(var(--depth-blur, 0px) + var(--focus-blur, 0px)));
-    transition: filter .15s ease;
+    transition: filter .24s ease, transform .24s ease;
   }
+  .cube .facet-top,
+  .cube .facet-side,
+  .cube .facet-dark { transition: fill .24s ease; }
   .cube .facet-top  { fill: var(--facet-top-fill); }
   .cube .facet-side { fill: var(--facet-side-fill); }
   .cube .facet-dark { fill: var(--facet-dark-fill); }
 
   /* inverted hover: non-matching cubes are dimmed */
-  .cube.dim{ --facet-top-fill:#2b2b2b; --facet-side-fill:#1e1e1e; --facet-dark-fill:#000000; filter: blur(var(--depth-blur, 0px)) brightness(0.95); }
+  .cube.dim{
+    --facet-top-fill:#2b2b2b; --facet-side-fill:#1e1e1e; --facet-dark-fill:#000000;
+    filter: blur(var(--depth-blur, 0px)) brightness(0.95);
+  }
 
   /* click selection: solid yellow block */
-  .cube.selected{ --facet-top-fill:#ffd84a; --facet-side-fill:#e6bf00; --facet-dark-fill:#b38f00; filter: drop-shadow(0 0 14px rgb(255 216 74 / .35)); }
+  .cube.selected{
+    --facet-top-fill:#ffd84a; --facet-side-fill:#e6bf00; --facet-dark-fill:#b38f00;
+    filter: drop-shadow(0 0 14px rgb(255 216 74 / .35));
+  }
 
-  /* existing active/brighten kept for subtle feedback */
-  .cube.brighten{ --facet-top-fill:#ffffff; --facet-side-fill:#f5f5f5; --facet-dark-fill:#8c8c8c; }
+  /* subtle feedback */
   .cube.active{ filter: blur(var(--depth-blur, 0px)) drop-shadow(0 0 14px rgb(0 0 0 / .60)); }
 
   .note{
     font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size:11px; font-weight:800;
-    fill:#ffffff; opacity:.95; user-select:none; pointer-events:none;
+    fill:#ffffff; opacity:.98; user-select:none; pointer-events:none;
     paint-order: stroke fill; stroke:#000; stroke-width:2px; stroke-opacity:.55;
   }
 
@@ -134,7 +145,7 @@
     z-index: 5;
   }
   .kbd-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .kbd-head .meta{ color:#a8b4d6; font-weight:700 }
+  .kbd-head .meta{ color:var(--muted); font-weight:700 }
 
   /* Open strings row */
   .opens-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:center; }
@@ -178,11 +189,11 @@
   .white.mem1, .black.mem1{ box-shadow: 0 0 0 4px rgb(78 224 181 / .70) inset, 0 0 0 2px rgb(78 224 181 / .50), 0 0 26px 10px rgb(78 224 181 / .35); }
   .white.mem2, .black.mem2{ box-shadow: 0 0 0 3px rgb(78 224 181 / .45) inset, 0 0 0 1px rgb(78 224 181 / .35), 0 0 20px 8px  rgb(78 224 181 / .25); }
 
-  .controls{ position:absolute; z-index:3; inset:12px auto auto 12px; display:flex; gap:8px; align-items:center; background:rgb(0 0 0 / .45); border:1px solid rgb(255 255 255 / .12); padding:8px 10px; border-radius:10px; backdrop-filter: blur(6px); }
+  .controls{ position:absolute; z-index:4; inset:12px auto auto 12px; display:flex; gap:8px; align-items:center; background:rgb(0 0 0 / .45); border:1px solid rgb(255 255 255 / .12); padding:8px 10px; border-radius:10px; backdrop-filter: blur(6px); }
   .controls label{ font:700 12px/1 ui-monospace, Menlo, monospace; color:#e2e9ff; display:flex; align-items:center; gap:6px; text-shadow:0 1px 0 #000; }
   .controls select{ appearance:none; background:#0e1533; color:#e8eeff; border:1px solid rgb(255 255 255 / .16); border-radius:8px; padding:6px 26px 6px 10px; font:700 12px/1 ui-monospace, Menlo, monospace; }
 
-  /* in-scale highlighting (unchanged) */
+  /* in-scale highlighting */
   .cube.in-scale{ --facet-top-fill:#d9fff5; --facet-side-fill:#bff7e8; --facet-dark-fill:#83cdb7; }
   .cube.root{ --facet-top-fill:#ffffff; --facet-side-fill:#d8fff3; --facet-dark-fill:#5ed2af; }
   .white.in-scale, .black.in-scale{ box-shadow: 0 0 0 3px rgb(78 224 181 / .55) inset, 0 0 0 1px rgb(78 224 181 / .45), 0 0 16px 6px rgb(78 224 181 / .20); }
@@ -222,11 +233,6 @@
     position:absolute; inset:auto 0 -16px 0;
     text-align:center; font:700 10px/1 ui-monospace, Menlo, monospace; color:#cfe1ff; opacity:.9;
   }
-  .hud .meta{
-    display:flex; justify-content:space-between; align-items:center; gap:10px;
-    color:#cfe1ff; font:700 11px/1 ui-monospace, Menlo, monospace; opacity:.95;
-    margin-top:6px;
-  }
 
   @media (max-width:560px){
     :root{ --iso-cell-base: 52; --cube-size-base: 44; }
@@ -241,7 +247,7 @@
 </head>
 <body>
 
-<!-- Background hover/pulses (unchanged) -->
+<!-- Background hover/pulses -->
 <canvas id="bgIso" class="iso-canvas" aria-hidden="true"></canvas>
 
 <div class="top-pane">
@@ -262,7 +268,7 @@
     <label>View
       <select id="viewSelect" aria-label="View">
         <option value="normal">Normal</option>
-        <option value="mirrored">Mirrored</option>
+        <option value="inverse">Inverse</option>
       </select>
     </label>
     <label>Tone
@@ -279,11 +285,11 @@
     <canvas id="isoCanvas" aria-hidden="true"></canvas>
     <svg id="stage" role="group" aria-label="Isometric note cubes" width="100%" height="100%">
       <g id="strings"></g>
+      <g id="labels"></g>
     </svg>
     <div id="stringTags" aria-hidden="true"></div>
   </section>
 
-  <!-- Gutter to resize keyboard height while keeping it affixed to the bottom -->
   <div class="gutter" id="gutterResizer" role="separator" aria-label="Resize keyboard height"></div>
 </div>
 
@@ -372,8 +378,8 @@ const live = document.getElementById('live');
 })();
 
 /* ========= State ========= */
-const STATE = { lefty:false, view:'right', root:0, scale:'none', recentKeys:[], recentMax:3, tone:'glassy' };
-const OPEN_MIDI_BASE = [40,45,50,55,59,64]; // E2 A2 D3 G3 B3 E4
+const STATE = { lefty:false, view:'normal', root:0, scale:'none', recentKeys:[], recentMax:3, tone:'glassy' };
+const OPEN_MIDI_BASE = [40,45,50,55,59,64]; // E2 A2 D3 G3 B3 E4 (6→1)
 const STRING_NAMES_BASE = ['E2','A2','D3','G3','B3','E4'];
 const FRETS = 22;
 
@@ -384,13 +390,12 @@ const NOTE_LOG = [];
 const cos30=Math.sqrt(3)/2; // ~0.8660254
 const sin30=0.5;
 
+/* basis stays constant: view doesn't flip light */
 function readCell(){ return num(css().getPropertyValue('--iso-cell'), 44); }
 function basis(){
   const CELL = readCell();
-  const leftTilt = (STATE.view === 'left');
-  // 30° basis for fretboard
-  const v1 = leftTilt ? { x:-cos30*CELL, y: sin30*CELL } : { x: cos30*CELL, y: sin30*CELL };
-  const v2 = leftTilt ? { x: cos30*CELL, y: sin30*CELL } : { x:-cos30*CELL, y: sin30*CELL };
+  const v1 = { x:  cos30*CELL, y:  sin30*CELL };
+  const v2 = { x: -cos30*CELL, y:  sin30*CELL };
   const det = v1.x*v2.y - v2.x*v1.y;
   const inv = { a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det };
   return { CELL, v1, v2, inv };
@@ -400,28 +405,30 @@ function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
 function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
 
 const stringsG = document.getElementById('strings');
+const labelsG  = document.getElementById('labels');
 const tagsWrap = document.getElementById('stringTags');
 
 const FRET_MARKS = {1:1,3:1,5:1,7:1,9:1,12:1,15:1,17:1,19:1,21:1};
 function fretPositions(){ const pos=[0]; for(let f=1; f<=FRETS; f++) pos.push(1 - Math.pow(2, -f/12)); return pos; }
 
-const LOWEST = OPEN_MIDI_BASE[0];
-const HIGHEST = OPEN_MIDI_BASE[OPEN_MIDI_BASE.length-1] + FRETS;
-function blurForMidi(m){
-  const t = Math.max(0, Math.min(1, (m - LOWEST) / (HIGHEST - LOWEST)));
-  const inv = 1 - Math.pow(t, 0.9);
-  return (inv * 2.0) + 'px';
-}
-function sizeForMidi(m){
-  const t = Math.max(0, Math.min(1, (m - LOWEST) / (HIGHEST - LOWEST)));
-  return 0.84 + (1 - t) * 0.16;
+/* depth blur: 0 (top/far) → 5 (bottom/near) always */
+function blurForVisualRow(visualRow){
+  const t = visualRow/5;              // 0..1 from top to bottom
+  const far = 2.2, near = 0.6;        // px
+  const px = far - (far - near) * t;  // bottom gets least blur
+  return px.toFixed(2) + 'px';
 }
 
+function sizeForMidi(m){
+  const low = Math.min(...OPEN_MIDI_BASE), high = Math.max(...OPEN_MIDI_BASE) + FRETS;
+  const t = Math.max(0, Math.min(1, (m - low) / (high - low)));
+  return 0.84 + (1 - t) * 0.16;
+}
 function unit(v){ const l=Math.hypot(v.x,v.y)||1; return {x:v.x/l, y:v.y/l}; }
 function pToStr(p){ return `${Math.round(p.x)},${Math.round(p.y)}`; }
 
 function buildFretboard(){
-  stringsG.innerHTML=''; tagsWrap.innerHTML='';
+  stringsG.innerHTML=''; labelsG.innerHTML=''; tagsWrap.innerHTML='';
   B=basis();
 
   const vh = innerHeight;
@@ -439,13 +446,19 @@ function buildFretboard(){
     document.documentElement.style.setProperty('--iso-cell',  (num(css().getPropertyValue('--iso-cell-base'), 44)*scale)+'px');
     document.documentElement.style.setProperty('--cube-size', (num(css().getPropertyValue('--cube-size-base'),56)*scale)+'px');
     B=basis();
-    stringsG.innerHTML='';
+    stringsG.innerHTML=''; labelsG.innerHTML='';
 
     const totalRows = 6;
     const centerY = Math.max((availableTop) * 0.52, SAFE_TOP_PAD + 40);
     const center = snap(innerWidth/2, centerY);
     const spanI = FRETS;
-    const opens = STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice();
+
+    const useInverse = (STATE.view === 'inverse');
+
+    /* Handedness affects string order in Normal only. Inverse renders same string order as Normal, but flips the longitudinal (fret) direction. */
+    const opens     = (STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice());
+    const openNames = (STATE.lefty ? STRING_NAMES_BASE.slice().reverse() : STRING_NAMES_BASE.slice());
+
     const startI = center.I - Math.floor(spanI/2);
     const startJ = center.J - Math.floor(totalRows/2);
 
@@ -458,40 +471,50 @@ function buildFretboard(){
 
     const e1 = unit(B.v1), e2 = unit(B.v2);
 
-    for(let s=0; s<totalRows; s++){
+    /* Draw in visual depth: top (0) -> bottom (5) so nearer rows overdraw farther */
+    for(let visualRow=0; visualRow<totalRows; visualRow++){
+      const s = visualRow;
+
+      /* string numbers (1=high E, 6=low E) in Normal/Inverse are identical per handedness */
+      const stringNumber = STATE.lefty ? (1 + s) : (6 - s);
+
       const stringGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
-      stringGroup.setAttribute('data-string', String(STATE.lefty ? (6-s) : (s+1)));
+      stringGroup.setAttribute('data-string', String(stringNumber));
       stringsG.appendChild(stringGroup);
 
       for(let f=0; f<=FRETS; f++){
         const posF = pos[f];
-        const I = startI + ((STATE.view === 'left') ? (1 - posF) : posF) * spanI;
-        const J = startJ + s;
+        const posFI = useInverse ? (1 - posF) : posF;  // flip longitudinal axis in Inverse
 
-        const pC=toXY(I,J), pL=toXY(I,J+2);
+        const I = startI + posFI * spanI;
+        const J = startJ + visualRow;
+
+        const pC=toXY(I,J);
 
         const g=document.createElementNS('http://www.w3.org/2000/svg','g');
         g.setAttribute('class','cube'); g.setAttribute('tabindex','0'); g.setAttribute('role','button');
 
         const midi = (opens[s] + f); const nm = nameOf(midi);
         g.dataset.midi = String(midi); g.dataset.name = nm;
-        g.dataset.string = String(STATE.lefty ? (6-s) : (s+1));
+        g.dataset.string = String(stringNumber);
         g.dataset.fret = String(f);
         g.setAttribute('aria-label', `String ${g.dataset.string}, fret ${f}, ${nm}`);
 
         const k = sizeForMidi(midi);
-        const sxy = baseW * k;        // footprint
+        const sxy = baseW * k;              // footprint
         const depth = baseH * k * 0.42;
 
-        g.style.setProperty('--depth-blur', blurForMidi(midi));
+        // depth blur driven by visual row depth (bottom is near)
+        g.style.setProperty('--depth-blur', blurForVisualRow(visualRow));
         g.style.setProperty('--focus-blur', '0px');
 
-        // Top rhombus at 30°
+        // Top rhombus at 30° (constant)
         const p0 = { x: pC.x, y: pC.y };
         const p1 = { x: p0.x + e1.x * (sxy/2), y: p0.y + e1.y * (sxy/2) };
         const p3 = { x: p0.x + e2.x * (sxy/2), y: p0.y + e2.y * (sxy/2) };
         const p2 = { x: p1.x + e2.x * (sxy/2), y: p1.y + e2.y * (sxy/2) };
 
+        /* extrusion direction stays constant (lighting unchanged) */
         const down = { x: 0, y: depth };
 
         // facets
@@ -507,35 +530,42 @@ function buildFretboard(){
         dark.setAttribute('class','facet-dark');
         dark.setAttribute('points', [p3,p2,{x:p2.x+down.x,y:p2.y+down.y},{x:p3.x+down.x,y:p3.y+down.y}].map(pToStr).join(' '));
 
+        // label on centroid of the top face
+        const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
+        const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+
         const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
         lbl.setAttribute('class','note');
-        lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
-        lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+        lbl.setAttribute('x', cx);
+        lbl.setAttribute('y', cy + 10);
+        lbl.setAttribute('text-anchor','middle');
         lbl.textContent = nm + (f===0?' (open)':'');
 
         g.appendChild(top); g.appendChild(side); g.appendChild(dark);
         stringGroup.appendChild(g);
-        stringsG.appendChild(lbl);
+        labelsG.appendChild(lbl);
       }
     }
 
-    // string tags
-    tagsWrap.innerHTML='';
-    for(let s2=0; s2<6; s2++){
-      const J2 = (snap(innerWidth/2, centerY).J - Math.floor(6/2)) + s2;
+    // string tags (follow visual rows)
+    for(let visualRow2=0; visualRow2<6; visualRow2++){
+      const J2 = (snap(innerWidth/2, centerY).J - Math.floor(6/2)) + visualRow2;
       const p2 = toXY(startI-2, J2);
       const tag = document.createElement('div'); tag.className='string-tag';
-      const labelIndex = STATE.lefty ? (s2+1) : (6-s2);
+
+      const labelIndex = STATE.lefty ? (1 + visualRow2) : (6 - visualRow2);
+
       tag.style.top = (p2.y-6) + 'px';
-      tag.textContent = 'String ' + labelIndex + ' — ' + (STATE.lefty ? STRING_NAMES_BASE.slice().reverse()[s2] : STRING_NAMES_BASE[s2]);
+      tag.textContent = 'String ' + labelIndex + ' — ' + openNames[visualRow2];
       tagsWrap.appendChild(tag);
     }
 
-    // fret numerals
+    // fret numerals (flip positions in Inverse to match board direction)
     for(let fn=1; fn<=FRETS; fn++){
       if(!FRET_MARKS[fn]) continue;
       const posFN = pos[fn];
-      const Ii = startI + ((STATE.view === 'left') ? (1 - posFN) : posFN) * spanI;
+      const posFNI = useInverse ? (1 - posFN) : posFN;
+      const Ii = startI + posFNI * spanI;
       const Jj = startJ - 0.6; const tp = toXY(Ii,Jj);
       const t = document.createElementNS('http://www.w3.org/2000/svg','text');
       t.setAttribute('class','fret-num'); t.setAttribute('x', tp.x); t.setAttribute('y', tp.y);
@@ -712,30 +742,31 @@ const opensRow = document.getElementById('opensRow');
 function buildOpensRow(){
   opensRow.innerHTML = '';
   const labels = ['E','A','D','G','B','E'];
-  OPEN_MIDI_BASE.forEach((midi, idx)=>{
+  const labelSet = STATE.lefty ? labels.slice().reverse() : labels.slice();
+  const baseSet  = STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice();
+
+  baseSet.forEach((midi, idx)=>{
     const btn = document.createElement('button');
     btn.type='button';
     btn.className='open-pill';
     btn.dataset.midi = String(midi);
-    btn.innerHTML = `<span>${labels[idx]}</span><small>${nameOf(midi)}</small>`;
+    btn.innerHTML = `<span>${labelSet[idx]}</span><small>${nameOf(midi)}</small>`;
     btn.addEventListener('click', async (e)=>{
       const ok = await ensureAudio();
       const key = keyboardEl.querySelector(`[data-midi="${midi}"]`);
       if (key){ key.classList.add('playing'); setTimeout(()=>key.classList.remove('playing'), 180); flashActiveKey(key, 600); }
-      // Toggle selection for all matching cubes
       toggleSelectionForMidi(midi);
       if (ok) playPiano(midi);
       NOTE_LOG.push(midi); updateHistogram();
-      live.textContent = `Open string: ${labels[idx]} (${nameOf(midi)})`;
+      live.textContent = `Open string: ${labelSet[idx]} (${nameOf(midi)})`;
       triggerBgPulseAtEvent(e);
     }, { passive:true });
     opensRow.appendChild(btn);
   });
 }
 
-/* ========= Inverted hover logic ========= */
+/* ========= Inverted hover logic (keys) ========= */
 let currentHoverMidi = null;
-
 function beginHoverInvert(midi){
   if (currentHoverMidi === midi) return;
   currentHoverMidi = midi;
@@ -743,7 +774,6 @@ function beginHoverInvert(midi){
   all.forEach(c => c.classList.add('dim'));
   stage.querySelectorAll(`.cube[data-midi="${midi}"]`).forEach(c => c.classList.remove('dim'));
 }
-
 function endHoverInvert(){
   currentHoverMidi = null;
   stage.querySelectorAll('.cube.dim').forEach(c => c.classList.remove('dim'));
@@ -759,13 +789,10 @@ function toggleSelectionForCube(cube){
   cube.classList.toggle('selected');
 }
 
-/* ========= Active effects (kept) ========= */
-function flashActiveCube(g, ms=600){ g.classList.add('active'); setTimeout(()=> g.classList.remove('active'), ms); }
+/* ========= Active effects ========= */
 function flashActiveKey(keyEl, ms=600){ keyEl.classList.add('active'); setTimeout(()=> keyEl.classList.remove('active'), ms); }
 
-const hoverTimers = new Map(); // retained but no longer used for invert; safe to keep
-
-/* ========= Audio (glassy) ========= */
+/* ========= Audio ========= */
 const AUDIO = { started:false };
 let AC=null, polyGain=null;
 const activeVoices=new Set();
@@ -884,7 +911,6 @@ document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
   btn.classList.add('playing'); setTimeout(()=>btn.classList.remove('playing'), 180);
   flashActiveKey(btn, 600);
   pushMemory(btn);
-  // Toggle selection for all matching
   toggleSelectionForMidi(midi);
   if(ok) playPiano(midi);
   NOTE_LOG.push(midi); updateHistogram();
@@ -909,7 +935,7 @@ stage.addEventListener('pointerdown', async (e)=>{
   const ok = await ensureAudio();
   const midi = +cube.dataset.midi;
   const key = document.getElementById('keyboard').querySelector(`[data-midi="${midi}"]`);
-  if(key){ key.classList.add('playing'); flashActiveKey(key, 600); pushMemory(key); setTimeout(()=>key.classList.remove('playing'), 180); }
+  if(key){ key.classList.add('playing'); pushMemory(key); setTimeout(()=>key.classList.remove('playing'), 180); }
   toggleSelectionForCube(cube);
   if(ok) playPiano(midi);
   NOTE_LOG.push(midi); updateHistogram();
@@ -924,7 +950,7 @@ stage.addEventListener('keydown', async (e)=>{
   const ok = await ensureAudio();
   const midi = +cube.dataset.midi;
   const key = document.getElementById('keyboard').querySelector(`[data-midi="${midi}"]`);
-  if(key){ key.classList.add('playing'); flashActiveKey(key, 600); pushMemory(key); setTimeout(()=>key.classList.remove('playing'), 180); }
+  if(key){ key.classList.add('playing'); pushMemory(key); setTimeout(()=>key.classList.remove('playing'), 180); }
   toggleSelectionForCube(cube);
   if(ok) playPiano(midi);
   NOTE_LOG.push(midi); updateHistogram();
@@ -946,14 +972,14 @@ stage.addEventListener('keydown', async (e)=>{
   rootSel.value=String(STATE.root);
   scaleSel.value=STATE.scale;
   handedSel.value=STATE.lefty?'left':'right';
-  viewSel.value=(STATE.view==='left')?'mirrored':'normal';
+  viewSel.value=(STATE.view==='inverse')?'inverse':'normal';
   toneSel.value = 'glassy';
 
   toneSel.addEventListener('change', async ()=>{ if (!AUDIO.started) await ensureAudio(); live.textContent = `Tone: ${toneSel.value}`; });
   handedSel.addEventListener('change', ()=>{ STATE.lefty = handedSel.value==='left'; buildAll(); });
   rootSel.addEventListener('change', ()=>{ STATE.root = +rootSel.value; applyScaleHighlight(); });
   scaleSel.addEventListener('change', ()=>{ STATE.scale = scaleSel.value; applyScaleHighlight(); });
-  viewSel.addEventListener('change', ()=>{ STATE.view = (viewSel.value==='mirrored') ? 'left' : 'right'; buildFretboard(); });
+  viewSel.addEventListener('change', ()=>{ STATE.view = (viewSel.value==='inverse') ? 'inverse' : 'normal'; buildFretboard(); });
 })();
 
 /* ========= Histogram ========= */
@@ -1008,7 +1034,7 @@ if (document.readyState === 'loading'){
   (async ()=>{ buildAll(); await ensureAudio(); })();
 }
 
-/* ========= Background hover/pulse engine (unchanged) ========= */
+/* ========= Background hover/pulse engine ========= */
 (function bgIsoPulses(){
   const canvas = document.getElementById('bgIso');
   if(!canvas) return;
@@ -1018,7 +1044,7 @@ if (document.readyState === 'loading'){
   function fnum(v, fb){ const n = parseFloat(v); return Number.isFinite(n)?n:fb; }
   function toPx(v){ const m=String(v).trim().match(/^([0-9.]+)\s*px$/i); return m?+m[1]:0; }
 
-  const COS = Math.sqrt(3)/2, SIN = 0.5; /* keep 30° for the background pulses */
+  const COS = Math.sqrt(3)/2, SIN = 0.5; /* 30° for the BG pulses */
   let CELL = 40, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:0,b:0,c:0,d:0};
   let FILL_RGB='255 255 255', FILL_A=.25, STROKE_A=.55, FADE_MS=900, BLUR_MIN='0px', BLUR_MAX='12px', BLUR_CURVE=1.35;
   let view = { w: innerWidth, h: innerHeight, cx: innerWidth/2, cy: innerHeight/2, R: Math.hypot(innerWidth, innerHeight)/2 };
