@@ -7,6 +7,7 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <style>
   :root{
+    /* keyboard height (bottom; user-resizable) */
     --bottom-h: 32vh;
 
     /* isometric cubes (fretboard only) */
@@ -18,9 +19,9 @@
     /* labels */
     --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
 
-    /* background grid */
+    /* background grid (roomier) */
     --bg:#000;
-    --grid-gap: 12px;
+    --grid-gap: 16px; /* was 12px */
     --grid-alpha:.12;
     --grid-thin: rgb(160 190 255 / calc(var(--grid-alpha) * .20));
     --grid-bold: rgb(84 140 255 / calc(var(--grid-alpha) * .36));
@@ -193,7 +194,7 @@
   .controls label{ font:700 12px/1 ui-monospace, Menlo, monospace; color:#e2e9ff; display:flex; align-items:center; gap:6px; text-shadow:0 1px 0 #000; }
   .controls select{ appearance:none; background:#0e1533; color:#e8eeff; border:1px solid rgb(255 255 255 / .16); border-radius:8px; padding:6px 26px 6px 10px; font:700 12px/1 ui-monospace, Menlo, monospace; }
 
-  /* in-scale highlighting */
+  /* in-scale highlighting (unchanged) */
   .cube.in-scale{ --facet-top-fill:#d9fff5; --facet-side-fill:#bff7e8; --facet-dark-fill:#83cdb7; }
   .cube.root{ --facet-top-fill:#ffffff; --facet-side-fill:#d8fff3; --facet-dark-fill:#5ed2af; }
   .white.in-scale, .black.in-scale{ box-shadow: 0 0 0 3px rgb(78 224 181 / .55) inset, 0 0 0 1px rgb(78 224 181 / .45), 0 0 16px 6px rgb(78 224 181 / .20); }
@@ -201,7 +202,7 @@
 
   .fret-num{ font:800 12px/1 ui-monospace, Menlo, Consolas, monospace; fill:#c7d4ff; opacity:.95; user-select:none; pointer-events:none; text-shadow:0 1px 0 #000; }
 
-  /* ===== HUD: compact histogram ===== */
+  /* ===== HUD: compact histogram + controls ===== */
   .hud{
     position:fixed; top:12px; right:12px; z-index:6;
     display:flex; flex-direction:column; gap:8px; align-items:stretch;
@@ -233,6 +234,17 @@
     position:absolute; inset:auto 0 -16px 0;
     text-align:center; font:700 10px/1 ui-monospace, Menlo, monospace; color:#cfe1ff; opacity:.9;
   }
+  .hud .meta{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; }
+  .hud .btns{ display:flex; gap:6px; }
+  .hud button{
+    appearance:none;
+    border:1px solid rgb(255 255 255 / .16);
+    background:linear-gradient(#0f1733, #0a1126);
+    color:#eaf0ff; font:800 11px/1 ui-monospace, Menlo, monospace;
+    padding:6px 8px; border-radius:8px; cursor:pointer;
+  }
+  .hud button:hover{ filter:brightness(1.06) }
+  .hud button:active{ transform:translateY(1px) }
 
   @media (max-width:560px){
     :root{ --iso-cell-base: 52; --cube-size-base: 44; }
@@ -285,11 +297,12 @@
     <canvas id="isoCanvas" aria-hidden="true"></canvas>
     <svg id="stage" role="group" aria-label="Isometric note cubes" width="100%" height="100%">
       <g id="strings"></g>
-      <g id="labels"></g>
+      <g id="labels"></g> <!-- labels layer above cubes -->
     </svg>
     <div id="stringTags" aria-hidden="true"></div>
   </section>
 
+  <!-- Gutter to resize keyboard height while keeping it affixed to the bottom -->
   <div class="gutter" id="gutterResizer" role="separator" aria-label="Resize keyboard height"></div>
 </div>
 
@@ -299,7 +312,11 @@
     <div id="hist" class="hist" aria-label="Histogram of logged notes"></div>
     <div class="meta">
       <span id="histMeta">Notes: 0</span>
-      <span></span>
+      <div class="btns">
+        <button id="histBack" title="Undo last (Backspace)" type="button">Backspace</button>
+        <button id="histCopy" title="Copy note log + counts" type="button">Copy</button>
+        <button id="histClear" title="Clear log" type="button">Clear</button>
+      </div>
     </div>
   </div>
 </div>
@@ -379,7 +396,7 @@ const live = document.getElementById('live');
 
 /* ========= State ========= */
 const STATE = { lefty:false, view:'normal', root:0, scale:'none', recentKeys:[], recentMax:3, tone:'glassy' };
-const OPEN_MIDI_BASE = [40,45,50,55,59,64]; // E2 A2 D3 G3 B3 E4 (6→1)
+const OPEN_MIDI_BASE = [40,45,50,55,59,64]; // E2 A2 D3 G3 B3 E4
 const STRING_NAMES_BASE = ['E2','A2','D3','G3','B3','E4'];
 const FRETS = 22;
 
@@ -390,7 +407,6 @@ const NOTE_LOG = [];
 const cos30=Math.sqrt(3)/2; // ~0.8660254
 const sin30=0.5;
 
-/* basis stays constant: view doesn't flip light */
 function readCell(){ return num(css().getPropertyValue('--iso-cell'), 44); }
 function basis(){
   const CELL = readCell();
@@ -413,9 +429,9 @@ function fretPositions(){ const pos=[0]; for(let f=1; f<=FRETS; f++) pos.push(1 
 
 /* depth blur: 0 (top/far) → 5 (bottom/near) always */
 function blurForVisualRow(visualRow){
-  const t = visualRow/5;              // 0..1 from top to bottom
-  const far = 2.2, near = 0.6;        // px
-  const px = far - (far - near) * t;  // bottom gets least blur
+  const t = visualRow/5;
+  const far = 2.2, near = 0.6;
+  const px = far - (far - near) * t;
   return px.toFixed(2) + 'px';
 }
 
@@ -427,6 +443,7 @@ function sizeForMidi(m){
 function unit(v){ const l=Math.hypot(v.x,v.y)||1; return {x:v.x/l, y:v.y/l}; }
 function pToStr(p){ return `${Math.round(p.x)},${Math.round(p.y)}`; }
 
+/* ======= Build Fretboard (CONSISTENT centering) ======= */
 function buildFretboard(){
   stringsG.innerHTML=''; labelsG.innerHTML=''; tagsWrap.innerHTML='';
   B=basis();
@@ -455,11 +472,15 @@ function buildFretboard(){
 
     const useInverse = (STATE.view === 'inverse');
 
-    /* Handedness affects string order in Normal only. Inverse renders same string order as Normal, but flips the longitudinal (fret) direction. */
+    /* Handedness affects string order. Inverse flips along frets only. */
     const opens     = (STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice());
     const openNames = (STATE.lefty ? STRING_NAMES_BASE.slice().reverse() : STRING_NAMES_BASE.slice());
 
-    const startI = center.I - Math.floor(spanI/2);
+    /* --- Consistent centering via anchor fret (12th) --- */
+    const ANCHOR_FRET = 12;
+    const posAnchor = pos[ANCHOR_FRET];               // 0..1
+    const posAnchorView = useInverse ? (1 - posAnchor) : posAnchor;
+    const startI = center.I - posAnchorView * spanI;   // ensures 12th = center.x
     const startJ = center.J - Math.floor(totalRows/2);
 
     const oldNums = stage.querySelector('#fretNums'); if(oldNums) oldNums.remove();
@@ -471,11 +492,9 @@ function buildFretboard(){
 
     const e1 = unit(B.v1), e2 = unit(B.v2);
 
-    /* Draw in visual depth: top (0) -> bottom (5) so nearer rows overdraw farther */
+    /* Draw in visual depth: top (0) -> bottom (5) */
     for(let visualRow=0; visualRow<totalRows; visualRow++){
       const s = visualRow;
-
-      /* string numbers (1=high E, 6=low E) in Normal/Inverse are identical per handedness */
       const stringNumber = STATE.lefty ? (1 + s) : (6 - s);
 
       const stringGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
@@ -484,7 +503,7 @@ function buildFretboard(){
 
       for(let f=0; f<=FRETS; f++){
         const posF = pos[f];
-        const posFI = useInverse ? (1 - posF) : posF;  // flip longitudinal axis in Inverse
+        const posFI = useInverse ? (1 - posF) : posF;
 
         const I = startI + posFI * spanI;
         const J = startJ + visualRow;
@@ -501,36 +520,31 @@ function buildFretboard(){
         g.setAttribute('aria-label', `String ${g.dataset.string}, fret ${f}, ${nm}`);
 
         const k = sizeForMidi(midi);
-        const sxy = baseW * k;              // footprint
+        const sxy = baseW * k;
         const depth = baseH * k * 0.42;
 
-        // depth blur driven by visual row depth (bottom is near)
         g.style.setProperty('--depth-blur', blurForVisualRow(visualRow));
         g.style.setProperty('--focus-blur', '0px');
 
-        // Top rhombus at 30° (constant)
         const p0 = { x: pC.x, y: pC.y };
         const p1 = { x: p0.x + e1.x * (sxy/2), y: p0.y + e1.y * (sxy/2) };
         const p3 = { x: p0.x + e2.x * (sxy/2), y: p0.y + e2.y * (sxy/2) };
         const p2 = { x: p1.x + e2.x * (sxy/2), y: p1.y + e2.y * (sxy/2) };
 
-        /* extrusion direction stays constant (lighting unchanged) */
         const down = { x: 0, y: depth };
 
-        // facets
         const top = document.createElementNS('http://www.w3.org/2000/svg','polygon');
         top.setAttribute('class','facet-top');
         top.setAttribute('points', [p0,p1,p2,p3].map(pToStr).join(' '));
 
-        const side = document.createElementNS('http://www.w3.org/2000/svg','polygon'); // right face (e1 side)
+        const side = document.createElementNS('http://www.w3.org/2000/svg','polygon');
         side.setAttribute('class','facet-side');
         side.setAttribute('points', [p1,p2,{x:p2.x+down.x,y:p2.y+down.y},{x:p1.x+down.x,y:p1.y+down.y}].map(pToStr).join(' '));
 
-        const dark = document.createElementNS('http://www.w3.org/2000/svg','polygon'); // left face (e2 side)
+        const dark = document.createElementNS('http://www.w3.org/2000/svg','polygon');
         dark.setAttribute('class','facet-dark');
         dark.setAttribute('points', [p3,p2,{x:p2.x+down.x,y:p2.y+down.y},{x:p3.x+down.x,y:p3.y+down.y}].map(pToStr).join(' '));
 
-        // label on centroid of the top face
         const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
         const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
 
@@ -547,7 +561,7 @@ function buildFretboard(){
       }
     }
 
-    // string tags (follow visual rows)
+    /* string tags */
     for(let visualRow2=0; visualRow2<6; visualRow2++){
       const J2 = (snap(innerWidth/2, centerY).J - Math.floor(6/2)) + visualRow2;
       const p2 = toXY(startI-2, J2);
@@ -560,7 +574,7 @@ function buildFretboard(){
       tagsWrap.appendChild(tag);
     }
 
-    // fret numerals (flip positions in Inverse to match board direction)
+    /* fret numerals */
     for(let fn=1; fn<=FRETS; fn++){
       if(!FRET_MARKS[fn]) continue;
       const posFN = pos[fn];
@@ -574,9 +588,10 @@ function buildFretboard(){
     }
   }
 
+  /* initial scale 1 pass */
   place(1);
 
-  // fit pass based on polygons
+  /* fit pass */
   const polys=stage.querySelectorAll('polygon');
   if(!polys.length) return;
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -594,7 +609,7 @@ function buildFretboard(){
 
   place(scale);
 
-  // keep under controls
+  /* keep under controls */
   (function clampTop() {
     const any = stage.querySelector('polygon');
     if (!any) return;
@@ -1008,6 +1023,59 @@ function updateHistogram(){
     b.title = `${pcs[pc]}: ${c}`;
   });
 }
+
+/* ==== Histogram controls: Backspace / Copy / Clear ==== */
+const btnBack = document.getElementById('histBack');
+const btnCopy = document.getElementById('histCopy');
+const btnClear= document.getElementById('histClear');
+
+function popLastNote(){
+  if (!NOTE_LOG.length) return;
+  const last = NOTE_LOG.pop();
+  updateHistogram();
+  live.textContent = `Removed last note: ${nameOf(last)} (Backspace)`;
+}
+function clearLog(){
+  NOTE_LOG.length = 0;
+  updateHistogram();
+  live.textContent = 'Cleared note log';
+}
+function copyLog(){
+  const seq = NOTE_LOG.map(m => nameOf(m)).join(', ');
+  const counts = Array(12).fill(0);
+  NOTE_LOG.forEach(m => counts[pcOf(m)]++);
+  const countLines = counts.map((c,i)=> `${pcs[i]}: ${c}`).join('\n');
+  const text = `Notes (${NOTE_LOG.length}): ${seq}\n\nCounts by pitch class:\n${countLines}\n`;
+  if (navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(()=>{
+      live.textContent = 'Copied note log + counts to clipboard';
+    }).catch(()=> fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text){
+  const ta=document.createElement('textarea');
+  ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); live.textContent = 'Copied note log + counts to clipboard'; }
+  catch(e){ live.textContent = 'Copy failed'; }
+  finally{ ta.remove(); }
+}
+
+btnBack.addEventListener('click', popLastNote);
+btnClear.addEventListener('click', clearLog);
+btnCopy.addEventListener('click', copyLog);
+
+/* Backspace keyboard shortcut (don’t interfere with typing) */
+document.addEventListener('keydown', (e)=>{
+  if (e.key !== 'Backspace') return;
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  const editable = document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/i.test(tag));
+  if (editable) return;  // let user edit normally
+  e.preventDefault();
+  popLastNote();
+});
 
 /* ========= Build orchestration ========= */
 function buildAll(){
