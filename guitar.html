@@ -798,109 +798,219 @@ function toggleSelectionForCube(cube){ cube.classList.toggle('selected'); }
 /* ========= Active effects ========= */
 function flashActiveKey(keyEl, ms=600){ keyEl.classList.add('active'); setTimeout(()=> keyEl.classList.remove('active'), ms); }
 
-/* ========= Audio ========= */
+/* ========= Audio (stable / low-glitch) ========= */
 const AUDIO = { started:false };
-let AC=null, polyGain=null;
-const activeVoices=new Set();
+let AC=null, polyGain=null, reverbBuf=null;
+
+/* Tunables */
+const MAX_VOICES   = 10;   // global polyphony cap (was effectively ~20+)
+const MAX_PARTIALS = 8;    // limit harmonics per note (CPU saver)
+const BASE_RELEASE = 1.0;  // seconds; will be scaled by velocity
+const NOTE_TTL     = 3.5;  // seconds; safety auto-dispose
+
+/* track active voices for note stealing */
+const activeVoices = new Set(); // items: {stop, dispose, born, prio}
+
 function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
-function buildRoomIR(seconds=1.1){
-  const len = Math.floor(AC.sampleRate * seconds);
-  const buf = AC.createBuffer(2, len, AC.sampleRate);
+
+/* reuse a single reverb impulse across sessions */
+function buildRoomIR(seconds=1.0){
+  if (reverbBuf) return reverbBuf;
+  const sr = AC.sampleRate;
+  const len = Math.floor(sr * seconds);
+  const buf = AC.createBuffer(2, len, sr);
   for(let ch=0; ch<2; ch++){
     const d = buf.getChannelData(ch); let lp = 0;
-    for(let i=0;i<len;i++){ const noise = (Math.random()*2-1); lp = 0.92*lp + 0.08*noise; const t = i/len; d[i] = lp * Math.pow(1 - t, 1.7) * 0.33; if (ch===1 && i>24) d[i] += d[i-24]*0.11; }
+    for(let i=0;i<len;i++){
+      const noise = (Math.random()*2-1);
+      lp = 0.92*lp + 0.08*noise;
+      const t = i/len;
+      d[i] = lp * Math.pow(1 - t, 1.7) * 0.33;
+      if (ch===1 && i>24) d[i] += d[i-24]*0.11;
+    }
   }
-  return buf;
+  reverbBuf = buf;
+  return reverbBuf;
 }
+
+/* fewer partials, gently tapered */
 function partialsFor(freq){
-  const maxHarm = Math.max(4, Math.floor(7000 / freq));
+  const maxByFreq = Math.max(4, Math.floor(6000 / freq));   // softer high notes
+  const cap = Math.min(MAX_PARTIALS, maxByFreq);
   const out = [];
-  for(let n=1; n<=maxHarm; n++){
-    let a = 1 / (n * (n<=3 ? 1.0 : 1.25)); a *= Math.exp(-n/9.5);
+  for(let n=1; n<=cap; n++){
+    let a = 1 / (n * (n<=3 ? 1.0 : 1.25));
+    a *= Math.exp(-n/8.0);
     out.push({ n, a });
   }
-  const sum = out.reduce((s,p)=>s+p.a,0)||1; out.forEach(p=>p.a/=sum); return out;
+  const sum = out.reduce((s,p)=>s+p.a,0)||1;
+  out.forEach(p=>p.a/=sum);
+  return out;
 }
-function createPianoVoice(freq, vel){
-  const now = AC.currentTime;
-  const env = AC.createGain(); env.gain.value = 0.0001;
-  const atk = 0.002, dec = 1.05 * (1.0 - 0.36*vel), sus = 0.0007, rel = 1.45 + 0.28*(1.0-vel);
-  env.gain.setValueAtTime(0.0001, now); env.gain.linearRampToValueAtTime(Math.max(0.32, vel), now + atk);
-  env.gain.exponentialRampToValueAtTime(Math.max(1e-4, sus), now + atk + dec);
 
-  const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=0.7; lp.frequency.value = Math.min(12000, 1200 + freq * 7.2);
-  const drive = AC.createWaveShaper(); const curveLen=2048, curve=new Float32Array(curveLen);
-  for(let i=0;i<curveLen;i++){ const x=i/(curveLen-1)*2-1; curve[i]=Math.tanh(1.1*x); } drive.curve=curve; drive.oversample='2x';
-
-  const parts = partialsFor(freq);
-  const busL = AC.createGain(), busR = AC.createGain(); busL.gain.value = 0.86; busR.gain.value = 0.86;
-
-  parts.forEach(({n,a}, idx)=>{
-    const oL = AC.createOscillator(); oL.type='sine'; oL.frequency.value = freq*n*0.998;
-    const oR = AC.createOscillator(); oR.type='sine'; oR.frequency.value = freq*n*1.002;
-    const gL = AC.createGain(); gL.gain.value = a * (1 - idx*0.02) * (0.85 + 0.28*vel);
-    const gR = AC.createGain(); gR.gain.value = a * (1 - idx*0.02) * (0.85 + 0.28*vel);
-    oL.connect(gL).connect(busL); oR.connect(gR).connect(busR);
-    oL.start(now); oR.start(now); const stopAt = now + atk + dec + rel + 0.2; oL.stop(stopAt); oR.stop(stopAt);
-  });
-
-  const noise = AC.createBufferSource(); const nlen = Math.floor(AC.sampleRate*0.02);
-  const nbuf = AC.createBuffer(1, nlen, AC.sampleRate); const nd = nbuf.getChannelData(0);
-  for(let i=0;i<nlen;i++){ const t=i/nlen; nd[i] = (Math.random()*2-1) * Math.exp(-t*22); }
-  noise.buffer = nbuf; const nHP = AC.createBiquadFilter(); nHP.type='highpass'; nHP.frequency.value = 2500;
-  const nG  = AC.createGain(); nG.gain.value = (0.085 + 0.10*vel);
-  noise.connect(nHP).connect(nG).connect(busL); noise.connect(nHP).connect(nG).connect(busR);
-  noise.start(now); noise.stop(now+0.05);
-
-  const mix = AC.createGain(); const sum = AC.createGain(); mix.gain.value = sum.gain.value = 1.0;
-  busL.connect(mix); busR.connect(mix); mix.connect(lp).connect(drive).connect(sum).connect(env);
-
-  const post = AC.createGain(); post.gain.value = 1.0; env.connect(post); post.connect(polyGain);
-
-  const stop = (releaseTime=rel)=>{ const t=AC.currentTime; env.gain.cancelScheduledValues(t); env.gain.setTargetAtTime(0.0001, t, Math.max(0.05, releaseTime/3)); };
-  return { stop };
-}
 function velocityForMidi(m){
   const low = Math.min(...OPEN_MIDI_BASE), high = Math.max(...OPEN_MIDI_BASE) + FRETS;
   const t = Math.max(0, Math.min(1, (m - low) / (high - low)));
-  return 0.72 + (1 - t) * 0.10;
+  return 0.68 + (1 - t) * 0.10; // a touch softer overall (reduces limiter work)
 }
-function playPiano(midi){
-  if(!AUDIO.started || !AC) return () => {};
-  if(activeVoices.size >= 20){
-    const oldest = activeVoices.values().next().value; try { oldest?.stop(0.25); } catch {}
-    activeVoices.delete(oldest);
+
+function createPianoVoice(freq, vel){
+  const now = AC.currentTime;
+
+  /* env */
+  const env = AC.createGain(); env.gain.value = 0.0001;
+  const atk = 0.002;
+  const dec = 0.85 * (1.0 - 0.34*vel);
+  const sus = 0.0009;
+  const rel = BASE_RELEASE * (0.9 + 0.3*(1.0-vel)); // shorter tails
+
+  env.gain.setValueAtTime(0.0001, now);
+  env.gain.linearRampToValueAtTime(Math.max(0.28, vel), now + atk);
+  env.gain.exponentialRampToValueAtTime(Math.max(1e-4, sus), now + atk + dec);
+
+  /* simple tone: partials -> gentle LP -> soft drive */
+  const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=0.7;
+  lp.frequency.value = Math.min(11000, 1000 + freq * 6.0);
+
+  const drive = AC.createWaveShaper();
+  if (!createPianoVoice._curve){
+    const curveLen=1024, curve=new Float32Array(curveLen);
+    for(let i=0;i<curveLen;i++){ const x=i/(curveLen-1)*2-1; curve[i]=Math.tanh(1.0*x); }
+    createPianoVoice._curve = curve;
   }
-  const f = midiToFreq(midi);
-  const v = createPianoVoice(f, velocityForMidi(midi));
-  activeVoices.add(v);
-  setTimeout(()=>activeVoices.delete(v), 4000);
-  return () => { v.stop(0.4); activeVoices.delete(v); };
+  drive.curve = createPianoVoice._curve;
+  drive.oversample='2x';
+
+  const busL = AC.createGain(), busR = AC.createGain();
+  busL.gain.value = 0.9; busR.gain.value = 0.9;
+
+  const created = []; // for cleanup
+
+  function mkOsc(mult, gainVal, detune = 0){
+    const o = AC.createOscillator(); o.type='sine';
+    o.frequency.value = freq*mult;
+    if (detune) o.detune.value = detune;
+    const g = AC.createGain(); g.gain.value = gainVal * (0.85 + 0.25*vel);
+    created.push(o, g);
+    return {o,g};
+  }
+
+  const parts = partialsFor(freq);
+  parts.forEach(({n,a}, idx)=>{
+    const {o:oL, g:gL} = mkOsc(n*0.998, a);
+    const {o:oR, g:gR} = mkOsc(n*1.002, a);
+    oL.connect(gL).connect(busL); oR.connect(gR).connect(busR);
+    oL.start(now); oR.start(now);
+    const stopAt = now + atk + dec + rel + 0.05;
+    oL.stop(stopAt); oR.stop(stopAt);
+  });
+
+  /* light key thump */
+  const noise = AC.createBufferSource();
+  const nlen = Math.floor(AC.sampleRate*0.018);
+  const nbuf = AC.createBuffer(1, nlen, AC.sampleRate);
+  const nd = nbuf.getChannelData(0);
+  for(let i=0;i<nlen;i++){ const t=i/nlen; nd[i] = (Math.random()*2-1) * Math.exp(-t*24); }
+  noise.buffer = nbuf;
+  const nHP = AC.createBiquadFilter(); nHP.type='highpass'; nHP.frequency.value = 2400;
+  const nG  = AC.createGain(); nG.gain.value = (0.07 + 0.08*vel);
+  created.push(noise, nHP, nG);
+  noise.connect(nHP).connect(nG).connect(busL);
+  noise.connect(nHP).connect(nG).connect(busR);
+  noise.start(now); noise.stop(now+0.04);
+
+  /* sum -> env -> polyGain */
+  const mix = AC.createGain(); const sum = AC.createGain();
+  mix.gain.value = sum.gain.value = 1.0;
+  busL.connect(mix); busR.connect(mix); mix.connect(lp).connect(drive).connect(sum).connect(env);
+
+  const post = AC.createGain(); post.gain.value = 1.0;
+  env.connect(post); post.connect(polyGain);
+  created.push(lp, drive, busL, busR, mix, sum, env, post);
+
+  const stop = (releaseTime=rel)=>{
+    const t=AC.currentTime;
+    env.gain.cancelScheduledValues(t);
+    env.gain.setTargetAtTime(0.0001, t, Math.max(0.05, releaseTime/3));
+  };
+
+  const dispose = ()=>{
+    // disconnect everything to hasten GC
+    created.forEach(n => { try{ n.disconnect?.(); }catch{} });
+  };
+
+  /* auto-dispose in case note rings long */
+  setTimeout(dispose, Math.max(200, (rel+1.2)*1000));
+
+  return { stop, dispose };
 }
+
 async function ensureAudio(){
   if (AUDIO.started) return true;
   try{
     const C = window.AudioContext || window.webkitAudioContext;
     AC = new C({ latencyHint:'interactive' });
+
     const master = AC.createGain(); master.gain.value = 0.9;
-    const dry    = AC.createGain(); dry.gain.value = 0.95;
-    const wet    = AC.createGain(); wet.gain.value = 0.10;
+    const dry    = AC.createGain(); dry.gain.value = 0.96;
+    const wet    = AC.createGain(); wet.gain.value = 0.08;
+
     polyGain = AC.createGain(); polyGain.gain.value = 0.85;
 
-    const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value = 45; hp.Q.value = 0.5;
-    const tiltEQ = AC.createBiquadFilter(); tiltEQ.type='peaking'; tiltEQ.frequency.value = 2500; tiltEQ.Q.value = 0.6; tiltEQ.gain.value = +1.8;
-    const comp = AC.createDynamicsCompressor(); comp.threshold.value=-18; comp.knee.value=24; comp.ratio.value=2.6; comp.attack.value=0.004; comp.release.value=0.22;
-    const limiter = AC.createDynamicsCompressor(); limiter.threshold.value=-1.0; limiter.knee.value=0; limiter.ratio.value=20; limiter.attack.value=0.002; limiter.release.value=0.12;
-    const reverb = AC.createConvolver(); reverb.buffer = buildRoomIR(1.10);
+    const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value = 50; hp.Q.value = 0.6;
+    const tiltEQ = AC.createBiquadFilter(); tiltEQ.type='peaking'; tiltEQ.frequency.value = 2400; tiltEQ.Q.value = 0.7; tiltEQ.gain.value = +1.6;
+
+    const comp = AC.createDynamicsCompressor();
+    comp.threshold.value=-20; comp.knee.value=24; comp.ratio.value=2.4; comp.attack.value=0.004; comp.release.value=0.18;
+
+    const limiter = AC.createDynamicsCompressor();
+    limiter.threshold.value=-1.0; limiter.knee.value=0; limiter.ratio.value=20; limiter.attack.value=0.002; limiter.release.value=0.10;
+
+    const reverb = AC.createConvolver(); reverb.buffer = buildRoomIR(0.95);
 
     polyGain.connect(hp).connect(tiltEQ).connect(dry);
     reverb.connect(wet);
-    dry.connect(master); wet.connect(master); master.connect(comp); comp.connect(limiter); limiter.connect(AC.destination);
 
-    AUDIO.started = true; live.textContent = 'Audio ready (glassy grand)';
+    dry.connect(master); wet.connect(master);
+    master.connect(comp); comp.connect(limiter); limiter.connect(AC.destination);
+
+    AUDIO.started = true;
+    live.textContent = 'Audio ready (stable)';
     return true;
-  }catch(e){ console.warn('Audio init failed:', e); live.textContent = 'Audio unavailable'; return false; }
+  }catch(e){
+    console.warn('Audio init failed:', e);
+    live.textContent = 'Audio unavailable';
+    return false;
+  }
 }
+
+/* Note stealing + play */
+function playPiano(midi){
+  if(!AUDIO.started || !AC) return () => {};
+  const f = midiToFreq(midi);
+  const v = createPianoVoice(f, velocityForMidi(midi));
+
+  // Steal oldest when over cap
+  if (activeVoices.size >= MAX_VOICES){
+    const oldest = activeVoices.values().next().value;
+    try{ oldest?.stop(0.08); oldest?.dispose?.(); }catch{}
+    activeVoices.delete(oldest);
+  }
+
+  const wrapped = { ...v, born: AC.currentTime };
+  activeVoices.add(wrapped);
+
+  // purge later
+  setTimeout(()=>{
+    if (activeVoices.has(wrapped)) { try{ wrapped.dispose?.(); }catch{} activeVoices.delete(wrapped); }
+  }, NOTE_TTL*1000);
+
+  return ()=>{
+    try{ v.stop(0.25); v.dispose?.(); }catch{}
+    activeVoices.delete(wrapped);
+  };
+}
+
 
 /* ========= Interactions ========= */
 function pushMemory(el){
