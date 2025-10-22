@@ -336,6 +336,13 @@
 <div id="live" class="sr" aria-live="polite"></div>
 
 <script>
+/* ========= Guitar ↔ Piano Mapper — FULL JAVASCRIPT =========
+   - Builds isometric fretboard + piano keyboard
+   - Mini ASCII tab logger (with "log all fret positions" option)
+   - Scale highlighting + handedness + normal/inverse views
+   - Stable audio engine with multiple tones, incl. "Iconic Solo"
+*/
+
 /* ========= Helpers ========= */
 const pcs=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const isBlackPC = {1:1,3:1,6:1,8:1,10:1};
@@ -391,7 +398,7 @@ const live = document.getElementById('live');
 })();
 
 /* ========= State ========= */
-const STATE = { lefty:false, view:'normal', root:0, scale:'none', recentKeys:[], recentMax:3, tone:'glassy' };
+const STATE = { lefty:false, view:'normal', root:0, scale:'none', recentKeys:[], recentMax:3, tone:'iconic-solo' };
 const OPEN_MIDI_BASE = [40,45,50,55,59,64]; // E2 A2 D3 G3 B3 E4
 const STRING_NAMES_BASE = ['E2','A2','D3','G3','B3','E4'];
 const FRETS = 22;
@@ -443,7 +450,7 @@ function sizeForMidi(m){
 function unit(v){ const l=Math.hypot(v.x,v.y)||1; return {x:v.x/l, y:v.y/l}; }
 function pToStr(p){ return `${Math.round(p.x)},${Math.round(p.y)}`; }
 
-/* ========= Build Fretboard (two-pass scale + center-align by bbox) ========= */
+/* ========= Build Fretboard (two-pass scale + exact centering) ========= */
 function buildFretboard(){
   stringsG.innerHTML=''; labelsG.innerHTML=''; fretNumsG.innerHTML=''; tagsWrap.innerHTML='';
   boardG.removeAttribute('transform');
@@ -459,8 +466,6 @@ function buildFretboard(){
   const SAFE_TOP_PAD = Math.max(16, Math.ceil(controlsBottom) + 12);
 
   const pos = fretPositions();
-
-  /* the same target center point for both views */
   const targetCenterPx = { x: innerWidth / 2, y: Math.max((availableTop) * 0.52, SAFE_TOP_PAD + 40) };
 
   function place(scale){
@@ -477,7 +482,6 @@ function buildFretboard(){
     const opens     = (STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice());
     const openNames = (STATE.lefty ? STRING_NAMES_BASE.slice().reverse() : STRING_NAMES_BASE.slice());
 
-    /* start indices so that 12th fret is roughly central; final exact centering happens later */
     const ANCHOR_FRET = 12;
     const posAnchor = pos[ANCHOR_FRET];
     const posAnchorView = useInverse ? (1 - posAnchor) : posAnchor;
@@ -558,22 +562,23 @@ function buildFretboard(){
       }
     }
 
-    /* string tags aligned to float rows derived from centerIJ */
+    /* string tags aligned to rows */
     for(let visualRow2=0; visualRow2<6; visualRow2++){
       const J2 = (centerIJ.J - (6/2)) + visualRow2;
       const p2 = toXY(startI-2, J2);
       const tag = document.createElement('div'); tag.className='string-tag';
       const labelIndex = STATE.lefty ? (1 + visualRow2) : (6 - visualRow2);
       tag.style.top = (p2.y-6) + 'px';
-      tag.textContent = 'String ' + labelIndex + ' — ' + (STATE.lefty ? STRING_NAMES_BASE[visualRow2] : STRING_NAMES_BASE.slice().reverse()[visualRow2]);
+      tag.textContent = 'String ' + labelIndex + ' — ' +
+        (STATE.lefty ? STRING_NAMES_BASE[visualRow2] : STRING_NAMES_BASE.slice().reverse()[visualRow2]);
       tagsWrap.appendChild(tag);
     }
 
-    /* fret numerals (respect inverse) */
+    /* fret numerals */
     for(let fn=1; fn<=FRETS; fn++){
       if(!FRET_MARKS[fn]) continue;
       const posFN = pos[fn];
-      const posFNI = useInverse ? (1 - posFN) : posFN;
+      const posFNI = (STATE.view==='inverse') ? (1 - posFN) : posFN;
       const Ii = startI + posFNI * spanI;
       const Jj = startJ - 0.6; const tp = toXY(Ii,Jj);
       const t = document.createElementNS('http://www.w3.org/2000/svg','text');
@@ -583,10 +588,9 @@ function buildFretboard(){
     }
   }
 
-  /* ---- first pass at base scale = 1 to measure ---- */
+  // pass 1 — scale=1 to measure bbox
   place(1);
 
-  /* compute a scale that fits inside the safe region */
   const polys1=stage.querySelectorAll('polygon');
   if(!polys1.length) return;
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -597,10 +601,10 @@ function buildFretboard(){
   const bboxW = maxX-minX, bboxH = maxY-minY;
   const scale = Math.min(1, needW/bboxW, needH/bboxH);
 
-  /* ---- second pass with final scale ---- */
+  // pass 2 — final scale
   place(scale);
 
-  /* ---- final exact centering by bbox so Normal/Inverse coincide ---- */
+  // final exact centering so Normal/Inverse coincide
   const polys2=stage.querySelectorAll('polygon');
   if(!polys2.length) return;
   minX=Infinity;minY=Infinity;maxX=-Infinity;maxY=-Infinity;
@@ -610,13 +614,13 @@ function buildFretboard(){
   let dx = targetCenterPx.x - centerX;
   let dy = targetCenterPx.y - centerY;
 
-  /* enforce top safety (don’t overlap the control bar) */
+  // keep under controls
   const SAFE_TOP_PAD2 = Math.max(16, (document.querySelector('.controls')?.getBoundingClientRect().bottom ?? 0) + 12);
   if (minY + dy < SAFE_TOP_PAD2) dy += (SAFE_TOP_PAD2 - (minY + dy));
 
   boardG.setAttribute('transform', `translate(${Math.round(dx)}, ${Math.round(dy)})`);
 
-  /* keep DOM string tags aligned vertically with the board translation */
+  // align DOM string tags vertically too
   tagsWrap.querySelectorAll('.string-tag').forEach(t => {
     const cur = parseFloat(t.style.top || '0');
     t.style.top = (cur + dy) + 'px';
@@ -798,219 +802,256 @@ function toggleSelectionForCube(cube){ cube.classList.toggle('selected'); }
 /* ========= Active effects ========= */
 function flashActiveKey(keyEl, ms=600){ keyEl.classList.add('active'); setTimeout(()=> keyEl.classList.remove('active'), ms); }
 
-/* ========= Audio (stable / low-glitch) ========= */
-const AUDIO = { started:false };
-let AC=null, polyGain=null, reverbBuf=null;
+/* ========= AUDIO ENGINE (multi-tone) ========= */
+const AUDIO = typeof window.AUDIO !== "undefined" ? window.AUDIO : { started:false };
+let AC = null;
+const activeVoices = new Set();
+const NOTE_TTL     = 3.5;
+const MAX_VOICES   = 10;
+let polyGain = null;
 
-/* Tunables */
-const MAX_VOICES   = 10;   // global polyphony cap (was effectively ~20+)
-const MAX_PARTIALS = 8;    // limit harmonics per note (CPU saver)
-const BASE_RELEASE = 1.0;  // seconds; will be scaled by velocity
-const NOTE_TTL     = 3.5;  // seconds; safety auto-dispose
+let TONE = { name:'iconic-solo', input:null, output:null, cleanup:()=>{} };
 
-/* track active voices for note stealing */
-const activeVoices = new Set(); // items: {stop, dispose, born, prio}
-
-function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
-
-/* reuse a single reverb impulse across sessions */
-function buildRoomIR(seconds=1.0){
-  if (reverbBuf) return reverbBuf;
-  const sr = AC.sampleRate;
-  const len = Math.floor(sr * seconds);
-  const buf = AC.createBuffer(2, len, sr);
-  for(let ch=0; ch<2; ch++){
-    const d = buf.getChannelData(ch); let lp = 0;
-    for(let i=0;i<len;i++){
-      const noise = (Math.random()*2-1);
-      lp = 0.92*lp + 0.08*noise;
-      const t = i/len;
-      d[i] = lp * Math.pow(1 - t, 1.7) * 0.33;
-      if (ch===1 && i>24) d[i] += d[i-24]*0.11;
-    }
-  }
-  reverbBuf = buf;
-  return reverbBuf;
+function midiToFreq(m){ return 440 * Math.pow(2, (m-69)/12); }
+function makeTanhCurve(amount=1.0, len=2048){
+  const curve = new Float32Array(len);
+  for (let i=0;i<len;i++){ const x=(i/(len-1))*2-1; curve[i]=Math.tanh(amount*x); }
+  return curve;
 }
-
-/* fewer partials, gently tapered */
-function partialsFor(freq){
-  const maxByFreq = Math.max(4, Math.floor(6000 / freq));   // softer high notes
-  const cap = Math.min(MAX_PARTIALS, maxByFreq);
-  const out = [];
-  for(let n=1; n<=cap; n++){
-    let a = 1 / (n * (n<=3 ? 1.0 : 1.25));
-    a *= Math.exp(-n/8.0);
-    out.push({ n, a });
-  }
-  const sum = out.reduce((s,p)=>s+p.a,0)||1;
-  out.forEach(p=>p.a/=sum);
-  return out;
-}
-
-function velocityForMidi(m){
-  const low = Math.min(...OPEN_MIDI_BASE), high = Math.max(...OPEN_MIDI_BASE) + FRETS;
-  const t = Math.max(0, Math.min(1, (m - low) / (high - low)));
-  return 0.68 + (1 - t) * 0.10; // a touch softer overall (reduces limiter work)
-}
-
-function createPianoVoice(freq, vel){
-  const now = AC.currentTime;
-
-  /* env */
-  const env = AC.createGain(); env.gain.value = 0.0001;
-  const atk = 0.002;
-  const dec = 0.85 * (1.0 - 0.34*vel);
-  const sus = 0.0009;
-  const rel = BASE_RELEASE * (0.9 + 0.3*(1.0-vel)); // shorter tails
-
-  env.gain.setValueAtTime(0.0001, now);
-  env.gain.linearRampToValueAtTime(Math.max(0.28, vel), now + atk);
-  env.gain.exponentialRampToValueAtTime(Math.max(1e-4, sus), now + atk + dec);
-
-  /* simple tone: partials -> gentle LP -> soft drive */
-  const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=0.7;
-  lp.frequency.value = Math.min(11000, 1000 + freq * 6.0);
-
-  const drive = AC.createWaveShaper();
-  if (!createPianoVoice._curve){
-    const curveLen=1024, curve=new Float32Array(curveLen);
-    for(let i=0;i<curveLen;i++){ const x=i/(curveLen-1)*2-1; curve[i]=Math.tanh(1.0*x); }
-    createPianoVoice._curve = curve;
-  }
-  drive.curve = createPianoVoice._curve;
-  drive.oversample='2x';
-
-  const busL = AC.createGain(), busR = AC.createGain();
-  busL.gain.value = 0.9; busR.gain.value = 0.9;
-
-  const created = []; // for cleanup
-
-  function mkOsc(mult, gainVal, detune = 0){
-    const o = AC.createOscillator(); o.type='sine';
-    o.frequency.value = freq*mult;
-    if (detune) o.detune.value = detune;
-    const g = AC.createGain(); g.gain.value = gainVal * (0.85 + 0.25*vel);
-    created.push(o, g);
-    return {o,g};
-  }
-
-  const parts = partialsFor(freq);
-  parts.forEach(({n,a}, idx)=>{
-    const {o:oL, g:gL} = mkOsc(n*0.998, a);
-    const {o:oR, g:gR} = mkOsc(n*1.002, a);
-    oL.connect(gL).connect(busL); oR.connect(gR).connect(busR);
-    oL.start(now); oR.start(now);
-    const stopAt = now + atk + dec + rel + 0.05;
-    oL.stop(stopAt); oR.stop(stopAt);
-  });
-
-  /* light key thump */
-  const noise = AC.createBufferSource();
-  const nlen = Math.floor(AC.sampleRate*0.018);
-  const nbuf = AC.createBuffer(1, nlen, AC.sampleRate);
-  const nd = nbuf.getChannelData(0);
-  for(let i=0;i<nlen;i++){ const t=i/nlen; nd[i] = (Math.random()*2-1) * Math.exp(-t*24); }
-  noise.buffer = nbuf;
-  const nHP = AC.createBiquadFilter(); nHP.type='highpass'; nHP.frequency.value = 2400;
-  const nG  = AC.createGain(); nG.gain.value = (0.07 + 0.08*vel);
-  created.push(noise, nHP, nG);
-  noise.connect(nHP).connect(nG).connect(busL);
-  noise.connect(nHP).connect(nG).connect(busR);
-  noise.start(now); noise.stop(now+0.04);
-
-  /* sum -> env -> polyGain */
-  const mix = AC.createGain(); const sum = AC.createGain();
-  mix.gain.value = sum.gain.value = 1.0;
-  busL.connect(mix); busR.connect(mix); mix.connect(lp).connect(drive).connect(sum).connect(env);
-
-  const post = AC.createGain(); post.gain.value = 1.0;
-  env.connect(post); post.connect(polyGain);
-  created.push(lp, drive, busL, busR, mix, sum, env, post);
-
-  const stop = (releaseTime=rel)=>{
-    const t=AC.currentTime;
-    env.gain.cancelScheduledValues(t);
-    env.gain.setTargetAtTime(0.0001, t, Math.max(0.05, releaseTime/3));
-  };
-
-  const dispose = ()=>{
-    // disconnect everything to hasten GC
-    created.forEach(n => { try{ n.disconnect?.(); }catch{} });
-  };
-
-  /* auto-dispose in case note rings long */
-  setTimeout(dispose, Math.max(200, (rel+1.2)*1000));
-
-  return { stop, dispose };
+function makeCabIR(ctx, seconds=0.035){
+  const sr = ctx.sampleRate;
+  const len = Math.max(128, Math.floor(sr*seconds));
+  const b = ctx.createBuffer(1, len, sr);
+  const d = b.getChannelData(0);
+  const taps = [0,60,105,150,195];
+  taps.forEach((tap, idx)=>{ const p=Math.min(len-1,tap); d[p]+= (idx===0?0.85:0.25/idx); });
+  for(let i=1;i<len;i++){ const x=i/len; d[i]+= (d[i-1]||0)*0.86; d[i]*=(1-x*0.6); }
+  let max=1e-6; for(let i=0;i<len;i++) max=Math.max(max, Math.abs(d[i]));
+  for(let i=0;i<len;i++) d[i]=(d[i]/max)*0.9;
+  return b;
 }
 
 async function ensureAudio(){
-  if (AUDIO.started) return true;
+  if (AUDIO.started && AC && polyGain) return true;
   try{
     const C = window.AudioContext || window.webkitAudioContext;
-    AC = new C({ latencyHint:'interactive' });
+    AC = new C({ latencyHint: 'interactive' });
 
-    const master = AC.createGain(); master.gain.value = 0.9;
-    const dry    = AC.createGain(); dry.gain.value = 0.96;
-    const wet    = AC.createGain(); wet.gain.value = 0.08;
-
-    polyGain = AC.createGain(); polyGain.gain.value = 0.85;
-
-    const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value = 50; hp.Q.value = 0.6;
-    const tiltEQ = AC.createBiquadFilter(); tiltEQ.type='peaking'; tiltEQ.frequency.value = 2400; tiltEQ.Q.value = 0.7; tiltEQ.gain.value = +1.6;
-
-    const comp = AC.createDynamicsCompressor();
-    comp.threshold.value=-20; comp.knee.value=24; comp.ratio.value=2.4; comp.attack.value=0.004; comp.release.value=0.18;
-
+    const master  = AC.createGain();  master.gain.value = 0.95;
+    const comp    = AC.createDynamicsCompressor();
+    comp.threshold.value=-19; comp.knee.value=24; comp.ratio.value=2.6; comp.attack.value=0.004; comp.release.value=0.16;
     const limiter = AC.createDynamicsCompressor();
-    limiter.threshold.value=-1.0; limiter.knee.value=0; limiter.ratio.value=20; limiter.attack.value=0.002; limiter.release.value=0.10;
+    limiter.threshold.value=-1.2; limiter.knee.value=0; limiter.ratio.value=20; limiter.attack.value=0.0018; limiter.release.value=0.08;
 
-    const reverb = AC.createConvolver(); reverb.buffer = buildRoomIR(0.95);
+    polyGain = AC.createGain(); polyGain.gain.value = 0.9;
 
-    polyGain.connect(hp).connect(tiltEQ).connect(dry);
-    reverb.connect(wet);
-
-    dry.connect(master); wet.connect(master);
-    master.connect(comp); comp.connect(limiter); limiter.connect(AC.destination);
+    polyGain.connect(master);
+    master.connect(comp);
+    comp.connect(limiter);
+    limiter.connect(AC.destination);
 
     AUDIO.started = true;
-    live.textContent = 'Audio ready (stable)';
+    await setToneGraph(STATE.tone || 'iconic-solo');
     return true;
   }catch(e){
     console.warn('Audio init failed:', e);
-    live.textContent = 'Audio unavailable';
+    if (live) live.textContent = 'Audio unavailable';
     return false;
   }
 }
 
-/* Note stealing + play */
-function playPiano(midi){
-  if(!AUDIO.started || !AC) return () => {};
-  const f = midiToFreq(midi);
-  const v = createPianoVoice(f, velocityForMidi(midi));
+/* ---- Tone graphs ---- */
+async function buildGlassy(){
+  const input = AC.createGain();
+  const preHP = AC.createBiquadFilter(); preHP.type='highpass'; preHP.frequency.value = 45; preHP.Q.value = 0.6;
+  const tilt  = AC.createBiquadFilter(); tilt.type='peaking'; tilt.frequency.value = 2400; tilt.Q.value=0.7; tilt.gain.value=+1.6;
 
-  // Steal oldest when over cap
+  const dry = AC.createGain(); dry.gain.value = 0.96;
+  const wet = AC.createGain(); wet.gain.value = 0.08;
+  const convolver = AC.createConvolver(); convolver.buffer = makeCabIR(AC, 0.09);
+
+  input.connect(preHP).connect(tilt);
+  tilt.connect(dry).connect(polyGain);
+  tilt.connect(convolver).connect(wet).connect(polyGain);
+
+  return { name:'glassy', input, output:polyGain, cleanup(){ try{ input.disconnect(); }catch{} } };
+}
+async function buildIconicSolo(){
+  const input = AC.createGain();
+  const hp   = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=90; hp.Q.value=0.7;
+  const midQ = AC.createBiquadFilter(); midQ.type='peaking'; midQ.frequency.value=1200; midQ.Q.value=1.0; midQ.gain.value=+3.0;
+  const pres = AC.createBiquadFilter(); pres.type='highshelf'; pres.frequency.value=3500; pres.gain.value=+2.0;
+
+  const drive = AC.createWaveShaper(); drive.curve = makeTanhCurve(1.35, 1024); drive.oversample='4x';
+
+  const postBass  = AC.createBiquadFilter(); postBass.type='lowshelf'; postBass.frequency.value=180; postBass.gain.value=+1.5;
+  const postCut   = AC.createBiquadFilter(); postCut.type='lowpass'; postCut.frequency.value=6300; postCut.Q.value=0.7;
+
+  const cab = AC.createConvolver(); cab.buffer = makeCabIR(AC, 0.035);
+
+  const delay = AC.createDelay(1.0); delay.delayTime.value = 0.34;
+  const feedback = AC.createGain(); feedback.gain.value = 0.18;
+  const delayColor = AC.createBiquadFilter(); delayColor.type='lowpass'; delayColor.frequency.value=4200;
+
+  const room = AC.createConvolver(); room.buffer = makeCabIR(AC, 0.08);
+
+  const dry = AC.createGain(); dry.gain.value = 0.90;
+  const dly = AC.createGain(); dly.gain.value = 0.20;
+  const rvb = AC.createGain(); rvb.gain.value = 0.14;
+
+  input.connect(hp).connect(midQ).connect(pres).connect(drive).connect(postBass).connect(postCut).connect(cab);
+
+  cab.connect(dry).connect(polyGain);
+
+  cab.connect(delay);
+  delay.connect(delayColor).connect(feedback).connect(delay);
+  delay.connect(dly).connect(polyGain);
+
+  cab.connect(room).connect(rvb).connect(polyGain);
+
+  const created=[input,hp,midQ,pres,drive,postBass,postCut,cab,delay,delayColor,feedback,room,dry,dly,rvb];
+  return { name:'iconic-solo', input, output:polyGain, cleanup(){ created.forEach(n=>{ try{ n.disconnect(); }catch{} }); } };
+}
+async function buildCrunch(){
+  const input = AC.createGain();
+  const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=70; hp.Q.value=0.7;
+  const drive = AC.createWaveShaper(); drive.curve = makeTanhCurve(1.05, 1024); drive.oversample='4x';
+  const tilt = AC.createBiquadFilter(); tilt.type='peaking'; tilt.frequency.value=2200; tilt.Q.value=0.8; tilt.gain.value=+1.5;
+
+  const dry = AC.createGain(); dry.gain.value=0.95;
+  const room = AC.createConvolver(); room.buffer = makeCabIR(AC, 0.06);
+  const wet = AC.createGain(); wet.gain.value=0.10;
+
+  input.connect(hp).connect(drive).connect(tilt);
+  tilt.connect(dry).connect(polyGain);
+  tilt.connect(room).connect(wet).connect(polyGain);
+
+  return { name:'crunch', input, output:polyGain, cleanup(){ try{ input.disconnect(); }catch{} } };
+}
+async function buildHighGain(){
+  const input = AC.createGain();
+  const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=100; hp.Q.value=0.8;
+  const preMid = AC.createBiquadFilter(); preMid.type='peaking'; preMid.frequency.value=900; preMid.Q.value=1.0; preMid.gain.value=+2.5;
+  const drive = AC.createWaveShaper(); drive.curve = makeTanhCurve(2.0, 2048); drive.oversample='4x';
+  const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=5200; lp.Q.value=0.7;
+  const room = AC.createConvolver(); room.buffer = makeCabIR(AC, 0.07);
+  const dry = AC.createGain(); dry.gain.value=0.92;
+  const wet = AC.createGain(); wet.gain.value=0.10;
+
+  input.connect(hp).connect(preMid).connect(drive).connect(lp);
+  lp.connect(dry).connect(polyGain);
+  lp.connect(room).connect(wet).connect(polyGain);
+
+  return { name:'high-gain', input, output:polyGain, cleanup(){ try{ input.disconnect(); }catch{} } };
+}
+
+async function setToneGraph(name){
+  if (!AUDIO.started) await ensureAudio();
+  if (TONE.cleanup) { try{ TONE.cleanup(); }catch{} }
+  switch(name){
+    case 'iconic-solo': TONE = await buildIconicSolo(); break;
+    case 'crunch':      TONE = await buildCrunch(); break;
+    case 'high-gain':   TONE = await buildHighGain(); break;
+    case 'glassy':
+    default:            TONE = await buildGlassy();
+  }
+  TONE.name = name;
+  const live = document.getElementById('live');
+  if (live) live.textContent = `Tone: ${name}`;
+}
+
+/* Per-note voice */
+function velocityForMidi(m){
+  const low = Math.min(...OPEN_MIDI_BASE), high = Math.max(...OPEN_MIDI_BASE) + FRETS;
+  const t = Math.max(0, Math.min(1, (m - low) / (high - low)));
+  return 0.72 + (1 - t) * 0.10;
+}
+function makePickNoise(duration=0.012, amt=0.08){
+  const bs = AC.createBufferSource();
+  const n = Math.max(1, Math.floor(AC.sampleRate*duration));
+  const b = AC.createBuffer(1, n, AC.sampleRate);
+  const d = b.getChannelData(0);
+  for(let i=0;i<n;i++){ const t=i/n; d[i] = (Math.random()*2-1) * Math.exp(-t*32) * amt; }
+  bs.buffer = b;
+  const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=2200;
+  const g  = AC.createGain(); g.gain.value = 1.0;
+  bs.connect(hp).connect(g);
+  return { src: bs, out: g };
+}
+function makePluckOsc(freq, vel, decayMs, colorHz=4800){
+  const o1 = AC.createOscillator(); o1.type='sawtooth'; o1.frequency.value = freq*0.998;
+  const o2 = AC.createOscillator(); o2.type='triangle'; o2.frequency.value = freq*1.002;
+  const mix = AC.createGain(); mix.gain.value = 1.0;
+  o1.connect(mix); o2.connect(mix);
+  const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = Math.min(12000, colorHz);
+  const env = AC.createGain(); env.gain.value = 0.0001;
+
+  const now = AC.currentTime;
+  const atk = 0.003;
+  const dec = decayMs/1000;
+  const sus = 0.0007;
+  env.gain.setValueAtTime(0.0001, now);
+  env.gain.linearRampToValueAtTime(Math.max(0.25, vel), now + atk);
+  env.gain.exponentialRampToValueAtTime(Math.max(1e-4, sus), now + atk + dec);
+
+  mix.connect(lp).connect(env);
+
+  return {
+    start(){
+      o1.start(now); o2.start(now);
+      const stopAt = now + atk + dec + 0.10;
+      o1.stop(stopAt); o2.stop(stopAt);
+      return env;
+    },
+    stop(){
+      const t=AC.currentTime;
+      env.gain.cancelScheduledValues(t);
+      env.gain.setTargetAtTime(0.0001, t, 0.05);
+    },
+    out: env
+  };
+}
+function createVoiceForTone(freq, vel){
+  const isSolo = TONE.name === 'iconic-solo';
+  const decayMs = isSolo ? 250 : (TONE.name==='crunch' ? 320 : 380);
+
+  const pluck = makePluckOsc(freq, vel, decayMs, isSolo ? 4200 : 5200);
+  const pick = makePickNoise(0.012, isSolo ? 0.08 : 0.06);
+
+  pluck.out.connect(TONE.input);
+  pick.out.connect(TONE.input);
+
+  const env = pluck.start();
+  const now = AC.currentTime;
+  pick.src.start(now); pick.src.stop(now + 0.03);
+
+  const stop = ()=>{ try{ pluck.stop(); }catch{} };
+  const dispose = ()=>{
+    try{ pluck.out.disconnect(); }catch{}
+    try{ pick.out.disconnect(); }catch{}
+  };
+  return { stop, dispose };
+}
+function playPiano(midi){
+  if(!AUDIO.started || !AC || !polyGain || !TONE.input) return () => {};
+  const f = midiToFreq(midi);
+  const v = createVoiceForTone(f, velocityForMidi(midi));
+
   if (activeVoices.size >= MAX_VOICES){
     const oldest = activeVoices.values().next().value;
-    try{ oldest?.stop(0.08); oldest?.dispose?.(); }catch{}
+    try{ oldest?.stop(0.06); oldest?.dispose?.(); }catch{}
     activeVoices.delete(oldest);
   }
 
   const wrapped = { ...v, born: AC.currentTime };
   activeVoices.add(wrapped);
 
-  // purge later
   setTimeout(()=>{
     if (activeVoices.has(wrapped)) { try{ wrapped.dispose?.(); }catch{} activeVoices.delete(wrapped); }
   }, NOTE_TTL*1000);
 
-  return ()=>{
-    try{ v.stop(0.25); v.dispose?.(); }catch{}
-    activeVoices.delete(wrapped);
-  };
+  return ()=>{ try{ v.stop(0.18); v.dispose?.(); }catch{} activeVoices.delete(wrapped); };
 }
-
 
 /* ========= Interactions ========= */
 function pushMemory(el){
@@ -1032,10 +1073,9 @@ document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
   toggleSelectionForMidi(midi);
   if(ok) playPiano(midi);
 
-  if (histAll.checked) {
-    /* log every visible fret position of this pitch, preserving real string indices */
+  if (histAll?.checked) {
     stage.querySelectorAll(`.cube[data-midi="${midi}"]`).forEach(c => {
-      const i = (+c.dataset.string) - 1;  // string 1..6 → tab row 0..5
+      const i = (+c.dataset.string) - 1;
       const fret = +c.dataset.fret;
       NOTE_LOG.push({ midi, i, fret });
     });
@@ -1044,7 +1084,7 @@ document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
     NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret });
   }
   updateMiniTab();
-  live.textContent = `Piano: ${nameOf(midi)} (glassy)`;
+  live.textContent = `Piano: ${nameOf(midi)} (${TONE.name})`;
   triggerBgPulseAtEvent(e);
 }, { passive: true });
 
@@ -1108,9 +1148,27 @@ stage.addEventListener('keydown', async (e)=>{
   scaleSel.value=STATE.scale;
   handedSel.value=STATE.lefty?'left':'right';
   viewSel.value=(STATE.view==='inverse')?'inverse':'normal';
-  toneSel.value = 'glassy';
 
-  toneSel.addEventListener('change', async ()=>{ if (!AUDIO.started) await ensureAudio(); live.textContent = `Tone: ${toneSel.value}`; });
+  // Ensure tone options include Iconic Solo
+  if (![...toneSel.options].some(o=>o.value==='iconic-solo')){
+    const opt = document.createElement('option'); opt.value='iconic-solo'; opt.textContent='Iconic Solo'; toneSel.appendChild(opt);
+  }
+  if (![...toneSel.options].some(o=>o.value==='glassy')){
+    const opt = document.createElement('option'); opt.value='glassy'; opt.textContent='Glassy'; toneSel.appendChild(opt);
+  }
+  if (![...toneSel.options].some(o=>o.value==='crunch')){
+    const opt = document.createElement('option'); opt.value='crunch'; opt.textContent='Crunch'; toneSel.appendChild(opt);
+  }
+  if (![...toneSel.options].some(o=>o.value==='high-gain')){
+    const opt = document.createElement('option'); opt.value='high-gain'; opt.textContent='High-gain'; toneSel.appendChild(opt);
+  }
+  toneSel.value = STATE.tone;
+
+  toneSel.addEventListener('change', async ()=>{
+    STATE.tone = toneSel.value;
+    await ensureAudio();
+    await setToneGraph(STATE.tone);
+  });
   handedSel.addEventListener('change', ()=>{ STATE.lefty = handedSel.value==='left'; buildAll(); });
   rootSel.addEventListener('change', ()=>{ STATE.root = +rootSel.value; applyScaleHighlight(); });
   scaleSel.addEventListener('change', ()=>{ STATE.scale = scaleSel.value; applyScaleHighlight(); });
@@ -1252,11 +1310,26 @@ addEventListener('resize', resync, { passive: true });
 addEventListener('orientationchange', resync, { passive: true });
 
 /* ========= Init ========= */
-if (document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', async () => { buildAll(); await ensureAudio(); }, { once:true });
-} else {
-  (async ()=>{ buildAll(); await ensureAudio(); })();
-}
+(async function init(){
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', async () => {
+      buildAll();
+      await ensureAudio();
+      // Default to Iconic Solo tone as requested
+      const toneSel = document.getElementById('toneSelect');
+      if (toneSel){ toneSel.value = 'iconic-solo'; }
+      STATE.tone = 'iconic-solo';
+      await setToneGraph('iconic-solo');
+    }, { once:true });
+  } else {
+    buildAll();
+    await ensureAudio();
+    const toneSel = document.getElementById('toneSelect');
+    if (toneSel){ toneSel.value = 'iconic-solo'; }
+    STATE.tone = 'iconic-solo';
+    await setToneGraph('iconic-solo');
+  }
+})();
 
 /* ========= Background hover/pulse engine ========= */
 (function bgIsoPulses(){
@@ -1317,12 +1390,6 @@ if (document.readyState === 'loading'){
     const cx = (p0.x+p1.x+p2.x+p3.x)/4, cy = (p0.y+p1.y+p2.y+p3.y)/4;
     return { pts:[p0,p1,p2,p3], cx, cy };
   }
-  function drawPoly(pts){
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for(let k=1;k<pts.length;k++) ctx.lineTo(pts[k].x);
-    ctx.closePath();
-  }
 
   const pulses=[];
   let lastKey='';
@@ -1364,6 +1431,7 @@ if (document.readyState === 'loading'){
 
       ctx.filter = `blur(${blurPx}px)`;
       ctx.fillStyle = `rgb(${FILL_RGB} / ${fillA})`;
+
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
       for(let k=1;k<pts.length;k++) ctx.lineTo(pts[k].x, pts[k].y);
@@ -1393,6 +1461,7 @@ if (document.readyState === 'loading'){
     pulses.push({I,J,born:performance.now()}); if(!animating) start();
   };
 })();
+
 </script>
 </body>
 </html>
