@@ -11,8 +11,8 @@
     --bottom-h: 32vh;
 
     /* isometric cubes (fretboard only) */
-    --cube-size-base: 36;
-    --iso-cell-base:  40;
+    --cube-size-base: 40;
+    --iso-cell-base:  50;
     --iso-cell:  calc(var(--iso-cell-base) * 1px);
     --cube-size: calc(var(--cube-size-base) * 1px);
 
@@ -21,7 +21,7 @@
 
     /* background grid (roomier) */
     --bg:#000;
-    --grid-gap: 16px; /* was 12px */
+    --grid-gap: 22px; /* was 16px */
     --grid-alpha:.12;
     --grid-thin: rgb(160 190 255 / calc(var(--grid-alpha) * .20));
     --grid-bold: rgb(84 140 255 / calc(var(--grid-alpha) * .36));
@@ -194,7 +194,7 @@
   .controls label{ font:700 12px/1 ui-monospace, Menlo, monospace; color:#e2e9ff; display:flex; align-items:center; gap:6px; text-shadow:0 1px 0 #000; }
   .controls select{ appearance:none; background:#0e1533; color:#e8eeff; border:1px solid rgb(255 255 255 / .16); border-radius:8px; padding:6px 26px 6px 10px; font:700 12px/1 ui-monospace, Menlo, monospace; }
 
-  /* in-scale highlighting (unchanged) */
+  /* in-scale highlighting */
   .cube.in-scale{ --facet-top-fill:#d9fff5; --facet-side-fill:#bff7e8; --facet-dark-fill:#83cdb7; }
   .cube.root{ --facet-top-fill:#ffffff; --facet-side-fill:#d8fff3; --facet-dark-fill:#5ed2af; }
   .white.in-scale, .black.in-scale{ box-shadow: 0 0 0 3px rgb(78 224 181 / .55) inset, 0 0 0 1px rgb(78 224 181 / .45), 0 0 16px 6px rgb(78 224 181 / .20); }
@@ -202,7 +202,7 @@
 
   .fret-num{ font:800 12px/1 ui-monospace, Menlo, Consolas, monospace; fill:#c7d4ff; opacity:.95; user-select:none; pointer-events:none; text-shadow:0 1px 0 #000; }
 
-  /* ===== HUD: compact histogram + controls ===== */
+  /* ===== HUD: mini ASCII tab + controls ===== */
   .hud{
     position:fixed; top:12px; right:12px; z-index:6;
     display:flex; flex-direction:column; gap:8px; align-items:stretch;
@@ -217,22 +217,17 @@
     padding:10px;
     box-shadow: 0 8px 24px rgb(0 0 0 / .35);
   }
-  .hist{
-    display:grid; grid-template-columns: repeat(12, 1fr); align-items:end; gap:6px;
-    height:72px; width:min(34vw, 360px);
-  }
-  .bar{
-    position:relative; height:0;
-    background: linear-gradient(180deg, rgb(95 164 255 / .9), rgb(31 111 255 / .85));
-    border:1px solid rgb(170 200 255 / .5);
-    border-radius:8px 8px 4px 4px;
-    box-shadow: inset 0 -10px 20px rgb(0 0 0 / .25), 0 6px 16px rgb(31 111 255 / .35);
-    transition: height .25s ease;
-  }
-  .bar::after{
-    content: attr(data-label);
-    position:absolute; inset:auto 0 -16px 0;
-    text-align:center; font:700 10px/1 ui-monospace, Menlo, monospace; color:#cfe1ff; opacity:.9;
+
+  .mini-tab{
+    margin:0;
+    white-space:pre;
+    font: 700 9px/1.15 ui-monospace, Menlo, Consolas, monospace;
+    color:#cfe1ff;
+    width:min(38vw, 420px);
+    max-width:420px;
+    overflow:hidden;
+    opacity:.96;
+    user-select:text;
   }
   .hud .meta{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; }
   .hud .btns{ display:flex; gap:6px; }
@@ -249,7 +244,7 @@
   @media (max-width:560px){
     :root{ --iso-cell-base: 52; --cube-size-base: 44; }
     .wlabel{ font-size:11px }
-    .hist{ width: 72vw; }
+    .mini-tab{ width:72vw; font-size:9px; }
   }
 
   @media (prefers-reduced-motion: reduce){
@@ -297,24 +292,24 @@
     <canvas id="isoCanvas" aria-hidden="true"></canvas>
     <svg id="stage" role="group" aria-label="Isometric note cubes" width="100%" height="100%">
       <g id="strings"></g>
-      <g id="labels"></g> <!-- labels layer above cubes -->
+      <g id="labels"></g>
     </svg>
     <div id="stringTags" aria-hidden="true"></div>
   </section>
 
-  <!-- Gutter to resize keyboard height while keeping it affixed to the bottom -->
+  <!-- Gutter to resize keyboard height -->
   <div class="gutter" id="gutterResizer" role="separator" aria-label="Resize keyboard height"></div>
 </div>
 
-<!-- Floating histogram HUD -->
+<!-- Floating HUD: Mini ASCII Tab -->
 <div class="hud" aria-live="polite">
   <div class="card">
-    <div id="hist" class="hist" aria-label="Histogram of logged notes"></div>
+    <pre id="miniTab" class="mini-tab" aria-label="Miniature ASCII guitar tab"></pre>
     <div class="meta">
       <span id="histMeta">Notes: 0</span>
       <div class="btns">
         <button id="histBack" title="Undo last (Backspace)" type="button">Backspace</button>
-        <button id="histCopy" title="Copy note log + counts" type="button">Copy</button>
+        <button id="histCopy" title="Copy mini-tab + stats" type="button">Copy</button>
         <button id="histClear" title="Clear log" type="button">Clear</button>
       </div>
     </div>
@@ -352,7 +347,7 @@ function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 function px(n){ return `${Math.round(n)}px`; }
 const live = document.getElementById('live');
 
-/* ========= Gutter resizes KEYBOARD height (bottom-fixed) ========= */
+/* ========= Gutter resizes KEYBOARD height ========= */
 (function gutter(){
   const gut = document.getElementById('gutterResizer');
   let dragging=false, startY=0, startBottomPx=0;
@@ -400,11 +395,14 @@ const OPEN_MIDI_BASE = [40,45,50,55,59,64]; // E2 A2 D3 G3 B3 E4
 const STRING_NAMES_BASE = ['E2','A2','D3','G3','B3','E4'];
 const FRETS = 22;
 
-/* ========= Note log (for histogram only) ========= */
-const NOTE_LOG = [];
+/* ========= TAB mapping (mini ascii) ========= */
+const TAB_OPEN = [64,59,55,50,45,40];  // high e4 → low E2 (top→bottom)
+const TAB_LABELS = ['e','B','G','D','A','E'];
+const MAX_TAB_COLS = 72;
+const NOTE_LOG = []; // entries: { midi, i (0..5), fret }
 
 /* ========= Fretboard geometry (30° iso) ========= */
-const cos30=Math.sqrt(3)/2; // ~0.8660254
+const cos30=Math.sqrt(3)/2;
 const sin30=0.5;
 
 function readCell(){ return num(css().getPropertyValue('--iso-cell'), 44); }
@@ -418,7 +416,7 @@ function basis(){
 }
 let B = basis();
 function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
-function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
+function invXY(x,y){ return { I: B.inv.a*x + B.inv.b*y, J: B.inv.c*x + B.inv.d*y }; }
 
 const stringsG = document.getElementById('strings');
 const labelsG  = document.getElementById('labels');
@@ -427,7 +425,6 @@ const tagsWrap = document.getElementById('stringTags');
 const FRET_MARKS = {1:1,3:1,5:1,7:1,9:1,12:1,15:1,17:1,19:1,21:1};
 function fretPositions(){ const pos=[0]; for(let f=1; f<=FRETS; f++) pos.push(1 - Math.pow(2, -f/12)); return pos; }
 
-/* depth blur: 0 (top/far) → 5 (bottom/near) always */
 function blurForVisualRow(visualRow){
   const t = visualRow/5;
   const far = 2.2, near = 0.6;
@@ -443,7 +440,7 @@ function sizeForMidi(m){
 function unit(v){ const l=Math.hypot(v.x,v.y)||1; return {x:v.x/l, y:v.y/l}; }
 function pToStr(p){ return `${Math.round(p.x)},${Math.round(p.y)}`; }
 
-/* ======= Build Fretboard (CONSISTENT centering) ======= */
+/* ========= Build Fretboard (identical centering for normal/inverse) ========= */
 function buildFretboard(){
   stringsG.innerHTML=''; labelsG.innerHTML=''; tagsWrap.innerHTML='';
   B=basis();
@@ -466,22 +463,23 @@ function buildFretboard(){
     stringsG.innerHTML=''; labelsG.innerHTML='';
 
     const totalRows = 6;
-    const centerY = Math.max((availableTop) * 0.52, SAFE_TOP_PAD + 40);
-    const center = snap(innerWidth/2, centerY);
-    const spanI = FRETS;
 
+    /* exact float center in lattice coords (no snap → consistent across views) */
+    const centerPx = { x: innerWidth / 2, y: Math.max((availableTop) * 0.52, SAFE_TOP_PAD + 40) };
+    const centerIJ = invXY(centerPx.x, centerPx.y);
+
+    const spanI = FRETS;
     const useInverse = (STATE.view === 'inverse');
 
-    /* Handedness affects string order. Inverse flips along frets only. */
     const opens     = (STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice());
     const openNames = (STATE.lefty ? STRING_NAMES_BASE.slice().reverse() : STRING_NAMES_BASE.slice());
 
-    /* --- Consistent centering via anchor fret (12th) --- */
     const ANCHOR_FRET = 12;
-    const posAnchor = pos[ANCHOR_FRET];               // 0..1
+    const posAnchor = pos[ANCHOR_FRET];
     const posAnchorView = useInverse ? (1 - posAnchor) : posAnchor;
-    const startI = center.I - posAnchorView * spanI;   // ensures 12th = center.x
-    const startJ = center.J - Math.floor(totalRows/2);
+
+    const startI = centerIJ.I - posAnchorView * spanI;           // keep 12th fret centered
+    const startJ = centerIJ.J - (totalRows/2);                    // float, consistent spacing
 
     const oldNums = stage.querySelector('#fretNums'); if(oldNums) oldNums.remove();
     const numLayer = document.createElementNS('http://www.w3.org/2000/svg','g');
@@ -492,7 +490,6 @@ function buildFretboard(){
 
     const e1 = unit(B.v1), e2 = unit(B.v2);
 
-    /* Draw in visual depth: top (0) -> bottom (5) */
     for(let visualRow=0; visualRow<totalRows; visualRow++){
       const s = visualRow;
       const stringNumber = STATE.lefty ? (1 + s) : (6 - s);
@@ -561,9 +558,9 @@ function buildFretboard(){
       }
     }
 
-    /* string tags */
+    /* string tags: align to float J rows derived from centerIJ */
     for(let visualRow2=0; visualRow2<6; visualRow2++){
-      const J2 = (snap(innerWidth/2, centerY).J - Math.floor(6/2)) + visualRow2;
+      const J2 = (centerIJ.J - (6/2)) + visualRow2;
       const p2 = toXY(startI-2, J2);
       const tag = document.createElement('div'); tag.className='string-tag';
 
@@ -574,7 +571,7 @@ function buildFretboard(){
       tagsWrap.appendChild(tag);
     }
 
-    /* fret numerals */
+    /* fret numerals (respect inverse, still centered on 12th) */
     for(let fn=1; fn<=FRETS; fn++){
       if(!FRET_MARKS[fn]) continue;
       const posFN = pos[fn];
@@ -588,10 +585,10 @@ function buildFretboard(){
     }
   }
 
-  /* initial scale 1 pass */
+  /* initial pass */
   place(1);
 
-  /* fit pass */
+  /* fit pass based on geometry */
   const polys=stage.querySelectorAll('polygon');
   if(!polys.length) return;
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -772,7 +769,8 @@ function buildOpensRow(){
       if (key){ key.classList.add('playing'); setTimeout(()=>key.classList.remove('playing'), 180); flashActiveKey(key, 600); }
       toggleSelectionForMidi(midi);
       if (ok) playPiano(midi);
-      NOTE_LOG.push(midi); updateHistogram();
+      const pos = chooseTabPosition(midi);
+      NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
       live.textContent = `Open string: ${labelSet[idx]} (${nameOf(midi)})`;
       triggerBgPulseAtEvent(e);
     }, { passive:true });
@@ -780,7 +778,7 @@ function buildOpensRow(){
   });
 }
 
-/* ========= Inverted hover logic (keys) ========= */
+/* ========= Hover invert ========= */
 let currentHoverMidi = null;
 function beginHoverInvert(midi){
   if (currentHoverMidi === midi) return;
@@ -794,15 +792,13 @@ function endHoverInvert(){
   stage.querySelectorAll('.cube.dim').forEach(c => c.classList.remove('dim'));
 }
 
-/* ========= Selection (solid yellow) ========= */
+/* ========= Selection (yellow) ========= */
 function toggleSelectionForMidi(midi){
   const targets = stage.querySelectorAll(`.cube[data-midi="${midi}"]`);
   const allSelected = Array.from(targets).every(c => c.classList.contains('selected'));
   targets.forEach(c => c.classList.toggle('selected', !allSelected));
 }
-function toggleSelectionForCube(cube){
-  cube.classList.toggle('selected');
-}
+function toggleSelectionForCube(cube){ cube.classList.toggle('selected'); }
 
 /* ========= Active effects ========= */
 function flashActiveKey(keyEl, ms=600){ keyEl.classList.add('active'); setTimeout(()=> keyEl.classList.remove('active'), ms); }
@@ -918,7 +914,7 @@ function pushMemory(el){
   STATE.recentKeys.forEach((k,i)=> k.classList.add('mem'+i));
 }
 
-/* key click -> toggle yellow on all matching cubes; also start audio/log */
+/* Piano key interaction */
 document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
   const btn = e.target.closest('.white,.black'); if(!btn) return;
   const ok = await ensureAudio();
@@ -928,23 +924,21 @@ document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
   pushMemory(btn);
   toggleSelectionForMidi(midi);
   if(ok) playPiano(midi);
-  NOTE_LOG.push(midi); updateHistogram();
+  const pos = chooseTabPosition(midi);
+  NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
   live.textContent = `Piano: ${nameOf(midi)} (glassy)`;
   triggerBgPulseAtEvent(e);
 }, { passive: true });
 
-/* inverted hover on keys */
 document.getElementById('keyboard').addEventListener('pointermove', (e)=>{
   const btn = e.target.closest('.white,.black');
   if(!btn){ return; }
   const midi = +btn.dataset.midi;
   beginHoverInvert(midi);
 }, { passive:true });
-document.getElementById('keyboard').addEventListener('pointerleave', ()=>{
-  endHoverInvert();
-}, { passive:true });
+document.getElementById('keyboard').addEventListener('pointerleave', ()=> endHoverInvert(), { passive:true });
 
-/* cube click -> toggle yellow for that cube only */
+/* Fret cube interaction */
 stage.addEventListener('pointerdown', async (e)=>{
   const cube = e.target.closest('.cube'); if(!cube) return;
   const ok = await ensureAudio();
@@ -953,7 +947,11 @@ stage.addEventListener('pointerdown', async (e)=>{
   if(key){ key.classList.add('playing'); pushMemory(key); setTimeout(()=>key.classList.remove('playing'), 180); }
   toggleSelectionForCube(cube);
   if(ok) playPiano(midi);
-  NOTE_LOG.push(midi); updateHistogram();
+
+  const fret = +cube.dataset.fret;
+  const pos = chooseTabPositionGivenFret(midi, fret);
+  NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
+
   triggerBgPulseAtEvent(e);
   live.textContent = `Fretboard: ${cube.dataset.name} (string ${cube.dataset.string}, fret ${cube.dataset.fret})`;
 }, { passive: true });
@@ -968,7 +966,11 @@ stage.addEventListener('keydown', async (e)=>{
   if(key){ key.classList.add('playing'); pushMemory(key); setTimeout(()=>key.classList.remove('playing'), 180); }
   toggleSelectionForCube(cube);
   if(ok) playPiano(midi);
-  NOTE_LOG.push(midi); updateHistogram();
+
+  const fret = +cube.dataset.fret;
+  const pos = chooseTabPositionGivenFret(midi, fret);
+  NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
+
   triggerBgPulseAtElement(cube);
 });
 
@@ -997,34 +999,72 @@ stage.addEventListener('keydown', async (e)=>{
   viewSel.addEventListener('change', ()=>{ STATE.view = (viewSel.value==='inverse') ? 'inverse' : 'normal'; buildFretboard(); });
 })();
 
-/* ========= Histogram ========= */
-const histEl = document.getElementById('hist');
+/* ========= Mini ASCII Tab ========= */
+const miniTabEl = document.getElementById('miniTab');
 const histMeta = document.getElementById('histMeta');
 
-(function buildHistBars(){
-  const frag = document.createDocumentFragment();
-  for (let i=0;i<12;i++){
-    const d=document.createElement('div');
-    d.className='bar'; d.dataset.pc=String(i); d.dataset.label=pcs[i];
-    frag.appendChild(d);
+function chooseTabPosition(midi){
+  let best = null;
+  for(let i=0;i<6;i++){
+    const fret = midi - TAB_OPEN[i];
+    if (fret>=0 && fret<=FRETS){
+      if(!best || fret < best.fret || (fret===best.fret && i<best.i)){
+        best = { i, fret };
+      }
+    }
   }
-  histEl.appendChild(frag);
-})();
-
-function updateHistogram(){
-  const counts = Array(12).fill(0);
-  NOTE_LOG.forEach(m => counts[pcOf(m)]++);
-  const max = Math.max(1, ...counts);
-  histMeta.textContent = `Notes: ${NOTE_LOG.length}`;
-  histEl.querySelectorAll('.bar').forEach(b=>{
-    const pc = +b.dataset.pc; const c = counts[pc];
-    const h = Math.round((c / max) * 100);
-    b.style.height = (c ? Math.max(6, h) : 0) + '%';
-    b.title = `${pcs[pc]}: ${c}`;
-  });
+  if(!best){
+    let minErr=1e9, bestI=0, bestF=0;
+    for(let i=0;i<6;i++){
+      const fret = midi - TAB_OPEN[i];
+      const err = Math.abs(fret<0 ? -fret : fret-FRETS*(fret>FRETS));
+      if (err<minErr){ minErr=err; bestI=i; bestF=Math.max(0, Math.min(FRETS, fret)); }
+    }
+    best = { i:bestI, fret:bestF };
+  }
+  return best;
+}
+function chooseTabPositionGivenFret(midi, fret){
+  for(let i=0;i<6;i++){
+    if (TAB_OPEN[i] + (+fret) === +midi) return { i, fret:+fret };
+  }
+  return chooseTabPosition(midi);
 }
 
-/* ==== Histogram controls: Backspace / Copy / Clear ==== */
+function renderMiniTabText(){
+  const cols = Math.min(MAX_TAB_COLS, NOTE_LOG.length);
+  const start = Math.max(0, NOTE_LOG.length - cols);
+  const lines = TAB_LABELS.map(lbl => `${lbl}|`);
+  for(let c=start; c<start+cols; c++){
+    for(let s=0;s<6;s++) lines[s] += '--';
+  }
+  for(let idx=0; idx<cols; idx++){
+    const ev = NOTE_LOG[start + idx];
+    const s  = ev.i;
+    const f  = Math.max(0, Math.min(99, Math.round(ev.fret)));
+    const fs = f.toString().padStart(2,' ').slice(-2);
+    const prefix = lines[s].slice(0, 2 + idx*2);
+    const suffix = lines[s].slice(2 + idx*2 + 2);
+    lines[s] = prefix + fs + suffix;
+  }
+  for(let idx=0; idx<cols; idx++){
+    if (idx>0 && idx%4===0){
+      for(let s=0;s<6;s++){
+        const pos = 2 + idx*2;
+        lines[s] = lines[s].slice(0,pos) + '|' + lines[s].slice(pos+1);
+      }
+    }
+  }
+  for(let s=0;s<6;s++) lines[s] += '|';
+  return lines.join('\n');
+}
+
+function updateMiniTab(){
+  miniTabEl.textContent = renderMiniTabText();
+  histMeta.textContent = `Notes: ${NOTE_LOG.length}`;
+}
+
+/* HUD controls */
 const btnBack = document.getElementById('histBack');
 const btnCopy = document.getElementById('histCopy');
 const btnClear= document.getElementById('histClear');
@@ -1032,23 +1072,24 @@ const btnClear= document.getElementById('histClear');
 function popLastNote(){
   if (!NOTE_LOG.length) return;
   const last = NOTE_LOG.pop();
-  updateHistogram();
-  live.textContent = `Removed last note: ${nameOf(last)} (Backspace)`;
+  updateMiniTab();
+  live.textContent = `Removed last note: ${nameOf(last.midi)} (Backspace)`;
 }
 function clearLog(){
   NOTE_LOG.length = 0;
-  updateHistogram();
+  updateMiniTab();
   live.textContent = 'Cleared note log';
 }
 function copyLog(){
-  const seq = NOTE_LOG.map(m => nameOf(m)).join(', ');
+  const tab = renderMiniTabText();
+  const seq = NOTE_LOG.map(e => nameOf(e.midi)).join(', ');
   const counts = Array(12).fill(0);
-  NOTE_LOG.forEach(m => counts[pcOf(m)]++);
+  NOTE_LOG.forEach(e => counts[pcOf(e.midi)]++);
   const countLines = counts.map((c,i)=> `${pcs[i]}: ${c}`).join('\n');
-  const text = `Notes (${NOTE_LOG.length}): ${seq}\n\nCounts by pitch class:\n${countLines}\n`;
+  const text = `${tab}\n\nNotes (${NOTE_LOG.length}): ${seq}\n\nCounts by pitch class:\n${countLines}\n`;
   if (navigator.clipboard && window.isSecureContext){
     navigator.clipboard.writeText(text).then(()=>{
-      live.textContent = 'Copied note log + counts to clipboard';
+      live.textContent = 'Copied mini-tab + stats to clipboard';
     }).catch(()=> fallbackCopy(text));
   } else {
     fallbackCopy(text);
@@ -1058,7 +1099,7 @@ function fallbackCopy(text){
   const ta=document.createElement('textarea');
   ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px';
   document.body.appendChild(ta); ta.select();
-  try{ document.execCommand('copy'); live.textContent = 'Copied note log + counts to clipboard'; }
+  try{ document.execCommand('copy'); live.textContent = 'Copied mini-tab + stats to clipboard'; }
   catch(e){ live.textContent = 'Copy failed'; }
   finally{ ta.remove(); }
 }
@@ -1067,12 +1108,11 @@ btnBack.addEventListener('click', popLastNote);
 btnClear.addEventListener('click', clearLog);
 btnCopy.addEventListener('click', copyLog);
 
-/* Backspace keyboard shortcut (don’t interfere with typing) */
 document.addEventListener('keydown', (e)=>{
   if (e.key !== 'Backspace') return;
   const tag = (document.activeElement && document.activeElement.tagName) || '';
   const editable = document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/i.test(tag));
-  if (editable) return;  // let user edit normally
+  if (editable) return;
   e.preventDefault();
   popLastNote();
 });
@@ -1083,7 +1123,7 @@ function buildAll(){
   buildKeyboard();
   buildFretboard();
   applyScaleHighlight();
-  updateHistogram();
+  updateMiniTab();
 }
 
 /* ========= Resize hooks ========= */
@@ -1112,7 +1152,7 @@ if (document.readyState === 'loading'){
   function fnum(v, fb){ const n = parseFloat(v); return Number.isFinite(n)?n:fb; }
   function toPx(v){ const m=String(v).trim().match(/^([0-9.]+)\s*px$/i); return m?+m[1]:0; }
 
-  const COS = Math.sqrt(3)/2, SIN = 0.5; /* 30° for the BG pulses */
+  const COS = Math.sqrt(3)/2, SIN = 0.5;
   let CELL = 40, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:0,b:0,c:0,d:0};
   let FILL_RGB='255 255 255', FILL_A=.25, STROKE_A=.55, FADE_MS=900, BLUR_MIN='0px', BLUR_MAX='12px', BLUR_CURVE=1.35;
   let view = { w: innerWidth, h: innerHeight, cx: innerWidth/2, cy: innerHeight/2, R: Math.hypot(innerWidth, innerHeight)/2 };
