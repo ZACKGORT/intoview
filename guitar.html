@@ -7,7 +7,6 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <style>
   :root{
-    /* keyboard height (bottom; user-resizable) */
     --bottom-h: 32vh;
 
     /* isometric cubes (fretboard only) */
@@ -21,7 +20,7 @@
 
     /* background grid (roomier) */
     --bg:#000;
-    --grid-gap: 22px; /* was 16px */
+    --grid-gap: 22px;
     --grid-alpha:.12;
     --grid-thin: rgb(160 190 255 / calc(var(--grid-alpha) * .20));
     --grid-bold: rgb(84 140 255 / calc(var(--grid-alpha) * .36));
@@ -110,19 +109,16 @@
   .cube .facet-side { fill: var(--facet-side-fill); }
   .cube .facet-dark { fill: var(--facet-dark-fill); }
 
-  /* inverted hover: non-matching cubes are dimmed */
   .cube.dim{
     --facet-top-fill:#2b2b2b; --facet-side-fill:#1e1e1e; --facet-dark-fill:#000000;
     filter: blur(var(--depth-blur, 0px)) brightness(0.95);
   }
 
-  /* click selection: solid yellow block */
   .cube.selected{
     --facet-top-fill:#ffd84a; --facet-side-fill:#e6bf00; --facet-dark-fill:#b38f00;
     filter: drop-shadow(0 0 14px rgb(255 216 74 / .35));
   }
 
-  /* subtle feedback */
   .cube.active{ filter: blur(var(--depth-blur, 0px)) drop-shadow(0 0 14px rgb(0 0 0 / .60)); }
 
   .note{
@@ -241,6 +237,8 @@
   .hud button:hover{ filter:brightness(1.06) }
   .hud button:active{ transform:translateY(1px) }
 
+  .hud .chk{ display:flex; align-items:center; gap:6px; margin-bottom:6px; font:700 11px/1 ui-monospace, Menlo, monospace; color:#cfe1ff; opacity:.9; }
+
   @media (max-width:560px){
     :root{ --iso-cell-base: 52; --cube-size-base: 44; }
     .wlabel{ font-size:11px }
@@ -282,7 +280,7 @@
       <select id="toneSelect" aria-label="Tone">
         <option value="crunch">Crunch</option>
         <option value="high-gain">High-gain</option>
-        <option value="glassy">Glassy</option>
+        <option value="glassy" selected>Glassy</option>
       </select>
     </label>
   </div>
@@ -291,8 +289,11 @@
   <section class="fretboard-wrap" aria-label="Isometric guitar fretboard">
     <canvas id="isoCanvas" aria-hidden="true"></canvas>
     <svg id="stage" role="group" aria-label="Isometric note cubes" width="100%" height="100%">
-      <g id="strings"></g>
-      <g id="labels"></g>
+      <g id="board">
+        <g id="strings"></g>
+        <g id="labels"></g>
+        <g id="fretNums"></g>
+      </g>
     </svg>
     <div id="stringTags" aria-hidden="true"></div>
   </section>
@@ -305,6 +306,7 @@
 <div class="hud" aria-live="polite">
   <div class="card">
     <pre id="miniTab" class="mini-tab" aria-label="Miniature ASCII guitar tab"></pre>
+    <label class="chk"><input type="checkbox" id="histAll"> Log all fret positions per note</label>
     <div class="meta">
       <span id="histMeta">Notes: 0</span>
       <div class="btns">
@@ -376,8 +378,7 @@ const live = document.getElementById('live');
     const dy = startY - y; // dragging up increases keyboard height
     const next = clamp(startBottomPx + dy, minBottomPx(), maxBottomPx());
     document.documentElement.style.setProperty('--bottom-h', px(next));
-    buildFretboard();
-    layoutKeyboard();
+    buildFretboard(); layoutKeyboard();
   }
   function onUp(){
     dragging=false; document.body.style.userSelect='';
@@ -420,13 +421,15 @@ function invXY(x,y){ return { I: B.inv.a*x + B.inv.b*y, J: B.inv.c*x + B.inv.d*y
 
 const stringsG = document.getElementById('strings');
 const labelsG  = document.getElementById('labels');
+const fretNumsG= document.getElementById('fretNums');
+const boardG   = document.getElementById('board');
 const tagsWrap = document.getElementById('stringTags');
 
 const FRET_MARKS = {1:1,3:1,5:1,7:1,9:1,12:1,15:1,17:1,19:1,21:1};
 function fretPositions(){ const pos=[0]; for(let f=1; f<=FRETS; f++) pos.push(1 - Math.pow(2, -f/12)); return pos; }
 
 function blurForVisualRow(visualRow){
-  const t = visualRow/5;
+  const t = visualRow/5; // near = bottom rows
   const far = 2.2, near = 0.6;
   const px = far - (far - near) * t;
   return px.toFixed(2) + 'px';
@@ -440,9 +443,10 @@ function sizeForMidi(m){
 function unit(v){ const l=Math.hypot(v.x,v.y)||1; return {x:v.x/l, y:v.y/l}; }
 function pToStr(p){ return `${Math.round(p.x)},${Math.round(p.y)}`; }
 
-/* ========= Build Fretboard (identical centering for normal/inverse) ========= */
+/* ========= Build Fretboard (two-pass scale + center-align by bbox) ========= */
 function buildFretboard(){
-  stringsG.innerHTML=''; labelsG.innerHTML=''; tagsWrap.innerHTML='';
+  stringsG.innerHTML=''; labelsG.innerHTML=''; fretNumsG.innerHTML=''; tagsWrap.innerHTML='';
+  boardG.removeAttribute('transform');
   B=basis();
 
   const vh = innerHeight;
@@ -456,34 +460,30 @@ function buildFretboard(){
 
   const pos = fretPositions();
 
+  /* the same target center point for both views */
+  const targetCenterPx = { x: innerWidth / 2, y: Math.max((availableTop) * 0.52, SAFE_TOP_PAD + 40) };
+
   function place(scale){
     document.documentElement.style.setProperty('--iso-cell',  (num(css().getPropertyValue('--iso-cell-base'), 44)*scale)+'px');
     document.documentElement.style.setProperty('--cube-size', (num(css().getPropertyValue('--cube-size-base'),56)*scale)+'px');
     B=basis();
-    stringsG.innerHTML=''; labelsG.innerHTML='';
+    stringsG.innerHTML=''; labelsG.innerHTML=''; fretNumsG.innerHTML='';
 
     const totalRows = 6;
-
-    /* exact float center in lattice coords (no snap → consistent across views) */
-    const centerPx = { x: innerWidth / 2, y: Math.max((availableTop) * 0.52, SAFE_TOP_PAD + 40) };
-    const centerIJ = invXY(centerPx.x, centerPx.y);
-
+    const centerIJ = invXY(targetCenterPx.x, targetCenterPx.y);
     const spanI = FRETS;
     const useInverse = (STATE.view === 'inverse');
 
     const opens     = (STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice());
     const openNames = (STATE.lefty ? STRING_NAMES_BASE.slice().reverse() : STRING_NAMES_BASE.slice());
 
+    /* start indices so that 12th fret is roughly central; final exact centering happens later */
     const ANCHOR_FRET = 12;
     const posAnchor = pos[ANCHOR_FRET];
     const posAnchorView = useInverse ? (1 - posAnchor) : posAnchor;
 
-    const startI = centerIJ.I - posAnchorView * spanI;           // keep 12th fret centered
-    const startJ = centerIJ.J - (totalRows/2);                    // float, consistent spacing
-
-    const oldNums = stage.querySelector('#fretNums'); if(oldNums) oldNums.remove();
-    const numLayer = document.createElementNS('http://www.w3.org/2000/svg','g');
-    numLayer.setAttribute('id','fretNums'); stage.appendChild(numLayer);
+    const startI = centerIJ.I - posAnchorView * spanI;
+    const startJ = centerIJ.J - (totalRows/2);
 
     const baseW=num(css().getPropertyValue('--cube-size'), 36);
     const baseH=baseW*(96/86);
@@ -558,20 +558,18 @@ function buildFretboard(){
       }
     }
 
-    /* string tags: align to float J rows derived from centerIJ */
+    /* string tags aligned to float rows derived from centerIJ */
     for(let visualRow2=0; visualRow2<6; visualRow2++){
       const J2 = (centerIJ.J - (6/2)) + visualRow2;
       const p2 = toXY(startI-2, J2);
       const tag = document.createElement('div'); tag.className='string-tag';
-
       const labelIndex = STATE.lefty ? (1 + visualRow2) : (6 - visualRow2);
-
       tag.style.top = (p2.y-6) + 'px';
-      tag.textContent = 'String ' + labelIndex + ' — ' + openNames[visualRow2];
+      tag.textContent = 'String ' + labelIndex + ' — ' + (STATE.lefty ? STRING_NAMES_BASE[visualRow2] : STRING_NAMES_BASE.slice().reverse()[visualRow2]);
       tagsWrap.appendChild(tag);
     }
 
-    /* fret numerals (respect inverse, still centered on 12th) */
+    /* fret numerals (respect inverse) */
     for(let fn=1; fn<=FRETS; fn++){
       if(!FRET_MARKS[fn]) continue;
       const posFN = pos[fn];
@@ -581,52 +579,48 @@ function buildFretboard(){
       const t = document.createElementNS('http://www.w3.org/2000/svg','text');
       t.setAttribute('class','fret-num'); t.setAttribute('x', tp.x); t.setAttribute('y', tp.y);
       t.setAttribute('text-anchor','middle'); t.textContent = String(fn);
-      numLayer.appendChild(t);
+      fretNumsG.appendChild(t);
     }
   }
 
-  /* initial pass */
+  /* ---- first pass at base scale = 1 to measure ---- */
   place(1);
 
-  /* fit pass based on geometry */
-  const polys=stage.querySelectorAll('polygon');
-  if(!polys.length) return;
+  /* compute a scale that fits inside the safe region */
+  const polys1=stage.querySelectorAll('polygon');
+  if(!polys1.length) return;
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  polys.forEach(u=>{
-    const bb = u.getBBox();
-    minX=Math.min(minX,bb.x); minY=Math.min(minY,bb.y);
-    maxX=Math.max(maxX,bb.x+bb.width); maxY=Math.max(maxY,bb.y+bb.height);
-  });
-
+  polys1.forEach(u=>{ const bb=u.getBBox(); minX=Math.min(minX,bb.x); minY=Math.min(minY,bb.y); maxX=Math.max(maxX,bb.x+bb.width); maxY=Math.max(maxY,bb.y+bb.height); });
   const pad = Math.max(16, Math.min(48, Math.round(Math.min(innerWidth, availableTop)*0.04)));
   const needW = innerWidth - pad*2;
   const needH = availableTop - 12 - pad*2;
   const bboxW = maxX-minX, bboxH = maxY-minY;
   const scale = Math.min(1, needW/bboxW, needH/bboxH);
 
+  /* ---- second pass with final scale ---- */
   place(scale);
 
-  /* keep under controls */
-  (function clampTop() {
-    const any = stage.querySelector('polygon');
-    if (!any) return;
-    let minY = Infinity;
-    stage.querySelectorAll('polygon').forEach(u => { const b=u.getBBox(); minY = Math.min(minY, b.y); });
-    const SAFE_TOP_PAD2 = Math.max(16, (document.querySelector('.controls')?.getBoundingClientRect().bottom ?? 0) + 12);
-    if (minY < SAFE_TOP_PAD2) {
-      const dy = Math.ceil(SAFE_TOP_PAD2 - minY);
-      const nums = stage.querySelector('#fretNums');
-      stringsG.setAttribute('transform', `translate(0, ${dy})`);
-      if (nums) nums.setAttribute('transform', `translate(0, ${dy})`);
-      tagsWrap.querySelectorAll('.string-tag').forEach(t => {
-        const cur = parseFloat(t.style.top || '0');
-        t.style.top = (cur + dy) + 'px';
-      });
-    } else {
-      stringsG.removeAttribute('transform');
-      const nums = stage.querySelector('#fretNums'); if (nums) nums.removeAttribute('transform');
-    }
-  })();
+  /* ---- final exact centering by bbox so Normal/Inverse coincide ---- */
+  const polys2=stage.querySelectorAll('polygon');
+  if(!polys2.length) return;
+  minX=Infinity;minY=Infinity;maxX=-Infinity;maxY=-Infinity;
+  polys2.forEach(u=>{ const bb=u.getBBox(); minX=Math.min(minX,bb.x); minY=Math.min(minY,bb.y); maxX=Math.max(maxX,bb.x+bb.width); maxY=Math.max(maxY,bb.y+bb.height); });
+  const centerX = (minX+maxX)/2, centerY=(minY+maxY)/2;
+
+  let dx = targetCenterPx.x - centerX;
+  let dy = targetCenterPx.y - centerY;
+
+  /* enforce top safety (don’t overlap the control bar) */
+  const SAFE_TOP_PAD2 = Math.max(16, (document.querySelector('.controls')?.getBoundingClientRect().bottom ?? 0) + 12);
+  if (minY + dy < SAFE_TOP_PAD2) dy += (SAFE_TOP_PAD2 - (minY + dy));
+
+  boardG.setAttribute('transform', `translate(${Math.round(dx)}, ${Math.round(dy)})`);
+
+  /* keep DOM string tags aligned vertically with the board translation */
+  tagsWrap.querySelectorAll('.string-tag').forEach(t => {
+    const cur = parseFloat(t.style.top || '0');
+    t.style.top = (cur + dy) + 'px';
+  });
 }
 
 /* ========= Scale highlighting ========= */
@@ -769,6 +763,7 @@ function buildOpensRow(){
       if (key){ key.classList.add('playing'); setTimeout(()=>key.classList.remove('playing'), 180); flashActiveKey(key, 600); }
       toggleSelectionForMidi(midi);
       if (ok) playPiano(midi);
+
       const pos = chooseTabPosition(midi);
       NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
       live.textContent = `Open string: ${labelSet[idx]} (${nameOf(midi)})`;
@@ -915,6 +910,8 @@ function pushMemory(el){
 }
 
 /* Piano key interaction */
+const histAll = document.getElementById('histAll');
+
 document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
   const btn = e.target.closest('.white,.black'); if(!btn) return;
   const ok = await ensureAudio();
@@ -924,8 +921,19 @@ document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
   pushMemory(btn);
   toggleSelectionForMidi(midi);
   if(ok) playPiano(midi);
-  const pos = chooseTabPosition(midi);
-  NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
+
+  if (histAll.checked) {
+    /* log every visible fret position of this pitch, preserving real string indices */
+    stage.querySelectorAll(`.cube[data-midi="${midi}"]`).forEach(c => {
+      const i = (+c.dataset.string) - 1;  // string 1..6 → tab row 0..5
+      const fret = +c.dataset.fret;
+      NOTE_LOG.push({ midi, i, fret });
+    });
+  } else {
+    const pos = chooseTabPosition(midi);
+    NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret });
+  }
+  updateMiniTab();
   live.textContent = `Piano: ${nameOf(midi)} (glassy)`;
   triggerBgPulseAtEvent(e);
 }, { passive: true });
@@ -1043,9 +1051,8 @@ function renderMiniTabText(){
     const s  = ev.i;
     const f  = Math.max(0, Math.min(99, Math.round(ev.fret)));
     const fs = f.toString().padStart(2,' ').slice(-2);
-    const prefix = lines[s].slice(0, 2 + idx*2);
-    const suffix = lines[s].slice(2 + idx*2 + 2);
-    lines[s] = prefix + fs + suffix;
+    const pos = 2 + idx*2;
+    lines[s] = lines[s].slice(0, pos) + fs + lines[s].slice(pos+2);
   }
   for(let idx=0; idx<cols; idx++){
     if (idx>0 && idx%4===0){
@@ -1088,9 +1095,8 @@ function copyLog(){
   const countLines = counts.map((c,i)=> `${pcs[i]}: ${c}`).join('\n');
   const text = `${tab}\n\nNotes (${NOTE_LOG.length}): ${seq}\n\nCounts by pitch class:\n${countLines}\n`;
   if (navigator.clipboard && window.isSecureContext){
-    navigator.clipboard.writeText(text).then(()=>{
-      live.textContent = 'Copied mini-tab + stats to clipboard';
-    }).catch(()=> fallbackCopy(text));
+    navigator.clipboard.writeText(text).then(()=>{ live.textContent = 'Copied mini-tab + stats to clipboard'; })
+      .catch(()=> fallbackCopy(text));
   } else {
     fallbackCopy(text);
   }
@@ -1204,7 +1210,7 @@ if (document.readyState === 'loading'){
   function drawPoly(pts){
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
-    for(let k=1;k<pts.length;k++) ctx.lineTo(pts[k].x, pts[k].y);
+    for(let k=1;k<pts.length;k++) ctx.lineTo(pts[k].x);
     ctx.closePath();
   }
 
@@ -1248,7 +1254,11 @@ if (document.readyState === 'loading'){
 
       ctx.filter = `blur(${blurPx}px)`;
       ctx.fillStyle = `rgb(${FILL_RGB} / ${fillA})`;
-      drawPoly(pts); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for(let k=1;k<pts.length;k++) ctx.lineTo(pts[k].x, pts[k].y);
+      ctx.closePath();
+      ctx.fill();
 
       ctx.lineWidth = 1;
       ctx.strokeStyle = `rgb(${FILL_RGB} / ${strokeA})`;
