@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Guitar ↔ Piano Mapper — intoview.pro</title>
+viewport-fit=cover"/>
+<title>intoview.pro</title>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <style>
   :root{
@@ -336,11 +336,12 @@
 <div id="live" class="sr" aria-live="polite"></div>
 
 <script>
-/* ========= Guitar ↔ Piano Mapper — FULL JS (Glassy Concert Hall) =========
+/* ========= Guitar ↔ Piano Mapper — FULL JS (Glassy Concert Hall + Chords) =========
    - Isometric fretboard + piano keyboard
-   - Mini ASCII tab logger
+   - Mini ASCII tab logger (now chord-aware)
    - Scale highlighting + handedness + normal/inverse views
    - Audio engine: single tone "Glassy (Concert Hall)" with stereo IR + ping-pong delay
+   - Chord builder: Shift-click to add/remove notes; Enter to play/log chord; Esc to clear
 */
 
 /* ========= Helpers ========= */
@@ -403,11 +404,10 @@ const OPEN_MIDI_BASE = [40,45,50,55,59,64]; // E2 A2 D3 G3 B3 E4
 const STRING_NAMES_BASE = ['E2','A2','D3','G3','B3','E4'];
 const FRETS = 22;
 
-/* ========= TAB mapping (mini ascii) ========= */
+/* ========= TAB mapping (constants used in multiple places) ========= */
 const TAB_OPEN = [64,59,55,50,45,40];  // high e4 → low E2 (top→bottom)
 const TAB_LABELS = ['e','B','G','D','A','E'];
 const MAX_TAB_COLS = 72;
-const NOTE_LOG = []; // entries: { midi, i (0..5), fret }
 
 /* ========= Fretboard geometry (30° iso) ========= */
 const cos30=Math.sqrt(3)/2;
@@ -767,8 +767,7 @@ function buildOpensRow(){
       toggleSelectionForMidi(midi);
       if (ok) playPiano(midi);
 
-      const pos = chooseTabPosition(midi);
-      NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
+      logSingleNote(midi);
       live.textContent = `Open string: ${labelSet[idx]} (${nameOf(midi)})`;
       triggerBgPulseAtEvent(e);
     }, { passive:true });
@@ -835,9 +834,8 @@ function makeHallIR(ctx, seconds=1.8, preLP=8000){
     const lpA = Math.exp(-2*Math.PI*preLP/sr); // simple 1-pole LP for damping
     for(let i=1;i<len;i++){
       const t = i/len;
-      const decay = Math.pow(1 - t, 1.6); // curvature for smooth hall
+      const decay = Math.pow(1 - t, 1.6);
       const n = (Math.random()*2-1) * 0.6 * decay;
-      // lowpass the noise a bit for warmth
       y = n + lpA*y*(1-0.002);
       d[i] += y * 0.5;
     }
@@ -969,7 +967,7 @@ async function setToneGraph(){
     if (sel){
       sel.innerHTML = '<option value="glassy-hall">Glassy (Concert Hall)</option>';
       sel.value = 'glassy-hall';
-      sel.disabled = true; // locked
+      sel.disabled = true; // locked to single tone
     }
     if (live) live.textContent = `Tone: Glassy (Concert Hall)`;
   } finally {
@@ -1076,6 +1074,241 @@ function playPiano(midi){
   return ()=>{ try{ v.stop(0.18); v.dispose?.(); }catch{} activeVoices.delete(wrapped); };
 }
 
+/* ========= Chord builder ========= */
+const CHORD_BUF = new Map(); // midi -> { midi, fret?: number }
+function chordHas(m){ return CHORD_BUF.has(m); }
+function chordAdd(m, fret){ CHORD_BUF.set(m, { midi:m, fret: (typeof fret==='number'?fret:undefined) }); syncChordMeta(); }
+function chordRemove(m){ CHORD_BUF.delete(m); syncChordMeta(); }
+function chordToggle(m, fret){ chordHas(m) ? chordRemove(m) : chordAdd(m, fret); }
+function chordMidis(){ return Array.from(CHORD_BUF.values()).map(o=>o.midi).sort((a,b)=>a-b); }
+function chordEntries(){ return Array.from(CHORD_BUF.values()); }
+function clearChord(){
+  CHORD_BUF.clear();
+  syncChordMeta();
+  document.querySelectorAll('.white.mem2,.black.mem2').forEach(k=>k.classList.remove('mem2'));
+}
+
+/* ========= Mini ASCII Tab (chord-aware) ========= */
+// Event stream: [{type:'note', entry:{midi,i,fret}}, {type:'chord', entries:[{midi,i,fret}, ...]}]
+const NOTE_SEQ = [];
+
+const miniTabEl = document.getElementById('miniTab');
+const histMeta = document.getElementById('histMeta');
+const histAll = document.getElementById('histAll');
+
+function chooseTabPosition(midi){
+  let best = null;
+  for(let i=0;i<6;i++){
+    const fret = midi - TAB_OPEN[i];
+    if (fret>=0 && fret<=FRETS){
+      if(!best || fret < best.fret || (fret===best.fret && i<best.i)){
+        best = { i, fret };
+      }
+    }
+  }
+  if(!best){
+    let minErr=1e9, bestI=0, bestF=0;
+    for(let i=0;i<6;i++){
+      const fret = midi - TAB_OPEN[i];
+      const err = Math.abs(fret<0 ? -fret : fret-FRETS*(fret>FRETS));
+      if (err<minErr){ minErr=err; bestI=i; bestF=Math.max(0, Math.min(FRETS, fret)); }
+    }
+    best = { i:bestI, fret:bestF };
+  }
+  return best;
+}
+function chooseTabPositionGivenFret(midi, fret){
+  for(let i=0;i<6;i++) if (TAB_OPEN[i] + (+fret) === +midi) return { i, fret:+fret };
+  return chooseTabPosition(midi);
+}
+
+/* Greedy chord mapper: prefer unique strings; fallback to best positions */
+function mapChordToStrings(entries){
+  const used = new Set();
+  const out = [];
+  const sorted = entries.slice().sort((a,b)=>{
+    const af = (a.fret!=null)?a.fret:chooseTabPosition(a.midi).fret;
+    const bf = (b.fret!=null)?b.fret:chooseTabPosition(b.midi).fret;
+    return af - bf;
+  });
+  for(const e of sorted){
+    const cand = (e.fret!=null) ? chooseTabPositionGivenFret(e.midi, e.fret) : chooseTabPosition(e.midi);
+    if(!used.has(cand.i)){ used.add(cand.i); out.push({ midi:e.midi, i:cand.i, fret:cand.fret }); continue; }
+    let placed=false;
+    for(let i=0;i<6;i++){
+      const fret = e.midi - TAB_OPEN[i];
+      if (fret>=0 && fret<=FRETS && !used.has(i)){ used.add(i); out.push({ midi:e.midi, i, fret }); placed=true; break; }
+    }
+    if(!placed) out.push({ midi:e.midi, i:cand.i, fret:cand.fret });
+  }
+  return out;
+}
+
+/* Render sequence into columns; chord = multi notes in one column */
+function renderMiniTabText(){
+  const cols = [];
+  for(const ev of NOTE_SEQ){
+    if(ev.type==='note'){
+      cols.push([ev.entry]);
+    }else if(ev.type==='chord'){
+      cols.push(ev.entries);
+    }
+  }
+  const maxCols = Math.min(MAX_TAB_COLS, cols.length);
+  const start   = Math.max(0, cols.length - maxCols);
+  const viewCols= cols.slice(start);
+
+  const lines = TAB_LABELS.map(lbl => `${lbl}|`);
+  for(let c=0;c<viewCols.length;c++){
+    for(let s=0;s<6;s++) lines[s] += '--';
+  }
+  for(let ci=0; ci<viewCols.length; ci++){
+    const col = viewCols[ci];
+    for(const e of col){
+      const s  = e.i;
+      const f  = Math.max(0, Math.min(99, Math.round(e.fret)));
+      const fs = f.toString().padStart(2,' ').slice(-2);
+      const pos = 2 + ci*2;
+      lines[s] = lines[s].slice(0, pos) + fs + lines[s].slice(pos+2);
+    }
+    if (ci>0 && ci%4===0){
+      for(let s=0;s<6;s++){
+        const pos = 2 + ci*2;
+        lines[s] = lines[s].slice(0,pos) + '|' + lines[s].slice(pos+1);
+      }
+    }
+  }
+  for(let s=0;s<6;s++) lines[s] += '|';
+  return lines.join('\n');
+}
+function updateMiniTab(){
+  miniTabEl.textContent = renderMiniTabText();
+  const count = NOTE_SEQ.reduce((n,ev)=> n + (ev.type==='note'?1:ev.entries.length), 0);
+  histMeta.textContent = `Notes: ${count}`;
+}
+
+/* Append events to sequence */
+function logSingleNote(midi, fretKnown){
+  if (histAll?.checked){
+    const multi = [];
+    stage.querySelectorAll(`.cube[data-midi="${midi}"]`).forEach(c=>{
+      multi.push({ midi, i:(+c.dataset.string)-1, fret:+c.dataset.fret });
+    });
+    NOTE_SEQ.push({ type:'chord', entries: multi });
+  } else {
+    const pos = (typeof fretKnown==='number') ? chooseTabPositionGivenFret(midi, fretKnown) : chooseTabPosition(midi);
+    NOTE_SEQ.push({ type:'note', entry: { midi, i:pos.i, fret:pos.fret } });
+  }
+  updateMiniTab();
+}
+function logChordFromBuffer(){
+  if (CHORD_BUF.size===0) return;
+  const mapped = mapChordToStrings(chordEntries());
+  NOTE_SEQ.push({ type:'chord', entries: mapped });
+  updateMiniTab();
+}
+
+/* HUD chord row */
+(function addChordHud(){
+  const card = document.querySelector('.hud .card');
+  if(!card) return;
+  const row = document.createElement('div');
+  row.className = 'meta';
+  row.style.marginTop = '6px';
+  row.innerHTML = `
+    <span id="chordMeta">Chord: 0 notes</span>
+    <div class="btns">
+      <button id="chordPlay" type="button" title="Play chord (Enter)">Play chord</button>
+      <button id="chordClear" type="button" title="Clear chord (Esc)">Clear chord</button>
+    </div>`;
+  card.appendChild(row);
+
+  document.getElementById('chordPlay').addEventListener('click', async ()=>{
+    if (!CHORD_BUF.size) return;
+    const ok = await ensureAudio();
+    if (ok){
+      const mids = chordMidis();
+      mids.forEach((m, idx)=> setTimeout(()=> playPiano(m), idx*8)); // tiny spread
+      mids.forEach(m=>{
+        const key = document.getElementById('keyboard').querySelector(`[data-midi="${m}"]`);
+        if (key){ key.classList.add('playing'); setTimeout(()=>key.classList.remove('playing'), 180); }
+      });
+    }
+    logChordFromBuffer();
+    clearChord();
+    live.textContent = 'Chord played & logged';
+  });
+
+  document.getElementById('chordClear').addEventListener('click', ()=>{ clearChord(); live.textContent='Chord cleared'; });
+})();
+function syncChordMeta(){
+  const m = document.getElementById('chordMeta');
+  if (m) m.textContent = `Chord: ${CHORD_BUF.size} ${CHORD_BUF.size===1?'note':'notes'}`;
+}
+
+/* Copy helpers */
+function fallbackCopy(text){
+  const ta=document.createElement('textarea');
+  ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); live.textContent = 'Copied mini-tab + stats to clipboard'; }
+  catch(e){ live.textContent = 'Copy failed'; }
+  finally{ ta.remove(); }
+}
+
+/* HUD controls (undo/copy/clear + shortcuts) */
+const btnBack = document.getElementById('histBack');
+const btnCopy = document.getElementById('histCopy');
+const btnClear= document.getElementById('histClear');
+
+function popLastNote(){
+  if (!NOTE_SEQ.length) return;
+  NOTE_SEQ.pop();
+  updateMiniTab();
+  live.textContent = `Removed last event (Backspace)`;
+}
+function clearLog(){
+  NOTE_SEQ.length = 0;
+  updateMiniTab();
+  live.textContent = 'Cleared note log';
+}
+function copyLog(){
+  const tab = renderMiniTabText();
+  const flat = [];
+  for(const ev of NOTE_SEQ){
+    if (ev.type==='note') flat.push(ev.entry.midi);
+    else ev.entries.forEach(e=> flat.push(e.midi));
+  }
+  const pcsArr = Array(12).fill(0);
+  flat.forEach(m => pcsArr[pcOf(m)]++);
+  const seq = flat.map(m => nameOf(m)).join(', ');
+  const countLines = pcs.map((n,i)=> `${n}: ${pcsArr[i]}`).join('\n');
+
+  const text = `${tab}\n\nNotes (${flat.length}): ${seq}\n\nCounts by pitch class:\n${countLines}\n`;
+  if (navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(()=>{ live.textContent = 'Copied mini-tab + stats to clipboard'; })
+      .catch(()=> fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+btnBack.addEventListener('click', popLastNote);
+btnClear.addEventListener('click', clearLog);
+btnCopy.addEventListener('click', copyLog);
+
+document.addEventListener('keydown', (e)=>{
+  // Enter = play chord, Esc = clear chord, Backspace = undo
+  if (e.key === 'Enter' && CHORD_BUF.size){ e.preventDefault(); const b=document.getElementById('chordPlay'); b && b.click(); return; }
+  if (e.key === 'Escape' && CHORD_BUF.size){ e.preventDefault(); const b=document.getElementById('chordClear'); b && b.click(); return; }
+  if (e.key === 'Backspace'){
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    const editable = document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/i.test(tag));
+    if (editable) return;
+    e.preventDefault();
+    popLastNote();
+  }
+});
+
 /* ========= Interactions ========= */
 function pushMemory(el){
   document.querySelectorAll('.mem0,.mem1,.mem2').forEach(k=>k.classList.remove('mem0','mem1','mem2'));
@@ -1083,30 +1316,28 @@ function pushMemory(el){
   STATE.recentKeys.forEach((k,i)=> k.classList.add('mem'+i));
 }
 
-/* Piano key interaction */
-const histAll = document.getElementById('histAll');
-
+/* Piano key interaction (Shift = chord add/remove) */
 document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
   const btn = e.target.closest('.white,.black'); if(!btn) return;
-  const ok = await ensureAudio();
   const midi = +btn.dataset.midi;
+
+  if (e.shiftKey){
+    chordToggle(midi);
+    btn.classList.toggle('mem2', chordHas(midi));
+    live.textContent = chordHas(midi) ? `Chord add: ${nameOf(midi)}` : `Chord remove: ${nameOf(midi)}`;
+    return;
+  }
+
+  const ok = await ensureAudio();
   btn.classList.add('playing'); setTimeout(()=>btn.classList.remove('playing'), 180);
   flashActiveKey(btn, 600);
   pushMemory(btn);
+
   toggleSelectionForMidi(midi);
   if(ok) playPiano(midi);
 
-  if (histAll?.checked) {
-    stage.querySelectorAll(`.cube[data-midi="${midi}"]`).forEach(c => {
-      const i = (+c.dataset.string) - 1;
-      const fret = +c.dataset.fret;
-      NOTE_LOG.push({ midi, i, fret });
-    });
-  } else {
-    const pos = chooseTabPosition(midi);
-    NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret });
-  }
-  updateMiniTab();
+  logSingleNote(midi);
+
   live.textContent = `Piano: ${nameOf(midi)} — Glassy (Concert Hall)`;
   triggerBgPulseAtEvent(e);
 }, { passive: true });
@@ -1119,19 +1350,31 @@ document.getElementById('keyboard').addEventListener('pointermove', (e)=>{
 }, { passive:true });
 document.getElementById('keyboard').addEventListener('pointerleave', ()=> endHoverInvert(), { passive:true });
 
-/* Fret cube interaction */
+/* Fret cube interaction (Shift = chord add/remove with known fret) */
 stage.addEventListener('pointerdown', async (e)=>{
   const cube = e.target.closest('.cube'); if(!cube) return;
-  const ok = await ensureAudio();
   const midi = +cube.dataset.midi;
+  const fret = +cube.dataset.fret;
+
+  if (e.shiftKey){
+    chordToggle(midi, fret);
+    const key = document.getElementById('keyboard').querySelector(`[data-midi="${midi}"]`);
+    if (key){ key.classList.toggle('mem2', chordHas(midi)); }
+    live.textContent = chordHas(midi)
+      ? `Chord add: ${cube.dataset.name} (string ${cube.dataset.string}, fret ${cube.dataset.fret})`
+      : `Chord remove: ${cube.dataset.name}`;
+    return;
+  }
+
+  const ok = await ensureAudio();
   const key = document.getElementById('keyboard').querySelector(`[data-midi="${midi}"]`);
   if(key){ key.classList.add('playing'); pushMemory(key); setTimeout(()=>key.classList.remove('playing'), 180); }
   toggleSelectionForCube(cube);
   if(ok) playPiano(midi);
 
-  const fret = +cube.dataset.fret;
   const pos = chooseTabPositionGivenFret(midi, fret);
-  NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
+  NOTE_SEQ.push({ type:'note', entry: { midi, i:pos.i, fret:pos.fret } });
+  updateMiniTab();
 
   triggerBgPulseAtEvent(e);
   live.textContent = `Fretboard: ${cube.dataset.name} (string ${cube.dataset.string}, fret ${cube.dataset.fret})`;
@@ -1150,7 +1393,8 @@ stage.addEventListener('keydown', async (e)=>{
 
   const fret = +cube.dataset.fret;
   const pos = chooseTabPositionGivenFret(midi, fret);
-  NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
+  NOTE_SEQ.push({ type:'note', entry: { midi, i:pos.i, fret:pos.fret } });
+  updateMiniTab();
 
   triggerBgPulseAtElement(cube);
 });
@@ -1175,7 +1419,7 @@ stage.addEventListener('keydown', async (e)=>{
   if (toneSel){
     toneSel.innerHTML = '<option value="glassy-hall">Glassy (Concert Hall)</option>';
     toneSel.value = 'glassy-hall';
-    toneSel.disabled = true; // locked
+    toneSel.disabled = true; // single tone only
     toneSel.addEventListener('change', ()=>{}); // no-op
   }
 
@@ -1184,122 +1428,6 @@ stage.addEventListener('keydown', async (e)=>{
   scaleSel.addEventListener('change', ()=>{ STATE.scale = scaleSel.value; applyScaleHighlight(); });
   viewSel.addEventListener('change', ()=>{ STATE.view = (viewSel.value==='inverse') ? 'inverse' : 'normal'; buildFretboard(); });
 })();
-
-/* ========= Mini ASCII Tab ========= */
-const miniTabEl = document.getElementById('miniTab');
-const histMeta = document.getElementById('histMeta');
-
-function chooseTabPosition(midi){
-  let best = null;
-  for(let i=0;i<6;i++){
-    const fret = midi - TAB_OPEN[i];
-    if (fret>=0 && fret<=FRETS){
-      if(!best || fret < best.fret || (fret===best.fret && i<best.i)){
-        best = { i, fret };
-      }
-    }
-  }
-  if(!best){
-    let minErr=1e9, bestI=0, bestF=0;
-    for(let i=0;i<6;i++){
-      const fret = midi - TAB_OPEN[i];
-      const err = Math.abs(fret<0 ? -fret : fret-FRETS*(fret>FRETS));
-      if (err<minErr){ minErr=err; bestI=i; bestF=Math.max(0, Math.min(FRETS, fret)); }
-    }
-    best = { i:bestI, fret:bestF };
-  }
-  return best;
-}
-function chooseTabPositionGivenFret(midi, fret){
-  for(let i=0;i<6;i++){
-    if (TAB_OPEN[i] + (+fret) === +midi) return { i, fret:+fret };
-  }
-  return chooseTabPosition(midi);
-}
-
-function renderMiniTabText(){
-  const cols = Math.min(MAX_TAB_COLS, NOTE_LOG.length);
-  const start = Math.max(0, NOTE_LOG.length - cols);
-  const lines = TAB_LABELS.map(lbl => `${lbl}|`);
-  for(let c=start; c<start+cols; c++){
-    for(let s=0;s<6;s++) lines[s] += '--';
-  }
-  for(let idx=0; idx<cols; idx++){
-    const ev = NOTE_LOG[start + idx];
-    const s  = ev.i;
-    const f  = Math.max(0, Math.min(99, Math.round(ev.fret)));
-    const fs = f.toString().padStart(2,' ').slice(-2);
-    const pos = 2 + idx*2;
-    lines[s] = lines[s].slice(0, pos) + fs + lines[s].slice(pos+2);
-  }
-  for(let idx=0; idx<cols; idx++){
-    if (idx>0 && idx%4===0){
-      for(let s=0;s<6;s++){
-        const pos = 2 + idx*2;
-        lines[s] = lines[s].slice(0,pos) + '|' + lines[s].slice(pos+1);
-      }
-    }
-  }
-  for(let s=0;s<6;s++) lines[s] += '|';
-  return lines.join('\n');
-}
-
-function updateMiniTab(){
-  miniTabEl.textContent = renderMiniTabText();
-  histMeta.textContent = `Notes: ${NOTE_LOG.length}`;
-}
-
-/* HUD controls */
-const btnBack = document.getElementById('histBack');
-const btnCopy = document.getElementById('histCopy');
-const btnClear= document.getElementById('histClear');
-
-function popLastNote(){
-  if (!NOTE_LOG.length) return;
-  const last = NOTE_LOG.pop();
-  updateMiniTab();
-  live.textContent = `Removed last note: ${nameOf(last.midi)} (Backspace)`;
-}
-function clearLog(){
-  NOTE_LOG.length = 0;
-  updateMiniTab();
-  live.textContent = 'Cleared note log';
-}
-function copyLog(){
-  const tab = renderMiniTabText();
-  const seq = NOTE_LOG.map(e => nameOf(e.midi)).join(', ');
-  const counts = Array(12).fill(0);
-  NOTE_LOG.forEach(e => counts[pcOf(e.midi)]++);
-  const countLines = counts.map((c,i)=> `${pcs[i]}: ${c}`).join('\n');
-  const text = `${tab}\n\nNotes (${NOTE_LOG.length}): ${seq}\n\nCounts by pitch class:\n${countLines}\n`;
-  if (navigator.clipboard && window.isSecureContext){
-    navigator.clipboard.writeText(text).then(()=>{ live.textContent = 'Copied mini-tab + stats to clipboard'; })
-      .catch(()=> fallbackCopy(text));
-  } else {
-    fallbackCopy(text);
-  }
-}
-function fallbackCopy(text){
-  const ta=document.createElement('textarea');
-  ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px';
-  document.body.appendChild(ta); ta.select();
-  try{ document.execCommand('copy'); live.textContent = 'Copied mini-tab + stats to clipboard'; }
-  catch(e){ live.textContent = 'Copy failed'; }
-  finally{ ta.remove(); }
-}
-
-btnBack.addEventListener('click', popLastNote);
-btnClear.addEventListener('click', clearLog);
-btnCopy.addEventListener('click', copyLog);
-
-document.addEventListener('keydown', (e)=>{
-  if (e.key !== 'Backspace') return;
-  const tag = (document.activeElement && document.activeElement.tagName) || '';
-  const editable = document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/i.test(tag));
-  if (editable) return;
-  e.preventDefault();
-  popLastNote();
-});
 
 /* ========= Build orchestration ========= */
 function buildAll(){
@@ -1466,6 +1594,7 @@ addEventListener('orientationchange', resync, { passive: true });
     pulses.push({I,J,born:performance.now()}); if(!animating) start();
   };
 })();
+
 
 
 
