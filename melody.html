@@ -3,56 +3,56 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>intoview.pro</title>
+<title>Guitar ↔ Piano Mapper — intoview.pro</title>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <style>
   :root{
-    /* cube + lattice sizing (JS scales to fit viewport) */
-    --cube-size-base: 64;
-    --iso-cell-base:  48;
+    --bottom-h: 32vh;
+
+    /* isometric cubes (fretboard only) */
+    --cube-size-base: 40;
+    --iso-cell-base:  56;
     --iso-cell:  calc(var(--iso-cell-base) * 1px);
     --cube-size: calc(var(--cube-size-base) * 1px);
 
-    /* label nudges (labels sit two iso-cells below each cube in JS) */
+    /* labels */
     --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
 
-    /* background grid */
+    /* background grid (roomier) */
     --bg:#000;
     --grid-gap: 4px;
-    --grid-alpha:.10;
-    --grid-thin: rgb(255 255 255 / calc(var(--grid-alpha) * .10));
-    --grid-bold: rgb(255 255 255 / calc(var(--grid-alpha) * .24));
+    --grid-alpha:.12;
+    --grid-thin: rgb(160 190 255 / calc(var(--grid-alpha) * .20));
+    --grid-bold: rgb(84 140 255 / calc(var(--grid-alpha) * .36));
 
-    /* highlight pulses (canvas) */
+    /* keyboard */
+    --panel:#000;
+    --fg:#e9eeff;
+    --muted:#a8b4d6;
+    --accent:#1f6fff;
+    --white-r: 4px;
+    --black-r: 4px;
+
+    /* computed */
+    --white-w: 48px;
+
+    /* gutter between fretboard and keyboard */
+    --gutter-size: 16px;
+    --gutter-hit:  16px;
+
+    /* BG hover/pulses */
     --iso-highlight-fill: 255 255 255;
-    --iso-highlight-alpha:.22;
-    --iso-stroke-alpha:.55;
+    --iso-highlight-alpha: .25;
+    --iso-stroke-alpha: .55;
     --iso-fade-ms: 900;
     --iso-blur-min: 0px;
-    --iso-blur-max: 72px;
+    --iso-blur-max: 12px;
     --iso-blur-curve: 1.35;
-
-    /* facets + transitions */
-    --facet-ease:.18s ease;
-    --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
-
-    /* logo */
-    --logo-w: 280px;
-    --logo-pad-x: 1.8rem;
-    --logo-pad-y: 1.8rem;
-
-    /* recorder bar */
-    --rec-h: 48px;
-    --rec-bg: transparent;
-    --rec-fg: #d6d6d6;
-    --rec-muted: #a8a8a8;
-    --rec-danger: #ff4d4d;
-    --rec-gap: 1px; /* default; JS will override as n grows */
   }
 
   html,body{height:100%}
   body{
-    margin:0; color:#e8e8e8; background:var(--bg);
+    margin:0; color:var(--fg); background:var(--bg);
     -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
     overflow:hidden;
     background-image:
@@ -66,1443 +66,1394 @@
     font:14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   }
 
-  /* ===== Logo (top-left) ===== */
-  .logo-lockup{
-    position:fixed; left:var(--logo-pad-x); top:var(--logo-pad-y); z-index:3;
-    line-height:0; user-select:none; pointer-events:none;
-    mix-blend-mode:normal;
-  }
-  .logo-lockup img{ width:var(--logo-w); height:auto; display:block; }
+  /* BG hover/pulses canvas sits behind everything */
+  .iso-canvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
 
-  /* ===== Info badge (top-right) ===== */
-  .info-wrap{
-    position:fixed; right:var(--logo-pad-x); top:var(--logo-pad-y); z-index:3;
-    display:inline-block; line-height:0;
-  }
-  .info-btn{
-    width:28px; height:28px; border-radius:999px;
-    display:grid; place-items:center;
-    background:rgb(255 255 255 / .06);
-    border:1px solid rgb(255 255 255 / .18);
-    color:#e8e8e8; font:700 14px/1 ui-monospace, Menlo, monospace;
-    cursor:pointer; user-select:none;
-    transition:background .2s ease, border-color .2s ease, transform .06s ease;
-  }
-  .info-btn:hover{ background:rgb(255 255 255 / .12); }
-  .info-btn:active{ transform:translateY(1px); }
-  .info-btn:focus-visible{ outline:2px solid #bbb; outline-offset:3px; }
-  .info-tooltip{
-    position:absolute; right:0; top:calc(100% + 10px);
-    width:min(64ch, 44vw); max-width:460px;
-    background:rgb(12 12 12 / .94); color:#e8e8e8;
-    border:1px solid rgb(255 255 255 / .14);
-    border-radius:12px; padding:12px 14px;
-    box-shadow:0 8px 24px rgb(0 0 0 / .45);
-    font:13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-    pointer-events:none; opacity:0; transform:translateY(-6px);
-    transition:opacity .16s ease, transform .16s ease;
-  }
-  .info-tooltip::after{
-    content:""; position:absolute; top:-6px; right:14px; width:10px; height:10px;
-    background:inherit; border-left:1px solid rgb(255 255 255 / .14); border-top:1px solid rgb(255 255 255 / .14);
-    transform:rotate(45deg);
-  }
-  .info-wrap[data-open="true"] .info-tooltip,
-  .info-wrap:hover .info-tooltip{ opacity:1; transform:translateY(0); pointer-events:auto; }
-  @media (max-width:520px){
-    .info-tooltip{ width:min(68vw, 56ch); right:-2px; }
+  /* ===== Main area above fixed keyboard ===== */
+  .top-pane{
+    position:relative;
+    height:100vh;
+    padding-bottom: calc(var(--bottom-h) + var(--gutter-size));
+    box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+    z-index:1;
   }
 
-  /* ===== Stage ===== */
-  #isoCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
-  #stage{ position:fixed; inset:0; z-index:1; overflow:visible; }
+  /* fretboard + gutter */
+  .fretboard-wrap{
+    height: calc(100vh - var(--bottom-h) - var(--gutter-size));
+    position:relative; overflow:hidden; min-height:220px;
+  }
+  .gutter{
+    position:relative; height: var(--gutter-size);
+    background: linear-gradient(90deg, rgb(255 255 255 / .06), transparent 40%, transparent 60%, rgb(255 255 255 / .06));
+    cursor: row-resize; flex: 0 0 auto; z-index:3;
+  }
+  .gutter::after{ content:""; position:absolute; inset:calc((var(--gutter-size) - var(--gutter-hit))/2 * -1) 0; }
 
-  /* Cubes (white default) */
+  /* ===== Stage (isometric guitar fretboard) ===== */
+  #isoCanvas{ position:absolute; inset:0; z-index:1; pointer-events:none; }
+  #stage{ position:absolute; inset:0; z-index:2; overflow:visible; width:100%; height:100%; }
+
   .cube{
     cursor:pointer; outline:none;
     --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
-    filter: blur(var(--depth-blur, 0px));
-    transition: filter .25s ease;
+    filter: blur(calc(var(--depth-blur, 0px) + var(--focus-blur, 0px)));
+    transition: filter .24s ease, transform .24s ease;
   }
-  .cube:where(:hover, :focus-visible, .brighten){ filter: blur(0px); }
-  .cube *{ transition:fill var(--facet-ease); }
-  .facet-top  { fill: var(--facet-top-fill); }
-  .facet-side { fill: var(--facet-side-fill); }
-  .facet-dark { fill: var(--facet-dark-fill); }
-  .cube.brighten{
-    --facet-top-fill:#ffffff; --facet-side-fill:#f5f5f5; --facet-dark-fill:#8c8c8c;
+  .cube .facet-top,
+  .cube .facet-side,
+  .cube .facet-dark { transition: fill .24s ease; }
+  .cube .facet-top  { fill: var(--facet-top-fill); }
+  .cube .facet-side { fill: var(--facet-side-fill); }
+  .cube .facet-dark { fill: var(--facet-dark-fill); }
+
+  .cube.dim{
+    --facet-top-fill:#2b2b2b; --facet-side-fill:#1e1e1e; --facet-dark-fill:#000000;
+    filter: blur(var(--depth-blur, 0px)) brightness(0.95);
   }
 
-  /* Labels */
+  .cube.selected{
+    --facet-top-fill:#ffd84a; --facet-side-fill:#e6bf00; --facet-dark-fill:#b38f00;
+    filter: drop-shadow(0 0 14px rgb(255 216 74 / .35));
+  }
+
+  .cube.active{ filter: blur(var(--depth-blur, 0px)) drop-shadow(0 0 14px rgb(0 0 0 / .60)); }
+
   .note{
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Overpass Mono", monospace;
-    font-size:12px; font-weight:600;
-    fill:#fff; opacity:.78; user-select:none;
-  }
-  .note.lit{ opacity:1; }
-
-  /* MOBILE: hide labels for compact packed grid */
-  @media (max-width:520px){
-    .note{ display:none; }
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size:11px; font-weight:800;
+    fill:#ffffff; opacity:.98; user-select:none; pointer-events:none;
+    paint-order: stroke fill; stroke:#000; stroke-width:2px; stroke-opacity:.55;
   }
 
-  /* ===== Recorder bar (centered controls + centered histogram) ===== */
-  .rec{
-    position:fixed; left:0; right:0; bottom:0; z-index:2;
-    --rec-max-h: 40vh;
-    height: clamp(var(--rec-h), 22vh, var(--rec-max-h));
-    max-height: var(--rec-max-h);
-    background:var(--rec-bg);
-    backdrop-filter: blur(4px);
+  .string-tag{ position:absolute; left:10px; color:#cdd8ff; font:700 12px/1 ui-monospace, Menlo, monospace; opacity:.9; text-shadow:0 1px 0 #000; }
+  @media (max-width:560px){ .note{ display:none; } }
 
-    /* stacked layout on ALL sizes: controls below, histogram above */
-    display:flex;
-    flex-direction: column-reverse;
-    align-items: stretch;
-    gap: 10px;
-    padding: 10px 14px 12px;
-    overflow:hidden;
+  /* ===== Fixed Keyboard Footer ===== */
+  .keyboard-wrap{
+    position:fixed; left:0; right:0; bottom:0;
+    height:var(--bottom-h);
+    background:var(--panel);
+    box-shadow:0 -8px 28px rgb(0 0 0 / .35);
+    display:grid; grid-template-rows: auto auto 1fr auto; gap:8px;
+    padding:10px 10px 8px;
+    z-index: 5;
   }
+  .kbd-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .kbd-head .meta{ color:var(--muted); font-weight:700 }
 
-  /* Center the controls row */
-  .rec .controls{
-    margin-bottom: calc(clamp(3rem, 2.5vh, 20px) + env(safe-area-inset-bottom));
-    display:flex;
-    justify-content:center;          /* centered controls */
-    align-items:center;
-    gap:10px;
-    flex:0 0 auto;
-    color:var(--rec-fg);
+  /* Open strings row */
+  .opens-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:center; }
+  .open-pill{
+    appearance:none; border:1px solid rgb(255 255 255 / .14);
+    background:linear-gradient(#141d3a,#0c1226); color:#eaf0ff;
+    padding:6px 10px; border-radius:999px; font:800 12px/1 ui-monospace, Menlo, monospace;
+    display:inline-flex; gap:8px; align-items:baseline; cursor:pointer;
+    box-shadow: 0 6px 12px rgb(0 0 0 / .35), inset 0 -10px 20px rgb(0 0 0 / .25);
   }
+  .open-pill small{ color:#8aa0ff; font-weight:800; }
 
-  .btn{
-    display:inline-grid; place-items:center;
-    width:28px; height:28px; border-radius:8px;
-    background:rgb(255 255 255 / .06);
+  .keyboard{ position:relative; border:1px solid rgb(255 255 255 / .10); border-radius:12px; height:100%;
+    background:
+      radial-gradient(1200px 60% at 50% 0%, rgb(255 255 255 / .05), transparent 60%),
+      linear-gradient(180deg, rgb(255 255 255 / .03), transparent);
+    overflow:hidden; }
+  .whites{ position:absolute; inset: clamp(6px, 1.2vh, 12px); display:flex; align-items:end; justify-content:center; gap:clamp(2px, 0.6vw, 8px); }
+  .white{ width:var(--white-w); height:100%; border-radius:var(--white-r); background:linear-gradient(#fbfbfb, #f2f2f2);
+    border:1px solid #e2e2e2; color:#222; box-shadow: inset 0 -36px 40px -12px rgb(0 0 0 / .08), 0 10px 16px rgb(0 0 0 / .35);
+    position:relative; display:grid; grid-template-rows: 1fr auto; overflow:clip; cursor:pointer;
+    transition:transform .03s ease, box-shadow .5s ease, filter .5s ease; }
+  .white:active, .white.playing{ transform:translateY(1px); box-shadow: inset 0 -10px 18px -6px rgb(0 0 0 / .16), 0 6px 12px rgb(0 0 0 / .45), 0 0 0 3px var(--accent) inset; filter:brightness(0.98); }
+  .wlabel{ font:700 12px/1 ui-monospace, Menlo, Consolas, monospace; color:#333; background:#f6f6f6; border-top:1px solid #e8e8e8; padding:6px 8px; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .wlabel small{ color:#666 }
+
+  .black{ position:absolute; top: clamp(6px, 1.2vh, 12px); width:26px; height:62%; border-radius:var(--black-r);
+    background: linear-gradient(#3a3a3a, #1b1b1b); border:1px solid #101010; box-shadow: inset 0 -20px 20px -6px rgb(0 0 0 / .55), 0 12px 20px rgb(0 0 0 / .6);
+    z-index:3; cursor:pointer; display:block; transition:transform .03s ease, box-shadow .5s ease, filter .5s ease; }
+  .black:active, .black.playing{ transform:translateY(1px); box-shadow: inset 0 -8px 16px -6px rgb(0 0 0 / .75), 0 6px 12px rgb(0 0 0 / .7), 0 0 0 3px var(--accent) inset; filter:brightness(1.02); }
+
+  /* Glow + scale highlights */
+  .white.active, .black.active{
+    box-shadow:
+      0 0 0 4px rgb(61 169 255 / .95) inset,
+      0 0 0 2px rgb(61 169 255 / .85),
+      0 0 26px 10px rgb(61 169 255 / .45);
+    filter: brightness(1.03);
+  }
+  .white.mem0, .black.mem0{ box-shadow: 0 0 0 4px rgb(78 224 181 / .95) inset, 0 0 0 2px rgb(78 224 181 / .85), 0 0 32px 12px rgb(78 224 181 / .55); }
+  .white.mem1, .black.mem1{ box-shadow: 0 0 0 4px rgb(78 224 181 / .70) inset, 0 0 0 2px rgb(78 224 181 / .50), 0 0 26px 10px rgb(78 224 181 / .35); }
+  .white.mem2, .black.mem2{ box-shadow: 0 0 0 3px rgb(78 224 181 / .45) inset, 0 0 0 1px rgb(78 224 181 / .35), 0 0 20px 8px  rgb(78 224 181 / .25); }
+
+  .controls{ position:absolute; z-index:4; inset:12px auto auto 12px; display:flex; gap:8px; align-items:center; background:rgb(0 0 0 / .45); border:1px solid rgb(255 255 255 / .12); padding:8px 10px; border-radius:10px; backdrop-filter: blur(6px); }
+  .controls label{ font:700 12px/1 ui-monospace, Menlo, monospace; color:#e2e9ff; display:flex; align-items:center; gap:6px; text-shadow:0 1px 0 #000; }
+  .controls select{ appearance:none; background:#0e1533; color:#e8eeff; border:1px solid rgb(255 255 255 / .16); border-radius:8px; padding:6px 26px 6px 10px; font:700 12px/1 ui-monospace, Menlo, monospace; }
+
+  /* in-scale highlighting */
+  .cube.in-scale{ --facet-top-fill:#d9fff5; --facet-side-fill:#bff7e8; --facet-dark-fill:#83cdb7; }
+  .cube.root{ --facet-top-fill:#ffffff; --facet-side-fill:#d8fff3; --facet-dark-fill:#5ed2af; }
+  .white.in-scale, .black.in-scale{ box-shadow: 0 0 0 3px rgb(78 224 181 / .55) inset, 0 0 0 1px rgb(78 224 181 / .45), 0 0 16px 6px rgb(78 224 181 / .20); }
+  .white.root, .black.root{ box-shadow: 0 0 0 4px rgb(78 224 181 / .95) inset, 0 0 0 2px rgb(78 224 181 / .85), 0 0 28px 10px rgb(78 224 181 / .45); }
+
+  .fret-num{ font:800 12px/1 ui-monospace, Menlo, Consolas, monospace; fill:#c7d4ff; opacity:.95; user-select:none; pointer-events:none; text-shadow:0 1px 0 #000; }
+
+  /* ===== HUD: mini ASCII tab + controls ===== */
+  .hud{
+    position:fixed; top:12px; right:12px; z-index:6;
+    display:flex; flex-direction:column; gap:8px; align-items:stretch;
+    pointer-events:none;
+  }
+  .hud .card{
+    pointer-events:auto;
+    background: rgb(8 12 26 / .6);
     border:1px solid rgb(255 255 255 / .12);
-    cursor:pointer; user-select:none;
-    transition:transform .05s ease, background .2s ease, border-color .2s ease;
-  }
-  .btn:hover{ background:rgb(255 255 255 / .12); }
-  .btn:active{ transform:translateY(1px); }
-  .ico{ width:14px; height:14px; display:block; }
-  .ico rect, .ico path{ fill:var(--rec-fg); }
-  .vol-wrap{ display:flex; align-items:center; gap:8px; padding-left:6px; font:600 11px/1 ui-monospace, Menlo, monospace; color:var(--rec-fg); user-select:none; }
-  .vol-wrap input[type="range"]{ width:120px; height:18px; accent-color:#d6d6d6; cursor:pointer; }
-
-  /* loop toggle state */
-  .btn.toggle[data-on="true"]{
-    background:rgb(0 204 136 / .18);
-    border-color:rgb(0 204 136 / .45);
-    box-shadow:0 6px 18px rgb(0 0 0 / .35), inset 0 0 0 1px rgb(0 204 136 / .35);
-  }
-  .btn.toggle[data-on="true"] .ico path{ fill:#dff7ef; }
-
-  /* ===== Histogram ===== */
-  .rec .track{
-    min-width:0;
-    height:100%;
-    display:flex;
-    justify-content:center;          /* center the histogram row */
-    overflow:hidden;                 /* never overflow the viewport */
+    backdrop-filter: blur(8px);
+    border-radius:12px;
+    padding:10px;
+    box-shadow: 0 8px 24px rgb(0 0 0 / .35);
   }
 
-  .rec .row{
-    display:flex;
-    align-items:flex-end;            /* bars grow up from bottom */
-    gap: var(--rec-gap);
-    height: 100%;                    /* take all available recorder height */
-    margin: 0 auto;                  /* centered within .track */
-    max-width: 100%;                 /* clamp to viewport width */
-    --n: 1;                          /* set dynamically from JS */
+  .mini-tab{
+    margin:0;
+    white-space:pre;
+    font: 700 9px/1.15 ui-monospace, Menlo, Consolas, monospace;
+    color:#cfe1ff;
+    width:min(38vw, 420px);
+    max-width:420px;
+    overflow:hidden;
+    opacity:.96;
+    user-select:text;
+  }
+  .hud .meta{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; }
+  .hud .btns{ display:flex; gap:6px; }
+  .hud button{
+    appearance:none;
+    border:1px solid rgb(255 255 255 / .16);
+    background:linear-gradient(#0f1733, #0a1126);
+    color:#eaf0ff; font:800 11px/1 ui-monospace, Menlo, monospace;
+    padding:6px 8px; border-radius:8px; cursor:pointer;
+  }
+  .hud button:hover{ filter:brightness(1.06) }
+  .hud button:active{ transform:translateY(1px) }
+
+  .hud .chk{ display:flex; align-items:center; gap:6px; margin-bottom:6px; font:700 11px/1 ui-monospace, Menlo, monospace; color:#cfe1ff; opacity:.9; }
+
+  @media (max-width:560px){
+    :root{ --iso-cell-base: 52; --cube-size-base: 44; }
+    .wlabel{ font-size:11px }
+    .mini-tab{ width:72vw; font-size:9px; }
   }
 
-  .rec .row .bar{
-    box-sizing: border-box;          /* include borders in width calc */
-    flex: 0 0 calc((100% - (var(--rec-gap) * (var(--n) - 1))) / var(--n));
-    height: 8%;                      /* JS will set actual pixel height */
-    background: rgb(255 255 255 / .14);
-    border: 1px solid rgb(255 255 255 / .22);
-    border-bottom-color: rgb(255 255 255 / .28);
-    border-radius: 6px 6px 0 0;
-    box-shadow: inset 0 -6px 12px rgb(0 0 0 / .35);
-    transition:
-      height .12s ease,
-      background .15s ease,
-      border-color .15s ease,
-      box-shadow .15s ease,
-      transform .05s ease;
-    cursor: pointer;
-  }
-
-  .rec .row{ --min-bar-px: 6; --min-gap-px: 1; }
-
-  .rec .row .bar:hover{
-    background: rgb(255 255 255 / .22);
-    border-color: rgb(255 255 255 / .45);
-  }
-  .rec .row .bar.hit{
-    background:#fff;
-    border-color:#fff;
-    box-shadow: 0 0 12px 2px rgb(255 255 255 / .65);
-  }
-
-  /* Smaller cubes on mobile */
-  @media (max-width:520px){
-    :root{
-      --iso-cell-base: 56;  /* spacing scale */
-      --cube-size-base: 48; /* face size */
-    }
+  @media (prefers-reduced-motion: reduce){
+    .white, .black, .cube{ transition: none !important; }
   }
 </style>
-
 </head>
 <body>
 
-<!-- Logo -->
-<div class="logo-lockup" aria-label="intoview">
-  <img src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-horizontal-lockup-small.svg" alt="intoview" />
-</div>
+<!-- Background hover/pulses -->
+<canvas id="bgIso" class="iso-canvas" aria-hidden="true"></canvas>
 
-<!-- Info badge -->
-<div class="info-wrap" id="infoWrap" data-open="false">
-  <button class="info-btn" id="infoBtn" aria-expanded="false" aria-controls="infoTip" aria-label="About this">i</button>
-  <div class="info-tooltip" id="infoTip" role="dialog" aria-modal="false">
-    <strong>intoview.pro</strong> is a concept being crafted from 0-1, to showcase, you know, your craft. Simply, picture a platform & place that puts your best into view.
-    <br><br>
-    <small>Meanwhile, I was working on a design system using my shiny new logo, when I got distracted... anyway, <strong>enjoy!</strong></small>
+<div class="top-pane">
+  <!-- Controls -->
+  <div class="controls" aria-label="Options">
+    <label>Handedness
+      <select id="handedness" aria-label="Handedness">
+        <option value="right">Righty</option>
+        <option value="left">Lefty</option>
+      </select>
+    </label>
+    <label>Root
+      <select id="rootSelect" aria-label="Scale root"></select>
+    </label>
+    <label>Scale
+      <select id="scaleSelect" aria-label="Scale"></select>
+    </label>
+    <label>View
+      <select id="viewSelect" aria-label="View">
+        <option value="normal">Normal</option>
+        <option value="inverse">Inverse</option>
+      </select>
+    </label>
+    <label>Tone
+      <select id="toneSelect" aria-label="Tone">
+        <option value="crunch">Crunch</option>
+        <option value="high-gain">High-gain</option>
+        <option value="glassy" selected>Glassy</option>
+      </select>
+    </label>
   </div>
+
+  <!-- Fretboard -->
+  <section class="fretboard-wrap" aria-label="Isometric guitar fretboard">
+    <canvas id="isoCanvas" aria-hidden="true"></canvas>
+    <svg id="stage" role="group" aria-label="Isometric note cubes" width="100%" height="100%">
+      <g id="board">
+        <g id="strings"></g>
+        <g id="labels"></g>
+        <g id="fretNums"></g>
+      </g>
+    </svg>
+    <div id="stringTags" aria-hidden="true"></div>
+  </section>
+
+  <!-- Gutter to resize keyboard height -->
+  <div class="gutter" id="gutterResizer" role="separator" aria-label="Resize keyboard height"></div>
 </div>
 
-<!-- highlight pulses -->
-<canvas id="isoCanvas" aria-hidden="true"></canvas>
-
-<!-- Stage for rows -->
-<svg id="stage" role="group" aria-label="Isometric note cubes">
-  <defs>
-    <symbol id="cubeSym" viewBox="182 0 86 96">
-      <path class="facet-dark" d="M262.74 65.9205L224.305 87.8222V43.5893L262.74 21.9023V65.9205Z" />
-      <path class="facet-top"  d="M224.088 0L185.867 22.1164L224.303 44.0182L262.738 21.9017L224.088 0Z" />
-      <path class="facet-side" d="M186.082 65.9206L224.303 87.8223V44.0189L185.867 22.1172L186.082 65.9206Z" />
-    </symbol>
-  </defs>
-  <!-- Five rows (naturals only) -->
-  <g id="row1"></g>
-  <g id="row2"></g>
-  <g id="row3"></g>
-  <g id="row4"></g>
-  <g id="row5"></g>
-</svg>
-
-<!-- Recorder bar -->
-<div class="rec" role="region" aria-label="Recorded notes">
-  <div class="controls">
-    <button class="btn" id="btnPlay" title="Play">
-      <svg class="ico" viewBox="0 0 16 16"><path d="M4 2v12l10-6-10-6z"/></svg>
-    </button>
-    <button class="btn" id="btnPause" title="Pause">
-      <svg class="ico" viewBox="0 0 16 16"><path d="M3 2h4v12H3zM9 2h4v12H9z"/></svg>
-    </button>
-    <button class="btn" id="btnClear" title="Clear">
-      <svg class="ico" viewBox="0 0 16 16"><path d="M2 3h12v2H2zM4 6h8l-1 8H5L4 6z"/></svg>
-    </button>
-
-    <!-- Loop button -->
-    <button class="btn toggle" id="btnLoop" title="Loop sequence (L)" aria-pressed="false">
-      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M17 1l4 4-4 4V6H7a3 3 0 000 6h2v2H7a5 5 0 010-10h10V1zm-10 22l-4-4 4-4v3h10a3 3 0 000-6h-2v-2h2a5 5 0 010 10H7v3z" fill="currentColor"/>
-      </svg>
-    </button>
-
-    <!-- Volume -->
-    <div class="vol-wrap" title="Volume">
-      <label for="volSlider">Vol</label>
-      <input id="volSlider" type="range" min="0" max="100" value="50" step="1" aria-label="Volume (0 to 100)">
+<!-- Floating HUD: Mini ASCII Tab -->
+<div class="hud" aria-live="polite">
+  <div class="card">
+    <pre id="miniTab" class="mini-tab" aria-label="Miniature ASCII guitar tab"></pre>
+    <label class="chk"><input type="checkbox" id="histAll"> Log all fret positions per note</label>
+    <div class="meta">
+      <span id="histMeta">Notes: 0</span>
+      <div class="btns">
+        <button id="histBack" title="Undo last (Backspace)" type="button">Backspace</button>
+        <button id="histCopy" title="Copy mini-tab + stats" type="button">Copy</button>
+        <button id="histClear" title="Clear log" type="button">Clear</button>
+      </div>
     </div>
   </div>
-  <div class="track">
-    <div id="seqRow" class="row" aria-live="polite"></div>
-  </div>
 </div>
 
-<!-- a11y live region (off-screen) -->
-<div id="live" style="position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;left:0;bottom:0;" aria-live="polite"></div>
+<!-- Fixed keyboard -->
+<section class="keyboard-wrap" aria-label="Piano keyboard mapper">
+  <div class="kbd-head">
+    <strong>Keyboard</strong>
+    <span class="meta" id="rangeLabel"></span>
+  </div>
+
+  <div class="opens-row" id="opensRow" aria-label="Open strings (E A D G B E)"></div>
+
+  <div class="keyboard" id="keyboard">
+    <div id="whites" class="whites"></div>
+  </div>
+  <small class="meta">Hover a piano key: matching fret cubes remain white, others dim. Click to paint yellow blocks; click again to unpaint.</small>
+</section>
+
+<div id="live" class="sr" aria-live="polite"></div>
 
 <script>
-/* ================================
-   intoview.pro — FULL JavaScript
-   (isometric cubes + padded, mobile-safe histogram)
-   Updates per request:
-   • Hover NEVER logs (click/keyboard only)
-   • Histogram auto-fits entire sequence (width + gaps)
-   ================================ */
+/* ========= Guitar ↔ Piano Mapper — FULL JS (Glassy-only tone) =========
+   - Isometric fretboard + piano keyboard
+   - Mini ASCII tab logger
+   - Scale highlighting + handedness + normal/inverse views
+   - Audio engine simplified to a single tone: "glassy"
+*/
 
-/* ---------- Info tooltip ---------- */
-(() => {
-  const infoWrap = document.getElementById('infoWrap');
-  const infoBtn  = document.getElementById('infoBtn');
-  if (!infoWrap || !infoBtn) return;
-  const setOpen = (open) => { infoWrap.dataset.open = String(open); infoBtn.setAttribute('aria-expanded', String(open)); };
-  infoBtn.addEventListener('click', (e) => { e.stopPropagation(); setOpen(infoWrap.dataset.open !== 'true'); });
-  document.addEventListener('click', (e) => { if (!infoWrap.contains(e.target)) setOpen(false); }, { passive: true });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); }, { passive: true });
-})();
-
-/* ---------- Layout + mapping ---------- */
-const row1Notes = [
-  ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t']
-];
-const row2Notes = [
-  ['f5','y'], ['g5','u'], ['a5','i'], ['b5','o'], ['c6','p']
-];
-const row3Notes = [
-  ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'], ['e6','5']
-];
-const row4Notes = [
-  ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
-];
-const row5Notes = [
-  ['f7','-'], ['g7','='], ['a7','['], ['b7',']'], ['c8','\\']
-];
-const allNotes = [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes];
-
-const cos30 = Math.sqrt(3)/2, sin30=0.5;
+/* ========= Helpers ========= */
+const pcs=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const isBlackPC = {1:1,3:1,6:1,8:1,10:1};
+const stage = document.getElementById('stage');
+function pcOf(m){ return ((m%12)+12)%12; }
+function nameOf(m){ const oct = Math.floor(m/12)-1; return (pcs[pcOf(m)] + oct); }
+function isWhite(m){ return !isBlackPC[pcOf(m)]; }
 function css(){ return getComputedStyle(document.documentElement); }
 function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
-function readCell(){ return num(css().getPropertyValue('--iso-cell'), 32); }
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function px(n){ return `${Math.round(n)}px`; }
+const live = document.getElementById('live');
+
+/* ========= Gutter resizes KEYBOARD height ========= */
+(function gutter(){
+  const gut = document.getElementById('gutterResizer');
+  let dragging=false, startY=0, startBottomPx=0;
+
+  function getBottomPx(){
+    const kb = document.querySelector('.keyboard-wrap');
+    return kb ? kb.getBoundingClientRect().height : (innerHeight * 0.32);
+  }
+  function minBottomPx(){ return 120; }
+  function maxBottomPx(){
+    const minFretTop = 220;
+    const g = parseFloat(css().getPropertyValue('--gutter-size')) || 10;
+    return Math.max(minBottomPx(), innerHeight - minFretTop - g);
+  }
+
+  function onDown(e){
+    dragging=true;
+    startY = e.touches?.[0]?.clientY ?? e.clientY ?? 0;
+    startBottomPx = getBottomPx();
+    document.body.style.userSelect='none';
+    e.target.setPointerCapture?.(e.pointerId);
+  }
+  function onMove(e){
+    if(!dragging) return;
+    const y = e.touches?.[0]?.clientY ?? e.clientY ?? startY;
+    const dy = startY - y; // dragging up increases keyboard height
+    const next = clamp(startBottomPx + dy, minBottomPx(), maxBottomPx());
+    document.documentElement.style.setProperty('--bottom-h', px(next));
+    buildFretboard(); layoutKeyboard();
+  }
+  function onUp(){
+    dragging=false; document.body.style.userSelect='';
+    buildFretboard();
+  }
+  gut.addEventListener('pointerdown', onDown);
+  addEventListener('pointermove', onMove, {passive:true});
+  addEventListener('pointerup', onUp, {passive:true});
+  addEventListener('resize', ()=> buildFretboard(), {passive:true});
+})();
+
+/* ========= State ========= */
+const STATE = { lefty:false, view:'normal', root:0, scale:'none', recentKeys:[], recentMax:3, tone:'glassy' };
+const OPEN_MIDI_BASE = [40,45,50,55,59,64]; // E2 A2 D3 G3 B3 E4
+const STRING_NAMES_BASE = ['E2','A2','D3','G3','B3','E4'];
+const FRETS = 22;
+
+/* ========= TAB mapping (mini ascii) ========= */
+const TAB_OPEN = [64,59,55,50,45,40];  // high e4 → low E2 (top→bottom)
+const TAB_LABELS = ['e','B','G','D','A','E'];
+const MAX_TAB_COLS = 72;
+const NOTE_LOG = []; // entries: { midi, i (0..5), fret }
+
+/* ========= Fretboard geometry (30° iso) ========= */
+const cos30=Math.sqrt(3)/2;
+const sin30=0.5;
+
+function readCell(){ return num(css().getPropertyValue('--iso-cell'), 44); }
 function basis(){
-  const CELL=readCell();
-  const v1={x:cos30*CELL, y:sin30*CELL};
-  const v2={x:-cos30*CELL, y:sin30*CELL};
-  const det=v1.x*v2.y - v2.x*v1.y;
-  const inv={a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
-  return {CELL,v1,v2,inv};
+  const CELL = readCell();
+  const v1 = { x:  cos30*CELL, y:  sin30*CELL };
+  const v2 = { x: -cos30*CELL, y:  sin30*CELL };
+  const det = v1.x*v2.y - v2.x*v1.y;
+  const inv = { a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det };
+  return { CELL, v1, v2, inv };
 }
-let B=basis();
-addEventListener('resize', ()=>{ layoutAll(); }, {passive:true}); // (fitHistogram listener is added later, after it's defined)
+let B = basis();
 function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
-function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
+function invXY(x,y){ return { I: B.inv.a*x + B.inv.b*y, J: B.inv.c*x + B.inv.d*y }; }
 
-const stage=document.getElementById('stage');
-const row1 = document.getElementById('row1');
-const row2 = document.getElementById('row2');
-const row3 = document.getElementById('row3');
-const row4 = document.getElementById('row4');
-const row5 = document.getElementById('row5');
+const stringsG = document.getElementById('strings');
+const labelsG  = document.getElementById('labels');
+const fretNumsG= document.getElementById('fretNums');
+const boardG   = document.getElementById('board');
+const tagsWrap = document.getElementById('stringTags');
 
-/* Place a single horizontal row (desktop) */
-function placeRow(container, startIJ, notes, blurMaxPx){
-  container.innerHTML='';
-  const w=num(css().getPropertyValue('--cube-size'), 36);
-  const h=w*(96/86);
-  const {I:ai, J:aj}=startIJ;
-  const N=notes.length;
-  notes.forEach(([note,key],idx)=>{
-    const I=ai+idx, J=aj;
-    const pC=toXY(I,J), pL=toXY(I,J+2);
-    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.setAttribute('class','cube');
-    g.setAttribute('tabindex','0');
-    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
-    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
-    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
-    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+const FRET_MARKS = {1:1,3:1,5:1,7:1,9:1,12:1,15:1,17:1,19:1,21:1};
+function fretPositions(){ const pos=[0]; for(let f=1; f<=FRETS; f++) pos.push(1 - Math.pow(2, -f/12)); return pos; }
 
-    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
-    // ✅ Compatibility: set both href and xlink:href
-    u.setAttribute('href', '#cubeSym');
-    u.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#cubeSym');
-    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
-    u.setAttribute('width', w); u.setAttribute('height', h);
-    g.appendChild(u);
+function blurForVisualRow(visualRow){
+  const t = visualRow/5; // near = bottom rows
+  const far = 2.2, near = 0.6;
+  const px = far - (far - near) * t;
+  return px.toFixed(2) + 'px';
+}
 
-    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-    lbl.setAttribute('class','note');
-    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
-    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
-    lbl.textContent=`${note.toUpperCase()}/${key}`;
-    lbl.dataset.noteFor=note;
+function sizeForMidi(m){
+  const low = Math.min(...OPEN_MIDI_BASE), high = Math.max(...OPEN_MIDI_BASE) + FRETS;
+  const t = Math.max(0, Math.min(1, (m - low) / (high - low)));
+  return 0.84 + (1 - t) * 0.16;
+}
+function unit(v){ const l=Math.hypot(v.x,v.y)||1; return {x:v.x/l, y:v.y/l}; }
+function pToStr(p){ return `${Math.round(p.x)},${Math.round(p.y)}`; }
 
-    container.appendChild(g);
-    container.appendChild(lbl);
+/* ========= Build Fretboard (two-pass scale + exact centering) ========= */
+function buildFretboard(){
+  stringsG.innerHTML=''; labelsG.innerHTML=''; fretNumsG.innerHTML=''; tagsWrap.innerHTML='';
+  boardG.removeAttribute('transform');
+  B=basis();
+
+  const vh = innerHeight;
+  const bottomH = (document.querySelector('.keyboard-wrap')?.getBoundingClientRect().height) || (vh*0.32);
+  const gut = parseFloat(css().getPropertyValue('--gutter-size')) || 10;
+
+  const availableTop = Math.max(220, vh - bottomH - gut);
+  const controls = document.querySelector('.controls');
+  const controlsBottom = controls ? controls.getBoundingClientRect().bottom : 0;
+  const SAFE_TOP_PAD = Math.max(16, Math.ceil(controlsBottom) + 12);
+
+  const pos = fretPositions();
+  const targetCenterPx = { x: innerWidth / 2, y: Math.max((availableTop) * 0.52, SAFE_TOP_PAD + 40) };
+
+  function place(scale){
+    document.documentElement.style.setProperty('--iso-cell',  (num(css().getPropertyValue('--iso-cell-base'), 44)*scale)+'px');
+    document.documentElement.style.setProperty('--cube-size', (num(css().getPropertyValue('--cube-size-base'),56)*scale)+'px');
+    B=basis();
+    stringsG.innerHTML=''; labelsG.innerHTML=''; fretNumsG.innerHTML='';
+
+    const totalRows = 6;
+    const centerIJ = invXY(targetCenterPx.x, targetCenterPx.y);
+    const spanI = FRETS;
+    const useInverse = (STATE.view === 'inverse');
+
+    const opens     = (STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice());
+    const openNames = (STATE.lefty ? STRING_NAMES_BASE.slice().reverse() : STRING_NAMES_BASE.slice());
+
+    const ANCHOR_FRET = 12;
+    const posAnchor = pos[ANCHOR_FRET];
+    const posAnchorView = useInverse ? (1 - posAnchor) : posAnchor;
+
+    const startI = centerIJ.I - posAnchorView * spanI;
+    const startJ = centerIJ.J - (totalRows/2);
+
+    const baseW=num(css().getPropertyValue('--cube-size'), 36);
+    const baseH=baseW*(96/86);
+
+    const e1 = unit(B.v1), e2 = unit(B.v2);
+
+    for(let visualRow=0; visualRow<totalRows; visualRow++){
+      const s = visualRow;
+      const stringNumber = STATE.lefty ? (1 + s) : (6 - s);
+
+      const stringGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+      stringGroup.setAttribute('data-string', String(stringNumber));
+      stringsG.appendChild(stringGroup);
+
+      for(let f=0; f<=FRETS; f++){
+        const posF = pos[f];
+        const posFI = useInverse ? (1 - posF) : posF;
+
+        const I = startI + posFI * spanI;
+        const J = startJ + visualRow;
+
+        const pC=toXY(I,J);
+
+        const g=document.createElementNS('http://www.w3.org/200/svg','g'); // typo guard? Keep correct:
+      }
+    }
+  }
+
+  // NOTE: The above accidental line was a typo; correct build continues below.
+  stringsG.innerHTML=''; labelsG.innerHTML=''; fretNumsG.innerHTML=''; tagsWrap.innerHTML='';
+  B=basis();
+
+  (function finalPlace(){
+    const pos = fretPositions();
+    const totalRows = 6;
+    const vh = innerHeight;
+    const bottomH = (document.querySelector('.keyboard-wrap')?.getBoundingClientRect().height) || (vh*0.32);
+    const gut = parseFloat(css().getPropertyValue('--gutter-size')) || 10;
+    const availableTop = Math.max(220, vh - bottomH - gut);
+    const controls = document.querySelector('.controls');
+    const SAFE_TOP_PAD = Math.max(16, Math.ceil(controls?.getBoundingClientRect().bottom || 0) + 12);
+    const targetCenterPx = { x: innerWidth / 2, y: Math.max((availableTop) * 0.52, SAFE_TOP_PAD + 40) };
+
+    function place(scale){
+      document.documentElement.style.setProperty('--iso-cell',  (num(css().getPropertyValue('--iso-cell-base'), 44)*scale)+'px');
+      document.documentElement.style.setProperty('--cube-size', (num(css().getPropertyValue('--cube-size-base'),56)*scale)+'px');
+      B=basis();
+      stringsG.innerHTML=''; labelsG.innerHTML=''; fretNumsG.innerHTML=''; tagsWrap.innerHTML='';
+
+      const centerIJ = invXY(targetCenterPx.x, targetCenterPx.y);
+      const spanI = FRETS;
+      const useInverse = (STATE.view === 'inverse');
+
+      const opens = (STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice());
+
+      const ANCHOR_FRET = 12;
+      const posAnchor = pos[ANCHOR_FRET];
+      const posAnchorView = useInverse ? (1 - posAnchor) : posAnchor;
+
+      const startI = centerIJ.I - posAnchorView * spanI;
+      const startJ = centerIJ.J - (totalRows/2);
+
+      const baseW=num(css().getPropertyValue('--cube-size'), 36);
+      const baseH=baseW*(96/86);
+
+      const e1 = unit(B.v1), e2 = unit(B.v2);
+
+      for(let visualRow=0; visualRow<totalRows; visualRow++){
+        const s = visualRow;
+        const stringNumber = STATE.lefty ? (1 + s) : (6 - s);
+
+        const stringGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+        stringGroup.setAttribute('data-string', String(stringNumber));
+        stringsG.appendChild(stringGroup);
+
+        for(let f=0; f<=FRETS; f++){
+          const posF = pos[f];
+          const posFI = useInverse ? (1 - posF) : posF;
+
+          const I = startI + posFI * spanI;
+          const J = startJ + visualRow;
+
+          const pC=toXY(I,J);
+
+          const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+          g.setAttribute('class','cube'); g.setAttribute('tabindex','0'); g.setAttribute('role','button');
+
+          const midi = (opens[s] + f); const nm = nameOf(midi);
+          g.dataset.midi = String(midi); g.dataset.name = nm;
+          g.dataset.string = String(stringNumber);
+          g.dataset.fret = String(f);
+          g.setAttribute('aria-label', `String ${g.dataset.string}, fret ${f}, ${nm}`);
+
+          const k = sizeForMidi(midi);
+          const sxy = baseW * k;
+          const depth = baseH * k * 0.42;
+
+          g.style.setProperty('--depth-blur', blurForVisualRow(visualRow));
+          g.style.setProperty('--focus-blur', '0px');
+
+          const p0 = { x: pC.x, y: pC.y };
+          const p1 = { x: p0.x + e1.x * (sxy/2), y: p0.y + e1.y * (sxy/2) };
+          const p3 = { x: p0.x + e2.x * (sxy/2), y: p0.y + e2.y * (sxy/2) };
+          const p2 = { x: p1.x + e2.x * (sxy/2), y: p1.y + e2.y * (sxy/2) };
+
+          const down = { x: 0, y: depth };
+
+          const top = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          top.setAttribute('class','facet-top');
+          top.setAttribute('points', [p0,p1,p2,p3].map(pToStr).join(' '));
+
+          const side = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          side.setAttribute('class','facet-side');
+          side.setAttribute('points', [p1,p2,{x:p2.x+down.x,y:p2.y+down.y},{x:p1.x+down.x,y:p1.y+down.y}].map(pToStr).join(' '));
+
+          const dark = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          dark.setAttribute('class','facet-dark');
+          dark.setAttribute('points', [p3,p2,{x:p2.x+down.x,y:p2.y+down.y},{x:p3.x+down.x,y:p3.y+down.y}].map(pToStr).join(' '));
+
+          const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
+          const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+
+          const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+          lbl.setAttribute('class','note');
+          lbl.setAttribute('x', cx);
+          lbl.setAttribute('y', cy + 10);
+          lbl.setAttribute('text-anchor','middle');
+          lbl.textContent = nm + (f===0?' (open)':'');
+
+          g.appendChild(top); g.appendChild(side); g.appendChild(dark);
+          stringGroup.appendChild(g);
+          labelsG.appendChild(lbl);
+        }
+      }
+
+      /* string tags */
+      for(let visualRow2=0; visualRow2<6; visualRow2++){
+        const J2 = (centerIJ.J - (6/2)) + visualRow2;
+        const p2 = toXY(startI-2, J2);
+        const tag = document.createElement('div'); tag.className='string-tag';
+        const labelIndex = STATE.lefty ? (1 + visualRow2) : (6 - visualRow2);
+        tag.style.top = (p2.y-6) + 'px';
+        tag.textContent = 'String ' + labelIndex + ' — ' +
+          (STATE.lefty ? STRING_NAMES_BASE[visualRow2] : STRING_NAMES_BASE.slice().reverse()[visualRow2]);
+        tagsWrap.appendChild(tag);
+      }
+
+      /* fret numerals */
+      for(let fn=1; fn<=FRETS; fn++){
+        if(!FRET_MARKS[fn]) continue;
+        const posFN = pos[fn];
+        const posFNI = (STATE.view==='inverse') ? (1 - posFN) : posFN;
+        const Ii = startI + posFNI * spanI;
+        const Jj = startJ - 0.6; const tp = toXY(Ii,Jj);
+        const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+        t.setAttribute('class','fret-num'); t.setAttribute('x', tp.x); t.setAttribute('y', tp.y);
+        t.setAttribute('text-anchor','middle'); t.textContent = String(fn);
+        fretNumsG.appendChild(t);
+      }
+    }
+
+    // pass 1 for bbox
+    place(1);
+    const polys1=stage.querySelectorAll('polygon');
+    if(!polys1.length) return;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    polys1.forEach(u=>{ const bb=u.getBBox(); minX=Math.min(minX,bb.x); minY=Math.min(minY,bb.y); maxX=Math.max(maxX,bb.x+bb.width); maxY=Math.max(maxY,bb.y+bb.height); });
+    const pad = Math.max(16, Math.min(48, Math.round(Math.min(innerWidth, availableTop)*0.04)));
+    const needW = innerWidth - pad*2;
+    const needH = availableTop - 12 - pad*2;
+    const bboxW = maxX-minX, bboxH = maxY-minY;
+    const scale = Math.min(1, needW/bboxW, needH/bboxH);
+
+    // pass 2 scaled
+    place(scale);
+
+    // exact centering
+    const polys2=stage.querySelectorAll('polygon');
+    if(!polys2.length) return;
+    minX=Infinity;minY=Infinity;maxX=-Infinity;maxY=-Infinity;
+    polys2.forEach(u=>{ const bb=u.getBBox(); minX=Math.min(minX,bb.x); minY=Math.min(minY,bb.y); maxX=Math.max(maxX,bb.x+bb.width); maxY=Math.max(maxY,bb.y+bb.height); });
+    const centerX = (minX+maxX)/2, centerY=(minY+maxY)/2;
+
+    let dx = targetCenterPx.x - centerX;
+    let dy = targetCenterPx.y - centerY;
+
+    const SAFE_TOP_PAD2 = Math.max(16, (document.querySelector('.controls')?.getBoundingClientRect().bottom ?? 0) + 12);
+    if (minY + dy < SAFE_TOP_PAD2) dy += (SAFE_TOP_PAD2 - (minY + dy));
+
+    boardG.setAttribute('transform', `translate(${Math.round(dx)}, ${Math.round(dy)})`);
+
+    // align DOM string tags
+    tagsWrap.querySelectorAll('.string-tag').forEach(t => {
+      const cur = parseFloat(t.style.top || '0');
+      t.style.top = (cur + dy) + 'px';
+    });
+  })();
+}
+
+/* ========= Scale highlighting ========= */
+const SCALE_DEFS = {
+  'none': [], 'single note': [0], 'chromatic': [0,1,2,3,4,5,6,7,8,9,10,11],
+  'major': [0,2,4,5,7,9,11], 'natural minor': [0,2,3,5,7,8,10],
+  'dorian': [0,2,3,5,7,9,10], 'mixolydian': [0,2,4,5,7,9,10],
+  'pentatonic major': [0,2,4,7,9], 'pentatonic minor': [0,3,5,7,10], 'blues': [0,3,5,6,7,10]
+};
+function applyScaleHighlight(){
+  const name = STATE.scale;
+  if(name==='none'){
+    stage.querySelectorAll('.cube').forEach(c=>c.classList.remove('in-scale','root'));
+    document.querySelectorAll('.white,.black').forEach(k=>k.classList.remove('in-scale','root'));
+    live.textContent = 'Scale off';
+    return;
+  }
+  const ints = SCALE_DEFS[name]; const set = {};
+  for(let i=0;i<ints.length;i++) set[(STATE.root + ints[i]) % 12] = true;
+
+  stage.querySelectorAll('.cube').forEach(c=>{
+    c.classList.remove('in-scale','root');
+    const pc = pcOf(+c.dataset.midi);
+    if(set[pc]){ c.classList.add('in-scale'); if(pc===STATE.root) c.classList.add('root'); }
+  });
+  document.querySelectorAll('.white,.black').forEach(k=>{
+    k.classList.remove('in-scale','root');
+    const pc = pcOf(+k.dataset.midi);
+    if(set[pc]){ k.classList.add('in-scale'); if(pc===STATE.root) k.classList.add('root'); }
+  });
+  live.textContent = `Scale: ${name}, Root: ${pcs[STATE.root]}`;
+}
+
+/* ========= Keyboard ========= */
+const whitesWrap = document.getElementById('whites');
+const keyboardEl = document.getElementById('keyboard');
+const rangeLabel = document.getElementById('rangeLabel');
+
+function getKeyboardBounds(){
+  return { min: Math.min(...OPEN_MIDI_BASE), max: Math.max(...OPEN_MIDI_BASE) + FRETS };
+}
+
+function layoutKeyboard(){
+  const {min, max} = getKeyboardBounds();
+  rangeLabel.textContent = nameOf(min) + ' → ' + nameOf(max);
+
+  const notes=[]; for(let m=min; m<=max; m++) notes.push(m);
+  const whites = notes.filter(isWhite);
+
+  const pad = parseFloat(getComputedStyle(whitesWrap).gap) || 4;
+  const wwRect = whitesWrap.getBoundingClientRect();
+  const innerW = wwRect.width || keyboardEl.clientWidth;
+  const wW = Math.max(24, Math.floor((innerW - pad*(whites.length-1)) / whites.length));
+  document.documentElement.style.setProperty('--white-w', wW+'px');
+
+  positionBlackKeys();
+}
+
+function buildKeyboard(){
+  const {min, max} = getKeyboardBounds();
+
+  whitesWrap.innerHTML='';
+  keyboardEl.querySelectorAll('.black').forEach(b=>b.remove());
+
+  const frag = document.createDocumentFragment();
+  for(let m=min; m<=max; m++){
+    if(!isWhite(m)) continue;
+    const k = document.createElement('button');
+    k.type='button'; k.className='white';
+    k.dataset.midi=String(m);
+    k.setAttribute('aria-label', nameOf(m));
+    k.setAttribute('tabindex','0');
+    const cap = document.createElement('div'); cap.className='wlabel';
+    cap.innerHTML = `<span>${nameOf(m)}</span><small>${pcs[pcOf(m)]}</small>`;
+    k.appendChild(document.createElement('div'));
+    k.appendChild(cap);
+    frag.appendChild(k);
+  }
+  whitesWrap.appendChild(frag);
+
+  for(let m=min; m<=max; m++){
+    if(isBlackPC[pcOf(m)]){
+      const b = document.createElement('button');
+      b.type='button'; b.className='black';
+      b.dataset.midi=String(m);
+      b.setAttribute('aria-label', nameOf(m));
+      b.setAttribute('tabindex','0');
+      keyboardEl.appendChild(b);
+    }
+  }
+
+  layoutKeyboard();
+}
+
+function positionBlackKeys(){
+  const blacks = Array.from(keyboardEl.querySelectorAll('.black'));
+  const whites = Array.from(whitesWrap.querySelectorAll('.white'));
+  if (!blacks.length || !whites.length) return;
+
+  const kbLeft = keyboardEl.getBoundingClientRect().left;
+  const whiteRects = whites.map(w => w.getBoundingClientRect());
+  const whiteLefts = whiteRects.map(r => r.left - kbLeft);
+  const whiteWidths = whiteRects.map(r => r.width);
+  const whiteCenters = whiteLefts.map((L, i) => L + whiteWidths[i] / 2);
+  const whitesMidi = whites.map(w => +w.dataset.midi);
+
+  const avgWhiteW = whiteWidths.reduce((a,b)=>a+b, 0) / Math.max(1,whiteWidths.length);
+  const blackW = Math.round(Math.max(18, Math.min(28, avgWhiteW * 0.54)));
+
+  blacks.forEach(b => {
+    const m = +b.dataset.midi;
+    let nextIdx = whitesMidi.findIndex(wm => wm > m);
+    if (nextIdx === -1) nextIdx = whitesMidi.length - 1;
+    let prevIdx = nextIdx - 1; if (prevIdx < 0) prevIdx = 0;
+    const cL = whiteCenters[prevIdx];
+    const cR = whiteCenters[Math.min(nextIdx, whiteCenters.length - 1)];
+    const center = (cL + cR) / 2;
+    b.style.width = `${blackW}px`;
+    b.style.left  = `${Math.round(center - blackW / 2)}px`;
   });
 }
 
-/* Compact block for mobile */
-function placeBlock(container, startIJ, notes, cols, blurMaxPx){
-  container.innerHTML='';
-  const w=num(css().getPropertyValue('--cube-size'), 36);
-  const h=w*(96/86);
-  const {I:ai, J:aj}=startIJ;
-  const N=notes.length;
-  notes.forEach(([note,key],idx)=>{
-    const c = idx % cols;
-    const r = Math.floor(idx / cols);
-    const I=ai + c;
-    const J=aj + r;
-    const pC=toXY(I,J), pL=toXY(I,J+2);
-    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.setAttribute('class','cube');
-    g.setAttribute('tabindex','0');
-    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
-    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
+/* ========= Open strings row ========= */
+const opensRow = document.getElementById('opensRow');
+function buildOpensRow(){
+  opensRow.innerHTML = '';
+  const labels = ['E','A','D','G','B','E'];
+  const labelSet = STATE.lefty ? labels.slice().reverse() : labels.slice();
+  const baseSet  = STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice();
 
-    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
-    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+  baseSet.forEach((midi, idx)=>{
+    const btn = document.createElement('button');
+    btn.type='button';
+    btn.className='open-pill';
+    btn.dataset.midi = String(midi);
+    btn.innerHTML = `<span>${labelSet[idx]}</span><small>${nameOf(midi)}</small>`;
+    btn.addEventListener('click', async (e)=>{
+      const ok = await ensureAudio();
+      const key = keyboardEl.querySelector(`[data-midi="${midi}"]`);
+      if (key){ key.classList.add('playing'); setTimeout(()=>key.classList.remove('playing'), 180); flashActiveKey(key, 600); }
+      toggleSelectionForMidi(midi);
+      if (ok) playPiano(midi);
 
-    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
-    // ✅ Compatibility: set both href and xlink:href
-    u.setAttribute('href', '#cubeSym');
-    u.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#cubeSym');
-    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
-    u.setAttribute('width', w); u.setAttribute('height', h);
-    g.appendChild(u);
-
-    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-    lbl.setAttribute('class','note');
-    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
-    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
-    lbl.textContent=`${note.toUpperCase()}/${key}`;
-    lbl.dataset.noteFor=note;
-
-    container.appendChild(g);
-    container.appendChild(lbl);
+      const pos = chooseTabPosition(midi);
+      NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
+      live.textContent = `Open string: ${labelSet[idx]} (${nameOf(midi)})`;
+      triggerBgPulseAtEvent(e);
+    }, { passive:true });
+    opensRow.appendChild(btn);
   });
 }
 
-function measureBounds(){
-  const uses=stage.querySelectorAll('use');
-  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  uses.forEach(u=>{
-    const x=+u.getAttribute('x'), y=+u.getAttribute('y');
-    const w=+u.getAttribute('width'), h=+u.getAttribute('height');
-    minX=Math.min(minX,x); minY=Math.min(minY,y);
-    maxX=Math.max(maxX,x+w); maxY=Math.max(maxY,y+h);
-  });
-  return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
+/* ========= Hover invert ========= */
+let currentHoverMidi = null;
+function beginHoverInvert(midi){
+  if (currentHoverMidi === midi) return;
+  currentHoverMidi = midi;
+  const all = stage.querySelectorAll('.cube');
+  all.forEach(c => c.classList.add('dim'));
+  stage.querySelectorAll(`.cube[data-midi="${midi}"]`).forEach(c => c.classList.remove('dim'));
+}
+function endHoverInvert(){
+  currentHoverMidi = null;
+  stage.querySelectorAll('.cube.dim').forEach(c => c.classList.remove('dim'));
 }
 
-/* ---------- Adaptive bar scaling (updated in layoutAll) ---------- */
-let BAR_SCALE = 0.08;   // global vertical compression
-let BAR_MIN   = 6;      // % floor so nothing disappears
-let BAR_MAX   = 42;     // % ceiling to keep them short
+/* ========= Selection (yellow) ========= */
+function toggleSelectionForMidi(midi){
+  const targets = stage.querySelectorAll(`.cube[data-midi="${midi}"]`);
+  const allSelected = Array.from(targets).every(c => c.classList.contains('selected'));
+  targets.forEach(c => c.classList.toggle('selected', !allSelected));
+}
+function toggleSelectionForCube(cube){ cube.classList.toggle('selected'); }
 
-/* recorder-bar-aware layout (+ histogram bottom padding + mobile fit) */
-function layoutAll(){
-  const vw = innerWidth, vh = innerHeight;
-  const margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
-  const baseCell = num(css().getPropertyValue('--iso-cell-base'), 32);
-  const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
-  const MOBILE = vw < 520;
+/* ========= Active effects ========= */
+function flashActiveKey(keyEl, ms=600){ keyEl.classList.add('active'); setTimeout(()=> keyEl.classList.remove('active'), ms); }
 
-  /* ——— Histogram: add bottom padding inside the track ——— */
-  const track = document.querySelector('.rec .track');
-  if (track) track.style.paddingBottom = '14px';
+/* ========= AUDIO ENGINE (Glassy-only) ========= */
+const AUDIO = typeof window.AUDIO !== "undefined" ? window.AUDIO : { started:false };
+let AC = null;
+const activeVoices = new Set();
+const NOTE_TTL     = 3.5;
+const MAX_VOICES   = 10;
+let polyGain = null;
 
-  /* ——— Mobile-safe vertical scaling for bars ——— */
-  if (vw <= 360)      { BAR_SCALE = 0.34; BAR_MAX = 32; BAR_MIN = 6; }
-  else if (vw <= 420) { BAR_SCALE = 0.36; BAR_MAX = 36; BAR_MIN = 6; }
-  else if (vw <= 520) { BAR_SCALE = 0.37; BAR_MAX = 40; BAR_MIN = 6; }
-  else                { BAR_SCALE = 0.38; BAR_MAX = 42; BAR_MIN = 6; }
+let TONE = { name:'glassy', input:null, output:null, cleanup:()=>{} };
 
-  // initialize at base scale
-  document.documentElement.style.setProperty('--iso-cell', `${baseCell}px`);
-  document.documentElement.style.setProperty('--cube-size', `${baseCube}px`);
-  B = basis();
+function midiToFreq(m){ return 440 * Math.pow(2, (m-69)/12); }
+function makeTanhCurve(amount=1.0, len=2048){
+  const curve = new Float32Array(len);
+  for (let i=0;i<len;i++){ const x=(i/(len-1))*2-1; curve[i]=Math.tanh(amount*x); }
+  return curve;
+}
+function makeCabIR(ctx, seconds=0.09){
+  const sr = ctx.sampleRate;
+  const len = Math.max(128, Math.floor(sr*seconds));
+  const b = ctx.createBuffer(1, len, sr);
+  const d = b.getChannelData(0);
+  const taps = [0,80,150,220,290];
+  taps.forEach((tap, idx)=>{ const p=Math.min(len-1,tap); d[p]+= (idx===0?0.85:0.25/idx); });
+  for(let i=1;i<len;i++){ const x=i/len; d[i]+= (d[i-1]||0)*0.86; d[i]*=(1-x*0.6); }
+  let max=1e-6; for(let i=0;i<len;i++) max=Math.max(max, Math.abs(d[i]));
+  for(let i=0;i<len;i++) d[i]=(d[i]/max)*0.9;
+  return b;
+}
 
-  const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
+async function ensureAudio(){
+  if (AUDIO.started && AC && polyGain) {
+    try { if (AC.state === 'suspended') await AC.resume(); } catch {}
+    return true;
+  }
+  try{
+    const C = window.AudioContext || window.webkitAudioContext;
+    AC = new C({ latencyHint: 'interactive' });
 
-  // clear rows
-  row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
+    if (AC.state === 'suspended') { try { await AC.resume(); } catch {} }
 
-  if (MOBILE){
-    // mobile: 5 columns x 5 rows block
-    const N = allNotes.length;                 // 25
-    const cols = 5;
-    const rows = Math.ceil(N / cols);
-    const center = snap(vw/2, (vh - recH)/2 - 6);
+    const master  = AC.createGain();  master.gain.value = 0.95;
+    const comp    = AC.createDynamicsCompressor();
+    comp.threshold.value=-19; comp.knee.value=24; comp.ratio.value=2.6; comp.attack.value=0.004; comp.release.value=0.16;
+    const limiter = AC.createDynamicsCompressor();
+    limiter.threshold.value=-1.2; limiter.knee.value=0; limiter.ratio.value=20; limiter.attack.value=0.0018; limiter.release.value=0.08;
 
-    const startI = center.I - Math.floor(cols/2);
-    const startJ = center.J - Math.floor(rows/2);
+    polyGain = AC.createGain(); polyGain.gain.value = 0.9;
 
-    placeBlock(row1, {I:startI, J:startJ}, allNotes, cols, 1.6);
+    polyGain.connect(master);
+    master.connect(comp);
+    comp.connect(limiter);
+    limiter.connect(AC.destination);
 
-    const b = measureBounds();
-    const needW = vw - margin*2;
-    const needH = vh - margin*2 - recH;
-    const sW = needW / b.width;
-    const sH = needH / b.height;
-    const scale = Math.min(1, sW, sH);
+    AUDIO.started = true;
+    await setToneGraph('glassy');
 
-    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
-    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
-    B = basis();
+    const resume = async () => { try { if (AC.state === 'suspended') await AC.resume(); } catch {}
+      window.removeEventListener('pointerdown', resume, true);
+      window.removeEventListener('keydown', resume, true);
+      window.removeEventListener('touchstart', resume, true);
+    };
+    window.addEventListener('pointerdown', resume, true);
+    window.addEventListener('keydown', resume, true);
+    window.addEventListener('touchstart', resume, true);
 
-    const center2 = snap(vw/2, (vh - recH)/2 - 6);
-    const startI2 = center2.I - Math.floor(cols/2);
-    const startJ2 = center2.J - Math.floor(rows/2);
+    return true;
+  }catch(e){
+    console.warn('Audio init failed:', e);
+    if (live) live.textContent = 'Audio unavailable';
+    return false;
+  }
+}
 
-    row1.innerHTML='';
-    placeBlock(row1, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
+/* Glassy tone graph only */
+async function buildGlassy(){
+  const input = AC.createGain();
+  const preHP = AC.createBiquadFilter(); preHP.type='highpass'; preHP.frequency.value = 45; preHP.Q.value = 0.6;
+  const tilt  = AC.createBiquadFilter(); tilt.type='peaking'; tilt.frequency.value = 2400; tilt.Q.value=0.7; tilt.gain.value=+1.6;
 
+  const dry = AC.createGain(); dry.gain.value = 0.96;
+  const wet = AC.createGain(); wet.gain.value = 0.08;
+  const convolver = AC.createConvolver(); convolver.buffer = makeCabIR(AC, 0.09);
+
+  input.connect(preHP).connect(tilt);
+  tilt.connect(dry).connect(polyGain);
+  tilt.connect(convolver).connect(wet).connect(polyGain);
+
+  const nodes=[input,preHP,tilt,dry,wet,convolver];
+  return { name:'glassy', input, output:polyGain, cleanup(){ nodes.forEach(n=>{ try{ n.disconnect(); }catch{} }); } };
+}
+
+/* Tone switching simplified to glassy only */
+let _switchingTone = false;
+async function setToneGraph(){
+  if (!AUDIO.started) await ensureAudio();
+  if (_switchingTone) return;
+  _switchingTone = true;
+  try{
+    if (TONE && typeof TONE.cleanup === 'function') { try { TONE.cleanup(); } catch {} }
+    TONE = await buildGlassy();
+    TONE.name = 'glassy';
+    try { if (AC && AC.state === 'suspended') await AC.resume(); } catch {}
+    const sel = document.getElementById('toneSelect');
+    if (sel){
+      sel.innerHTML = '<option value="glassy">Glassy</option>';
+      sel.value = 'glassy';
+      sel.disabled = true; // lock control
+    }
+    if (live) live.textContent = `Tone: glassy`;
+  } finally {
+    _switchingTone = false;
+  }
+}
+
+/* Per-note voice — tuned for glassy */
+function velocityForMidi(m){
+  const low = Math.min(...OPEN_MIDI_BASE), high = Math.max(...OPEN_MIDI_BASE) + FRETS;
+  const t = Math.max(0, Math.min(1, (m - low) / (high - low)));
+  return 0.72 + (1 - t) * 0.10;
+}
+function makePickNoise(duration=0.012, amt=0.06){
+  const bs = AC.createBufferSource();
+  const n = Math.max(1, Math.floor(AC.sampleRate*duration));
+  const b = AC.createBuffer(1, n, AC.sampleRate);
+  const d = b.getChannelData(0);
+  for(let i=0;i<n;i++){ const t=i/n; d[i] = (Math.random()*2-1) * Math.exp(-t*32) * amt; }
+  bs.buffer = b;
+  const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=2200;
+  const g  = AC.createGain(); g.gain.value = 1.0;
+  bs.connect(hp).connect(g);
+  return { src: bs, out: g };
+}
+function makePluckOsc(freq, vel, decayMs=380, colorHz=5200){
+  const o1 = AC.createOscillator(); o1.type='sawtooth'; o1.frequency.value = freq*0.998;
+  const o2 = AC.createOscillator(); o2.type='triangle'; o2.frequency.value = freq*1.002;
+  const mix = AC.createGain(); mix.gain.value = 1.0;
+  o1.connect(mix); o2.connect(mix);
+  const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = Math.min(12000, colorHz);
+  const env = AC.createGain(); env.gain.value = 0.0001;
+
+  const now = AC.currentTime;
+  const atk = 0.003;
+  const dec = decayMs/1000;
+  const sus = 0.0007;
+  env.gain.setValueAtTime(0.0001, now);
+  env.gain.linearRampToValueAtTime(Math.max(0.25, vel), now + atk);
+  env.gain.exponentialRampToValueAtTime(Math.max(1e-4, sus), now + atk + dec);
+
+  mix.connect(lp).connect(env);
+
+  return {
+    start(){
+      o1.start(now); o2.start(now);
+      const stopAt = now + atk + dec + 0.10;
+      o1.stop(stopAt); o2.stop(stopAt);
+      return env;
+    },
+    stop(){
+      const t=AC.currentTime;
+      env.gain.cancelScheduledValues(t);
+      env.gain.setTargetAtTime(0.0001, t, 0.05);
+    },
+    out: env
+  };
+}
+function createVoiceForTone(freq, vel){
+  const pluck = makePluckOsc(freq, vel, 380, 5200);
+  const pick = makePickNoise(0.012, 0.06);
+
+  pluck.out.connect(TONE.input);
+  pick.out.connect(TONE.input);
+
+  const env = pluck.start();
+  const now = AC.currentTime;
+  pick.src.start(now); pick.src.stop(now + 0.03);
+
+  const stop = ()=>{ try{ pluck.stop(); }catch{} };
+  const dispose = ()=>{
+    try{ pluck.out.disconnect(); }catch{}
+    try{ pick.out.disconnect(); }catch{}
+  };
+  return { stop, dispose };
+}
+function playPiano(midi){
+  if(!AUDIO.started || !AC || !polyGain || !TONE.input) return () => {};
+  const f = midiToFreq(midi);
+  const v = createVoiceForTone(f, velocityForMidi(midi));
+
+  if (activeVoices.size >= MAX_VOICES){
+    const oldest = activeVoices.values().next().value;
+    try{ oldest?.stop(0.06); oldest?.dispose?.(); }catch{}
+    activeVoices.delete(oldest);
+  }
+
+  const wrapped = { ...v, born: AC.currentTime };
+  activeVoices.add(wrapped);
+
+  setTimeout(()=>{
+    if (activeVoices.has(wrapped)) { try{ wrapped.dispose?.(); }catch{} activeVoices.delete(wrapped); }
+  }, NOTE_TTL*1000);
+
+  return ()=>{ try{ v.stop(0.18); v.dispose?.(); }catch{} activeVoices.delete(wrapped); };
+}
+
+/* ========= Interactions ========= */
+function pushMemory(el){
+  document.querySelectorAll('.mem0,.mem1,.mem2').forEach(k=>k.classList.remove('mem0','mem1','mem2'));
+  STATE.recentKeys = [el, ...STATE.recentKeys.filter(x=>x!==el)].slice(0, STATE.recentMax);
+  STATE.recentKeys.forEach((k,i)=> k.classList.add('mem'+i));
+}
+
+/* Piano key interaction */
+const histAll = document.getElementById('histAll');
+
+document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
+  const btn = e.target.closest('.white,.black'); if(!btn) return;
+  const ok = await ensureAudio();
+  const midi = +btn.dataset.midi;
+  btn.classList.add('playing'); setTimeout(()=>btn.classList.remove('playing'), 180);
+  flashActiveKey(btn, 600);
+  pushMemory(btn);
+  toggleSelectionForMidi(midi);
+  if(ok) playPiano(midi);
+
+  if (histAll?.checked) {
+    stage.querySelectorAll(`.cube[data-midi="${midi}"]`).forEach(c => {
+      const i = (+c.dataset.string) - 1;
+      const fret = +c.dataset.fret;
+      NOTE_LOG.push({ midi, i, fret });
+    });
   } else {
-    // desktop: five rows with tightened gap
-    const rowLen = 5;
-    const rowGap = (vw < 560 ? 7 : 5);
-    const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
-    const startI = centerIJ.I - Math.floor(rowLen/2);
-    const totalJSpan = rowGap * (5 - 1);
-    const startJTop = centerIJ.J - totalJSpan/2;
+    const pos = chooseTabPosition(midi);
+    NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret });
+  }
+  updateMiniTab();
+  live.textContent = `Piano: ${nameOf(midi)} (glassy)`;
+  triggerBgPulseAtEvent(e);
+}, { passive: true });
 
-    const start1 = { I: startI, J: startJTop + rowGap * 0 };
-    const start2 = { I: startI, J: startJTop + rowGap * 1 };
-    const start3 = { I: startI, J: startJTop + rowGap * 2 };
-    const start4 = { I: startI, J: startJTop + rowGap * 3 };
-    const start5 = { I: startI, J: startJTop + rowGap * 4 };
+document.getElementById('keyboard').addEventListener('pointermove', (e)=>{
+  const btn = e.target.closest('.white,.black');
+  if(!btn){ return; }
+  const midi = +btn.dataset.midi;
+  beginHoverInvert(midi);
+}, { passive:true });
+document.getElementById('keyboard').addEventListener('pointerleave', ()=> endHoverInvert(), { passive:true });
 
-    placeRow(row1, start1, row1Notes, 2.0);
-    placeRow(row2, start2, row2Notes, 2.2);
-    placeRow(row3, start3, row3Notes, 2.4);
-    placeRow(row4, start4, row4Notes, 2.6);
-    placeRow(row5, start5, row5Notes, 2.8);
+/* Fret cube interaction */
+stage.addEventListener('pointerdown', async (e)=>{
+  const cube = e.target.closest('.cube'); if(!cube) return;
+  const ok = await ensureAudio();
+  const midi = +cube.dataset.midi;
+  const key = document.getElementById('keyboard').querySelector(`[data-midi="${midi}"]`);
+  if(key){ key.classList.add('playing'); pushMemory(key); setTimeout(()=>key.classList.remove('playing'), 180); }
+  toggleSelectionForCube(cube);
+  if(ok) playPiano(midi);
 
-    const b = measureBounds();
-    const needW = vw - margin*2;
-    const needH = vh - margin*2 - recH;
-    const sW = needW / b.width;
-    const sH = needH / b.height;
-    const scale = Math.min(1, sW, sH);
+  const fret = +cube.dataset.fret;
+  const pos = chooseTabPositionGivenFret(midi, fret);
+  NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
 
-    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
-    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
-    B = basis();
+  triggerBgPulseAtEvent(e);
+  live.textContent = `Fretboard: ${cube.dataset.name} (string ${cube.dataset.string}, fret ${cube.dataset.fret})`;
+}, { passive: true });
 
-    const center2 = snap(vw/2, (vh - recH)/2 - 10);
-    const startI2 = center2.I - Math.floor(rowLen/2);
-    const startJTop2 = center2.J - totalJSpan/2;
+stage.addEventListener('keydown', async (e)=>{
+  if(e.key!=='Enter' && e.key!==' ') return;
+  const cube = e.target.closest('.cube'); if(!cube) return;
+  e.preventDefault();
+  const ok = await ensureAudio();
+  const midi = +cube.dataset.midi;
+  const key = document.getElementById('keyboard').querySelector(`[data-midi="${midi}"]`);
+  if(key){ key.classList.add('playing'); pushMemory(key); setTimeout(()=>key.classList.remove('playing'), 180); }
+  toggleSelectionForCube(cube);
+  if(ok) playPiano(midi);
 
-    const start1b = { I: startI2, J: startJTop2 + rowGap * 0 };
-    const start2b = { I: startI2, J: startJTop2 + rowGap * 1 };
-    const start3b = { I: startI2, J: startJTop2 + rowGap * 2 };
-    const start4b = { I: startI2, J: startJTop2 + rowGap * 3 };
-    const start5b = { I: startI2, J: startJTop2 + rowGap * 4 };
+  const fret = +cube.dataset.fret;
+  const pos = chooseTabPositionGivenFret(midi, fret);
+  NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret }); updateMiniTab();
 
-    row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = row5.innerHTML = '';
-    placeRow(row1, start1b, row1Notes, 2.0);
-    placeRow(row2, start2b, row2Notes, 2.2);
-    placeRow(row3, start3b, row3Notes, 2.4);
-    placeRow(row4, start4b, row4Notes, 2.6);
-    placeRow(row5, start5b, row5Notes, 2.8);
+  triggerBgPulseAtElement(cube);
+});
+
+/* ========= Controls ========= */
+(function controls(){
+  const handedSel = document.getElementById('handedness');
+  const rootSel   = document.getElementById('rootSelect');
+  const scaleSel  = document.getElementById('scaleSelect');
+  const viewSel   = document.getElementById('viewSelect');
+  const toneSel   = document.getElementById('toneSelect');
+
+  pcs.forEach((n,i)=>{ const o=document.createElement('option'); o.value=String(i); o.textContent=n; rootSel.appendChild(o); });
+  ['none','single note','chromatic','major','natural minor','dorian','mixolydian','pentatonic major','pentatonic minor','blues']
+    .forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n.replace(/\b\w/g,m=>m.toUpperCase()); scaleSel.appendChild(o); });
+
+  rootSel.value=String(STATE.root);
+  scaleSel.value=STATE.scale;
+  handedSel.value=STATE.lefty?'left':'right';
+  viewSel.value=(STATE.view==='inverse')?'inverse':'normal';
+
+  if (toneSel){
+    toneSel.innerHTML = '<option value="glassy">Glassy</option>';
+    toneSel.value = 'glassy';
+    toneSel.disabled = true; // lock to glassy
+    toneSel.addEventListener('change', ()=>{}); // no-op
   }
 
-  window.dispatchEvent(new Event('resize'));
-  window.dispatchEvent(new Event('iso:refresh'));
+  handedSel.addEventListener('change', ()=>{ STATE.lefty = handedSel.value==='left'; buildAll(); });
+  rootSel.addEventListener('change', ()=>{ STATE.root = +rootSel.value; applyScaleHighlight(); });
+  scaleSel.addEventListener('change', ()=>{ STATE.scale = scaleSel.value; applyScaleHighlight(); });
+  viewSel.addEventListener('change', ()=>{ STATE.view = (viewSel.value==='inverse') ? 'inverse' : 'normal'; buildFretboard(); });
+})();
+
+/* ========= Mini ASCII Tab ========= */
+const miniTabEl = document.getElementById('miniTab');
+const histMeta = document.getElementById('histMeta');
+
+function chooseTabPosition(midi){
+  let best = null;
+  for(let i=0;i<6;i++){
+    const fret = midi - TAB_OPEN[i];
+    if (fret>=0 && fret<=FRETS){
+      if(!best || fret < best.fret || (fret===best.fret && i<best.i)){
+        best = { i, fret };
+      }
+    }
+  }
+  if(!best){
+    let minErr=1e9, bestI=0, bestF=0;
+    for(let i=0;i<6;i++){
+      const fret = midi - TAB_OPEN[i];
+      const err = Math.abs(fret<0 ? -fret : fret-FRETS*(fret>FRETS));
+      if (err<minErr){ minErr=err; bestI=i; bestF=Math.max(0, Math.min(FRETS, fret)); }
+    }
+    best = { i:bestI, fret:bestF };
+  }
+  return best;
+}
+function chooseTabPositionGivenFret(midi, fret){
+  for(let i=0;i<6;i++){
+    if (TAB_OPEN[i] + (+fret) === +midi) return { i, fret:+fret };
+  }
+  return chooseTabPosition(midi);
 }
 
-layoutAll();
+function renderMiniTabText(){
+  const cols = Math.min(MAX_TAB_COLS, NOTE_LOG.length);
+  const start = Math.max(0, NOTE_LOG.length - cols);
+  const lines = TAB_LABELS.map(lbl => `${lbl}|`);
+  for(let c=start; c<start+cols; c++){
+    for(let s=0;s<6;s++) lines[s] += '--';
+  }
+  for(let idx=0; idx<cols; idx++){
+    const ev = NOTE_LOG[start + idx];
+    const s  = ev.i;
+    const f  = Math.max(0, Math.min(99, Math.round(ev.fret)));
+    const fs = f.toString().padStart(2,' ').slice(-2);
+    const pos = 2 + idx*2;
+    lines[s] = lines[s].slice(0, pos) + fs + lines[s].slice(pos+2);
+  }
+  for(let idx=0; idx<cols; idx++){
+    if (idx>0 && idx%4===0){
+      for(let s=0;s<6;s++){
+        const pos = 2 + idx*2;
+        lines[s] = lines[s].slice(0,pos) + '|' + lines[s].slice(pos+1);
+      }
+    }
+  }
+  for(let s=0;s<6;s++) lines[s] += '|';
+  return lines.join('\n');
+}
 
-/* ---------- Pulses canvas ---------- */
-(function(){
-  const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
-  const cos30 = Math.sqrt(3)/2, sin30=0.5;
-  const easeOut = u=>1-(1-u)*(1-u);
-  function css(){ return getComputedStyle(document.documentElement); }
-  function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
-  let CELL=56, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:1,b:0,c:0,d:1};
+function updateMiniTab(){
+  miniTabEl.textContent = renderMiniTabText();
+  histMeta.textContent = `Notes: ${NOTE_LOG.length}`;
+}
 
-  function read(){
-    const s = css();
-    CELL = num(s.getPropertyValue('--iso-cell'), 56);
-    v1 = {x: cos30*CELL, y: sin30*CELL};
-    v2 = {x:-cos30*CELL, y: sin30*CELL};
+/* HUD controls */
+const btnBack = document.getElementById('histBack');
+const btnCopy = document.getElementById('histCopy');
+const btnClear= document.getElementById('histClear');
+
+function popLastNote(){
+  if (!NOTE_LOG.length) return;
+  const last = NOTE_LOG.pop();
+  updateMiniTab();
+  live.textContent = `Removed last note: ${nameOf(last.midi)} (Backspace)`;
+}
+function clearLog(){
+  NOTE_LOG.length = 0;
+  updateMiniTab();
+  live.textContent = 'Cleared note log';
+}
+function copyLog(){
+  const tab = renderMiniTabText();
+  const seq = NOTE_LOG.map(e => nameOf(e.midi)).join(', ');
+  const counts = Array(12).fill(0);
+  NOTE_LOG.forEach(e => counts[pcOf(e.midi)]++);
+  const countLines = counts.map((c,i)=> `${pcs[i]}: ${c}`).join('\n');
+  const text = `${tab}\n\nNotes (${NOTE_LOG.length}): ${seq}\n\nCounts by pitch class:\n${countLines}\n`;
+  if (navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(()=>{ live.textContent = 'Copied mini-tab + stats to clipboard'; })
+      .catch(()=> fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text){
+  const ta=document.createElement('textarea');
+  ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); live.textContent = 'Copied mini-tab + stats to clipboard'; }
+  catch(e){ live.textContent = 'Copy failed'; }
+  finally{ ta.remove(); }
+}
+
+btnBack.addEventListener('click', popLastNote);
+btnClear.addEventListener('click', clearLog);
+btnCopy.addEventListener('click', copyLog);
+
+document.addEventListener('keydown', (e)=>{
+  if (e.key !== 'Backspace') return;
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  const editable = document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/i.test(tag));
+  if (editable) return;
+  e.preventDefault();
+  popLastNote();
+});
+
+/* ========= Build orchestration ========= */
+function buildAll(){
+  buildOpensRow();
+  buildKeyboard();
+  buildFretboard();
+  applyScaleHighlight();
+  updateMiniTab();
+}
+
+/* ========= Resize hooks ========= */
+let rAF=0;
+function resync(){
+  cancelAnimationFrame(rAF);
+  rAF=requestAnimationFrame(()=>{ layoutKeyboard(); buildFretboard(); applyScaleHighlight(); });
+}
+addEventListener('resize', resync, { passive: true });
+addEventListener('orientationchange', resync, { passive: true });
+
+/* ========= Init ========= */
+(async function init(){
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', async () => {
+      buildAll();
+      await ensureAudio();
+      await setToneGraph();
+    }, { once:true });
+  } else {
+    buildAll();
+    await ensureAudio();
+    await setToneGraph();
+  }
+})();
+
+/* ========= Background hover/pulse engine ========= */
+(function bgIsoPulses(){
+  const canvas = document.getElementById('bgIso');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  function s(){ return getComputedStyle(document.documentElement); }
+  function fnum(v, fb){ const n = parseFloat(v); return Number.isFinite(n)?n:fb; }
+  function toPx(v){ const m=String(v).trim().match(/^([0-9.]+)\s*px$/i); return m?+m[1]:0; }
+
+  const COS = Math.sqrt(3)/2, SIN = 0.5;
+  let CELL = 40, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:0,b:0,c:0,d:0};
+  let FILL_RGB='255 255 255', FILL_A=.25, STROKE_A=.55, FADE_MS=900, BLUR_MIN='0px', BLUR_MAX='12px', BLUR_CURVE=1.35;
+  let view = { w: innerWidth, h: innerHeight, cx: innerWidth/2, cy: innerHeight/2, R: Math.hypot(innerWidth, innerHeight)/2 };
+
+  function readVars(){
+    const cs = s();
+    CELL       = fnum(cs.getPropertyValue('--iso-cell'), 40);
+    FILL_RGB   = (cs.getPropertyValue('--iso-highlight-fill').trim() || '255 255 255');
+    FILL_A     = fnum(cs.getPropertyValue('--iso-highlight-alpha'), .25);
+    STROKE_A   = fnum(cs.getPropertyValue('--iso-stroke-alpha'), .55);
+    FADE_MS    = fnum(cs.getPropertyValue('--iso-fade-ms'), 900);
+    BLUR_MIN   = cs.getPropertyValue('--iso-blur-min').trim() || '0px';
+    BLUR_MAX   = cs.getPropertyValue('--iso-blur-max').trim() || '12px';
+    BLUR_CURVE = fnum(cs.getPropertyValue('--iso-blur-curve'), 1.35);
+
+    v1 = { x:  COS * CELL, y: SIN * CELL };
+    v2 = { x: -COS * CELL, y: SIN * CELL };
     det = v1.x*v2.y - v2.x*v1.y;
-    inv = {a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
+    inv = { a: v2.y/det, b: -v2.x/det, c: -v1.y/det, d: v1.x/det };
   }
+
   function resize(){
-    const dpr=Math.max(1,devicePixelRatio||1);
-    canvas.width=Math.floor(innerWidth*dpr);
-    canvas.height=Math.floor(innerHeight*dpr);
-    canvas.style.width=innerWidth+'px';
-    canvas.style.height=innerHeight+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    read();
+    const dpr = Math.max(1, devicePixelRatio || 1);
+    canvas.width  = Math.floor(innerWidth * dpr);
+    canvas.height = Math.floor(innerHeight * dpr);
+    canvas.style.width  = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    readVars();
+    view = { w: innerWidth, h: innerHeight, cx: innerWidth/2, cy: innerHeight/2, R: Math.hypot(innerWidth, innerHeight)/2 };
   }
-  addEventListener('resize', resize, {passive:true});
-  addEventListener('iso:refresh', read, {passive:true});
+  addEventListener('resize', resize, { passive:true });
   resize();
 
-  function toXY(I,J){ return { x:I*v1.x + J*v2.x, y:I*v1.y + J*v2.y }; }
-  function snapLocal(x,y){ const i=inv.a*x+inv.b*y, j=inv.c*x+inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
-  function cell(I,J){
-    const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
-    return {pts:[a,b,c,d]};
+  function snapToLattice(x,y){
+    const i = inv.a*x + inv.b*y;
+    const j = inv.c*x + inv.d*y;
+    return { I: Math.round(i), J: Math.round(j) };
   }
-  function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
+  function cellPoly(I,J){
+    const ox = I*v1.x + J*v2.x, oy = I*v1.y + J*v2.y;
+    const p0 = {x: ox,                 y: oy};
+    const p1 = {x: ox + v1.x,          y: oy + v1.y};
+    const p2 = {x: ox + v1.x + v2.x,   y: oy + v1.y + v2.y};
+    const p3 = {x: ox + v2.x,          y: oy + v2.y};
+    const cx = (p0.x+p1.x+p2.x+p3.x)/4, cy = (p0.y+p1.y+p2.y+p3.y)/4;
+    return { pts:[p0,p1,p2,p3], cx, cy };
+  }
 
-  const pulses=[]; let anim=false;
-  function push(I,J){ pulses.push({I,J,t:performance.now()}); if(!anim){ anim=true; requestAnimationFrame(tick); } }
-  window.isoPulse = push;
+  const pulses=[];
+  let lastKey='';
+  addEventListener('pointermove', (e)=>{
+    const {I,J} = snapToLattice(e.clientX, e.clientY);
+    const key = I+','+J;
+    if (key!==lastKey){
+      lastKey = key;
+      pulses.push({I,J,born:performance.now()});
+      if(!animating) start();
+    }
+  }, {passive:true});
+  addEventListener('pointerleave', ()=>{ lastKey=''; });
+
+  let animating=false;
+  const easeOutQuad = u => 1 - (1-u)*(1-u);
+  const clamp01 = x => x<0?0:x>1?1:x;
+  function start(){ animating=true; requestAnimationFrame(tick); }
+  function stop(){ animating=false; }
 
   function tick(now){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     let alive=0;
-    for(const p of pulses){
-      const age=now-p.t; if(age>=900) continue; alive++;
-      const u=age/900, invU=1-u;
-      const {pts}=cell(p.I,p.J);
-      ctx.fillStyle=`rgb(255 255 255 / ${easeOut(1-u)*.22})`;
-      draw(pts); ctx.fill();
-      ctx.lineWidth=1; ctx.strokeStyle=`rgb(255 255 255 / ${invU*.55})`;
+    for (let i=0;i<pulses.length;i++){
+      const p=pulses[i], age=now - p.born;
+      if (age>=FADE_MS) continue;
+      alive++;
+
+      const u = age/FADE_MS, invAge = 1-u;
+      const fillA = easeOutQuad(invAge) * FILL_A;
+      const strokeA = invAge * STROKE_A;
+
+      const {pts, cx, cy} = cellPoly(p.I,p.J);
+
+      const dist = Math.hypot(cx - view.cx, cy - view.cy);
+      const dNorm = clamp01(dist / view.R);
+      const t = Math.pow(dNorm, BLUR_CURVE>0?BLUR_CURVE:1);
+      const blurPx = toPx(BLUR_MIN) + (toPx(BLUR_MAX) - toPx(BLUR_MIN)) * t;
+
+      ctx.filter = `blur(${blurPx}px)`;
+      ctx.fillStyle = `rgb(${FILL_RGB} / ${fillA})`;
+
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for(let k=1;k<pts.length;k++) ctx.lineTo(pts[k].x, pts[k].y);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgb(${FILL_RGB} / ${strokeA})`;
       ctx.stroke();
+      ctx.filter = 'none';
     }
-    if(alive!==pulses.length){
-      const cut=now-900; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
+
+    if (alive !== pulses.length){
+      const cutoff = now - FADE_MS;
+      for(let i=pulses.length-1;i>=0;i--) if (pulses[i].born <= cutoff) pulses.splice(i,1);
     }
-    if(alive>0) requestAnimationFrame(tick); else anim=false;
+    if (alive>0) requestAnimationFrame(tick); else stop();
   }
 
-  let last=null;
-  function handleMove(e){
-    const {I,J}=snapLocal(e.clientX, e.clientY);
-    const k=I+','+J;
-    if(k!==last){ last=k; push(I,J); }
-  }
-  document.addEventListener('pointermove', handleMove, {passive:true});
-  const stageEl=document.getElementById('stage');
-  if(stageEl) stageEl.addEventListener('pointermove', handleMove, {passive:true});
-  addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
-})();
-
-/* ---------- Synth ---------- */
-const POLY_MAX = 10;
-const NOTE_COOLDOWN_MS = 90;
-const lastTrigByNote = new Map();
-
-let AC=null, master=null; let pianoGroup=null; const activeVoices=new Set(); let synthReady=false;
-function ensureAudio(){
-  if(!AC){
-    const C = window.AudioContext || window.webkitAudioContext;
-    AC = new C();
-
-    master = AC.createGain();
-    master.gain.value = 0.5;
-
-    const comp = AC.createDynamicsCompressor();
-    comp.threshold.setValueAtTime(-22, AC.currentTime);
-    comp.knee.setValueAtTime(24, AC.currentTime);
-    comp.ratio.setValueAtTime(4, AC.currentTime);
-    comp.attack.setValueAtTime(0.003, AC.currentTime);
-    comp.release.setValueAtTime(0.25, AC.currentTime);
-
-    master.connect(comp);
-    comp.connect(AC.destination);
-
-    pianoGroup = AC.createGain();
-    pianoGroup.gain.value = 1.0;
-    pianoGroup.connect(master);
-
-    buildReverb();
-    const vs = document.getElementById('volSlider');
-    if (vs) vs.value = Math.round(master.gain.value * 100);
-  }
-  if (AC.state === 'suspended') AC.resume();
-}
-function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
-function parseNote(n){
-  const p=String(n).toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
-  const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]]; const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
-  return 12*(oct+1)+base+alt;
-}
-function midiToName(m){
-  const pcs = ['c','c#','d','d#','e','f','f#','g','g#','a','a#','b'];
-  const pc  = pcs[((m % 12) + 12) % 12];
-  const oct = Math.floor(m / 12) - 1;
-  return (pc + oct);
-}
-let convolver=null, dry=null, wet=null;
-function buildReverb(){
-  convolver=AC.createConvolver();
-  const rate=AC.sampleRate, length=Math.floor(rate*0.9);
-  const impulse=AC.createBuffer(2,length,rate);
-  for(let ch=0; ch<2; ch++){
-    const d=impulse.getChannelData(ch);
-    for(let i=0;i<length;i++){
-      const t=i/length;
-      d[i]=(Math.random()*2-1)*Math.pow(1-t, 2.6)*0.4;
-    }
-  }
-  convolver.buffer=impulse;
-  dry=AC.createGain(); dry.gain.value=0.84;
-  wet=AC.createGain(); wet.gain.value=0.26;
-  pianoGroup.disconnect();
-  pianoGroup.connect(dry).connect(master);
-  pianoGroup.connect(wet).connect(convolver).connect(master);
-}
-function makeShaper(k=1.35){
-  const n=1024, curve=new Float32Array(n);
-  for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; curve[i]=Math.tanh(k*x); }
-  const sh=AC.createWaveShaper(); sh.curve=curve; sh.oversample='2x';
-  return sh;
-}
-function createPianoVoice(freq, vel){
-  const now=AC.currentTime;
-  const voiceGain=AC.createGain(); voiceGain.gain.value=0.0001;
-  const shaper=makeShaper(1.35);
-  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=Math.min(12000, freq*12); lp.Q.value=0.6;
-  const ap=AC.createBiquadFilter(); ap.type='allpass'; ap.frequency.value=freq*2; ap.Q.value=0.6;
-
-  const nbuf=AC.createBuffer(1, Math.floor(AC.sampleRate*0.02), AC.sampleRate);
-  const nd=nbuf.getChannelData(0);
-  for(let i=0;i<nd.length;i++){ nd[i]=(Math.random()*2-1)*Math.pow(1-i/nd.length,2.0); }
-  const nsrc=AC.createBufferSource(); nsrc.buffer=nbuf;
-  const ng=AC.createGain(); ng.gain.value=0.0;
-
-  const partials=[
-    {ratio:1.0,  amp:0.95, decay:1.0},
-    {ratio:2.01, amp:0.38, decay:0.75},
-    {ratio:3.02, amp:0.18, decay:0.55},
-    {ratio:4.05, amp:0.10, decay:0.42},
-    {ratio:5.07, amp:0.06, decay:0.36},
-  ];
-  const oscNodes=[];
-  for(const p of partials){
-    const o=AC.createOscillator(); o.type='sine'; o.frequency.value=freq*p.ratio;
-    const g=AC.createGain(); g.gain.value=0.0;
-    const a=0.003 + 0.002*(1/p.ratio);
-    const d=0.04 + 0.03*(1/p.ratio);
-    const peak=p.amp*vel;
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.linearRampToValueAtTime(peak, now+a);
-    g.gain.linearRampToValueAtTime(peak*0.55, now+a+d);
-    g.gain.setTargetAtTime(0.0001, now+a+d, p.decay);
-    o.connect(g).connect(voiceGain);
-    o.start(now);
-    oscNodes.push({o,g});
-  }
-  ng.gain.setValueAtTime(0.0001, now);
-  ng.gain.linearRampToValueAtTime(0.25*vel, now+0.002);
-  ng.gain.linearRampToValueAtTime(0.0001, now+0.025);
-  nsrc.connect(ng).connect(voiceGain);
-  nsrc.start(now);
-
-  const atk=0.002, peak=0.85*vel;
-  voiceGain.gain.setValueAtTime(0.0001, now);
-  voiceGain.gain.linearRampToValueAtTime(peak, now+atk);
-
-  voiceGain.connect(ap).connect(lp).connect(shaper).connect(pianoGroup);
-
-  const stop=(releaseTime=0.8)=>{
-    const t=AC.currentTime;
-    voiceGain.gain.cancelScheduledValues(t);
-    voiceGain.gain.setTargetAtTime(0.0001, t, Math.max(0.08, releaseTime/4));
-    setTimeout(()=>{ try{ oscNodes.forEach(({o})=>o.stop()); nsrc.stop(); }catch{} }, Math.ceil(releaseTime*1000)+100);
+  window.triggerBgPulseAtEvent = function(ev){
+    const {I,J} = snapToLattice(ev.clientX, ev.clientY);
+    pulses.push({I,J,born:performance.now()}); if(!animating) start();
   };
-  return { stop };
-}
-function playPiano(noteOrMidi, {hold=false, vel=.95} = {}){
-  ensureAudio();
-
-  const key = typeof noteOrMidi === 'number' ? noteOrMidi : String(noteOrMidi).toLowerCase();
-  const nowMs = performance.now();
-  const last = lastTrigByNote.get(key) || 0;
-  if (nowMs - last < NOTE_COOLDOWN_MS) return () => {};
-  lastTrigByNote.set(key, nowMs);
-
-  if (activeVoices.size >= POLY_MAX) {
-    const oldest = activeVoices.values().next().value;
-    try { oldest?.stop(0.2); } catch {}
-    activeVoices.delete(oldest);
-  }
-
-  const midi = (typeof noteOrMidi === 'number') ? noteOrMidi : parseNote(noteOrMidi);
-  const f = midiToFreq(midi);
-  const v = createPianoVoice(f, vel);
-  activeVoices.add(v);
-  return () => { v.stop(hold ? 1.2 : 0.8); activeVoices.delete(v); };
-}
-
-document.addEventListener('pointerdown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true, passive:true});
-document.addEventListener('keydown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true});
-
-/* ---------- Transport ---------- */
-let stepMs = 120;
-
-/* Loop toggle (in controls) */
-let isLooping = false;
-const loopBtn = document.getElementById('btnLoop');
-function setLoop(on){
-  isLooping = !!on;
-  loopBtn.dataset.on = String(isLooping);
-  loopBtn.setAttribute('aria-pressed', String(isLooping));
-  loopBtn.title = isLooping ? 'Looping: On (L)' : 'Loop sequence (L)';
-}
-loopBtn?.addEventListener('click', () => setLoop(!isLooping));
-document.addEventListener('keydown', (e)=>{
-  if (e.key.toLowerCase() === 'l' && !e.repeat) setLoop(!isLooping);
-});
-
-/* Volume */
-const volSlider = document.getElementById('volSlider');
-function setMasterFromSlider(){
-  const v = (parseInt(volSlider.value,10) || 0) / 100;
-  if(AC && master){ master.gain.setTargetAtTime(v, AC.currentTime, 0.01); }
-}
-volSlider?.addEventListener('input', ()=>{ if(!AC) ensureAudio(); setMasterFromSlider(); });
-setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
-
-/* ---------- Recorder / player — histogram ---------- */
-const live=document.getElementById('live');
-const seqRow=document.getElementById('seqRow');
-if (seqRow) { seqRow.style.height = '10%'; seqRow.style.width = '100%'; }
-
-const sequence=[]; // [{note: number|string, li:HTMLElement, midi:number}]
-let playing=false, playIdx=0, playTimer=null;
-
-function flashLabel(note){
-  const lbl=[...stage.querySelectorAll('.note')].find(n=>n.dataset.noteFor===note);
-  if(!lbl) return; lbl.classList.add('lit'); setTimeout(()=>lbl.classList.remove('lit'), 220);
-}
-function getCubeByNote(note){ return [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note); }
-function flashCube(note){
-  const g=getCubeByNote(note); if(!g) return;
-  g.classList.add('brighten');
-  const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
-  setTimeout(()=>g.classList.remove('brighten'),240);
-}
-
-/* HEIGHT = C-major scale degree (C=lowest … B=highest), tiny octave nudge */
-function degreeHeightFromMidi(midi){
-  const pc = ((midi % 12) + 12) % 12;                     // 0..11
-  const degreeIndex = ({0:0,2:1,4:2,5:3,7:4,9:5,11:6})[pc] ?? 0; // C,D,E,F,G,A,B -> 0..6
-  const base = 18, span = 70;                              // % range -> 18..88
-  let h = base + span * (degreeIndex / 6);
-  const octave = Math.floor(midi / 12) - 1;
-  h += (octave - 4) * 2.5;                                 // subtle octave accent
-  return Math.max(12, Math.min(92, h));
-}
-
-function addMidiToSequence(m){
-  const bar = document.createElement('div');
-  bar.className = 'bar';
-  bar.dataset.note = String(m); // store midi for reference
-  bar.title = `${midiToName(m).toUpperCase()} — click to delete`;
-  bar.addEventListener('click', () => removeEvent(bar));
-  bar.addEventListener('mouseenter', () => bar.classList.add('hit'));
-  bar.addEventListener('mouseleave', () => bar.classList.remove('hit'));
-
-  seqRow.appendChild(bar);
-  sequence.push({ note: m, li: bar, midi: m });
-  fitHistogramToViewport();           // ensure width/gap fit as we add
-}
-
-function removeEvent(el){
-  const idx = sequence.findIndex(x => x.li === el);
-  if (idx >= 0){
-    sequence.splice(idx, 1);
-    el.remove();
-    updateHistogramBars();
-    fitHistogramToViewport();         // refit after removal
-  }
-}
-function clearAll(){
-  sequence.splice(0, sequence.length);
-  seqRow.innerHTML = '';
-  seqRow.style.setProperty('--n', 1);
-  stopPlay();
-  fitHistogramToViewport();           // reset fit
-}
-function updateHistogramBars(){
-  const n = sequence.length;
-  seqRow.style.setProperty('--n', Math.max(1, n));
-  if (n === 0) return;
-
-  const raws = sequence.map(s => {
-    const m = (typeof s.midi === 'number') ? s.midi : parseNote(s.note);
-    s.midi = m;
-    return degreeHeightFromMidi(m);
-  });
-
-  const MIN_PX = 4;
-  const TOP_PAD_PX = 6;
-  const rowH = seqRow.clientHeight || 1;
-  const minRaw = Math.min(...raws);
-  const maxRaw = Math.max(...raws);
-  const avail = Math.max(8, rowH - (MIN_PX + TOP_PAD_PX));
-  const denom = Math.max(1e-6, (maxRaw - minRaw));
-  const slope = avail / denom;
-
-  sequence.forEach((s, i) => {
-    const hPx = MIN_PX + (raws[i] - minRaw) * slope;
-    s.li.style.height = hPx.toFixed(1) + 'px';
-  });
-}
-
-function stepPlay(){
-  if(sequence.length===0){ stopPlay(); return; }
-  if(playIdx>=sequence.length){
-    if(isLooping && sequence.length>0){
-      playIdx = 0;
-      stepPlay();
-    }else{
-      stopPlay(true);
-    }
-    return;
-  }
-  const cur = sequence[playIdx++];
-  const midi = (typeof cur.midi === 'number') ? cur.midi : parseNote(cur.note);
-  const labelName = midiToName(midi);
-  cur.li.classList.add('hit'); setTimeout(()=>cur.li.classList.remove('hit'), 180);
-  ensureAudio(); playPiano(midi);                 // play exact MIDI
-  flashLabel(labelName); flashCube(labelName);    // try to light cube/label if present
-  live.textContent=`Played ${labelName.toUpperCase()} (${midi})`;
-  playTimer=setTimeout(stepPlay, stepMs);
-}
-function startPlay(){ if(playing||sequence.length===0) return; playing=true; playIdx=0; stepPlay(); }
-function pausePlay(){ if(!playing) return; clearTimeout(playTimer); playing=false; }
-function stopPlay(end=false){ clearTimeout(playTimer); playing=false; if(end) playIdx=0; }
-document.getElementById('btnPlay')?.addEventListener('click', startPlay);
-document.getElementById('btnPause')?.addEventListener('click', pausePlay);
-document.getElementById('btnClear')?.addEventListener('click', clearAll);
-
-/* ---------- Interactions ---------- */
-let sustain=false;
-const pressed=new Map();
-function playCube(g, {viaHover=false, record=false} = {}){
-  const note=g.dataset.note;
-  const midi = parseNote(note);
-  const release=playPiano(midi,{hold:sustain});
-  pressed.set(g, release);
-  g.classList.add('brighten');
-  const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
-  flashLabel(note);
-  if(record) addMidiToSequence(midi);
-  if(record) updateHistogramBars();
-  if(!sustain && !viaHover){ setTimeout(()=>releaseCube(g), 240); }
-}
-function releaseCube(g){
-  g.classList.remove('brighten');
-  const stop=pressed.get(g); if(stop){ stop(); pressed.delete(g); }
-}
-stage.addEventListener('pointerdown', e=>{
-  const g=e.target.closest('.cube'); if(!g) return;
-  e.preventDefault(); ensureAudio(); playCube(g,{record:true});
-},{passive:false});
-addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
-
-/* Shift pauses hover logging (kept for compatibility, though hover never logs now) */
-let hoverLogPaused = false;
-addEventListener('keydown', (e) => { if (e.key === 'Shift') hoverLogPaused = true; }, { passive: true });
-addEventListener('keyup',   (e) => { if (e.key === 'Shift') hoverLogPaused = false; }, { passive: true });
-
-/* hover — plays; NEVER logs */
-let lastHover = null;
-stage.addEventListener('pointerover', (e) => {
-  const g = e.target.closest('.cube');
-  if (!g || lastHover === g) return;
-  lastHover = g;
-  ensureAudio();
-  playCube(g, { viaHover: true, record: false }); // ← never logs on hover
-}, true);
-stage.addEventListener('pointerout', (e) => {
-  const g = e.target.closest('.cube'); if (!g) return;
-  const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('.cube') : null;
-  if (to === g) return;
-  if (lastHover === g) lastHover = null;
-  if (!sustain) releaseCube(g);
-}, true);
-
-/* ---------- Keyboard mapping (five rows) ---------- */
-const keyMap=new Map(
-  [...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes, ...row5Notes].map(([n,k])=>[k, n])
-);
-document.addEventListener('keydown', e=>{
-  if(e.repeat) return;
-  if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
-
-  // normalize special keys to their character form
-  let key=e.key;
-  if(e.code==='Minus')          key='-';
-  if(e.code==='Equal')          key='=';
-  if(e.code==='BracketRight')   key=']';
-  if(e.code==='Backslash')      key='\\';
-  if(e.code==='BracketLeft')    key='[';
-  if(e.code==='Backquote')      key='[';
-
-  if(!keyMap.has(key)) return;
-  const note=keyMap.get(key);
-  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
-  if(!g) return;
-  ensureAudio(); playCube(g,{record:true});
-});
-document.addEventListener('keyup', e=>{
-  if(e.code==='Space'){
-    sustain=false;
-    document.querySelectorAll('.cube.brighten').forEach(releaseCube);
-    return;
-  }
-  let key=e.key;
-  if(e.code==='Minus')          key='-';
-  if(e.code==='Equal')          key='=';
-  if(e.code==='BracketRight')   key=']';
-  if(e.code==='Backslash')      key='\\';
-  if(e.code==='BracketLeft')    key='[';
-  if(e.code==='Backquote')      key='[';
-
-  const note=keyMap.get(key); if(!note) return;
-  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
-  if(g) releaseCube(g);
-});
-
-/* ---------- Load EXACT composition from your CSV (no transposing, no lerping) ---------- */
-function loadFromCSV(csvText){
-  clearAll();
-  const lines = csvText.trim().split(/\r?\n/);
-  // skip header
-  for(let i=1;i<lines.length;i++){
-    const parts = lines[i].split(',');
-    if (parts.length < 3) continue;
-    const midi = parseInt(parts[1], 10);
-    if (!Number.isFinite(midi)) continue;
-    addMidiToSequence(midi);
-  }
-  updateHistogramBars();
-  fitHistogramToViewport();           // ensure fit after bulk load
-}
-
-const CSV_COMPOSITION = `
-time,midi,name
-2025-10-20T19:06:19.372Z,96,C7
-2025-10-20T19:06:19.659Z,91,G6
-2025-10-20T19:06:19.825Z,84,C6
-2025-10-20T19:06:20.034Z,96,C7
-2025-10-20T19:06:20.215Z,91,G6
-2025-10-20T19:06:20.409Z,84,C6
-2025-10-20T19:06:20.603Z,96,C7
-2025-10-20T19:06:20.793Z,91,G6
-2025-10-20T19:06:20.980Z,84,C6
-2025-10-20T19:06:21.182Z,96,C7
-2025-10-20T19:06:21.324Z,91,G6
-2025-10-20T19:06:21.539Z,84,C6
-2025-10-20T19:06:22.070Z,96,C7
-2025-10-20T19:06:22.301Z,91,G6
-2025-10-20T19:06:22.470Z,84,C6
-2025-10-20T19:06:22.669Z,96,C7
-2025-10-20T19:06:22.881Z,91,G6
-2025-10-20T19:06:23.041Z,84,C6
-2025-10-20T19:06:23.222Z,96,C7
-2025-10-20T19:06:23.383Z,91,G6
-2025-10-20T19:06:23.577Z,84,C6
-2025-10-20T19:06:23.765Z,96,C7
-2025-10-20T19:06:23.913Z,91,G6
-2025-10-20T19:06:24.101Z,84,C6
-2025-10-20T19:06:24.587Z,95,B6
-2025-10-20T19:06:24.819Z,91,G6
-2025-10-20T19:06:24.958Z,84,C6
-2025-10-20T19:06:25.138Z,95,B6
-2025-10-20T19:06:25.328Z,91,G6
-2025-10-20T19:06:25.509Z,84,C6
-2025-10-20T19:06:25.703Z,95,B6
-2025-10-20T19:06:25.858Z,91,G6
-2025-10-20T19:06:26.043Z,84,C6
-2025-10-20T19:06:26.244Z,95,B6
-2025-10-20T19:06:26.383Z,91,G6
-2025-10-20T19:06:26.560Z,84,C6
-2025-10-20T19:06:26.972Z,95,B6
-2025-10-20T19:06:27.134Z,91,G6
-2025-10-20T19:06:27.308Z,84,C6
-2025-10-20T19:06:27.497Z,95,B6
-2025-10-20T19:06:27.657Z,91,G6
-2025-10-20T19:06:27.829Z,84,C6
-2025-10-20T19:06:28.026Z,95,B6
-2025-10-20T19:06:28.191Z,91,G6
-2025-10-20T19:06:28.372Z,84,C6
-2025-10-20T19:06:28.561Z,95,B6
-2025-10-20T19:06:28.707Z,91,G6
-2025-10-20T19:06:28.872Z,84,C6
-2025-10-20T19:06:29.301Z,93,A6
-2025-10-20T19:06:29.483Z,89,F6
-2025-10-20T19:06:29.656Z,84,C6
-2025-10-20T19:06:29.822Z,93,A6
-2025-10-20T19:06:29.983Z,89,F6
-2025-10-20T19:06:30.157Z,84,C6
-2025-10-20T19:06:30.365Z,93,A6
-2025-10-20T19:06:30.505Z,89,F6
-2025-10-20T19:06:30.692Z,84,C6
-2025-10-20T19:06:30.880Z,93,A6
-2025-10-20T19:06:31.019Z,89,F6
-2025-10-20T19:06:31.199Z,84,C6
-2025-10-20T19:06:31.601Z,93,A6
-2025-10-20T19:06:31.741Z,89,F6
-2025-10-20T19:06:31.928Z,84,C6
-2025-10-20T19:06:32.130Z,93,A6
-2025-10-20T19:06:32.290Z,89,F6
-2025-10-20T19:06:32.457Z,84,C6
-2025-10-20T19:06:32.660Z,93,A6
-2025-10-20T19:06:32.800Z,89,F6
-2025-10-20T19:06:32.982Z,84,C6
-2025-10-20T19:06:33.167Z,93,A6
-2025-10-20T19:06:33.315Z,89,F6
-2025-10-20T19:06:33.517Z,84,C6
-2025-10-20T19:06:34.063Z,91,G6
-2025-10-20T19:06:34.261Z,88,E6
-2025-10-20T19:06:34.449Z,84,C6
-2025-10-20T19:06:34.650Z,91,G6
-2025-10-20T19:06:34.781Z,88,E6
-2025-10-20T19:06:34.989Z,84,C6
-2025-10-20T19:06:35.192Z,91,G6
-2025-10-20T19:06:35.343Z,88,E6
-2025-10-20T19:06:35.530Z,84,C6
-2025-10-20T19:06:35.724Z,91,G6
-2025-10-20T19:06:35.864Z,88,E6
-2025-10-20T19:06:36.039Z,84,C6
-2025-10-20T19:06:36.765Z,89,F6
-2025-10-20T19:06:36.927Z,86,D6
-2025-10-20T19:06:37.085Z,83,B5
-2025-10-20T19:06:37.288Z,89,F6
-2025-10-20T19:06:37.414Z,86,D6
-2025-10-20T19:06:37.602Z,83,B5
-2025-10-20T19:06:37.821Z,89,F6
-2025-10-20T19:06:37.965Z,86,D6
-2025-10-20T19:06:38.172Z,83,B5
-2025-10-20T19:06:38.362Z,89,F6
-2025-10-20T19:06:38.500Z,86,D6
-2025-10-20T19:06:38.673Z,83,B5
-2025-10-20T19:06:39.061Z,88,E6
-2025-10-20T19:06:39.278Z,84,C6
-2025-10-20T19:06:39.444Z,81,A5
-2025-10-20T19:06:39.638Z,88,E6
-2025-10-20T19:06:39.778Z,84,C6
-2025-10-20T19:06:39.959Z,81,A5
-2025-10-20T19:06:40.160Z,88,E6
-2025-10-20T19:06:40.299Z,84,C6
-2025-10-20T19:06:40.472Z,81,A5
-2025-10-20T19:06:40.674Z,88,E6
-2025-10-20T19:06:40.800Z,84,C6
-2025-10-20T19:06:40.994Z,81,A5
-2025-10-20T19:06:41.784Z,89,F6
-2025-10-20T19:06:41.966Z,86,D6
-2025-10-20T19:06:42.140Z,83,B5
-2025-10-20T19:06:42.341Z,89,F6
-2025-10-20T19:06:42.500Z,86,D6
-2025-10-20T19:06:42.716Z,83,B5
-2025-10-20T19:06:42.920Z,89,F6
-2025-10-20T19:06:43.093Z,86,D6
-2025-10-20T19:06:43.271Z,83,B5
-2025-10-20T19:06:43.494Z,89,F6
-2025-10-20T19:06:43.809Z,86,D6
-2025-10-20T19:06:44.189Z,83,B5
-2025-10-20T19:06:45.519Z,86,D6
-2025-10-20T19:06:46.039Z,83,B5
-2025-10-20T19:06:46.228Z,79,G5
-2025-10-20T19:06:46.409Z,86,D6
-2025-10-20T19:06:46.548Z,83,B5
-2025-10-20T19:06:46.722Z,79,G5
-2025-10-20T19:06:46.930Z,86,D6
-2025-10-20T19:06:47.049Z,83,B5
-2025-10-20T19:06:47.252Z,79,G5
-2025-10-20T19:06:47.451Z,86,D6
-2025-10-20T19:06:47.571Z,83,B5
-2025-10-20T19:06:47.743Z,79,G5
-2025-10-20T19:06:47.924Z,88,E6
-2025-10-20T19:06:48.057Z,84,C6
-2025-10-20T19:06:48.231Z,81,A5
-2025-10-20T19:06:48.439Z,88,E6
-2025-10-20T19:06:48.563Z,84,C6
-2025-10-20T19:06:48.751Z,81,A5
-2025-10-20T19:06:48.939Z,88,E6
-2025-10-20T19:06:49.072Z,84,C6
-2025-10-20T19:06:49.245Z,81,A5
-2025-10-20T19:06:49.432Z,88,E6
-2025-10-20T19:06:49.559Z,84,C6
-2025-10-20T19:06:49.745Z,81,A5
-2025-10-20T19:06:50.245Z,84,C6
-2025-10-20T19:06:50.384Z,81,A5
-2025-10-20T19:06:50.572Z,77,F5
-2025-10-20T19:06:50.786Z,84,C6
-2025-10-20T19:06:50.932Z,81,A5
-2025-10-20T19:06:51.100Z,77,F5
-2025-10-20T19:06:51.288Z,84,C6
-2025-10-20T19:06:51.414Z,81,A5
-2025-10-20T19:06:51.593Z,77,F5
-2025-10-20T19:06:51.794Z,84,C6
-2025-10-20T19:06:51.920Z,81,A5
-2025-10-20T19:06:52.074Z,77,F5
-2025-10-20T19:06:52.719Z,86,D6
-2025-10-20T19:06:52.892Z,83,B5
-2025-10-20T19:06:53.065Z,79,G5
-2025-10-20T19:06:53.239Z,86,D6
-2025-10-20T19:06:53.379Z,83,B5
-2025-10-20T19:06:53.573Z,79,G5
-2025-10-20T19:06:53.767Z,86,D6
-2025-10-20T19:06:53.908Z,83,B5
-2025-10-20T19:06:54.094Z,79,G5
-2025-10-20T19:06:54.289Z,86,D6
-2025-10-20T19:06:54.415Z,83,B5
-2025-10-20T19:06:54.608Z,79,G5
-2025-10-20T19:06:55.114Z,83,B5
-2025-10-20T19:06:55.330Z,79,G5
-2025-10-20T19:06:55.504Z,76,E5
-2025-10-20T19:06:55.685Z,83,B5
-2025-10-20T19:06:55.810Z,79,G5
-2025-10-20T19:06:55.977Z,76,E5
-2025-10-20T19:06:56.179Z,83,B5
-2025-10-20T19:06:56.298Z,79,G5
-2025-10-20T19:06:56.471Z,76,E5
-2025-10-20T19:06:56.701Z,83,B5
-2025-10-20T19:06:56.819Z,79,G5
-2025-10-20T19:06:56.999Z,76,E5
-2025-10-20T19:06:57.165Z,84,C6
-2025-10-20T19:06:57.285Z,81,A5
-2025-10-20T19:06:57.472Z,77,F5
-2025-10-20T19:06:57.674Z,84,C6
-2025-10-20T19:06:57.806Z,81,A5
-2025-10-20T19:06:58.000Z,77,F5
-2025-10-20T19:06:58.191Z,84,C6
-2025-10-20T19:06:58.327Z,81,A5
-2025-10-20T19:06:58.522Z,77,F5
-2025-10-20T19:06:58.729Z,84,C6
-2025-10-20T19:06:58.856Z,81,A5
-2025-10-20T19:06:59.039Z,77,F5
-2025-10-20T19:07:00.228Z,60,C4
-2025-10-20T19:07:00.430Z,64,E4
-2025-10-20T19:07:00.630Z,67,G4
-2025-10-20T19:07:00.810Z,60,C4
-2025-10-20T19:07:01.019Z,64,E4
-2025-10-20T19:07:01.200Z,67,G4
-2025-10-20T19:07:01.396Z,60,C4
-2025-10-20T19:07:01.595Z,64,E4
-2025-10-20T19:07:01.791Z,67,G4
-2025-10-20T19:07:01.971Z,60,C4
-2025-10-20T19:07:02.173Z,64,E4
-2025-10-20T19:07:02.364Z,67,G4
-2025-10-20T19:07:02.644Z,62,D4
-2025-10-20T19:07:02.839Z,65,F4
-2025-10-20T19:07:03.029Z,69,A4
-2025-10-20T19:07:03.213Z,62,D4
-2025-10-20T19:07:03.400Z,65,F4
-2025-10-20T19:07:03.588Z,69,A4
-2025-10-20T19:07:03.770Z,62,D4
-2025-10-20T19:07:03.951Z,65,F4
-2025-10-20T19:07:04.138Z,69,A4
-2025-10-20T19:07:04.333Z,62,D4
-2025-10-20T19:07:04.529Z,65,F4
-2025-10-20T19:07:04.703Z,69,A4
-2025-10-20T19:07:05.214Z,59,B3
-2025-10-20T19:07:05.409Z,62,D4
-2025-10-20T19:07:05.603Z,65,F4
-2025-10-20T19:07:05.784Z,59,B3
-2025-10-20T19:07:05.971Z,62,D4
-2025-10-20T19:07:06.172Z,65,F4
-2025-10-20T19:07:06.360Z,59,B3
-2025-10-20T19:07:06.551Z,62,D4
-2025-10-20T19:07:06.729Z,65,F4
-2025-10-20T19:07:06.922Z,59,B3
-2025-10-20T19:07:07.123Z,62,D4
-2025-10-20T19:07:07.325Z,65,F4
-2025-10-20T19:07:07.520Z,60,C4
-2025-10-20T19:07:07.715Z,64,E4
-2025-10-20T19:07:07.916Z,67,G4
-2025-10-20T19:07:08.120Z,60,C4
-2025-10-20T19:07:08.320Z,64,E4
-2025-10-20T19:07:08.521Z,67,G4
-2025-10-20T19:07:08.723Z,60,C4
-2025-10-20T19:07:08.912Z,64,E4
-2025-10-20T19:07:09.111Z,67,G4
-2025-10-20T19:07:09.305Z,60,C4
-2025-10-20T19:07:09.514Z,64,E4
-2025-10-20T19:07:09.701Z,67,G4
-2025-10-20T19:07:12.683Z,64,E4
-2025-10-20T19:07:12.842Z,67,G4
-2025-10-20T19:07:13.024Z,71,B4
-2025-10-20T19:07:13.219Z,64,E4
-2025-10-20T19:07:13.426Z,67,G4
-2025-10-20T19:07:13.624Z,71,B4
-2025-10-20T19:07:13.824Z,64,E4
-2025-10-20T19:07:14.022Z,67,G4
-2025-10-20T19:07:14.214Z,71,B4
-2025-10-20T19:07:14.409Z,64,E4
-2025-10-20T19:07:14.612Z,67,G4
-2025-10-20T19:07:14.800Z,71,B4
-2025-10-20T19:07:15.436Z,62,D4
-2025-10-20T19:07:15.644Z,65,F4
-2025-10-20T19:07:15.825Z,69,A4
-2025-10-20T19:07:16.020Z,62,D4
-2025-10-20T19:07:16.213Z,65,F4
-2025-10-20T19:07:16.409Z,69,A4
-2025-10-20T19:07:16.602Z,62,D4
-2025-10-20T19:07:16.792Z,65,F4
-2025-10-20T19:07:16.992Z,69,A4
-2025-10-20T19:07:17.193Z,62,D4
-2025-10-20T19:07:17.386Z,65,F4
-2025-10-20T19:07:17.568Z,69,A4
-2025-10-20T19:07:18.135Z,65,F4
-2025-10-20T19:07:18.331Z,69,A4
-2025-10-20T19:07:18.525Z,72,C5
-2025-10-20T19:07:18.704Z,65,F4
-2025-10-20T19:07:18.915Z,69,A4
-2025-10-20T19:07:19.116Z,72,C5
-2025-10-20T19:07:19.304Z,65,F4
-2025-10-20T19:07:19.511Z,69,A4
-2025-10-20T19:07:19.699Z,72,C5
-2025-10-20T19:07:19.894Z,65,F4
-2025-10-20T19:07:20.088Z,69,A4
-2025-10-20T19:07:20.292Z,72,C5
-2025-10-20T19:07:21.719Z,67,G4
-2025-10-20T19:07:21.923Z,71,B4
-2025-10-20T19:07:22.138Z,74,D5
-2025-10-20T19:07:22.348Z,67,G4
-2025-10-20T19:07:22.561Z,71,B4
-2025-10-20T19:07:22.757Z,74,D5
-2025-10-20T19:07:22.944Z,67,G4
-2025-10-20T19:07:23.130Z,71,B4
-2025-10-20T19:07:23.335Z,74,D5
-2025-10-20T19:07:23.495Z,67,G4
-2025-10-20T19:07:23.689Z,71,B4
-2025-10-20T19:07:23.884Z,74,D5
-2025-10-20T19:07:25.732Z,79,G5
-2025-10-20T19:07:25.982Z,76,E5
-2025-10-20T19:07:26.176Z,72,C5
-2025-10-20T19:07:26.385Z,79,G5
-2025-10-20T19:07:26.592Z,76,E5
-2025-10-20T19:07:26.810Z,72,C5
-2025-10-20T19:07:27.023Z,79,G5
-2025-10-20T19:07:27.213Z,76,E5
-2025-10-20T19:07:27.428Z,72,C5
-2025-10-20T19:07:27.653Z,79,G5
-2025-10-20T19:07:27.880Z,76,E5
-2025-10-20T19:07:28.074Z,72,C5
-2025-10-20T19:07:28.338Z,77,F5
-2025-10-20T19:07:28.540Z,74,D5
-2025-10-20T19:07:28.762Z,71,B4
-2025-10-20T19:07:28.993Z,77,F5
-2025-10-20T19:07:29.223Z,74,D5
-2025-10-20T19:07:29.415Z,71,B4
-2025-10-20T19:07:29.637Z,77,F5
-2025-10-20T19:07:29.855Z,74,D5
-2025-10-20T19:07:30.111Z,71,B4
-2025-10-20T19:07:30.332Z,77,F5
-2025-10-20T19:07:30.582Z,74,D5
-2025-10-20T19:07:30.787Z,71,B4
-2025-10-20T19:07:31.022Z,76,E5
-2025-10-20T19:07:31.236Z,72,C5
-2025-10-20T19:07:31.425Z,69,A4
-2025-10-20T19:07:31.654Z,76,E5
-2025-10-20T19:07:31.870Z,72,C5
-2025-10-20T19:07:32.104Z,69,A4
-2025-10-20T19:07:32.322Z,76,E5
-2025-10-20T19:07:32.556Z,72,C5
-2025-10-20T19:07:32.770Z,69,A4
-2025-10-20T19:07:33.000Z,76,E5
-2025-10-20T19:07:33.242Z,72,C5
-2025-10-20T19:07:33.450Z,69,A4
-2025-10-20T19:07:33.695Z,74,D5
-2025-10-20T19:07:33.915Z,71,B4
-2025-10-20T19:07:34.116Z,67,G4
-2025-10-20T19:07:34.352Z,74,D5
-2025-10-20T19:07:34.547Z,71,B4
-2025-10-20T19:07:34.775Z,67,G4
-2025-10-20T19:07:34.984Z,74,D5
-2025-10-20T19:07:35.202Z,71,B4
-2025-10-20T19:07:35.394Z,67,G4
-2025-10-20T19:07:35.644Z,74,D5
-2025-10-20T19:07:35.867Z,71,B4
-2025-10-20T19:07:36.062Z,67,G4
-2025-10-20T19:07:36.587Z,79,G5
-2025-10-20T19:07:36.832Z,76,E5
-2025-10-20T19:07:37.073Z,72,C5
-2025-10-20T19:07:37.323Z,79,G5
-2025-10-20T19:07:37.561Z,76,E5
-2025-10-20T19:07:37.763Z,72,C5
-2025-10-20T19:07:38.003Z,79,G5
-2025-10-20T19:07:38.227Z,76,E5
-2025-10-20T19:07:38.430Z,72,C5
-2025-10-20T19:07:38.671Z,79,G5
-2025-10-20T19:07:38.909Z,76,E5
-2025-10-20T19:07:39.152Z,72,C5
-2025-10-20T19:07:39.408Z,81,A5
-2025-10-20T19:07:39.654Z,77,F5
-2025-10-20T19:07:39.859Z,72,C5
-2025-10-20T19:07:40.104Z,81,A5
-2025-10-20T19:07:40.314Z,77,F5
-2025-10-20T19:07:40.540Z,72,C5
-2025-10-20T19:07:40.770Z,81,A5
-2025-10-20T19:07:41.018Z,77,F5
-2025-10-20T19:07:41.289Z,72,C5
-2025-10-20T19:07:41.554Z,81,A5
-2025-10-20T19:07:41.799Z,77,F5
-2025-10-20T19:07:42.054Z,72,C5
-2025-10-20T19:07:42.485Z,83,B5
-2025-10-20T19:07:42.820Z,79,G5
-2025-10-20T19:07:43.095Z,72,C5
-2025-10-20T19:07:43.411Z,83,B5
-2025-10-20T19:07:43.724Z,79,G5
-2025-10-20T19:07:44.022Z,72,C5
-2025-10-20T19:07:44.335Z,83,B5
-2025-10-20T19:07:44.614Z,79,G5
-2025-10-20T19:07:44.911Z,72,C5
-2025-10-20T19:07:45.232Z,83,B5
-2025-10-20T19:07:45.524Z,79,G5
-2025-10-20T19:07:45.852Z,72,C5
-2025-10-20T19:07:46.185Z,84,C6
-2025-10-20T19:07:46.629Z,79,G5
-2025-10-20T19:07:46.976Z,72,C5
-2025-10-20T19:07:47.281Z,84,C6
-2025-10-20T19:07:47.590Z,79,G5
-2025-10-20T19:07:47.900Z,72,C5
-2025-10-20T19:07:48.198Z,84,C6
-2025-10-20T19:07:48.496Z,79,G5
-2025-10-20T19:07:48.795Z,72,C5
-2025-10-20T19:07:49.079Z,84,C6
-2025-10-20T19:07:49.407Z,79,G5
-2025-10-20T19:07:49.717Z,72,C5
-2025-10-20T19:07:50.044Z,84,C6
-2025-10-20T19:07:50.336Z,79,G5
-2025-10-20T19:07:50.703Z,72,C5
-2025-10-20T19:07:52.657Z,84,C6
-2025-10-20T19:07:53.093Z,79,G5
-2025-10-20T19:07:56.534Z,72,C5
-2025-10-20T19:07:58.356Z,84,C6
-2025-10-20T19:07:58.889Z,79,G5
-2025-10-20T19:07:59.436Z,72,C5
-2025-10-20T19:08:01.736Z,84,C6
-2025-10-20T19:08:02.255Z,79,G5
-2025-10-20T19:08:03.002Z,72,C5
-`;
-
-function initExact(){
-  loadFromCSV(CSV_COMPOSITION);
-}
-initExact();
-
-/* ---------- Fit histogram to viewport (min bar width, adaptive gaps) ---------- */
-function trackWidthPx(){
-  const track = document.querySelector('.rec .track');
-  return track ? track.clientWidth : innerWidth;
-}
-function fitHistogramToViewport(){
-  const row = document.getElementById('seqRow');
-  if(!row) return;
-
-  const n = Math.max(1, sequence.length);
-  const trackW = trackWidthPx();
-
-  const minBar = parseFloat(getComputedStyle(row).getPropertyValue('--min-bar-px')) || 6;
-  const minGap = parseFloat(getComputedStyle(row).getPropertyValue('--min-gap-px')) || 1;
-  const niceGap =  Math.max(1, Math.min(10, Math.round(trackW / 680)));
-
-  const maxBarsAtMin = Math.floor((trackW + minGap) / (minBar + minGap));
-  const gapPx = (n <= maxBarsAtMin) ? niceGap : minGap;
-
-  row.style.setProperty('--n', String(n));
-  row.style.setProperty('--rec-gap', `${gapPx}px`);
-  row.style.width = '100%';
-}
-
-/* Now that fitHistogramToViewport exists, also attach a resize listener for it */
-addEventListener('resize', fitHistogramToViewport, { passive: true });
-
-/* Initial fit after first load */
-fitHistogramToViewport();
+  window.triggerBgPulseAtElement = function(el){
+    const r = el.getBoundingClientRect();
+    const {I,J} = snapToLattice(r.left + r.width/2, r.top + r.height/2);
+    pulses.push({I,J,born:performance.now()}); if(!animating) start();
+  };
+})();
 
 </script>
 </body>
