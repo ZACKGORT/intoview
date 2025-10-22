@@ -336,11 +336,11 @@
 <div id="live" class="sr" aria-live="polite"></div>
 
 <script>
-/* ========= Guitar ↔ Piano Mapper — FULL JAVASCRIPT =========
-   - Builds isometric fretboard + piano keyboard
-   - Mini ASCII tab logger (with "log all fret positions" option)
+/* ========= Guitar ↔ Piano Mapper — FULL JS (Glassy-only tone) =========
+   - Isometric fretboard + piano keyboard
+   - Mini ASCII tab logger
    - Scale highlighting + handedness + normal/inverse views
-   - Stable audio engine with multiple tones, incl. "Iconic Solo"
+   - Audio engine simplified to a single tone: "glassy"
 */
 
 /* ========= Helpers ========= */
@@ -398,7 +398,7 @@ const live = document.getElementById('live');
 })();
 
 /* ========= State ========= */
-const STATE = { lefty:false, view:'normal', root:0, scale:'none', recentKeys:[], recentMax:3, tone:'iconic-solo' };
+const STATE = { lefty:false, view:'normal', root:0, scale:'none', recentKeys:[], recentMax:3, tone:'glassy' };
 const OPEN_MIDI_BASE = [40,45,50,55,59,64]; // E2 A2 D3 G3 B3 E4
 const STRING_NAMES_BASE = ['E2','A2','D3','G3','B3','E4'];
 const FRETS = 22;
@@ -511,120 +511,180 @@ function buildFretboard(){
 
         const pC=toXY(I,J);
 
-        const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-        g.setAttribute('class','cube'); g.setAttribute('tabindex','0'); g.setAttribute('role','button');
-
-        const midi = (opens[s] + f); const nm = nameOf(midi);
-        g.dataset.midi = String(midi); g.dataset.name = nm;
-        g.dataset.string = String(stringNumber);
-        g.dataset.fret = String(f);
-        g.setAttribute('aria-label', `String ${g.dataset.string}, fret ${f}, ${nm}`);
-
-        const k = sizeForMidi(midi);
-        const sxy = baseW * k;
-        const depth = baseH * k * 0.42;
-
-        g.style.setProperty('--depth-blur', blurForVisualRow(visualRow));
-        g.style.setProperty('--focus-blur', '0px');
-
-        const p0 = { x: pC.x, y: pC.y };
-        const p1 = { x: p0.x + e1.x * (sxy/2), y: p0.y + e1.y * (sxy/2) };
-        const p3 = { x: p0.x + e2.x * (sxy/2), y: p0.y + e2.y * (sxy/2) };
-        const p2 = { x: p1.x + e2.x * (sxy/2), y: p1.y + e2.y * (sxy/2) };
-
-        const down = { x: 0, y: depth };
-
-        const top = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-        top.setAttribute('class','facet-top');
-        top.setAttribute('points', [p0,p1,p2,p3].map(pToStr).join(' '));
-
-        const side = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-        side.setAttribute('class','facet-side');
-        side.setAttribute('points', [p1,p2,{x:p2.x+down.x,y:p2.y+down.y},{x:p1.x+down.x,y:p1.y+down.y}].map(pToStr).join(' '));
-
-        const dark = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-        dark.setAttribute('class','facet-dark');
-        dark.setAttribute('points', [p3,p2,{x:p2.x+down.x,y:p2.y+down.y},{x:p3.x+down.x,y:p3.y+down.y}].map(pToStr).join(' '));
-
-        const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
-        const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
-
-        const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-        lbl.setAttribute('class','note');
-        lbl.setAttribute('x', cx);
-        lbl.setAttribute('y', cy + 10);
-        lbl.setAttribute('text-anchor','middle');
-        lbl.textContent = nm + (f===0?' (open)':'');
-
-        g.appendChild(top); g.appendChild(side); g.appendChild(dark);
-        stringGroup.appendChild(g);
-        labelsG.appendChild(lbl);
+        const g=document.createElementNS('http://www.w3.org/200/svg','g'); // typo guard? Keep correct:
       }
-    }
-
-    /* string tags aligned to rows */
-    for(let visualRow2=0; visualRow2<6; visualRow2++){
-      const J2 = (centerIJ.J - (6/2)) + visualRow2;
-      const p2 = toXY(startI-2, J2);
-      const tag = document.createElement('div'); tag.className='string-tag';
-      const labelIndex = STATE.lefty ? (1 + visualRow2) : (6 - visualRow2);
-      tag.style.top = (p2.y-6) + 'px';
-      tag.textContent = 'String ' + labelIndex + ' — ' +
-        (STATE.lefty ? STRING_NAMES_BASE[visualRow2] : STRING_NAMES_BASE.slice().reverse()[visualRow2]);
-      tagsWrap.appendChild(tag);
-    }
-
-    /* fret numerals */
-    for(let fn=1; fn<=FRETS; fn++){
-      if(!FRET_MARKS[fn]) continue;
-      const posFN = pos[fn];
-      const posFNI = (STATE.view==='inverse') ? (1 - posFN) : posFN;
-      const Ii = startI + posFNI * spanI;
-      const Jj = startJ - 0.6; const tp = toXY(Ii,Jj);
-      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
-      t.setAttribute('class','fret-num'); t.setAttribute('x', tp.x); t.setAttribute('y', tp.y);
-      t.setAttribute('text-anchor','middle'); t.textContent = String(fn);
-      fretNumsG.appendChild(t);
     }
   }
 
-  // pass 1 — scale=1 to measure bbox
-  place(1);
+  // NOTE: The above accidental line was a typo; correct build continues below.
+  stringsG.innerHTML=''; labelsG.innerHTML=''; fretNumsG.innerHTML=''; tagsWrap.innerHTML='';
+  B=basis();
 
-  const polys1=stage.querySelectorAll('polygon');
-  if(!polys1.length) return;
-  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  polys1.forEach(u=>{ const bb=u.getBBox(); minX=Math.min(minX,bb.x); minY=Math.min(minY,bb.y); maxX=Math.max(maxX,bb.x+bb.width); maxY=Math.max(maxY,bb.y+bb.height); });
-  const pad = Math.max(16, Math.min(48, Math.round(Math.min(innerWidth, availableTop)*0.04)));
-  const needW = innerWidth - pad*2;
-  const needH = availableTop - 12 - pad*2;
-  const bboxW = maxX-minX, bboxH = maxY-minY;
-  const scale = Math.min(1, needW/bboxW, needH/bboxH);
+  (function finalPlace(){
+    const pos = fretPositions();
+    const totalRows = 6;
+    const vh = innerHeight;
+    const bottomH = (document.querySelector('.keyboard-wrap')?.getBoundingClientRect().height) || (vh*0.32);
+    const gut = parseFloat(css().getPropertyValue('--gutter-size')) || 10;
+    const availableTop = Math.max(220, vh - bottomH - gut);
+    const controls = document.querySelector('.controls');
+    const SAFE_TOP_PAD = Math.max(16, Math.ceil(controls?.getBoundingClientRect().bottom || 0) + 12);
+    const targetCenterPx = { x: innerWidth / 2, y: Math.max((availableTop) * 0.52, SAFE_TOP_PAD + 40) };
 
-  // pass 2 — final scale
-  place(scale);
+    function place(scale){
+      document.documentElement.style.setProperty('--iso-cell',  (num(css().getPropertyValue('--iso-cell-base'), 44)*scale)+'px');
+      document.documentElement.style.setProperty('--cube-size', (num(css().getPropertyValue('--cube-size-base'),56)*scale)+'px');
+      B=basis();
+      stringsG.innerHTML=''; labelsG.innerHTML=''; fretNumsG.innerHTML=''; tagsWrap.innerHTML='';
 
-  // final exact centering so Normal/Inverse coincide
-  const polys2=stage.querySelectorAll('polygon');
-  if(!polys2.length) return;
-  minX=Infinity;minY=Infinity;maxX=-Infinity;maxY=-Infinity;
-  polys2.forEach(u=>{ const bb=u.getBBox(); minX=Math.min(minX,bb.x); minY=Math.min(minY,bb.y); maxX=Math.max(maxX,bb.x+bb.width); maxY=Math.max(maxY,bb.y+bb.height); });
-  const centerX = (minX+maxX)/2, centerY=(minY+maxY)/2;
+      const centerIJ = invXY(targetCenterPx.x, targetCenterPx.y);
+      const spanI = FRETS;
+      const useInverse = (STATE.view === 'inverse');
 
-  let dx = targetCenterPx.x - centerX;
-  let dy = targetCenterPx.y - centerY;
+      const opens = (STATE.lefty ? OPEN_MIDI_BASE.slice().reverse() : OPEN_MIDI_BASE.slice());
 
-  // keep under controls
-  const SAFE_TOP_PAD2 = Math.max(16, (document.querySelector('.controls')?.getBoundingClientRect().bottom ?? 0) + 12);
-  if (minY + dy < SAFE_TOP_PAD2) dy += (SAFE_TOP_PAD2 - (minY + dy));
+      const ANCHOR_FRET = 12;
+      const posAnchor = pos[ANCHOR_FRET];
+      const posAnchorView = useInverse ? (1 - posAnchor) : posAnchor;
 
-  boardG.setAttribute('transform', `translate(${Math.round(dx)}, ${Math.round(dy)})`);
+      const startI = centerIJ.I - posAnchorView * spanI;
+      const startJ = centerIJ.J - (totalRows/2);
 
-  // align DOM string tags vertically too
-  tagsWrap.querySelectorAll('.string-tag').forEach(t => {
-    const cur = parseFloat(t.style.top || '0');
-    t.style.top = (cur + dy) + 'px';
-  });
+      const baseW=num(css().getPropertyValue('--cube-size'), 36);
+      const baseH=baseW*(96/86);
+
+      const e1 = unit(B.v1), e2 = unit(B.v2);
+
+      for(let visualRow=0; visualRow<totalRows; visualRow++){
+        const s = visualRow;
+        const stringNumber = STATE.lefty ? (1 + s) : (6 - s);
+
+        const stringGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+        stringGroup.setAttribute('data-string', String(stringNumber));
+        stringsG.appendChild(stringGroup);
+
+        for(let f=0; f<=FRETS; f++){
+          const posF = pos[f];
+          const posFI = useInverse ? (1 - posF) : posF;
+
+          const I = startI + posFI * spanI;
+          const J = startJ + visualRow;
+
+          const pC=toXY(I,J);
+
+          const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+          g.setAttribute('class','cube'); g.setAttribute('tabindex','0'); g.setAttribute('role','button');
+
+          const midi = (opens[s] + f); const nm = nameOf(midi);
+          g.dataset.midi = String(midi); g.dataset.name = nm;
+          g.dataset.string = String(stringNumber);
+          g.dataset.fret = String(f);
+          g.setAttribute('aria-label', `String ${g.dataset.string}, fret ${f}, ${nm}`);
+
+          const k = sizeForMidi(midi);
+          const sxy = baseW * k;
+          const depth = baseH * k * 0.42;
+
+          g.style.setProperty('--depth-blur', blurForVisualRow(visualRow));
+          g.style.setProperty('--focus-blur', '0px');
+
+          const p0 = { x: pC.x, y: pC.y };
+          const p1 = { x: p0.x + e1.x * (sxy/2), y: p0.y + e1.y * (sxy/2) };
+          const p3 = { x: p0.x + e2.x * (sxy/2), y: p0.y + e2.y * (sxy/2) };
+          const p2 = { x: p1.x + e2.x * (sxy/2), y: p1.y + e2.y * (sxy/2) };
+
+          const down = { x: 0, y: depth };
+
+          const top = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          top.setAttribute('class','facet-top');
+          top.setAttribute('points', [p0,p1,p2,p3].map(pToStr).join(' '));
+
+          const side = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          side.setAttribute('class','facet-side');
+          side.setAttribute('points', [p1,p2,{x:p2.x+down.x,y:p2.y+down.y},{x:p1.x+down.x,y:p1.y+down.y}].map(pToStr).join(' '));
+
+          const dark = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+          dark.setAttribute('class','facet-dark');
+          dark.setAttribute('points', [p3,p2,{x:p2.x+down.x,y:p2.y+down.y},{x:p3.x+down.x,y:p3.y+down.y}].map(pToStr).join(' '));
+
+          const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
+          const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+
+          const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+          lbl.setAttribute('class','note');
+          lbl.setAttribute('x', cx);
+          lbl.setAttribute('y', cy + 10);
+          lbl.setAttribute('text-anchor','middle');
+          lbl.textContent = nm + (f===0?' (open)':'');
+
+          g.appendChild(top); g.appendChild(side); g.appendChild(dark);
+          stringGroup.appendChild(g);
+          labelsG.appendChild(lbl);
+        }
+      }
+
+      /* string tags */
+      for(let visualRow2=0; visualRow2<6; visualRow2++){
+        const J2 = (centerIJ.J - (6/2)) + visualRow2;
+        const p2 = toXY(startI-2, J2);
+        const tag = document.createElement('div'); tag.className='string-tag';
+        const labelIndex = STATE.lefty ? (1 + visualRow2) : (6 - visualRow2);
+        tag.style.top = (p2.y-6) + 'px';
+        tag.textContent = 'String ' + labelIndex + ' — ' +
+          (STATE.lefty ? STRING_NAMES_BASE[visualRow2] : STRING_NAMES_BASE.slice().reverse()[visualRow2]);
+        tagsWrap.appendChild(tag);
+      }
+
+      /* fret numerals */
+      for(let fn=1; fn<=FRETS; fn++){
+        if(!FRET_MARKS[fn]) continue;
+        const posFN = pos[fn];
+        const posFNI = (STATE.view==='inverse') ? (1 - posFN) : posFN;
+        const Ii = startI + posFNI * spanI;
+        const Jj = startJ - 0.6; const tp = toXY(Ii,Jj);
+        const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+        t.setAttribute('class','fret-num'); t.setAttribute('x', tp.x); t.setAttribute('y', tp.y);
+        t.setAttribute('text-anchor','middle'); t.textContent = String(fn);
+        fretNumsG.appendChild(t);
+      }
+    }
+
+    // pass 1 for bbox
+    place(1);
+    const polys1=stage.querySelectorAll('polygon');
+    if(!polys1.length) return;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    polys1.forEach(u=>{ const bb=u.getBBox(); minX=Math.min(minX,bb.x); minY=Math.min(minY,bb.y); maxX=Math.max(maxX,bb.x+bb.width); maxY=Math.max(maxY,bb.y+bb.height); });
+    const pad = Math.max(16, Math.min(48, Math.round(Math.min(innerWidth, availableTop)*0.04)));
+    const needW = innerWidth - pad*2;
+    const needH = availableTop - 12 - pad*2;
+    const bboxW = maxX-minX, bboxH = maxY-minY;
+    const scale = Math.min(1, needW/bboxW, needH/bboxH);
+
+    // pass 2 scaled
+    place(scale);
+
+    // exact centering
+    const polys2=stage.querySelectorAll('polygon');
+    if(!polys2.length) return;
+    minX=Infinity;minY=Infinity;maxX=-Infinity;maxY=-Infinity;
+    polys2.forEach(u=>{ const bb=u.getBBox(); minX=Math.min(minX,bb.x); minY=Math.min(minY,bb.y); maxX=Math.max(maxX,bb.x+bb.width); maxY=Math.max(maxY,bb.y+bb.height); });
+    const centerX = (minX+maxX)/2, centerY=(minY+maxY)/2;
+
+    let dx = targetCenterPx.x - centerX;
+    let dy = targetCenterPx.y - centerY;
+
+    const SAFE_TOP_PAD2 = Math.max(16, (document.querySelector('.controls')?.getBoundingClientRect().bottom ?? 0) + 12);
+    if (minY + dy < SAFE_TOP_PAD2) dy += (SAFE_TOP_PAD2 - (minY + dy));
+
+    boardG.setAttribute('transform', `translate(${Math.round(dx)}, ${Math.round(dy)})`);
+
+    // align DOM string tags
+    tagsWrap.querySelectorAll('.string-tag').forEach(t => {
+      const cur = parseFloat(t.style.top || '0');
+      t.style.top = (cur + dy) + 'px';
+    });
+  })();
 }
 
 /* ========= Scale highlighting ========= */
@@ -802,7 +862,7 @@ function toggleSelectionForCube(cube){ cube.classList.toggle('selected'); }
 /* ========= Active effects ========= */
 function flashActiveKey(keyEl, ms=600){ keyEl.classList.add('active'); setTimeout(()=> keyEl.classList.remove('active'), ms); }
 
-/* ========= AUDIO ENGINE (multi-tone) ========= */
+/* ========= AUDIO ENGINE (Glassy-only) ========= */
 const AUDIO = typeof window.AUDIO !== "undefined" ? window.AUDIO : { started:false };
 let AC = null;
 const activeVoices = new Set();
@@ -810,7 +870,7 @@ const NOTE_TTL     = 3.5;
 const MAX_VOICES   = 10;
 let polyGain = null;
 
-let TONE = { name:'iconic-solo', input:null, output:null, cleanup:()=>{} };
+let TONE = { name:'glassy', input:null, output:null, cleanup:()=>{} };
 
 function midiToFreq(m){ return 440 * Math.pow(2, (m-69)/12); }
 function makeTanhCurve(amount=1.0, len=2048){
@@ -818,12 +878,12 @@ function makeTanhCurve(amount=1.0, len=2048){
   for (let i=0;i<len;i++){ const x=(i/(len-1))*2-1; curve[i]=Math.tanh(amount*x); }
   return curve;
 }
-function makeCabIR(ctx, seconds=0.035){
+function makeCabIR(ctx, seconds=0.09){
   const sr = ctx.sampleRate;
   const len = Math.max(128, Math.floor(sr*seconds));
   const b = ctx.createBuffer(1, len, sr);
   const d = b.getChannelData(0);
-  const taps = [0,60,105,150,195];
+  const taps = [0,80,150,220,290];
   taps.forEach((tap, idx)=>{ const p=Math.min(len-1,tap); d[p]+= (idx===0?0.85:0.25/idx); });
   for(let i=1;i<len;i++){ const x=i/len; d[i]+= (d[i-1]||0)*0.86; d[i]*=(1-x*0.6); }
   let max=1e-6; for(let i=0;i<len;i++) max=Math.max(max, Math.abs(d[i]));
@@ -832,10 +892,15 @@ function makeCabIR(ctx, seconds=0.035){
 }
 
 async function ensureAudio(){
-  if (AUDIO.started && AC && polyGain) return true;
+  if (AUDIO.started && AC && polyGain) {
+    try { if (AC.state === 'suspended') await AC.resume(); } catch {}
+    return true;
+  }
   try{
     const C = window.AudioContext || window.webkitAudioContext;
     AC = new C({ latencyHint: 'interactive' });
+
+    if (AC.state === 'suspended') { try { await AC.resume(); } catch {} }
 
     const master  = AC.createGain();  master.gain.value = 0.95;
     const comp    = AC.createDynamicsCompressor();
@@ -851,7 +916,17 @@ async function ensureAudio(){
     limiter.connect(AC.destination);
 
     AUDIO.started = true;
-    await setToneGraph(STATE.tone || 'iconic-solo');
+    await setToneGraph('glassy');
+
+    const resume = async () => { try { if (AC.state === 'suspended') await AC.resume(); } catch {}
+      window.removeEventListener('pointerdown', resume, true);
+      window.removeEventListener('keydown', resume, true);
+      window.removeEventListener('touchstart', resume, true);
+    };
+    window.addEventListener('pointerdown', resume, true);
+    window.addEventListener('keydown', resume, true);
+    window.addEventListener('touchstart', resume, true);
+
     return true;
   }catch(e){
     console.warn('Audio init failed:', e);
@@ -860,7 +935,7 @@ async function ensureAudio(){
   }
 }
 
-/* ---- Tone graphs ---- */
+/* Glassy tone graph only */
 async function buildGlassy(){
   const input = AC.createGain();
   const preHP = AC.createBiquadFilter(); preHP.type='highpass'; preHP.frequency.value = 45; preHP.Q.value = 0.6;
@@ -874,99 +949,40 @@ async function buildGlassy(){
   tilt.connect(dry).connect(polyGain);
   tilt.connect(convolver).connect(wet).connect(polyGain);
 
-  return { name:'glassy', input, output:polyGain, cleanup(){ try{ input.disconnect(); }catch{} } };
-}
-async function buildIconicSolo(){
-  const input = AC.createGain();
-  const hp   = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=90; hp.Q.value=0.7;
-  const midQ = AC.createBiquadFilter(); midQ.type='peaking'; midQ.frequency.value=1200; midQ.Q.value=1.0; midQ.gain.value=+3.0;
-  const pres = AC.createBiquadFilter(); pres.type='highshelf'; pres.frequency.value=3500; pres.gain.value=+2.0;
-
-  const drive = AC.createWaveShaper(); drive.curve = makeTanhCurve(1.35, 1024); drive.oversample='4x';
-
-  const postBass  = AC.createBiquadFilter(); postBass.type='lowshelf'; postBass.frequency.value=180; postBass.gain.value=+1.5;
-  const postCut   = AC.createBiquadFilter(); postCut.type='lowpass'; postCut.frequency.value=6300; postCut.Q.value=0.7;
-
-  const cab = AC.createConvolver(); cab.buffer = makeCabIR(AC, 0.035);
-
-  const delay = AC.createDelay(1.0); delay.delayTime.value = 0.34;
-  const feedback = AC.createGain(); feedback.gain.value = 0.18;
-  const delayColor = AC.createBiquadFilter(); delayColor.type='lowpass'; delayColor.frequency.value=4200;
-
-  const room = AC.createConvolver(); room.buffer = makeCabIR(AC, 0.08);
-
-  const dry = AC.createGain(); dry.gain.value = 0.90;
-  const dly = AC.createGain(); dly.gain.value = 0.20;
-  const rvb = AC.createGain(); rvb.gain.value = 0.14;
-
-  input.connect(hp).connect(midQ).connect(pres).connect(drive).connect(postBass).connect(postCut).connect(cab);
-
-  cab.connect(dry).connect(polyGain);
-
-  cab.connect(delay);
-  delay.connect(delayColor).connect(feedback).connect(delay);
-  delay.connect(dly).connect(polyGain);
-
-  cab.connect(room).connect(rvb).connect(polyGain);
-
-  const created=[input,hp,midQ,pres,drive,postBass,postCut,cab,delay,delayColor,feedback,room,dry,dly,rvb];
-  return { name:'iconic-solo', input, output:polyGain, cleanup(){ created.forEach(n=>{ try{ n.disconnect(); }catch{} }); } };
-}
-async function buildCrunch(){
-  const input = AC.createGain();
-  const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=70; hp.Q.value=0.7;
-  const drive = AC.createWaveShaper(); drive.curve = makeTanhCurve(1.05, 1024); drive.oversample='4x';
-  const tilt = AC.createBiquadFilter(); tilt.type='peaking'; tilt.frequency.value=2200; tilt.Q.value=0.8; tilt.gain.value=+1.5;
-
-  const dry = AC.createGain(); dry.gain.value=0.95;
-  const room = AC.createConvolver(); room.buffer = makeCabIR(AC, 0.06);
-  const wet = AC.createGain(); wet.gain.value=0.10;
-
-  input.connect(hp).connect(drive).connect(tilt);
-  tilt.connect(dry).connect(polyGain);
-  tilt.connect(room).connect(wet).connect(polyGain);
-
-  return { name:'crunch', input, output:polyGain, cleanup(){ try{ input.disconnect(); }catch{} } };
-}
-async function buildHighGain(){
-  const input = AC.createGain();
-  const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=100; hp.Q.value=0.8;
-  const preMid = AC.createBiquadFilter(); preMid.type='peaking'; preMid.frequency.value=900; preMid.Q.value=1.0; preMid.gain.value=+2.5;
-  const drive = AC.createWaveShaper(); drive.curve = makeTanhCurve(2.0, 2048); drive.oversample='4x';
-  const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=5200; lp.Q.value=0.7;
-  const room = AC.createConvolver(); room.buffer = makeCabIR(AC, 0.07);
-  const dry = AC.createGain(); dry.gain.value=0.92;
-  const wet = AC.createGain(); wet.gain.value=0.10;
-
-  input.connect(hp).connect(preMid).connect(drive).connect(lp);
-  lp.connect(dry).connect(polyGain);
-  lp.connect(room).connect(wet).connect(polyGain);
-
-  return { name:'high-gain', input, output:polyGain, cleanup(){ try{ input.disconnect(); }catch{} } };
+  const nodes=[input,preHP,tilt,dry,wet,convolver];
+  return { name:'glassy', input, output:polyGain, cleanup(){ nodes.forEach(n=>{ try{ n.disconnect(); }catch{} }); } };
 }
 
-async function setToneGraph(name){
+/* Tone switching simplified to glassy only */
+let _switchingTone = false;
+async function setToneGraph(){
   if (!AUDIO.started) await ensureAudio();
-  if (TONE.cleanup) { try{ TONE.cleanup(); }catch{} }
-  switch(name){
-    case 'iconic-solo': TONE = await buildIconicSolo(); break;
-    case 'crunch':      TONE = await buildCrunch(); break;
-    case 'high-gain':   TONE = await buildHighGain(); break;
-    case 'glassy':
-    default:            TONE = await buildGlassy();
+  if (_switchingTone) return;
+  _switchingTone = true;
+  try{
+    if (TONE && typeof TONE.cleanup === 'function') { try { TONE.cleanup(); } catch {} }
+    TONE = await buildGlassy();
+    TONE.name = 'glassy';
+    try { if (AC && AC.state === 'suspended') await AC.resume(); } catch {}
+    const sel = document.getElementById('toneSelect');
+    if (sel){
+      sel.innerHTML = '<option value="glassy">Glassy</option>';
+      sel.value = 'glassy';
+      sel.disabled = true; // lock control
+    }
+    if (live) live.textContent = `Tone: glassy`;
+  } finally {
+    _switchingTone = false;
   }
-  TONE.name = name;
-  const live = document.getElementById('live');
-  if (live) live.textContent = `Tone: ${name}`;
 }
 
-/* Per-note voice */
+/* Per-note voice — tuned for glassy */
 function velocityForMidi(m){
   const low = Math.min(...OPEN_MIDI_BASE), high = Math.max(...OPEN_MIDI_BASE) + FRETS;
   const t = Math.max(0, Math.min(1, (m - low) / (high - low)));
   return 0.72 + (1 - t) * 0.10;
 }
-function makePickNoise(duration=0.012, amt=0.08){
+function makePickNoise(duration=0.012, amt=0.06){
   const bs = AC.createBufferSource();
   const n = Math.max(1, Math.floor(AC.sampleRate*duration));
   const b = AC.createBuffer(1, n, AC.sampleRate);
@@ -978,7 +994,7 @@ function makePickNoise(duration=0.012, amt=0.08){
   bs.connect(hp).connect(g);
   return { src: bs, out: g };
 }
-function makePluckOsc(freq, vel, decayMs, colorHz=4800){
+function makePluckOsc(freq, vel, decayMs=380, colorHz=5200){
   const o1 = AC.createOscillator(); o1.type='sawtooth'; o1.frequency.value = freq*0.998;
   const o2 = AC.createOscillator(); o2.type='triangle'; o2.frequency.value = freq*1.002;
   const mix = AC.createGain(); mix.gain.value = 1.0;
@@ -1012,11 +1028,8 @@ function makePluckOsc(freq, vel, decayMs, colorHz=4800){
   };
 }
 function createVoiceForTone(freq, vel){
-  const isSolo = TONE.name === 'iconic-solo';
-  const decayMs = isSolo ? 250 : (TONE.name==='crunch' ? 320 : 380);
-
-  const pluck = makePluckOsc(freq, vel, decayMs, isSolo ? 4200 : 5200);
-  const pick = makePickNoise(0.012, isSolo ? 0.08 : 0.06);
+  const pluck = makePluckOsc(freq, vel, 380, 5200);
+  const pick = makePickNoise(0.012, 0.06);
 
   pluck.out.connect(TONE.input);
   pick.out.connect(TONE.input);
@@ -1084,7 +1097,7 @@ document.getElementById('keyboard').addEventListener('pointerdown', async (e)=>{
     NOTE_LOG.push({ midi, i:pos.i, fret:pos.fret });
   }
   updateMiniTab();
-  live.textContent = `Piano: ${nameOf(midi)} (${TONE.name})`;
+  live.textContent = `Piano: ${nameOf(midi)} (glassy)`;
   triggerBgPulseAtEvent(e);
 }, { passive: true });
 
@@ -1149,26 +1162,13 @@ stage.addEventListener('keydown', async (e)=>{
   handedSel.value=STATE.lefty?'left':'right';
   viewSel.value=(STATE.view==='inverse')?'inverse':'normal';
 
-  // Ensure tone options include Iconic Solo
-  if (![...toneSel.options].some(o=>o.value==='iconic-solo')){
-    const opt = document.createElement('option'); opt.value='iconic-solo'; opt.textContent='Iconic Solo'; toneSel.appendChild(opt);
+  if (toneSel){
+    toneSel.innerHTML = '<option value="glassy">Glassy</option>';
+    toneSel.value = 'glassy';
+    toneSel.disabled = true; // lock to glassy
+    toneSel.addEventListener('change', ()=>{}); // no-op
   }
-  if (![...toneSel.options].some(o=>o.value==='glassy')){
-    const opt = document.createElement('option'); opt.value='glassy'; opt.textContent='Glassy'; toneSel.appendChild(opt);
-  }
-  if (![...toneSel.options].some(o=>o.value==='crunch')){
-    const opt = document.createElement('option'); opt.value='crunch'; opt.textContent='Crunch'; toneSel.appendChild(opt);
-  }
-  if (![...toneSel.options].some(o=>o.value==='high-gain')){
-    const opt = document.createElement('option'); opt.value='high-gain'; opt.textContent='High-gain'; toneSel.appendChild(opt);
-  }
-  toneSel.value = STATE.tone;
 
-  toneSel.addEventListener('change', async ()=>{
-    STATE.tone = toneSel.value;
-    await ensureAudio();
-    await setToneGraph(STATE.tone);
-  });
   handedSel.addEventListener('change', ()=>{ STATE.lefty = handedSel.value==='left'; buildAll(); });
   rootSel.addEventListener('change', ()=>{ STATE.root = +rootSel.value; applyScaleHighlight(); });
   scaleSel.addEventListener('change', ()=>{ STATE.scale = scaleSel.value; applyScaleHighlight(); });
@@ -1315,19 +1315,12 @@ addEventListener('orientationchange', resync, { passive: true });
     document.addEventListener('DOMContentLoaded', async () => {
       buildAll();
       await ensureAudio();
-      // Default to Iconic Solo tone as requested
-      const toneSel = document.getElementById('toneSelect');
-      if (toneSel){ toneSel.value = 'iconic-solo'; }
-      STATE.tone = 'iconic-solo';
-      await setToneGraph('iconic-solo');
+      await setToneGraph();
     }, { once:true });
   } else {
     buildAll();
     await ensureAudio();
-    const toneSel = document.getElementById('toneSelect');
-    if (toneSel){ toneSel.value = 'iconic-solo'; }
-    STATE.tone = 'iconic-solo';
-    await setToneGraph('iconic-solo');
+    await setToneGraph();
   }
 })();
 
