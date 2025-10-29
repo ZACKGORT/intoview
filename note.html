@@ -1,312 +1,474 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>intoview • notes prototype</title>
-<link rel="icon" href="data:,"/>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>intoview • notes — MVP</title>
+<link rel="icon" href="data:," />
 <style>
-  /* =============================================================
-     INTOVIEW • NOTES — SINGLE-FILE PROTOTYPE
-     -------------------------------------------------------------
-     How to split later (your preferred workflow):
-       • index.html  – keep only the <body> markup
-       • styles.css  – everything in this <style> block
-       • app.js      – everything in the <script> block
-     Then update links:
-       <link rel="stylesheet" href="styles.css">
-       <script src="app.js" defer></script>
-     ============================================================= */
+/* ----------------------------------------------------
+   intoview • notes — single-file MVP (full-fidelity UI)
+   Brand tenets implemented:
+   • 8pt grid, quiet BW UI, 1px device hairlines
+   • Card with top (title/GPS) + bottom (caption/timestamp)
+   • Fixed export formats: 1:1 or 4:3, baked chrome
+   • Short, decisive inputs (40/100 caps) + counters
+   • Tilt‑shift background band behind focused card
+   • Optional GPS (redactable) per note
+   ---------------------------------------------------- */
+:root{
+  /* spacing scale (8pt grid) */
+  --space-0: 0px;  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
+  --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-7: 28px;
+  --space-8: 32px; --space-9: 36px; --space-10: 40px;
 
-  :root{
-    /* COLORS (monochrome UI) */
-    --bg:#0c0c0e;            /* canvas */
-    --panel:#0f1012;         /* cards */
-    --ink:#e9e9ea;           /* primary text */
-    --muted:#b7b7bb;         /* captions */
-    --line:#ffffff;          /* 1px frame */
-    --line-dim:#9a9aa0;      /* thin separators */
+  /* colors */
+  --bg: #0E0E10;          /* Surface 0 */
+  --panel: #151518;       /* Surface 1 */
+  --sheet: #1A1A1F;       /* Surface 2 */
+  --fg: #EAEAEA;          /* Text */
+  --muted: #A8A8A8;       /* Secondary text */
+  --hair: #FFFFFF20;      /* hairlines */
+  --accent: #59D2C8;      /* subtle accent (rare) */
 
-    /* TYPE */
-    --ui: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* type */
+  --font-ui: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, Noto Sans, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "JetBrains Mono", "Liberation Mono", monospace;
 
-    /* LAYOUT */
-    --left-w: min(38vw, 560px);   /* hero column */
-    --gutter: clamp(16px, 4vmin, 40px);
-    --card-w: min(44vw, 720px);
-    --card-min: 320px;
+  /* component metrics */
+  --chrome-px: 1px;         /* hairline */
+  --card-max: 720px;        /* desktop card max */
+  --card-min: 280px;        /* small device safe */
+  --tilt-sigma: 10px;       /* subtle */
+  --tilt-darken: 0.12;      /* 12% vignette under card */
 
-    /* FRAME + LABELS */
-    --frame: 1px;
-    --label-size: 11px;
-    --label-track: .08em;
-    --timestamp-size: 11px;
+  /* export */
+  --export-padding: 12px;   /* inside frame paddings */
+}
 
-    /* BLUR + FADE */
-    --blur-hero: 10px;   /* tagline blur */
-    --tilt-blur: 8px;    /* background tilt‑shift */
-  }
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-ui);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
 
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body{
-    margin:0; background: var(--bg); color: var(--ink);
-    font: 400 14px/1.5 var(--ui);
-    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
-  }
+/* Layout */
+.app{
+  display:grid; grid-template-columns: 1fr minmax(var(--card-min), var(--card-max)) 1fr;
+  grid-template-rows:auto 1fr auto; min-height:100dvh;
+}
+.header{ grid-column: 1/-1; display:flex; align-items:center; gap:var(--space-4);
+  padding: env(safe-area-inset-top) var(--space-6) var(--space-4); }
+.logo{ display:flex; align-items:center; gap:var(--space-3); opacity:0.95; }
+.logo svg{ width:28px; height:28px; }
+.logo .word{ letter-spacing:.02em; font-weight:600; }
 
-  /* ====== PAGE GRID ====== */
-  .shell{ position:relative; min-height:100dvh; overflow:hidden; }
-  .main{ display:grid; grid-template-columns: var(--left-w) 1fr; min-height:100dvh; }
+.main{
+  grid-column: 2; display:grid; grid-template-columns:1fr; gap:var(--space-6);
+  padding: var(--space-2) 0 var(--space-8);
+}
 
-  /* ====== LEFT PANEL (LOGO + TAGLINE) ====== */
-  .left{ position:relative; padding: calc(var(--gutter) * 1.5) var(--gutter); display:flex; flex-direction:column; gap:32px; }
-  .brand{ display:flex; align-items:center; gap:14px; letter-spacing:.08em; font-weight:600; }
-  .tagline{ margin-top:48px; color:var(--ink); opacity:.9; font-size: clamp(18px, 3.2vw, 28px); letter-spacing:.06em; }
-  .tagline span{ filter: blur(var(--blur-hero)); opacity:.9; }
+.helper{ color:var(--muted); font-size:14px; line-height:1.4; opacity:.9; }
+.helper em{ font-style:normal; color:var(--fg); opacity:.9 }
 
-  /* simple 3‑cube glyph */
-  .glyph{ width:36px; height:26px; display:grid; grid:auto/ auto-flow; gap:2px; }
-  .cube{ width:12px; height:12px; background:linear-gradient(135deg,#e5e5e8,#9a9aa3); border-radius:2px; box-shadow: 0 1px 0 rgba(0,0,0,.45) inset; }
-  .cube:nth-child(2){ opacity:.85; transform: translateY(4px); }
-  .cube:nth-child(3){ opacity:.72; transform: translateY(8px); }
+/* Card shell */
+.card-wrap{ position:relative; isolation:isolate; }
+.tilt-bg{ position:absolute; inset:-6vh -6vw; background:#000; z-index:0; opacity:.9; }
+.tilt-bg::before{
+  content:""; position:absolute; inset:0; background-size:cover; background-position:center;
+  filter:blur(var(--tilt-sigma)) saturate(.6) brightness(.9) contrast(.95) grayscale(100%);
+}
+/* darken behind card */
+.tilt-bg::after{ content:""; position:absolute; inset:0; background:radial-gradient(120% 40% at 50% 55%, rgb(0 0 0 / var(--tilt-darken)) 0%, rgb(0 0 0 / var(--tilt-darken)) 55%, transparent 70%); }
 
-  /* ====== BACKGROUND PHOTO (RIGHT) ====== */
-  .backdrop{ position:absolute; inset:0 0 0 var(--left-w); overflow:hidden; }
-  .bg-img{ position:absolute; inset:0; background:#000 center/cover no-repeat; filter: grayscale(100%); }
+.card{ position:relative; z-index:1; background:#000; box-shadow: 0 2px 8px rgb(0 0 0 / .25);
+  border:var(--chrome-px) solid #fff; }
 
-  /* Tilt‑shift band: less blur across a horizontal strip */
-  .bg-img::before{ content:""; position:absolute; inset:0; backdrop-filter: blur(var(--tilt-blur)); }
-  .bg-img::after{
-    /* gradient mask removes the blur in a band through the middle */
-    content:""; position:absolute; inset:0;
-    backdrop-filter: none; /* cancels */
-    -webkit-mask: linear-gradient(#0000, #000 22%, #000 78%, #0000);
-    mask: linear-gradient(#0000, #000 22%, #000 78%, #0000);
-  }
+.card .top, .card .bottom{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 8px; /* exact chrome spacing */
+  font-size:12px; line-height:16px; font-family:var(--font-mono);
+  color:#e6e6e6; letter-spacing:0; background:#000;
+}
+.card .bar-hair{ height:var(--chrome-px); background:#fff; opacity:.6; }
+.card .img{ position:relative; aspect-ratio: 4/3; background:#111; display:grid; place-items:center; }
+.card.square .img{ aspect-ratio:1/1; }
+.card .img img{ width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.07) brightness(.97); }
+.card .img .empty{
+  display:grid; place-items:center; gap:var(--space-3); color:var(--muted); font-size:14px;
+}
+.camera-ico{ width:40px; height:40px; stroke:#fff; opacity:.9 }
 
-  /* ====== NOTE CARD ====== */
-  .stage{ position:relative; display:flex; justify-content:center; align-items:center; padding: var(--gutter); }
-  .card{ width:clamp(var(--card-min), var(--card-w), 88vw); aspect-ratio: 4 / 3; position:relative; border: var(--frame) solid var(--line); background: #0b0b0d; box-shadow: 0 8px 30px rgba(0,0,0,.55); }
-  .card.square{ aspect-ratio: 1 / 1; }
+/* Controls panel */
+.panel{ background:var(--panel); border:var(--chrome-px) solid var(--hair);
+  padding:var(--space-6); display:grid; gap:var(--space-6); border-radius:8px; }
+.inputs{ display:grid; gap:var(--space-4); }
+label{ font-size:12px; color:var(--muted); margin-bottom:4px; display:block; }
+input[type="text"], textarea, select{
+  width:100%; background:#0F0F12; color:var(--fg); border:var(--chrome-px) solid var(--hair);
+  border-radius:6px; padding:10px 12px; font-size:14px; outline:none;
+}
+textarea{ resize:vertical; min-height:84px; max-height:40vh; }
+.counter{ text-align:right; font-size:11px; color:var(--muted); }
+.row{ display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap; }
+.row .grow{ flex:1 1 auto }
+.switch{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+.switch input{ width:18px; height:18px; }
 
-  .card .hdr, .card .ftr{ position:absolute; left:0; right:0; display:flex; align-items:center; justify-content:space-between; color:#fff; }
-  .card .hdr{ top:0; height:24px; border-bottom: var(--frame) solid var(--line); font: 600 var(--label-size)/1 var(--mono); letter-spacing: var(--label-track); padding:0 8px; }
-  .card .ftr{ bottom:0; height:28px; border-top: var(--frame) solid var(--line); font: 500 var(--timestamp-size)/1 var(--mono); letter-spacing:.04em; padding:0 8px; }
+.buttons{ display:flex; gap:var(--space-4); flex-wrap:wrap; }
+button{
+  appearance:none; border:var(--chrome-px) solid #fff; background:#000; color:#fff; padding:10px 14px;
+  font-size:13px; letter-spacing:.01em; border-radius:8px; cursor:pointer; transition:transform .06s ease, opacity .2s;
+}
+button.secondary{ border-color:var(--hair); color:var(--fg); opacity:.85 }
+button:active{ transform:translateY(1px) }
 
-  .label-dim{ color: #dcdcdf; opacity:.92; }
-  .coords{ color:#cfd0d5; opacity:.9; font-weight:500; }
+/* Footer */
+.footer{ grid-column:1/-1; color:var(--muted); font-size:12px; padding: var(--space-6); opacity:.8 }
+.footer a{ color:var(--muted) }
 
-  .card .media{ position:absolute; inset:24px 0 28px; display:grid; place-items:center; overflow:hidden; }
-  .card .media img{ width:100%; height:100%; object-fit:cover; filter: grayscale(100%); }
-  .placeholder{ color:#8a8a90; font: 600 64px/1 var(--ui); opacity:.7; }
+/* Responsive */
+@media (max-width: 980px){ .app{ grid-template-columns: 1fr minmax(0, 720px) 1fr; } }
+@media (max-width: 720px){
+  .header{ padding: env(safe-area-inset-top) var(--space-4) var(--space-2); }
+  .main{ padding: var(--space-2) var(--space-4) var(--space-8); }
+  .panel{ padding:var(--space-5) }
+}
 
-  .note{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%; color:#fff; opacity:.92; }
-  .time{ color:#d8d8dd; opacity:.9; }
-
-  /* ====== CONTROLS ====== */
-  .controls{ position:absolute; inset:auto auto calc(var(--gutter)) var(--gutter); display:flex; gap:8px; background:#0d0e10cc; padding:8px 10px; border:1px solid #2a2b30; border-radius:10px; backdrop-filter: blur(6px); }
-  .controls input[type="file"]{ display:none; }
-  .btn, .seg{ font:600 12px var(--ui); letter-spacing:.04em; color:#e9e9ed; background:#1a1b1f; border:1px solid #3a3b42; padding:8px 10px; border-radius:8px; cursor:pointer; }
-  .btn:hover{ background:#202128; }
-  .seg-group{ display:flex; border:1px solid #3a3b42; border-radius:8px; overflow:hidden; }
-  .seg{ border:0; background:transparent; padding:8px 12px; }
-  .seg[aria-pressed="true"]{ background:#2a2c33; }
-  .tiny{ font:600 11px/1 var(--mono); color:#bfc0c6; margin-left:6px; }
-
-  /* ====== RESPONSIVE ====== */
-  @media (max-width: 1080px){
-    :root{ --left-w: 44vw; --card-w: 54vw; }
-  }
-  @media (max-width: 880px){
-    .main{ grid-template-columns: 1fr; }
-    .backdrop{ inset: var(--left-w) 0 0 0; /* push off initially */ }
-    .left{ padding-bottom: 0; }
-    .stage{ padding-top: 24px; }
-    .controls{ inset:auto var(--gutter) calc(var(--gutter)) auto; }
-  }
+/* Accessibility helpers */
+.visually-hidden{ position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="main">
-      <!-- LEFT: Brand + Tagline -->
-      <aside class="left">
-        <div class="brand">
-          <div class="glyph" aria-hidden="true">
-            <div class="cube"></div>
-            <div class="cube"></div>
-            <div class="cube"></div>
-          </div>
-          <div style="font-size:22px;">intoview</div>
-        </div>
-        <div class="tagline" aria-label="Moments. Movement. Mindfulness.">
-          <span>Moments. Movement. Mindfulness.</span>
-        </div>
-      </aside>
+  <div class="app" id="app">
+    <header class="header">
+      <div class="logo" aria-label="intoview">
+        <!-- minimal cubes mark -->
+        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M11 7l6 3v6l-6-3V7z" fill="#D9D9D9"/>
+          <path d="M5 10l6-3v6l-6 3v-6z" fill="#BDBDBD"/>
+          <path d="M11 13l6-3v6l-6 3v-6z" fill="#9F9F9F"/>
+        </svg>
+        <div class="word">intoview</div>
+      </div>
+    </header>
 
-      <!-- RIGHT: Background + Note Card Stage -->
-      <section class="stage">
-        <div class="backdrop" aria-hidden="true">
-          <div class="bg-img" id="bg"></div>
-        </div>
+    <main class="main">
+      <p class="helper">moments. movement. mindfulness. <em>write a note, not a novel.</em></p>
 
-        <article class="card" id="card">
-          <header class="hdr">
-            <div class="label-dim" id="titleLbl">[ Title Goes Here ]</div>
-            <div class="coords" id="coordsLbl">[ 40.7644° N, 73.9235° W ]</div>
-          </header>
-          <div class="media" id="media">
-            <img id="photo" alt="intoview note" loading="lazy"/>
-            <div class="placeholder" id="ph">📷</div>
+      <section class="card-wrap">
+        <div class="tilt-bg" id="tiltBg"></div>
+        <article class="card square" id="card">
+          <div class="top">
+            <div><span id="titleOut">[ title ]</span></div>
+            <div id="gpsOut" aria-live="polite"></div>
           </div>
-          <footer class="ftr">
-            <div class="note" id="noteLbl">[ “Write a note, not a novel.” ]</div>
-            <div class="time" id="timeLbl">[ 2025‑01‑01 11:59:59 PM ]</div>
-          </footer>
+          <div class="bar-hair"></div>
+          <div class="img" id="imgSlot">
+            <div class="empty" id="emptyState">
+              <svg class="camera-ico" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 8h4l2-3h6l2 3h4v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z" stroke="currentColor" />
+                <circle cx="12" cy="13" r="4" stroke="currentColor" />
+                <path d="M16.5 6.5h3" stroke="currentColor" />
+              </svg>
+              <div>Upload or take a photo</div>
+            </div>
+            <img id="photo" alt="preview" hidden />
+          </div>
+          <div class="bar-hair"></div>
+          <div class="bottom">
+            <div id="captionOut" class="caption">[ short caption goes here ]</div>
+            <div id="tsOut" class="ts"></div>
+          </div>
         </article>
-
-        <!-- Controls (upload, aspect, export) -->
-        <form class="controls" onsubmit="return false;">
-          <label class="btn" for="file">Upload</label>
-          <input id="file" type="file" accept="image/*"/>
-
-          <div class="seg-group" role="group" aria-label="Aspect ratio">
-            <button class="seg" type="button" id="seg43" aria-pressed="true">4:3</button>
-            <button class="seg" type="button" id="seg11" aria-pressed="false">1:1</button>
-          </div>
-
-          <button class="btn" id="exportBtn" type="button">Export</button>
-          <span class="tiny">PNG, with frame + labels</span>
-        </form>
       </section>
-    </div>
+
+      <section class="panel" aria-label="controls">
+        <div class="inputs">
+          <div>
+            <label for="title">Title (max 40)</label>
+            <input id="title" type="text" maxlength="40" placeholder="e.g., Walks with Wolfie, NYC" />
+            <div class="counter"><span id="titleCount">0</span>/40</div>
+          </div>
+          <div>
+            <label for="caption">Caption (max 100)</label>
+            <textarea id="caption" maxlength="100" placeholder="I can go … with the flow. I can go."></textarea>
+            <div class="counter"><span id="capCount">0</span>/100</div>
+          </div>
+          <div class="row">
+            <div class="grow">
+              <label for="aspect">Output Aspect</label>
+              <select id="aspect">
+                <option value="1">Square — 1:1</option>
+                <option value="4/3" selected>Classic — 4:3</option>
+              </select>
+            </div>
+            <div class="switch"><input id="gpsToggle" type="checkbox"/> include GPS</div>
+            <div class="switch"><input id="monoToggle" type="checkbox" checked/> mono type bars</div>
+          </div>
+          <div class="row">
+            <input id="file" type="file" accept="image/*" class="grow" />
+            <button class="secondary" id="cameraBtn" type="button">Open camera</button>
+            <button id="clearBtn" type="button">Clear</button>
+          </div>
+        </div>
+        <div class="buttons">
+          <button id="export13" type="button">Export card — 1:1 PNG</button>
+          <button id="export43" type="button" class="secondary">Export card — 4:3 PNG</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">Not a novel way to take note. © intoview</footer>
   </div>
 
+  <canvas id="work" class="visually-hidden"></canvas>
+
 <script>
-(() => {
-  const $ = (s, r=document) => r.querySelector(s);
-  const card = $('#card');
-  const media = $('#media');
-  const img = $('#photo');
-  const ph = $('#ph');
-  const bg = $('#bg');
-  const titleLbl = $('#titleLbl');
-  const noteLbl = $('#noteLbl');
-  const coordsLbl = $('#coordsLbl');
-  const timeLbl = $('#timeLbl');
+(()=>{
+  /* ---------- DOM ---------- */
+  const d = document;
+  const imgEl = d.getElementById('photo');
+  const emptyState = d.getElementById('emptyState');
+  const tiltBg = d.getElementById('tiltBg');
+  const titleIn = d.getElementById('title');
+  const captionIn = d.getElementById('caption');
+  const titleOut = d.getElementById('titleOut');
+  const captionOut = d.getElementById('captionOut');
+  const gpsOut = d.getElementById('gpsOut');
+  const tsOut = d.getElementById('tsOut');
+  const fileIn = d.getElementById('file');
+  const cameraBtn = d.getElementById('cameraBtn');
+  const clearBtn  = d.getElementById('clearBtn');
+  const aspectSel = d.getElementById('aspect');
+  const gpsToggle = d.getElementById('gpsToggle');
+  const monoToggle= d.getElementById('monoToggle');
+  const titleCount= d.getElementById('titleCount');
+  const capCount  = d.getElementById('capCount');
+  const card      = d.getElementById('card');
 
-  // Seed imagery (placeholder that matches monochrome vibe)
-  const seed = 'https://images.unsplash.com/photo-1520697222860-6b23c0d7a9a7?q=80&w=1400&auto=format&fit=crop';
-  img.src = seed; bg.style.backgroundImage = `url(${seed})`; ph.style.display = 'none';
-
-  // Timestamp
-  const fmtTime = (d=new Date()) => d.toLocaleString([], { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
-  timeLbl.textContent = fmtTime();
-  setInterval(() => timeLbl.textContent = fmtTime(), 1000);
-
-  // Geolocation → coords label (fallback to mock)
-  const setCoords = (lat, lon) => {
-    const f = (v) => Number(v).toFixed(4);
-    coordsLbl.textContent = `${f(lat)}° N, ${Math.abs(f(lon))}° ${lon < 0 ? 'W' : 'E'}`;
+  /* ---------- Utilities ---------- */
+  const fmtTime = (date=new Date())=>{
+    // 12h with seconds; could be toggled to 24h if desired
+    return date.toLocaleString([], { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
   };
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      p => setCoords(p.coords.latitude, p.coords.longitude),
-      () => setCoords(40.7644, -73.9235),
-      { enableHighAccuracy:false, maximumAge: 600000, timeout: 4000 }
-    );
-  } else setCoords(40.7644, -73.9235);
+  const clamp = (n,min,max)=> Math.min(max, Math.max(min,n));
+  const objUrl = (file)=> URL.createObjectURL(file);
 
-  // Upload handling: set <img> + background
-  $('#file').addEventListener('change', (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (!f) return;
-    const url = URL.createObjectURL(f);
-    img.onload = () => { URL.revokeObjectURL(url); };
-    img.src = url; bg.style.backgroundImage = `url(${url})`; ph.style.display = 'none';
+  /* ---------- State ---------- */
+  let photoURL = '';
+  let gpsText = '';
+  const setBG = (url)=>{
+    tiltBg.style.setProperty('--tilt-img', `url(${url})`);
+    tiltBg.style.background = 'transparent';
+    tiltBg.style.setProperty('background-image','none');
+    tiltBg.querySelector('::before');
+  };
+  // CSS var for background image via style tag injection
+  const setTiltImg = (url)=>{
+    tiltBg.style.setProperty('--tilt-img-url', `url("${url}")`);
+    tiltBg.style.setProperty('--tilt-img','');
+    tiltBg.style.setProperty('background','transparent');
+    tiltBg.style.setProperty('mask','none');
+    tiltBg.style.setProperty('-webkit-mask','none');
+    tiltBg.style.setProperty('contain','layout paint');
+    tiltBg.style.setProperty('will-change','transform');
+    tiltBg.style.setProperty('pointer-events','none');
+    tiltBg.style.setProperty('display','block');
+    tiltBg.style.setProperty('z-index','0');
+    tiltBg.style.setProperty('position','absolute');
+    tiltBg.style.setProperty('inset','-6vh -6vw');
+    // set via style attribute on ::before
+    tiltBg.style.setProperty('--bg-url', `url(${url})`);
+    tiltBg.querySelector?.('::before');
+  };
+
+  // Patch ::before background since inline styles cannot set it directly
+  const styleEl = d.createElement('style');
+  styleEl.textContent = `.tilt-bg::before{ background-image: var(--bg-url) !important; }`;
+  d.head.appendChild(styleEl);
+
+  /* ---------- I/O bindings ---------- */
+  titleIn.addEventListener('input', ()=>{
+    titleOut.textContent = titleIn.value.trim() || '[ title ]';
+    titleCount.textContent = titleIn.value.length;
+  });
+  captionIn.addEventListener('input', ()=>{
+    captionOut.textContent = captionIn.value.trim() || '[ short caption goes here ]';
+    capCount.textContent = captionIn.value.length;
+  });
+  aspectSel.addEventListener('change', ()=>{
+    const ar = aspectSel.value;
+    card.classList.toggle('square', ar==='1');
   });
 
-  // Aspect ratio toggle
-  const seg11 = $('#seg11');
-  const seg43 = $('#seg43');
-  const press = (el, on) => el.setAttribute('aria-pressed', on ? 'true' : 'false');
-  seg11.addEventListener('click', () => { card.classList.add('square'); press(seg11, true); press(seg43, false); });
-  seg43.addEventListener('click', () => { card.classList.remove('square'); press(seg11, false); press(seg43, true); });
+  gpsToggle.addEventListener('change', async ()=>{
+    if(!gpsToggle.checked){ gpsText=''; gpsOut.textContent=''; return; }
+    if(!('geolocation' in navigator)){ gpsOut.textContent='[gps unavailable]'; return; }
+    try{
+      const pos = await new Promise((res,rej)=> navigator.geolocation.getCurrentPosition(res,rej, { enableHighAccuracy:false, timeout:8000 }));
+      const { latitude, longitude } = pos.coords;
+      // Approximate (4 decimals) per privacy
+      const lat = latitude.toFixed(4), lon = longitude.toFixed(4);
+      gpsText = `[ ${lat}° N ${lon}° W ]`;
+      gpsOut.textContent = gpsText;
+    }catch(e){ gpsOut.textContent='[gps denied]'; }
+  });
 
-  // Inline editing (dbl‑click labels to edit)
-  const inlineEdit = (el, placeholder) => {
-    el.addEventListener('dblclick', () => {
-      const cur = el.textContent.replace(/[\[\]]/g,'').trim();
-      const txt = prompt('Edit', cur || placeholder);
-      if (txt != null) el.textContent = txt.trim() || placeholder;
-    });
-  };
-  inlineEdit(titleLbl, 'Untitled');
-  inlineEdit(noteLbl, 'A quick thought.');
+  monoToggle.addEventListener('change', ()=>{
+    const f = monoToggle.checked ? 'var(--font-mono)' : 'var(--font-ui)';
+    card.querySelectorAll('.top,.bottom').forEach(el=> el.style.fontFamily = `\${f}`);
+  });
 
-  // Export: rasterize card at device pixel ratio and download
-  $('#exportBtn').addEventListener('click', async () => {
-    const scale = Math.min(2, window.devicePixelRatio || 1.5); // crisp but light
-    const rect = card.getBoundingClientRect();
-    const w = Math.round(rect.width * scale);
-    const h = Math.round(rect.height * scale);
+  fileIn.addEventListener('change', ()=>{
+    const f = fileIn.files?.[0]; if(!f) return;
+    photoURL = objUrl(f);
+    imgEl.src = photoURL; imgEl.hidden=false; emptyState.hidden=true;
+    setTiltImg(photoURL);
+    tsOut.textContent = fmtTime(new Date());
+  });
 
-    // Create a canvas and draw DOM by snapshot
-    // Use the Paint API via CSS to get clean vector-ish borders by drawing manually.
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d');
-    // Fill background
-    ctx.fillStyle = '#0b0b0d'; ctx.fillRect(0,0,w,h);
+  cameraBtn.addEventListener('click', async ()=>{
+    // Fallback to file input on platforms without getUserMedia for still capture
+    if(!navigator.mediaDevices?.getUserMedia){ fileIn.click(); return; }
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' }, audio:false });
+      // Build a quick capture UI in a dialog
+      const dlg = d.createElement('dialog');
+      dlg.style.cssText = 'border:none;padding:0;background:#000;color:#fff;border-radius:12px;max-width:min(92vw,720px)';
+      dlg.innerHTML = `
+        <video id="v" autoplay playsinline style="width:100%;height:auto;display:block;filter:grayscale(1) contrast(1.07) brightness(.97)"></video>
+        <div style="display:flex;gap:12px;justify-content:space-between;padding:12px;border-top:1px solid #ffffff22">
+          <button id="snap">Shutter</button>
+          <button id="cancel" class="secondary">Cancel</button>
+        </div>`;
+      d.body.appendChild(dlg); dlg.showModal();
+      const v = dlg.querySelector('#v'); v.srcObject = stream;
+      const stop = ()=> stream.getTracks().forEach(t=>t.stop());
+      dlg.querySelector('#cancel').onclick = ()=>{ stop(); dlg.close(); dlg.remove(); };
+      dlg.querySelector('#snap').onclick = ()=>{
+        const c = d.createElement('canvas');
+        const r = v.videoWidth / v.videoHeight; // capture full frame
+        c.width = v.videoWidth; c.height = v.videoHeight; const cx = c.getContext('2d');
+        cx.drawImage(v,0,0,c.width,c.height);
+        c.toBlob(b=>{
+          if(!b){ stop(); dlg.close(); dlg.remove(); return; }
+          const file = new File([b], 'capture.png', { type:'image/png' });
+          photoURL = objUrl(file);
+          imgEl.src = photoURL; imgEl.hidden=false; emptyState.hidden=true;
+          setTiltImg(photoURL);
+          tsOut.textContent = fmtTime(new Date());
+          stop(); dlg.close(); dlg.remove();
+        }, 'image/png', 0.92);
+      };
+    }catch(e){ fileIn.click(); }
+  });
 
-    // Draw photo
-    const padTop = Math.round(24 * scale), padBot = Math.round(28 * scale);
-    const mediaW = w, mediaH = h - padTop - padBot;
-    const tmp = new Image(); tmp.crossOrigin = 'anonymous'; tmp.src = img.src;
-    await tmp.decode().catch(()=>{});
-    // cover fit
-    const rImg = tmp.width / tmp.height; const rBox = mediaW / mediaH;
-    let dw = mediaW, dh = mediaH, dx = 0, dy = padTop;
-    if (rImg > rBox){ dh = mediaH; dw = dh * rImg; dx = (w - dw)/2; }
-    else { dw = mediaW; dh = dw / rImg; dy = padTop + (mediaH - dh)/2; }
-    // grayscale
-    ctx.filter = 'grayscale(1)';
-    ctx.drawImage(tmp, dx, dy, dw, dh);
-    ctx.filter = 'none';
+  clearBtn.addEventListener('click', ()=>{
+    imgEl.hidden=true; emptyState.hidden=false; imgEl.removeAttribute('src'); photoURL='';
+    titleIn.value=''; captionIn.value=''; titleOut.textContent='[ title ]'; captionOut.textContent='[ short caption goes here ]';
+    titleCount.textContent='0'; capCount.textContent='0'; gpsOut.textContent=''; tsOut.textContent='';
+  });
 
-    // Frames
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, Math.round(scale));
-    ctx.strokeRect(0.5*ctx.lineWidth, 0.5*ctx.lineWidth, w-ctx.lineWidth, h-ctx.lineWidth);
-    // horizontal rules
-    ctx.beginPath(); ctx.moveTo(0, padTop); ctx.lineTo(w, padTop); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, h - padBot); ctx.lineTo(w, h - padBot); ctx.stroke();
+  /* ---------- Export pipeline (canvas) ---------- */
+  const exportCard = async (aspect='1')=>{
+    if(!photoURL){ alert('Add a photo first.'); return; }
 
-    // Text: use monospace to match UI
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `${Math.round(11*scale)}px ${getComputedStyle(document.documentElement).getPropertyValue('--mono') || 'monospace'}`;
-    ctx.textBaseline = 'middle';
-    ctx.fillText(titleLbl.textContent, Math.round(8*scale), Math.round(padTop/2));
-    const coords = coordsLbl.textContent;
-    const coordsW = ctx.measureText(coords).width;
-    ctx.fillStyle = '#dfe1e7';
-    ctx.fillText(coords, w - Math.round(8*scale) - coordsW, Math.round(padTop/2));
+    const img = await loadImage(photoURL);
+    const pad = 16; // inner chrome spacing in px (visual match to UI)
 
-    const note = noteLbl.textContent;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(note, Math.round(8*scale), h - Math.round(padBot/2));
+    // Choose target dimensions; render large for crisp result
+    const W = 2048; // width
+    const H = (aspect==='1') ? 2048 : Math.round(W * 3/4); // 1:1 or 4:3
 
-    const t = timeLbl.textContent;
-    const tW = ctx.measureText(t).width;
-    ctx.fillStyle = '#dfe1e7';
-    ctx.fillText(t, w - Math.round(8*scale) - tW, h - Math.round(padBot/2));
+    const c = d.getElementById('work'); c.width = W; c.height = H; const cx = c.getContext('2d');
+    cx.fillStyle = '#000'; cx.fillRect(0,0,W,H);
+
+    // 1px hairline at export scale
+    const hair = Math.max(1, Math.round(W/1024));
+
+    // Bars
+    cx.fillStyle = '#000';
+    cx.fillRect(0,0,W,24+pad);   // top area
+    cx.fillRect(0,H-(24+pad),W,24+pad); // bottom area
+
+    // White border
+    cx.strokeStyle = '#fff'; cx.lineWidth = hair; cx.strokeRect(hair/2, hair/2, W-hair, H-hair);
+
+    // Draw image (fit to inner area between bars)
+    const topBarH = 24 + pad;
+    const botBarH = 24 + pad;
+    const innerX = hair; const innerY = topBarH + hair;
+    const innerW = W - hair*2; const innerH = H - (topBarH + botBarH) - hair*2;
+
+    // cover strategy
+    const imgR = img.width / img.height;
+    const boxR = innerW / innerH;
+    let dw = innerW, dh = innerH, dx = innerX, dy = innerY;
+    if(imgR > boxR){ dh = innerH; dw = dh * imgR; dx = innerX + (innerW-dw)/2; }
+    else { dw = innerW; dh = dw / imgR; dy = innerY + (innerH-dh)/2; }
+
+    // BW curve (simple S-curve)
+    cx.save();
+    cx.drawImage(img, dx, dy, dw, dh);
+    const imgData = cx.getImageData(dx,dy,dw,dh);
+    const data = imgData.data;
+    for(let i=0;i<data.length;i+=4){
+      const r=data[i], g=data[i+1], b=data[i+2];
+      // luminance
+      let y = 0.2126*r + 0.7152*g + 0.0722*b;
+      // filmic-ish contrast curve
+      y = y/255; y = Math.pow(y, 0.9); y = (y-0.5)*1.1 + 0.5; y = clamp(Math.round(y*255),0,255);
+      data[i]=data[i+1]=data[i+2]=y;
+    }
+    cx.putImageData(imgData, dx, dy);
+    cx.restore();
+
+    // Hairlines above/below image
+    cx.globalAlpha = .6; cx.fillStyle = '#fff';
+    cx.fillRect(0, topBarH, W, hair);
+    cx.fillRect(0, H - botBarH - hair, W, hair);
+    cx.globalAlpha = 1;
+
+    // Text bars
+    cx.fillStyle = '#e6e6e6';
+    cx.font = `12px ${monoToggle.checked ? 'JetBrainsMono, SFMono-Regular, monospace' : 'Inter, system-ui, sans-serif'}`;
+    cx.textBaseline = 'middle';
+
+    // Top left: title
+    const title = (titleIn.value.trim() || '[ title ]').toUpperCase();
+    cx.fillText(title, pad, (topBarH/2));
+
+    // Top right: GPS (optional)
+    const gps = gpsToggle.checked && gpsText ? gpsText : '';
+    if(gps){ rightText(cx, gps, W-pad, topBarH/2); }
+
+    // Bottom left: caption
+    const cap = captionIn.value.trim() || '[ short caption goes here ]';
+    cx.fillText(cap, pad, H - (botBarH/2));
+
+    // Bottom right: timestamp
+    const ts = tsOut.textContent || fmtTime(new Date());
+    rightText(cx, ts, W-pad, H - (botBarH/2));
 
     // Download
-    const a = document.createElement('a');
-    a.download = `intoview-note-${Date.now()}.png`;
-    a.href = canvas.toDataURL('image/png');
-    a.click();
-  });
+    const url = c.toDataURL('image/png');
+    const a = d.createElement('a'); a.href = url; a.download = `intoview-${aspect==='1'?'1x1':'4x3'}.png`; a.click();
+  };
+
+  function rightText(ctx, text, x, y){
+    const w = ctx.measureText(text).width; ctx.fillText(text, x - w, y);
+  }
+
+  function loadImage(src){
+    return new Promise((res,rej)=>{ const im = new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src; });
+  }
+
+  d.getElementById('export13').addEventListener('click', ()=> exportCard('1'));
+  d.getElementById('export43').addEventListener('click', ()=> exportCard('4/3'));
+
+  // Initialize
+  tsOut.textContent = fmtTime(new Date());
 })();
 </script>
 </body>
