@@ -1,606 +1,312 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>intoview — mono note</title>
-<meta name="theme-color" content="#0e0e10" />
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>intoview • notes prototype</title>
+<link rel="icon" href="data:,"/>
 <style>
+  /* =============================================================
+     INTOVIEW • NOTES — SINGLE-FILE PROTOTYPE
+     -------------------------------------------------------------
+     How to split later (your preferred workflow):
+       • index.html  – keep only the <body> markup
+       • styles.css  – everything in this <style> block
+       • app.js      – everything in the <script> block
+     Then update links:
+       <link rel="stylesheet" href="styles.css">
+       <script src="app.js" defer></script>
+     ============================================================= */
+
   :root{
-    --bg:#0e0e10; --panel:#151518; --ink:#ECECF0; --muted:#A0A2AD; --accent:#59D2C8;
-    --card-r:18px; --ui-r:14px; --shadow:0 18px 60px rgba(0,0,0,.45); --hair:rgba(255,255,255,.08);
-    --safe:8vw; /* caption safe inset on small screens */
+    /* COLORS (monochrome UI) */
+    --bg:#0c0c0e;            /* canvas */
+    --panel:#0f1012;         /* cards */
+    --ink:#e9e9ea;           /* primary text */
+    --muted:#b7b7bb;         /* captions */
+    --line:#ffffff;          /* 1px frame */
+    --line-dim:#9a9aa0;      /* thin separators */
+
+    /* TYPE */
+    --ui: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+    /* LAYOUT */
+    --left-w: min(38vw, 560px);   /* hero column */
+    --gutter: clamp(16px, 4vmin, 40px);
+    --card-w: min(44vw, 720px);
+    --card-min: 320px;
+
+    /* FRAME + LABELS */
+    --frame: 1px;
+    --label-size: 11px;
+    --label-track: .08em;
+    --timestamp-size: 11px;
+
+    /* BLUR + FADE */
+    --blur-hero: 10px;   /* tagline blur */
+    --tilt-blur: 8px;    /* background tilt‑shift */
   }
-  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif}
-  *{box-sizing:border-box;touch-action:manipulation}
 
-  /* App chrome */
-  .app{min-height:100%;display:grid;grid-template-rows:auto 1fr auto}
-  header{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--hair);position:sticky;top:0;z-index:10;background:linear-gradient(#0e0e10,#0e0e10e6)}
-  header h1{margin:0;font-size:16px;font-weight:700;letter-spacing:.2px}
-  header .meta{margin-left:auto;color:var(--muted);font-size:12px}
-
-  /* Stage */
-  .stage{padding:10px;display:grid;grid-template-rows:1fr auto;gap:10px}
-  .frame{position:relative;max-width:min(760px,100%);margin:0 auto;border-radius:18px;overflow:hidden;background:#000;box-shadow:var(--shadow);aspect-ratio:3/4}
-  video,.preview, #uploadImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
-  video.mono {filter: grayscale(1) contrast(var(--ui-contrast,1)) brightness(var(--ui-bright,1));}
-  canvas.preview{z-index:0}
-  #uploadImg{display:none}
-
-  /* Guides */
-  .meter-circle{position:absolute;left:50%;top:50%;translate:-50% -50%;border-radius:50%;border:2px solid rgba(255,255,255,.9);opacity:.9;pointer-events:none}
-  .guides{position:absolute;inset:0;pointer-events:none}
-  .aspect-guides::after{
-    content:"";position:absolute;inset:0;border:1px solid rgba(255,255,255,.22);mix-blend:screen
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body{
+    margin:0; background: var(--bg); color: var(--ink);
+    font: 400 14px/1.5 var(--ui);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
 
-  /* Caption (fixed placement; template controls this container) */
-  .captionWrap{position:absolute;left:50%;transform:translateX(-50%);width:calc(100% - 2*var(--safe));padding:0 var(--safe);bottom:clamp(12px,6vh,32px);display:flex;justify-content:center;z-index:2}
-  .caption{max-width:100%;background:rgba(6,6,10,.38);backdrop-filter:blur(6px);
-    color:#F4F5F8;border-radius:12px;padding:12px 14px;font-weight:600;font-size:clamp(16px,2.6vw,20px);
-    text-align:left;text-shadow:0 2px 10px rgba(0,0,0,.5); outline:none;min-width:60%; line-height:1.35}
-  .caption:empty:before{content:attr(data-ph); color:var(--muted);font-weight:500}
-  .caption:focus{outline:2px solid color-mix(in oklab, var(--accent) 55%, transparent)}
+  /* ====== PAGE GRID ====== */
+  .shell{ position:relative; min-height:100dvh; overflow:hidden; }
+  .main{ display:grid; grid-template-columns: var(--left-w) 1fr; min-height:100dvh; }
 
-  /* Metadata film strip (top) */
-  .strip{position:absolute;inset:0 0 auto 0;height:28px;background:rgba(10,10,12,.28);
-    color:rgba(255,255,255,.88);display:flex;align-items:center;padding:0 10px;font-size:12px;gap:14px;z-index:2}
-  .strip .dot{opacity:.55}
-  .strip.small{height:24px;font-size:11px}
+  /* ====== LEFT PANEL (LOGO + TAGLINE) ====== */
+  .left{ position:relative; padding: calc(var(--gutter) * 1.5) var(--gutter); display:flex; flex-direction:column; gap:32px; }
+  .brand{ display:flex; align-items:center; gap:14px; letter-spacing:.08em; font-weight:600; }
+  .tagline{ margin-top:48px; color:var(--ink); opacity:.9; font-size: clamp(18px, 3.2vw, 28px); letter-spacing:.06em; }
+  .tagline span{ filter: blur(var(--blur-hero)); opacity:.9; }
 
-  /* Control panel */
-  .panel{max-width:min(760px,100%);margin:0 auto;border:1px solid var(--hair);border-radius:16px;padding:12px;background:var(--panel);box-shadow:var(--shadow)}
-  .rows{display:grid;gap:10px}
-  .row{display:grid;grid-template-columns:120px 1fr 56px;align-items:center;gap:10px}
-  .row label{color:var(--muted);font-size:13px}
-  input[type=range]{width:100%}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
-  .btn{appearance:none;border:0;border-radius:12px;padding:10px 12px;font-weight:700;cursor:pointer}
-  .btn.primary{background:var(--accent);color:#06302D}
-  .btn.ghost{background:#22242B;color:var(--ink);border:1px solid var(--hair)}
-  .btn.full{grid-column:1/-1}
-  .tips{color:var(--muted);font-size:12px;margin-top:6px}
+  /* simple 3‑cube glyph */
+  .glyph{ width:36px; height:26px; display:grid; grid:auto/ auto-flow; gap:2px; }
+  .cube{ width:12px; height:12px; background:linear-gradient(135deg,#e5e5e8,#9a9aa3); border-radius:2px; box-shadow: 0 1px 0 rgba(0,0,0,.45) inset; }
+  .cube:nth-child(2){ opacity:.85; transform: translateY(4px); }
+  .cube:nth-child(3){ opacity:.72; transform: translateY(8px); }
 
-  /* Template toggles */
-  .options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .opt{display:flex;gap:8px;align-items:center;background:#1a1b22;border:1px solid var(--hair);padding:8px 10px;border-radius:10px}
-  .opt input{accent-color:var(--accent)}
+  /* ====== BACKGROUND PHOTO (RIGHT) ====== */
+  .backdrop{ position:absolute; inset:0 0 0 var(--left-w); overflow:hidden; }
+  .bg-img{ position:absolute; inset:0; background:#000 center/cover no-repeat; filter: grayscale(100%); }
 
-  /* Archive */
-  .archive{max-width:min(980px,100%);margin:14px auto;padding:0 6px}
-  .archive h3{margin:.25rem 0 .75rem;font-size:14px;color:var(--muted)}
-  .gridCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-  .card{background:#0d0e12;border:1px solid var(--hair);border-radius:12px;overflow:hidden}
-  .card img{width:100%;aspect-ratio:4/5;object-fit:cover;display:block}
-  .card .cap{padding:6px 8px;font-size:12px;color:var(--muted);display:flex;gap:8px}
-  .cap button{all:unset;color:var(--accent);cursor:pointer}
+  /* Tilt‑shift band: less blur across a horizontal strip */
+  .bg-img::before{ content:""; position:absolute; inset:0; backdrop-filter: blur(var(--tilt-blur)); }
+  .bg-img::after{
+    /* gradient mask removes the blur in a band through the middle */
+    content:""; position:absolute; inset:0;
+    backdrop-filter: none; /* cancels */
+    -webkit-mask: linear-gradient(#0000, #000 22%, #000 78%, #0000);
+    mask: linear-gradient(#0000, #000 22%, #000 78%, #0000);
+  }
 
-  /* Responsive tweaks */
-  @media (min-width:740px){
-    .panel .rows{grid-template-columns:1fr 1fr;gap:14px}
-    .panel .row{grid-column:auto}
+  /* ====== NOTE CARD ====== */
+  .stage{ position:relative; display:flex; justify-content:center; align-items:center; padding: var(--gutter); }
+  .card{ width:clamp(var(--card-min), var(--card-w), 88vw); aspect-ratio: 4 / 3; position:relative; border: var(--frame) solid var(--line); background: #0b0b0d; box-shadow: 0 8px 30px rgba(0,0,0,.55); }
+  .card.square{ aspect-ratio: 1 / 1; }
+
+  .card .hdr, .card .ftr{ position:absolute; left:0; right:0; display:flex; align-items:center; justify-content:space-between; color:#fff; }
+  .card .hdr{ top:0; height:24px; border-bottom: var(--frame) solid var(--line); font: 600 var(--label-size)/1 var(--mono); letter-spacing: var(--label-track); padding:0 8px; }
+  .card .ftr{ bottom:0; height:28px; border-top: var(--frame) solid var(--line); font: 500 var(--timestamp-size)/1 var(--mono); letter-spacing:.04em; padding:0 8px; }
+
+  .label-dim{ color: #dcdcdf; opacity:.92; }
+  .coords{ color:#cfd0d5; opacity:.9; font-weight:500; }
+
+  .card .media{ position:absolute; inset:24px 0 28px; display:grid; place-items:center; overflow:hidden; }
+  .card .media img{ width:100%; height:100%; object-fit:cover; filter: grayscale(100%); }
+  .placeholder{ color:#8a8a90; font: 600 64px/1 var(--ui); opacity:.7; }
+
+  .note{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%; color:#fff; opacity:.92; }
+  .time{ color:#d8d8dd; opacity:.9; }
+
+  /* ====== CONTROLS ====== */
+  .controls{ position:absolute; inset:auto auto calc(var(--gutter)) var(--gutter); display:flex; gap:8px; background:#0d0e10cc; padding:8px 10px; border:1px solid #2a2b30; border-radius:10px; backdrop-filter: blur(6px); }
+  .controls input[type="file"]{ display:none; }
+  .btn, .seg{ font:600 12px var(--ui); letter-spacing:.04em; color:#e9e9ed; background:#1a1b1f; border:1px solid #3a3b42; padding:8px 10px; border-radius:8px; cursor:pointer; }
+  .btn:hover{ background:#202128; }
+  .seg-group{ display:flex; border:1px solid #3a3b42; border-radius:8px; overflow:hidden; }
+  .seg{ border:0; background:transparent; padding:8px 12px; }
+  .seg[aria-pressed="true"]{ background:#2a2c33; }
+  .tiny{ font:600 11px/1 var(--mono); color:#bfc0c6; margin-left:6px; }
+
+  /* ====== RESPONSIVE ====== */
+  @media (max-width: 1080px){
+    :root{ --left-w: 44vw; --card-w: 54vw; }
+  }
+  @media (max-width: 880px){
+    .main{ grid-template-columns: 1fr; }
+    .backdrop{ inset: var(--left-w) 0 0 0; /* push off initially */ }
+    .left{ padding-bottom: 0; }
+    .stage{ padding-top: 24px; }
+    .controls{ inset:auto var(--gutter) calc(var(--gutter)) auto; }
   }
 </style>
 </head>
 <body>
-<div class="app">
-  <header>
-    <h1>intoview — mono note</h1>
-    <div class="meta" id="installHint">web app • offline processing</div>
-  </header>
+  <div class="shell">
+    <div class="main">
+      <!-- LEFT: Brand + Tagline -->
+      <aside class="left">
+        <div class="brand">
+          <div class="glyph" aria-hidden="true">
+            <div class="cube"></div>
+            <div class="cube"></div>
+            <div class="cube"></div>
+          </div>
+          <div style="font-size:22px;">intoview</div>
+        </div>
+        <div class="tagline" aria-label="Moments. Movement. Mindfulness.">
+          <span>Moments. Movement. Mindfulness.</span>
+        </div>
+      </aside>
 
-  <main class="stage">
-    <!-- Live camera frame -->
-    <div class="frame" id="frame" aria-label="viewfinder">
-      <video id="video" playsinline autoplay muted class="mono"></video>
-      <img id="uploadImg" alt="" />
-      <canvas id="preview" class="preview"></canvas>
-      <div class="guides aspect-guides"></div>
-      <div class="meter-circle" id="meter"></div>
+      <!-- RIGHT: Background + Note Card Stage -->
+      <section class="stage">
+        <div class="backdrop" aria-hidden="true">
+          <div class="bg-img" id="bg"></div>
+        </div>
 
-      <!-- Metadata strip (viewfinder; not burned-in until export) -->
-      <div class="strip small" id="strip">
-        <span id="stripTime">—</span><span class="dot">•</span>
-        <span id="stripLoc">—</span><span class="dot">•</span>
-        <span>intoview • mono</span>
-      </div>
+        <article class="card" id="card">
+          <header class="hdr">
+            <div class="label-dim" id="titleLbl">[ Title Goes Here ]</div>
+            <div class="coords" id="coordsLbl">[ 40.7644° N, 73.9235° W ]</div>
+          </header>
+          <div class="media" id="media">
+            <img id="photo" alt="intoview note" loading="lazy"/>
+            <div class="placeholder" id="ph">📷</div>
+          </div>
+          <footer class="ftr">
+            <div class="note" id="noteLbl">[ “Write a note, not a novel.” ]</div>
+            <div class="time" id="timeLbl">[ 2025‑01‑01 11:59:59 PM ]</div>
+          </footer>
+        </article>
 
-      <!-- Caption -->
-      <div class="captionWrap" id="capWrap">
-        <div id="caption" class="caption" contenteditable="true" data-ph="Type a note…"></div>
-      </div>
+        <!-- Controls (upload, aspect, export) -->
+        <form class="controls" onsubmit="return false;">
+          <label class="btn" for="file">Upload</label>
+          <input id="file" type="file" accept="image/*"/>
+
+          <div class="seg-group" role="group" aria-label="Aspect ratio">
+            <button class="seg" type="button" id="seg43" aria-pressed="true">4:3</button>
+            <button class="seg" type="button" id="seg11" aria-pressed="false">1:1</button>
+          </div>
+
+          <button class="btn" id="exportBtn" type="button">Export</button>
+          <span class="tiny">PNG, with frame + labels</span>
+        </form>
+      </section>
     </div>
-
-    <!-- Controls -->
-    <section class="panel">
-      <div class="rows">
-        <div class="row">
-          <label for="ev">Exposure (EV)</label>
-          <input id="ev" type="range" min="-2" max="2" step="0.01" value="0">
-          <output id="evOut">0</output>
-        </div>
-        <div class="row">
-          <label for="contrast">Contrast</label>
-          <input id="contrast" type="range" min="0.7" max="1.6" step="0.01" value="1.1">
-          <output id="ctOut">1.10</output>
-        </div>
-        <div class="row">
-          <label for="grain">Grain</label>
-          <input id="grain" type="range" min="0" max="1" step="0.01" value="0.2">
-          <output id="gnOut">0.20</output>
-        </div>
-
-        <div class="row">
-          <label>Card Aspect</label>
-          <div class="options">
-            <label class="opt"><input type="radio" name="aspect" value="1:1" checked> 1:1</label>
-            <label class="opt"><input type="radio" name="aspect" value="4:3"> 4:3</label>
-          </div>
-          <div></div>
-        </div>
-
-        <div class="row">
-          <label>Caption Style</label>
-          <div class="options">
-            <label class="opt"><input type="radio" name="capstyle" value="bottom" checked> Bottom</label>
-            <label class="opt"><input type="radio" name="capstyle" value="sidebar"> Sidebar</label>
-          </div>
-          <div></div>
-        </div>
-      </div>
-
-      <div class="grid">
-        <button class="btn ghost" id="autoBtn">Auto</button>
-        <label class="btn ghost" for="filePick">High-Res Shutter<input id="filePick" type="file" accept="image/*;capture=camera" hidden></label>
-        <button class="btn ghost" id="flipBtn">Toggle Note Position</button>
-        <button class="btn primary" id="exportBtn">Export Card</button>
-        <button class="btn ghost full" id="switchBtn">Use Upload / Camera</button>
-      </div>
-      <div class="tips">
-        Tips: “High-Res Shutter” grabs a full-resolution still on iOS. “Use Upload / Camera” toggles sources. The metering circle biases Auto.
-      </div>
-    </section>
-
-    <!-- Archive -->
-    <section class="archive">
-      <h3>Archive (on this device)</h3>
-      <div class="gridCards" id="gridCards"></div>
-    </section>
-  </main>
-
-  <footer style="padding:12px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--hair)">
-    Private by default • No cloud • v1
-  </footer>
-</div>
+  </div>
 
 <script>
-(function(){
-  const video = document.getElementById('video');
-  const uploadImg = document.getElementById('uploadImg');
-  const frame = document.getElementById('frame');
-  const strip = document.getElementById('strip');
-  const stripTime = document.getElementById('stripTime');
-  const stripLoc = document.getElementById('stripLoc');
-  const preview = document.getElementById('preview');
-  const caption = document.getElementById('caption');
-  const capWrap = document.getElementById('capWrap');
-  const meter = document.getElementById('meter');
+(() => {
+  const $ = (s, r=document) => r.querySelector(s);
+  const card = $('#card');
+  const media = $('#media');
+  const img = $('#photo');
+  const ph = $('#ph');
+  const bg = $('#bg');
+  const titleLbl = $('#titleLbl');
+  const noteLbl = $('#noteLbl');
+  const coordsLbl = $('#coordsLbl');
+  const timeLbl = $('#timeLbl');
 
-  const ev = document.getElementById('ev');
-  const contrast = document.getElementById('contrast');
-  const grain = document.getElementById('grain');
-  const evOut = document.getElementById('evOut'); const ctOut = document.getElementById('ctOut'); const gnOut = document.getElementById('gnOut');
+  // Seed imagery (placeholder that matches monochrome vibe)
+  const seed = 'https://images.unsplash.com/photo-1520697222860-6b23c0d7a9a7?q=80&w=1400&auto=format&fit=crop';
+  img.src = seed; bg.style.backgroundImage = `url(${seed})`; ph.style.display = 'none';
 
-  const autoBtn = document.getElementById('autoBtn');
-  const flipBtn = document.getElementById('flipBtn');
-  const exportBtn = document.getElementById('exportBtn');
-  const switchBtn = document.getElementById('switchBtn');
-  const filePick = document.getElementById('filePick');
-  const gridCards = document.getElementById('gridCards');
-  const installHint = document.getElementById('installHint');
+  // Timestamp
+  const fmtTime = (d=new Date()) => d.toLocaleString([], { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  timeLbl.textContent = fmtTime();
+  setInterval(() => timeLbl.textContent = fmtTime(), 1000);
 
-  const aspectRadios = [...document.querySelectorAll('input[name="aspect"]')];
-  const capStyleRadios = [...document.querySelectorAll('input[name="capstyle"]')];
+  // Geolocation → coords label (fallback to mock)
+  const setCoords = (lat, lon) => {
+    const f = (v) => Number(v).toFixed(4);
+    coordsLbl.textContent = `${f(lat)}° N, ${Math.abs(f(lon))}° ${lon < 0 ? 'W' : 'E'}`;
+  };
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      p => setCoords(p.coords.latitude, p.coords.longitude),
+      () => setCoords(40.7644, -73.9235),
+      { enableHighAccuracy:false, maximumAge: 600000, timeout: 4000 }
+    );
+  } else setCoords(40.7644, -73.9235);
 
-  let usingUpload = false;
-  let stream = null;
-  let geo = null;
-
-  /* ---------- Helpers ---------- */
-  function fmt2(n){ return (Math.round(n*100)/100).toFixed(2); }
-  function css(key,val){ document.documentElement.style.setProperty(key,val); }
-  function setUIFromSliders(){
-    evOut.textContent = ev.value;
-    ctOut.textContent = fmt2(contrast.value);
-    gnOut.textContent = fmt2(grain.value);
-    const bright = Math.pow(2, Number(ev.value));
-    css('--ui-bright', bright.toFixed(3));
-    css('--ui-contrast', Number(contrast.value).toFixed(3));
-  }
-
-  function tsString(d){
-    // YYYY-MM-DD HH:MM (24h)
-    const z=n=>String(n).padStart(2,'0');
-    return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
-  }
-
-  // Geolocation (best effort; optional)
-  if('geolocation' in navigator){
-    navigator.geolocation.getCurrentPosition(pos=>{
-      geo = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      stripLoc.textContent = `${geo.lat.toFixed(3)}, ${geo.lon.toFixed(3)}`;
-    }, ()=>{ stripLoc.textContent = '—'; }, { enableHighAccuracy:false, timeout:3000 });
-  } else stripLoc.textContent = '—';
-
-  // Initialize strip time now
-  const now = new Date();
-  stripTime.textContent = tsString(now);
-
-  // Meter circle sizing: partial ~6% of frame area
-  function sizeMeter(){
-    const r = frame.getBoundingClientRect();
-    const p = 0.06; const radius = Math.sqrt((p*r.width*r.height)/Math.PI);
-    meter.style.width = meter.style.height = `${radius*2}px`;
-  }
-  new ResizeObserver(sizeMeter).observe(frame);
-
-  // Caption style (bottom vs sidebar)
-  function applyCaptionStyle(){
-    const val = capStyleRadios.find(r=>r.checked).value;
-    if(val === 'bottom'){
-      capWrap.style.left = '50%';
-      capWrap.style.right = '';
-      capWrap.style.top = '';
-      capWrap.style.bottom = 'clamp(12px,6vh,32px)';
-      capWrap.style.transform = 'translateX(-50%)';
-      capWrap.style.width = 'calc(100% - 2*var(--safe))';
-      caption.style.maxWidth = '100%';
-    } else {
-      // Sidebar right; vertically centered
-      capWrap.style.left = '';
-      capWrap.style.right = 'clamp(8px,5vw,22px)';
-      capWrap.style.bottom = '';
-      capWrap.style.top = '50%';
-      capWrap.style.transform = 'translateY(-50%)';
-      capWrap.style.width = 'min(42%, 380px)';
-      caption.style.maxWidth = '100%';
-    }
-  }
-  capStyleRadios.forEach(r=>r.addEventListener('change', applyCaptionStyle));
-  applyCaptionStyle();
-
-  // Aspect guides + frame ratio
-  function applyAspect(){
-    const v = aspectRadios.find(r=>r.checked).value;
-    frame.style.aspectRatio = (v === '1:1') ? '1/1' : '3/4'; // preview shape
-  }
-  aspectRadios.forEach(r=>r.addEventListener('change', applyAspect));
-  applyAspect();
-
-  // High-res shutter / upload
-  filePick.addEventListener('change', (e)=>{
-    const f = e.target.files?.[0]; if(!f) return;
+  // Upload handling: set <img> + background
+  $('#file').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
     const url = URL.createObjectURL(f);
-    uploadImg.onload = ()=>{ URL.revokeObjectURL(url); usingUpload=true; video.pause(); uploadImg.style.display='block'; video.classList.remove('mono'); startPreviewLoop(); };
-    uploadImg.src = url;
+    img.onload = () => { URL.revokeObjectURL(url); };
+    img.src = url; bg.style.backgroundImage = `url(${url})`; ph.style.display = 'none';
   });
 
-  // Toggle source
-  switchBtn.addEventListener('click', ()=>{
-    usingUpload = !usingUpload;
-    if(usingUpload){
-      if(!uploadImg.src) filePick.click();
-      else{ uploadImg.style.display='block'; if(stream) video.pause(); }
-    }else{
-      uploadImg.style.display='none';
-      startCamera();
-    }
-    startPreviewLoop();
+  // Aspect ratio toggle
+  const seg11 = $('#seg11');
+  const seg43 = $('#seg43');
+  const press = (el, on) => el.setAttribute('aria-pressed', on ? 'true' : 'false');
+  seg11.addEventListener('click', () => { card.classList.add('square'); press(seg11, true); press(seg43, false); });
+  seg43.addEventListener('click', () => { card.classList.remove('square'); press(seg11, false); press(seg43, true); });
+
+  // Inline editing (dbl‑click labels to edit)
+  const inlineEdit = (el, placeholder) => {
+    el.addEventListener('dblclick', () => {
+      const cur = el.textContent.replace(/[\[\]]/g,'').trim();
+      const txt = prompt('Edit', cur || placeholder);
+      if (txt != null) el.textContent = txt.trim() || placeholder;
+    });
+  };
+  inlineEdit(titleLbl, 'Untitled');
+  inlineEdit(noteLbl, 'A quick thought.');
+
+  // Export: rasterize card at device pixel ratio and download
+  $('#exportBtn').addEventListener('click', async () => {
+    const scale = Math.min(2, window.devicePixelRatio || 1.5); // crisp but light
+    const rect = card.getBoundingClientRect();
+    const w = Math.round(rect.width * scale);
+    const h = Math.round(rect.height * scale);
+
+    // Create a canvas and draw DOM by snapshot
+    // Use the Paint API via CSS to get clean vector-ish borders by drawing manually.
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d');
+    // Fill background
+    ctx.fillStyle = '#0b0b0d'; ctx.fillRect(0,0,w,h);
+
+    // Draw photo
+    const padTop = Math.round(24 * scale), padBot = Math.round(28 * scale);
+    const mediaW = w, mediaH = h - padTop - padBot;
+    const tmp = new Image(); tmp.crossOrigin = 'anonymous'; tmp.src = img.src;
+    await tmp.decode().catch(()=>{});
+    // cover fit
+    const rImg = tmp.width / tmp.height; const rBox = mediaW / mediaH;
+    let dw = mediaW, dh = mediaH, dx = 0, dy = padTop;
+    if (rImg > rBox){ dh = mediaH; dw = dh * rImg; dx = (w - dw)/2; }
+    else { dw = mediaW; dh = dw / rImg; dy = padTop + (mediaH - dh)/2; }
+    // grayscale
+    ctx.filter = 'grayscale(1)';
+    ctx.drawImage(tmp, dx, dy, dw, dh);
+    ctx.filter = 'none';
+
+    // Frames
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, Math.round(scale));
+    ctx.strokeRect(0.5*ctx.lineWidth, 0.5*ctx.lineWidth, w-ctx.lineWidth, h-ctx.lineWidth);
+    // horizontal rules
+    ctx.beginPath(); ctx.moveTo(0, padTop); ctx.lineTo(w, padTop); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, h - padBot); ctx.lineTo(w, h - padBot); ctx.stroke();
+
+    // Text: use monospace to match UI
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${Math.round(11*scale)}px ${getComputedStyle(document.documentElement).getPropertyValue('--mono') || 'monospace'}`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(titleLbl.textContent, Math.round(8*scale), Math.round(padTop/2));
+    const coords = coordsLbl.textContent;
+    const coordsW = ctx.measureText(coords).width;
+    ctx.fillStyle = '#dfe1e7';
+    ctx.fillText(coords, w - Math.round(8*scale) - coordsW, Math.round(padTop/2));
+
+    const note = noteLbl.textContent;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(note, Math.round(8*scale), h - Math.round(padBot/2));
+
+    const t = timeLbl.textContent;
+    const tW = ctx.measureText(t).width;
+    ctx.fillStyle = '#dfe1e7';
+    ctx.fillText(t, w - Math.round(8*scale) - tW, h - Math.round(padBot/2));
+
+    // Download
+    const a = document.createElement('a');
+    a.download = `intoview-note-${Date.now()}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
   });
-
-  // Auto: sample frame and set EV/contrast
-  autoBtn.addEventListener('click', ()=>{
-    // draw to preview at small scale and compute mean luminance
-    const ctx = preview.getContext('2d');
-    const {width:w, height:h} = preview;
-    ctx.clearRect(0,0,w,h);
-    drawSource(ctx, w, h, true);
-    const img = ctx.getImageData(0,0,w,h).data;
-    let sum=0, n=0;
-    for(let i=0;i<img.length;i+=16){
-      const r=img[i], g=img[i+1], b=img[i+2];
-      const y=0.2126*r+0.7152*g+0.0722*b;
-      sum+=y; n++;
-    }
-    const mean = (sum/n)/255;
-    const target = 0.45;
-    const evDelta = Math.log2(target / Math.max(0.05, mean));
-    ev.value = Math.max(-2, Math.min(2, evDelta));
-    contrast.value = 1.1;
-    setUIFromSliders();
-    flashMeter();
-  });
-
-  flipBtn.addEventListener('click', ()=>{
-    // Switch bottom <-> top for bottom style
-    const val = capStyleRadios.find(r=>r.checked).value;
-    if(val==='bottom'){
-      const isBottom = capWrap.style.bottom !== '';
-      if(isBottom){
-        capWrap.style.bottom = '';
-        capWrap.style.top = 'clamp(12px,6vh,32px)';
-      } else {
-        capWrap.style.top = '';
-        capWrap.style.bottom = 'clamp(12px,6vh,32px)';
-      }
-    } else {
-      // Sidebar left/right toggle
-      const isRight = capWrap.style.right !== '';
-      if(isRight){
-        capWrap.style.right = '';
-        capWrap.style.left = 'clamp(8px,5vw,22px)';
-      } else {
-        capWrap.style.left = '';
-        capWrap.style.right = 'clamp(8px,5vw,22px)';
-      }
-    }
-  });
-
-  [ev,contrast,grain].forEach(i=>i.addEventListener('input', setUIFromSliders));
-  setUIFromSliders();
-
-  // Live preview loop draws source with CSS-like grayscale preview (fast)
-  let rafId = null;
-  function startPreviewLoop(){
-    cancelAnimationFrame(rafId);
-    const ctx = preview.getContext('2d');
-    function draw(){
-      const {width:w,height:h} = preview;
-      ctx.clearRect(0,0,w,h);
-      drawSource(ctx,w,h,false);
-      if(Number(grain.value)>0) previewGrain(ctx, Number(grain.value));
-      rafId = requestAnimationFrame(draw);
-    }
-    draw();
-  }
-
-  function drawSource(ctx,W,H,raw=false){
-    const src = usingUpload ? uploadImg : video;
-    const sW = src.videoWidth || src.naturalWidth || 0;
-    const sH = src.videoHeight || src.naturalHeight || 0;
-    if(!sW || !sH) return;
-    const scale = Math.max(W/sW, H/sH);
-    const w = Math.ceil(sW*scale), h = Math.ceil(sH*scale);
-    const x = (W-w)/2, y = (H-h)/2;
-
-    const bright = Math.pow(2, Number(ev.value));
-    const ct = Number(contrast.value);
-
-    ctx.save();
-    if(!raw){
-      ctx.filter = `grayscale(1) contrast(${ct}) brightness(${bright})`;
-    }
-    ctx.drawImage(src, x,y,w,h);
-    ctx.restore();
-  }
-
-  function previewGrain(ctx, amt){
-    const {width:w, height:h} = preview;
-    const g = ctx.createLinearGradient(0,0,w,h);
-    g.addColorStop(0, `rgba(0,0,0,${0.05*amt})`);
-    g.addColorStop(1, `rgba(255,255,255,${0.02*amt})`);
-    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
-  }
-
-  // Camera start
-  async function startCamera(){
-    try{
-      if(stream) stream.getTracks().forEach(t=>t.stop());
-      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
-      video.srcObject = stream; await video.play();
-      video.classList.add('mono');
-      uploadImg.style.display='none';
-      usingUpload=false;
-    }catch(err){
-      installHint.textContent = 'camera blocked — using upload';
-      usingUpload=true;
-    }
-  }
-
-  // Fit preview canvas to frame
-  function fitPreview(){
-    const r = frame.getBoundingClientRect();
-    preview.width = Math.round(r.width);
-    preview.height = Math.round(r.height);
-  }
-  new ResizeObserver(()=>{ fitPreview(); sizeMeter(); }).observe(frame);
-
-  // Export card
-  exportBtn.addEventListener('click', async ()=>{
-    const aspect = aspectRadios.find(r=>r.checked).value;
-    const style = capStyleRadios.find(r=>r.checked).value;
-
-    // Decide export size (short edge 1440 for crispness without being huge)
-    const short = 1440;
-    const [W,H] = (aspect==='1:1') ? [short, short] : [Math.round(short*4/3), short];
-
-    // Render source into an offscreen canvas at export size
-    const srcCanvas = document.createElement('canvas');
-    srcCanvas.width=W; srcCanvas.height=H;
-    const sctx = srcCanvas.getContext('2d');
-    // draw source (cover)
-    drawSourceAtSize(sctx, W, H);
-
-    // Apply monochrome tone pixel-level + exposure/contrast + grain
-    toneProcess(srcCanvas, Number(ev.value), Number(contrast.value), Number(grain.value));
-
-    // Compose metadata strip + caption
-    const out = document.createElement('canvas'); out.width=W; out.height=H;
-    const octx = out.getContext('2d');
-    octx.drawImage(srcCanvas,0,0);
-
-    // Film strip (top)
-    const stripH = Math.max(24, Math.round(H*0.035));
-    octx.fillStyle = 'rgba(10,10,12,0.28)';
-    octx.fillRect(0,0,W,stripH);
-    octx.fillStyle = 'rgba(255,255,255,0.9)';
-    octx.font = `${Math.round(stripH*0.55)}px system-ui, -apple-system, Segoe UI`;
-    octx.textBaseline='middle';
-    const pad = Math.round(stripH*0.4);
-    const ts = tsString(new Date());
-    const locText = (geo ? `${geo.lat.toFixed(3)}, ${geo.lon.toFixed(3)}` : '—');
-    const appText = 'intoview • mono';
-    const dot = ' • ';
-    octx.fillText(ts + dot + locText + dot + appText, pad, Math.floor(stripH/2)+0.5);
-
-    // Caption block (bottom or sidebar)
-    const captionText = caption.innerText.trim();
-    if(captionText){
-      const safe = Math.round(W*0.08);
-      if(style==='bottom'){
-        const maxW = W - safe*2;
-        const size = Math.round(H*0.035); // ~18–20 pt at 1080h
-        const metrics = wrapTextMeasure(octx, captionText, maxW, size);
-        const padX = Math.round(size*0.7), padY = Math.round(size*0.6);
-        const cw = metrics.width + padX*2;
-        const ch = metrics.height + padY*2;
-        const cx = Math.floor((W - cw)/2);
-        const cy = H - ch - Math.round(H*0.06);
-        roundRect(octx, cx, cy, cw, ch, Math.round(size*0.7));
-        octx.fillStyle = 'rgba(6,6,10,0.38)'; octx.fill();
-        octx.fillStyle = '#F4F5F8';
-        drawWrapped(octx, captionText, cx+padX, cy+padY, maxW, size, 1.35);
-      } else {
-        // Sidebar (right)
-        const size = Math.round(H*0.035);
-        const maxW = Math.round(W*0.38);
-        const padX = Math.round(size*0.7), padY = Math.round(size*0.6);
-        const metrics = wrapTextMeasure(octx, captionText, maxW, size);
-        const cw = metrics.width + padX*2;
-        const ch = metrics.height + padY*2;
-        const cx = W - cw - Math.round(W*0.05);
-        const cy = Math.floor((H - ch)/2);
-        roundRect(octx, cx, cy, cw, ch, Math.round(size*0.7));
-        octx.fillStyle = 'rgba(6,6,10,0.38)'; octx.fill();
-        octx.fillStyle = '#F4F5F8';
-        drawWrapped(octx, captionText, cx+padX, cy+padY, maxW, size, 1.35);
-      }
-    }
-
-    // Encode + share / download + archive
-    out.toBlob(async (blob)=>{
-      const file = new File([blob], `bw-note-${Date.now()}.jpg`, {type:'image/jpeg'});
-      try{
-        if(navigator.canShare && navigator.canShare({ files:[file] })){
-          await navigator.share({ files:[file], title:'bw note', text:'' });
-        } else {
-          const a=document.createElement('a'); const url=URL.createObjectURL(file);
-          a.href=url; a.download=file.name; document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(()=>URL.revokeObjectURL(url), 500);
-        }
-      }catch(e){ /* user canceled share */ }
-      // Archive small thumbnail (dataURL) + caption/time
-      const thumb = await canvasToDataURL(resizeCanvas(out, 420)); // small preview
-      archivePush({ name:file.name, when: Date.now(), caption: captionText, dataURL: thumb });
-      renderArchive();
-    }, 'image/jpeg', 0.92);
-  });
-
-  function drawSourceAtSize(ctx, W, H){
-    const src = usingUpload ? uploadImg : video;
-    const sW = src.videoWidth || src.naturalWidth || 0;
-    const sH = src.videoHeight || src.naturalHeight || 0;
-    if(!sW || !sH) { ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); return; }
-    const scale = Math.max(W/sW, H/sH);
-    const w = Math.ceil(sW*scale), h = Math.ceil(sH*scale);
-    const x = Math.floor((W-w)/2), y = Math.floor((H-h)/2);
-    ctx.drawImage(src, x,y,w,h);
-  }
-
-  function toneProcess(canvas, ev, contrast, grain){
-    const ctx = canvas.getContext('2d');
-    const {width:W,height:H} = canvas;
-    const img = ctx.getImageData(0,0,W,H); const d=img.data;
-    const EV = Math.pow(2, ev);
-    const C = contrast;
-
-    // Contrast curve around mid (soft shoulder)
-    const mid=0.5;
-    const k = (259*((C*255)+255))/(255*(259-(C*255)));
-    for(let i=0;i<d.length;i+=4){
-      let y = 0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]; // luminance
-      y = Math.min(255, y * EV); // exposure
-      // classic contrast formula around 128
-      let c = k*(y - 128) + 128;
-      // soft highlight shoulder (gentle compression above ~220)
-      if(c>220){ c = 220 + (c-220)*0.4; }
-      // lifted blacks
-      if(c<20){ c = 20 - (20-c)*0.4; }
-      d[i]=d[i+1]=d[i+2]=clamp255(c);
-    }
-    // Grain (Gaussian-ish)
-    if(grain>0){
-      for(let i=0;i<d.length;i+=4){
-        const n = randn()*12 * (grain*0.6);
-        d[i]=clamp255(d[i]+n); d[i+1]=clamp255(d[i+1]+n); d[i+2]=clamp255(d[i+2]+n);
-      }
-    }
-    ctx.putImageData(img,0,0);
-  }
-
-  function clamp255(x){return x<0?0:x>255?255:x}
-  function randn(){ // Box–Muller
-    let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random();
-    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
-  }
-  function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
-  function wrapTextMeasure(ctx, text, maxW, size){
-    ctx.font = `${size}px system-ui,-apple-system,Segoe UI`; let line='', width=0, lines=0; const words=text.split(/\s+/);
-    for(const w of words){ const test=line?line+' '+w:w; if(ctx.measureText(test).width>maxW && line){ lines++; width=Math.max(width, ctx.measureText(line).width); line=w; } else { line=test; } }
-    lines++; width=Math.max(width, ctx.measureText(line).width); return {width, height: Math.round(lines*size*1.35)};
-  }
-  function drawWrapped(ctx,text,x,y,maxW,size,lh){
-    ctx.font = `${size}px system-ui,-apple-system,Segoe UI`; ctx.textBaseline='top'; let line='', yy=y;
-    for(const w of text.split(/\s+/)){ const test=line?line+' '+w:w; if(ctx.measureText(test).width>maxW && line){ ctx.fillText(line,x,yy); yy+=size*lh; line=w; } else line=test; }
-    ctx.fillText(line,x,yy);
-  }
-  function resizeCanvas(src, maxW){
-    const r = document.createElement('canvas'); const ratio = src.width/src.height;
-    if(src.width>src.height){ r.width=maxW; r.height=Math.round(maxW/ratio); }
-    else { r.height=maxW; r.width=Math.round(maxW*ratio); }
-    r.getContext('2d').drawImage(src,0,0,r.width,r.height); return r;
-  }
-  function canvasToDataURL(c){ return new Promise(res=> c.toBlob(b=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(b);}, 'image/jpeg', 0.85)); }
-
-  // Archive (localStorage thumbnails to keep it simple)
-  const KEY='mono-archive-v1';
-  function archiveLoad(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ return []; } }
-  function archivePush(entry){
-    const list=archiveLoad(); list.unshift(entry); localStorage.setItem(KEY, JSON.stringify(list.slice(0,120)));
-  }
-  function archiveDel(name){
-    const list=archiveLoad().filter(x=>x.name!==name); localStorage.setItem(KEY, JSON.stringify(list));
-  }
-  function renderArchive(){
-    const list=archiveLoad();
-    gridCards.innerHTML='';
-    for(const item of list){
-      const el=document.createElement('div'); el.className='card';
-      el.innerHTML=`<img alt="" src="${item.dataURL}"><div class="cap"><span>${new Date(item.when).toLocaleString()}</span><span style="margin-left:auto"></span><button data-name="${item.name}">delete</button></div>`;
-      el.querySelector('button').addEventListener('click', ()=>{ archiveDel(item.name); renderArchive(); });
-      gridCards.appendChild(el);
-    }
-  }
-
-  function flashMeter(){ meter.animate([{opacity:.6, transform:'translate(-50%,-50%) scale(1.0)'},{opacity:1, transform:'translate(-50%,-50%) scale(1.06)'},{opacity:.9, transform:'translate(-50%,-50%) scale(1.0)'}],{duration:220,easing:'ease-out'}); }
-
-  // Boot
-  (async function boot(){
-    fitPreview(); sizeMeter(); setUIFromSliders(); renderArchive();
-    // Camera if permitted; otherwise we’ll sit on upload mode
-    await startCamera(); startPreviewLoop();
-  })();
 })();
 </script>
 </body>
