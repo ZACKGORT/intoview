@@ -1,474 +1,433 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>intoview • notes — MVP</title>
-<link rel="icon" href="data:," />
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>intoview • note — single file</title>
 <style>
-/* ----------------------------------------------------
-   intoview • notes — single-file MVP (full-fidelity UI)
-   Brand tenets implemented:
-   • 8pt grid, quiet BW UI, 1px device hairlines
-   • Card with top (title/GPS) + bottom (caption/timestamp)
-   • Fixed export formats: 1:1 or 4:3, baked chrome
-   • Short, decisive inputs (40/100 caps) + counters
-   • Tilt‑shift background band behind focused card
-   • Optional GPS (redactable) per note
-   ---------------------------------------------------- */
-:root{
-  /* spacing scale (8pt grid) */
-  --space-0: 0px;  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
-  --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-7: 28px;
-  --space-8: 32px; --space-9: 36px; --space-10: 40px;
-
-  /* colors */
-  --bg: #0E0E10;          /* Surface 0 */
-  --panel: #151518;       /* Surface 1 */
-  --sheet: #1A1A1F;       /* Surface 2 */
-  --fg: #EAEAEA;          /* Text */
-  --muted: #A8A8A8;       /* Secondary text */
-  --hair: #FFFFFF20;      /* hairlines */
-  --accent: #59D2C8;      /* subtle accent (rare) */
-
-  /* type */
-  --font-ui: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, Noto Sans, "Apple Color Emoji", "Segoe UI Emoji";
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "JetBrains Mono", "Liberation Mono", monospace;
-
-  /* component metrics */
-  --chrome-px: 1px;         /* hairline */
-  --card-max: 720px;        /* desktop card max */
-  --card-min: 280px;        /* small device safe */
-  --tilt-sigma: 10px;       /* subtle */
-  --tilt-darken: 0.12;      /* 12% vignette under card */
-
-  /* export */
-  --export-padding: 12px;   /* inside frame paddings */
-}
-
-html,body{height:100%}
-body{
-  margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-ui);
-  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-}
-
-/* Layout */
-.app{
-  display:grid; grid-template-columns: 1fr minmax(var(--card-min), var(--card-max)) 1fr;
-  grid-template-rows:auto 1fr auto; min-height:100dvh;
-}
-.header{ grid-column: 1/-1; display:flex; align-items:center; gap:var(--space-4);
-  padding: env(safe-area-inset-top) var(--space-6) var(--space-4); }
-.logo{ display:flex; align-items:center; gap:var(--space-3); opacity:0.95; }
-.logo svg{ width:28px; height:28px; }
-.logo .word{ letter-spacing:.02em; font-weight:600; }
-
-.main{
-  grid-column: 2; display:grid; grid-template-columns:1fr; gap:var(--space-6);
-  padding: var(--space-2) 0 var(--space-8);
-}
-
-.helper{ color:var(--muted); font-size:14px; line-height:1.4; opacity:.9; }
-.helper em{ font-style:normal; color:var(--fg); opacity:.9 }
-
-/* Card shell */
-.card-wrap{ position:relative; isolation:isolate; }
-.tilt-bg{ position:absolute; inset:-6vh -6vw; background:#000; z-index:0; opacity:.9; }
-.tilt-bg::before{
-  content:""; position:absolute; inset:0; background-size:cover; background-position:center;
-  filter:blur(var(--tilt-sigma)) saturate(.6) brightness(.9) contrast(.95) grayscale(100%);
-}
-/* darken behind card */
-.tilt-bg::after{ content:""; position:absolute; inset:0; background:radial-gradient(120% 40% at 50% 55%, rgb(0 0 0 / var(--tilt-darken)) 0%, rgb(0 0 0 / var(--tilt-darken)) 55%, transparent 70%); }
-
-.card{ position:relative; z-index:1; background:#000; box-shadow: 0 2px 8px rgb(0 0 0 / .25);
-  border:var(--chrome-px) solid #fff; }
-
-.card .top, .card .bottom{
-  display:flex; align-items:center; justify-content:space-between;
-  padding: 8px; /* exact chrome spacing */
-  font-size:12px; line-height:16px; font-family:var(--font-mono);
-  color:#e6e6e6; letter-spacing:0; background:#000;
-}
-.card .bar-hair{ height:var(--chrome-px); background:#fff; opacity:.6; }
-.card .img{ position:relative; aspect-ratio: 4/3; background:#111; display:grid; place-items:center; }
-.card.square .img{ aspect-ratio:1/1; }
-.card .img img{ width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.07) brightness(.97); }
-.card .img .empty{
-  display:grid; place-items:center; gap:var(--space-3); color:var(--muted); font-size:14px;
-}
-.camera-ico{ width:40px; height:40px; stroke:#fff; opacity:.9 }
-
-/* Controls panel */
-.panel{ background:var(--panel); border:var(--chrome-px) solid var(--hair);
-  padding:var(--space-6); display:grid; gap:var(--space-6); border-radius:8px; }
-.inputs{ display:grid; gap:var(--space-4); }
-label{ font-size:12px; color:var(--muted); margin-bottom:4px; display:block; }
-input[type="text"], textarea, select{
-  width:100%; background:#0F0F12; color:var(--fg); border:var(--chrome-px) solid var(--hair);
-  border-radius:6px; padding:10px 12px; font-size:14px; outline:none;
-}
-textarea{ resize:vertical; min-height:84px; max-height:40vh; }
-.counter{ text-align:right; font-size:11px; color:var(--muted); }
-.row{ display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap; }
-.row .grow{ flex:1 1 auto }
-.switch{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
-.switch input{ width:18px; height:18px; }
-
-.buttons{ display:flex; gap:var(--space-4); flex-wrap:wrap; }
-button{
-  appearance:none; border:var(--chrome-px) solid #fff; background:#000; color:#fff; padding:10px 14px;
-  font-size:13px; letter-spacing:.01em; border-radius:8px; cursor:pointer; transition:transform .06s ease, opacity .2s;
-}
-button.secondary{ border-color:var(--hair); color:var(--fg); opacity:.85 }
-button:active{ transform:translateY(1px) }
-
-/* Footer */
-.footer{ grid-column:1/-1; color:var(--muted); font-size:12px; padding: var(--space-6); opacity:.8 }
-.footer a{ color:var(--muted) }
-
-/* Responsive */
-@media (max-width: 980px){ .app{ grid-template-columns: 1fr minmax(0, 720px) 1fr; } }
-@media (max-width: 720px){
-  .header{ padding: env(safe-area-inset-top) var(--space-4) var(--space-2); }
-  .main{ padding: var(--space-2) var(--space-4) var(--space-8); }
-  .panel{ padding:var(--space-5) }
-}
-
-/* Accessibility helpers */
-.visually-hidden{ position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  :root{
+    --bg:#0E0E10; --surface1:#151518; --surface2:#1A1A1F; --border:#2A2A30;
+    --fg:#EDEDEF; --fg-2:#B8B8BE; --fg-3:#8C8C92; --inverse:#0B1211;
+    --accent:#59D2C8; --accent-600:#3FB9AF; --accent-700:#2EA59B; --accent-400:#79E1D9;
+    --success:#3CCB7A; --warning:#E7B04A; --danger:#F16565;
+    --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px;
+    --shadow-e1:0 1px 0 rgba(255,255,255,.02), 0 1px 2px rgba(0,0,0,.30);
+    --shadow-e2:0 4px 12px rgba(0,0,0,.35);
+    --ring-focus:0 0 0 2px rgba(89,210,200,.55);
+  }
+  html,body{background:var(--bg);color:var(--fg);margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica Neue,Arial,Noto Sans,Apple Color Emoji,Segoe UI Emoji}
+  *,*:before,*:after{box-sizing:border-box}
+  .wrap{max-width:720px;margin:0 auto;padding:16px 16px 28px}
+  .muted{color:var(--fg-2)}
+  .card{background:var(--surface1);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-e1);padding:12px}
+  .row{display:flex;gap:8px;align-items:center}
+  .row.wrap{flex-wrap:wrap}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 16px;border-radius:12px;border:1px solid transparent;background:var(--accent);color:var(--inverse);cursor:pointer;transition:.15s ease-in-out}
+  .btn:hover{filter:brightness(1.05)}
+  .btn:active{filter:brightness(.95)}
+  .btn.sec{background:var(--surface1);border-color:var(--border);color:var(--fg)}
+  .btn.sm{height:36px;padding:0 12px;font-size:14px}
+  .btn.block{width:100%}
+  .focus{outline:none;box-shadow:var(--ring-focus)}
+  textarea,input{font:inherit;color:inherit}
+  textarea.caption{width:100%;min-height:84px;background:var(--surface1);border:1px solid var(--border);border-radius:12px;padding:12px;resize:vertical}
+  .vf{position:relative;aspect-ratio:4/3;width:100%;overflow:hidden;border-radius:12px;border:1px solid var(--border);background:#000}
+  video{width:100%;height:100%;object-fit:cover;display:block}
+  .mask{position:absolute;inset:0;pointer-events:none}
+  .mask .shade{position:absolute;inset:0;outline:1200px solid rgba(0,0,0,.35)}
+  .mask .grid{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr;opacity:.30}
+  .mask .grid > div{border-right:1px solid var(--border)}
+  .mask .grid > div:nth-child(3n){border-right:0}
+  .mask .grid:after{content:"";grid-column:1/-1;border-top:1px solid var(--border);align-self:center}
+  .level{position:absolute;left:12px;right:12px;bottom:12px;display:flex;justify-content:center}
+  .export-surface{background:var(--surface2);border:1px solid var(--border);border-radius:12px;aspect-ratio:4/3;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .foot{height:24px}
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none!important;transition:none!important}
+  }
 </style>
 </head>
 <body>
-  <div class="app" id="app">
-    <header class="header">
-      <div class="logo" aria-label="intoview">
-        <!-- minimal cubes mark -->
-        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M11 7l6 3v6l-6-3V7z" fill="#D9D9D9"/>
-          <path d="M5 10l6-3v6l-6 3v-6z" fill="#BDBDBD"/>
-          <path d="M11 13l6-3v6l-6 3v-6z" fill="#9F9F9F"/>
-        </svg>
-        <div class="word">intoview</div>
+  <main class="wrap">
+    <div class="muted" style="margin-bottom:8px;font-size:14px">intoview • note</div>
+
+    <section class="card">
+      <div class="vf" id="vf">
+        <video id="video" playsinline muted></video>
+        <div class="mask">
+          <div class="shade"></div>
+          <div class="grid">
+            <div></div><div></div><div></div>
+            <div></div><div></div><div></div>
+            <div></div><div></div><div></div>
+          </div>
+        </div>
+        <div class="level"><canvas id="level" width="240" height="56" style="width:240px;height:56px"></canvas></div>
       </div>
-    </header>
 
-    <main class="main">
-      <p class="helper">moments. movement. mindfulness. <em>write a note, not a novel.</em></p>
+      <div class="grid3" style="margin-top:12px">
+        <button class="btn sm sec" id="r169">16:9</button>
+        <button class="btn sm" id="r43">4:3</button>
+        <button class="btn sm sec" id="r11">1:1</button>
+      </div>
 
-      <section class="card-wrap">
-        <div class="tilt-bg" id="tiltBg"></div>
-        <article class="card square" id="card">
-          <div class="top">
-            <div><span id="titleOut">[ title ]</span></div>
-            <div id="gpsOut" aria-live="polite"></div>
-          </div>
-          <div class="bar-hair"></div>
-          <div class="img" id="imgSlot">
-            <div class="empty" id="emptyState">
-              <svg class="camera-ico" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 8h4l2-3h6l2 3h4v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z" stroke="currentColor" />
-                <circle cx="12" cy="13" r="4" stroke="currentColor" />
-                <path d="M16.5 6.5h3" stroke="currentColor" />
-              </svg>
-              <div>Upload or take a photo</div>
-            </div>
-            <img id="photo" alt="preview" hidden />
-          </div>
-          <div class="bar-hair"></div>
-          <div class="bottom">
-            <div id="captionOut" class="caption">[ short caption goes here ]</div>
-            <div id="tsOut" class="ts"></div>
-          </div>
-        </article>
-      </section>
+      <div class="row" style="margin-top:8px">
+        <button class="btn block" id="capture">Capture</button>
+      </div>
 
-      <section class="panel" aria-label="controls">
-        <div class="inputs">
-          <div>
-            <label for="title">Title (max 40)</label>
-            <input id="title" type="text" maxlength="40" placeholder="e.g., Walks with Wolfie, NYC" />
-            <div class="counter"><span id="titleCount">0</span>/40</div>
-          </div>
-          <div>
-            <label for="caption">Caption (max 100)</label>
-            <textarea id="caption" maxlength="100" placeholder="I can go … with the flow. I can go."></textarea>
-            <div class="counter"><span id="capCount">0</span>/100</div>
-          </div>
-          <div class="row">
-            <div class="grow">
-              <label for="aspect">Output Aspect</label>
-              <select id="aspect">
-                <option value="1">Square — 1:1</option>
-                <option value="4/3" selected>Classic — 4:3</option>
-              </select>
-            </div>
-            <div class="switch"><input id="gpsToggle" type="checkbox"/> include GPS</div>
-            <div class="switch"><input id="monoToggle" type="checkbox" checked/> mono type bars</div>
-          </div>
-          <div class="row">
-            <input id="file" type="file" accept="image/*" class="grow" />
-            <button class="secondary" id="cameraBtn" type="button">Open camera</button>
-            <button id="clearBtn" type="button">Clear</button>
-          </div>
+      <canvas id="raw" style="display:none"></canvas>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <div class="muted" style="font-size:14px">Caption</div>
+        <div class="row">
+          <button class="btn sm" id="posBL">BL</button>
+          <button class="btn sm sec" id="posBC">BC</button>
+          <button class="btn sm sec" id="posBR">BR</button>
         </div>
-        <div class="buttons">
-          <button id="export13" type="button">Export card — 1:1 PNG</button>
-          <button id="export43" type="button" class="secondary">Export card — 4:3 PNG</button>
+      </div>
+      <textarea id="caption" class="caption" placeholder="Say something…">A quick visual note</textarea>
+    </section>
+
+    <section style="margin-top:12px">
+      <div class="card" style="padding:12px">
+        <div class="row" style="justify-content:space-between;margin-bottom:8px">
+          <div class="muted" style="font-size:14px">Export • <span id="expRatioTxt">4:3</span></div>
+          <button class="btn sm" id="exportBtn">Export PNG</button>
         </div>
-      </section>
-    </main>
+        <div class="export-surface">
+          <canvas id="exportCanvas" style="width:100%;height:auto;max-height:72vh"></canvas>
+        </div>
+      </div>
+    </section>
 
-    <footer class="footer">Not a novel way to take note. © intoview</footer>
-  </div>
-
-  <canvas id="work" class="visually-hidden"></canvas>
+    <div class="foot"></div>
+  </main>
 
 <script>
-(()=>{
-  /* ---------- DOM ---------- */
-  const d = document;
-  const imgEl = d.getElementById('photo');
-  const emptyState = d.getElementById('emptyState');
-  const tiltBg = d.getElementById('tiltBg');
-  const titleIn = d.getElementById('title');
-  const captionIn = d.getElementById('caption');
-  const titleOut = d.getElementById('titleOut');
-  const captionOut = d.getElementById('captionOut');
-  const gpsOut = d.getElementById('gpsOut');
-  const tsOut = d.getElementById('tsOut');
-  const fileIn = d.getElementById('file');
-  const cameraBtn = d.getElementById('cameraBtn');
-  const clearBtn  = d.getElementById('clearBtn');
-  const aspectSel = d.getElementById('aspect');
-  const gpsToggle = d.getElementById('gpsToggle');
-  const monoToggle= d.getElementById('monoToggle');
-  const titleCount= d.getElementById('titleCount');
-  const capCount  = d.getElementById('capCount');
-  const card      = d.getElementById('card');
+(function(){
+  const $ = (sel)=>document.querySelector(sel);
+  const $$ = (sel)=>document.querySelectorAll(sel);
+  const video = $("#video");
+  const raw = $("#raw");
+  const exportCanvas = $("#exportCanvas");
+  const expRatioTxt = $("#expRatioTxt");
+  const captionEl = $("#caption");
+  const r169=$("#r169"), r43=$("#r43"), r11=$("#r11");
+  const posBL=$("#posBL"), posBC=$("#posBC"), posBR=$("#posBR");
+  const captureBtn=$("#capture"), exportBtn=$("#exportBtn");
+  const levelCanvas = $("#level");
 
-  /* ---------- Utilities ---------- */
-  const fmtTime = (date=new Date())=>{
-    // 12h with seconds; could be toggled to 24h if desired
-    return date.toLocaleString([], { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
-  };
-  const clamp = (n,min,max)=> Math.min(max, Math.max(min,n));
-  const objUrl = (file)=> URL.createObjectURL(file);
+  let ratio = "4:3";            // '16:9' | '4:3' | '1:1'
+  let captionPos = "BL";        // 'BL'|'BC'|'BR'
+  let lastShot = null;          // HTMLCanvasElement
+  let meta = { focal:"26mm", iso:"ISO 200" };
 
-  /* ---------- State ---------- */
-  let photoURL = '';
-  let gpsText = '';
-  const setBG = (url)=>{
-    tiltBg.style.setProperty('--tilt-img', `url(${url})`);
-    tiltBg.style.background = 'transparent';
-    tiltBg.style.setProperty('background-image','none');
-    tiltBg.querySelector('::before');
-  };
-  // CSS var for background image via style tag injection
-  const setTiltImg = (url)=>{
-    tiltBg.style.setProperty('--tilt-img-url', `url("${url}")`);
-    tiltBg.style.setProperty('--tilt-img','');
-    tiltBg.style.setProperty('background','transparent');
-    tiltBg.style.setProperty('mask','none');
-    tiltBg.style.setProperty('-webkit-mask','none');
-    tiltBg.style.setProperty('contain','layout paint');
-    tiltBg.style.setProperty('will-change','transform');
-    tiltBg.style.setProperty('pointer-events','none');
-    tiltBg.style.setProperty('display','block');
-    tiltBg.style.setProperty('z-index','0');
-    tiltBg.style.setProperty('position','absolute');
-    tiltBg.style.setProperty('inset','-6vh -6vw');
-    // set via style attribute on ::before
-    tiltBg.style.setProperty('--bg-url', `url(${url})`);
-    tiltBg.querySelector?.('::before');
-  };
-
-  // Patch ::before background since inline styles cannot set it directly
-  const styleEl = d.createElement('style');
-  styleEl.textContent = `.tilt-bg::before{ background-image: var(--bg-url) !important; }`;
-  d.head.appendChild(styleEl);
-
-  /* ---------- I/O bindings ---------- */
-  titleIn.addEventListener('input', ()=>{
-    titleOut.textContent = titleIn.value.trim() || '[ title ]';
-    titleCount.textContent = titleIn.value.length;
-  });
-  captionIn.addEventListener('input', ()=>{
-    captionOut.textContent = captionIn.value.trim() || '[ short caption goes here ]';
-    capCount.textContent = captionIn.value.length;
-  });
-  aspectSel.addEventListener('change', ()=>{
-    const ar = aspectSel.value;
-    card.classList.toggle('square', ar==='1');
-  });
-
-  gpsToggle.addEventListener('change', async ()=>{
-    if(!gpsToggle.checked){ gpsText=''; gpsOut.textContent=''; return; }
-    if(!('geolocation' in navigator)){ gpsOut.textContent='[gps unavailable]'; return; }
+  // --- Camera init ---
+  async function initCamera(){
     try{
-      const pos = await new Promise((res,rej)=> navigator.geolocation.getCurrentPosition(res,rej, { enableHighAccuracy:false, timeout:8000 }));
-      const { latitude, longitude } = pos.coords;
-      // Approximate (4 decimals) per privacy
-      const lat = latitude.toFixed(4), lon = longitude.toFixed(4);
-      gpsText = `[ ${lat}° N ${lon}° W ]`;
-      gpsOut.textContent = gpsText;
-    }catch(e){ gpsOut.textContent='[gps denied]'; }
-  });
-
-  monoToggle.addEventListener('change', ()=>{
-    const f = monoToggle.checked ? 'var(--font-mono)' : 'var(--font-ui)';
-    card.querySelectorAll('.top,.bottom').forEach(el=> el.style.fontFamily = `\${f}`);
-  });
-
-  fileIn.addEventListener('change', ()=>{
-    const f = fileIn.files?.[0]; if(!f) return;
-    photoURL = objUrl(f);
-    imgEl.src = photoURL; imgEl.hidden=false; emptyState.hidden=true;
-    setTiltImg(photoURL);
-    tsOut.textContent = fmtTime(new Date());
-  });
-
-  cameraBtn.addEventListener('click', async ()=>{
-    // Fallback to file input on platforms without getUserMedia for still capture
-    if(!navigator.mediaDevices?.getUserMedia){ fileIn.click(); return; }
-    try{
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' }, audio:false });
-      // Build a quick capture UI in a dialog
-      const dlg = d.createElement('dialog');
-      dlg.style.cssText = 'border:none;padding:0;background:#000;color:#fff;border-radius:12px;max-width:min(92vw,720px)';
-      dlg.innerHTML = `
-        <video id="v" autoplay playsinline style="width:100%;height:auto;display:block;filter:grayscale(1) contrast(1.07) brightness(.97)"></video>
-        <div style="display:flex;gap:12px;justify-content:space-between;padding:12px;border-top:1px solid #ffffff22">
-          <button id="snap">Shutter</button>
-          <button id="cancel" class="secondary">Cancel</button>
-        </div>`;
-      d.body.appendChild(dlg); dlg.showModal();
-      const v = dlg.querySelector('#v'); v.srcObject = stream;
-      const stop = ()=> stream.getTracks().forEach(t=>t.stop());
-      dlg.querySelector('#cancel').onclick = ()=>{ stop(); dlg.close(); dlg.remove(); };
-      dlg.querySelector('#snap').onclick = ()=>{
-        const c = d.createElement('canvas');
-        const r = v.videoWidth / v.videoHeight; // capture full frame
-        c.width = v.videoWidth; c.height = v.videoHeight; const cx = c.getContext('2d');
-        cx.drawImage(v,0,0,c.width,c.height);
-        c.toBlob(b=>{
-          if(!b){ stop(); dlg.close(); dlg.remove(); return; }
-          const file = new File([b], 'capture.png', { type:'image/png' });
-          photoURL = objUrl(file);
-          imgEl.src = photoURL; imgEl.hidden=false; emptyState.hidden=true;
-          setTiltImg(photoURL);
-          tsOut.textContent = fmtTime(new Date());
-          stop(); dlg.close(); dlg.remove();
-        }, 'image/png', 0.92);
-      };
-    }catch(e){ fileIn.click(); }
-  });
-
-  clearBtn.addEventListener('click', ()=>{
-    imgEl.hidden=true; emptyState.hidden=false; imgEl.removeAttribute('src'); photoURL='';
-    titleIn.value=''; captionIn.value=''; titleOut.textContent='[ title ]'; captionOut.textContent='[ short caption goes here ]';
-    titleCount.textContent='0'; capCount.textContent='0'; gpsOut.textContent=''; tsOut.textContent='';
-  });
-
-  /* ---------- Export pipeline (canvas) ---------- */
-  const exportCard = async (aspect='1')=>{
-    if(!photoURL){ alert('Add a photo first.'); return; }
-
-    const img = await loadImage(photoURL);
-    const pad = 16; // inner chrome spacing in px (visual match to UI)
-
-    // Choose target dimensions; render large for crisp result
-    const W = 2048; // width
-    const H = (aspect==='1') ? 2048 : Math.round(W * 3/4); // 1:1 or 4:3
-
-    const c = d.getElementById('work'); c.width = W; c.height = H; const cx = c.getContext('2d');
-    cx.fillStyle = '#000'; cx.fillRect(0,0,W,H);
-
-    // 1px hairline at export scale
-    const hair = Math.max(1, Math.round(W/1024));
-
-    // Bars
-    cx.fillStyle = '#000';
-    cx.fillRect(0,0,W,24+pad);   // top area
-    cx.fillRect(0,H-(24+pad),W,24+pad); // bottom area
-
-    // White border
-    cx.strokeStyle = '#fff'; cx.lineWidth = hair; cx.strokeRect(hair/2, hair/2, W-hair, H-hair);
-
-    // Draw image (fit to inner area between bars)
-    const topBarH = 24 + pad;
-    const botBarH = 24 + pad;
-    const innerX = hair; const innerY = topBarH + hair;
-    const innerW = W - hair*2; const innerH = H - (topBarH + botBarH) - hair*2;
-
-    // cover strategy
-    const imgR = img.width / img.height;
-    const boxR = innerW / innerH;
-    let dw = innerW, dh = innerH, dx = innerX, dy = innerY;
-    if(imgR > boxR){ dh = innerH; dw = dh * imgR; dx = innerX + (innerW-dw)/2; }
-    else { dw = innerW; dh = dw / imgR; dy = innerY + (innerH-dh)/2; }
-
-    // BW curve (simple S-curve)
-    cx.save();
-    cx.drawImage(img, dx, dy, dw, dh);
-    const imgData = cx.getImageData(dx,dy,dw,dh);
-    const data = imgData.data;
-    for(let i=0;i<data.length;i+=4){
-      const r=data[i], g=data[i+1], b=data[i+2];
-      // luminance
-      let y = 0.2126*r + 0.7152*g + 0.0722*b;
-      // filmic-ish contrast curve
-      y = y/255; y = Math.pow(y, 0.9); y = (y-0.5)*1.1 + 0.5; y = clamp(Math.round(y*255),0,255);
-      data[i]=data[i+1]=data[i+2]=y;
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+    }catch(err){
+      console.warn("Camera not available/denied", err);
     }
-    cx.putImageData(imgData, dx, dy);
-    cx.restore();
+  }
+  initCamera();
 
-    // Hairlines above/below image
-    cx.globalAlpha = .6; cx.fillStyle = '#fff';
-    cx.fillRect(0, topBarH, W, hair);
-    cx.fillRect(0, H - botBarH - hair, W, hair);
-    cx.globalAlpha = 1;
+  // --- Ratio buttons ---
+  function setRatio(r){
+    ratio = r;
+    r169.classList.toggle("sec", r!=="16:9");
+    r43.classList.toggle("sec", r!=="4:3");
+    r11.classList.toggle("sec", r!=="1:1");
+    expRatioTxt.textContent = r;
+  }
+  r169.addEventListener("click", ()=>setRatio("16:9"));
+  r43.addEventListener("click", ()=>setRatio("4:3"));
+  r11.addEventListener("click", ()=>setRatio("1:1"));
+  setRatio("4:3");
 
-    // Text bars
-    cx.fillStyle = '#e6e6e6';
-    cx.font = `12px ${monoToggle.checked ? 'JetBrainsMono, SFMono-Regular, monospace' : 'Inter, system-ui, sans-serif'}`;
-    cx.textBaseline = 'middle';
+  // --- Caption pos ---
+  function setPos(p){
+    captionPos = p;
+    posBL.classList.toggle("sec", p!=="BL");
+    posBC.classList.toggle("sec", p!=="BC");
+    posBR.classList.toggle("sec", p!=="BR");
+  }
+  posBL.addEventListener("click", ()=>setPos("BL"));
+  posBC.addEventListener("click", ()=>setPos("BC"));
+  posBR.addEventListener("click", ()=>setPos("BR"));
+  setPos("BL");
 
-    // Top left: title
-    const title = (titleIn.value.trim() || '[ title ]').toUpperCase();
-    cx.fillText(title, pad, (topBarH/2));
+  // --- Capture ---
+  function capture(){
+    if(!video.videoWidth) return;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const [rw, rh] = ratio.split(":").map(Number);
+    const targ = rw/rh;
+    let sw = vw, sh = Math.round(vw / targ);
+    if (sh > vh){ sh = vh; sw = Math.round(vh * targ); }
+    const sx = Math.floor((vw - sw)/2);
+    const sy = Math.floor((vh - sh)/2);
 
-    // Top right: GPS (optional)
-    const gps = gpsToggle.checked && gpsText ? gpsText : '';
-    if(gps){ rightText(cx, gps, W-pad, topBarH/2); }
+    raw.width = sw; raw.height = sh;
+    const ctx = raw.getContext("2d");
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-    // Bottom left: caption
-    const cap = captionIn.value.trim() || '[ short caption goes here ]';
-    cx.fillText(cap, pad, H - (botBarH/2));
+    // copy to immutable canvas
+    const shot = document.createElement("canvas");
+    shot.width = sw; shot.height = sh;
+    shot.getContext("2d").drawImage(raw,0,0);
+    lastShot = shot;
+    drawExport(); // refresh preview
+  }
+  captureBtn.addEventListener("click", capture);
 
-    // Bottom right: timestamp
-    const ts = tsOut.textContent || fmtTime(new Date());
-    rightText(cx, ts, W-pad, H - (botBarH/2));
-
-    // Download
-    const url = c.toDataURL('image/png');
-    const a = d.createElement('a'); a.href = url; a.download = `intoview-${aspect==='1'?'1x1':'4x3'}.png`; a.click();
-  };
-
-  function rightText(ctx, text, x, y){
-    const w = ctx.measureText(text).width; ctx.fillText(text, x - w, y);
+  // --- Export drawing ---
+  function roundRect(ctx, x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+    const words = String(text||"").split(" ");
+    let line = ""; const lines = [];
+    for(let i=0;i<words.length;i++){
+      const test = line + words[i] + " ";
+      if (ctx.measureText(test).width > maxWidth && i>0){
+        lines.push(line.trim()); line = words[i] + " ";
+      } else line = test;
+    }
+    lines.push(line.trim());
+    for(let i=0;i<lines.length;i++){
+      ctx.fillText(lines[i], x, y - (lines.length-1-i)*lineHeight);
+    }
   }
 
-  function loadImage(src){
-    return new Promise((res,rej)=>{ const im = new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src; });
+  function drawExport(){
+    const ratioForCanvas = (ratio==="1:1") ? [1,1] : [4,3]; // preview surface stays 4:3 (or 1:1)
+    const size = (ratio==="1:1") ? {w:1200,h:1200} : {w:1200,h:900};
+    exportCanvas.width = size.w; exportCanvas.height = size.h;
+    const ctx = exportCanvas.getContext("2d");
+
+    // bg
+    ctx.fillStyle = "#0E0E10"; ctx.fillRect(0,0,size.w,size.h);
+
+    const inset = 24, metaH = 56;
+    const imgArea = { x: inset, y: inset, w: size.w - inset*2, h: size.h - inset*2 - metaH };
+
+    if (lastShot){
+      const iw = lastShot.width, ih = lastShot.height;
+      const scale = Math.max(imgArea.w/iw, imgArea.h/ih);
+      const dw = iw*scale, dh = ih*scale;
+      const dx = imgArea.x + (imgArea.w - dw)/2;
+      const dy = imgArea.y + (imgArea.h - dh)/2;
+      ctx.save(); roundRect(ctx, imgArea.x, imgArea.y, imgArea.w, imgArea.h, 20); ctx.clip();
+      ctx.drawImage(lastShot, dx, dy, dw, dh);
+      ctx.restore();
+    }
+
+    // caption
+    ctx.font = "600 28px Inter, system-ui, -apple-system, Segoe UI, Roboto";
+    ctx.fillStyle = "#EDEDEF";
+    ctx.textBaseline = "alphabetic";
+    const pad = 24;
+    let cx = imgArea.x + pad;
+    let cy = imgArea.y + imgArea.h - pad;
+    ctx.textAlign = "left";
+    if (captionPos === "BC"){ cx = imgArea.x + imgArea.w/2; ctx.textAlign = "center"; }
+    if (captionPos === "BR"){ cx = imgArea.x + imgArea.w - pad; ctx.textAlign = "right"; }
+    wrapText(ctx, captionEl.value, cx, cy, imgArea.w - pad*2, 34);
+
+    // metadata strip
+    const y0 = size.h - metaH - inset;
+    ctx.fillStyle = "#151518"; ctx.strokeStyle = "#2A2A30";
+    roundRect(ctx, inset, y0, size.w - inset*2, metaH, 12); ctx.fill(); ctx.stroke();
+
+    ctx.font = "500 16px 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo";
+    ctx.fillStyle = "#B8B8BE"; ctx.textAlign = "left";
+    ctx.fillText(new Date().toISOString(), inset+20, y0+36);
+    ctx.textAlign = "right";
+    const rightText = [meta.focal, meta.iso, ratio].filter(Boolean).join("  •  ");
+    ctx.fillText(rightText, size.w - inset - 20, y0+36);
   }
 
-  d.getElementById('export13').addEventListener('click', ()=> exportCard('1'));
-  d.getElementById('export43').addEventListener('click', ()=> exportCard('4/3'));
+  captionEl.addEventListener("input", drawExport);
 
-  // Initialize
-  tsOut.textContent = fmtTime(new Date());
+  // Export button
+  exportBtn.addEventListener("click", ()=>{
+    // upscale export a bit for quality
+    const target = (ratio==="1:1") ? {w:1600,h:1600} : {w:1600,h:1200};
+    const c = document.createElement("canvas");
+    c.width = target.w; c.height = target.h;
+    const ctx = c.getContext("2d");
+
+    // Render using same function but with overridden size constants
+    // inline minimal duplicate to respect target size
+    const inset = 32, metaH = 56;
+    const imgArea = { x: inset, y: inset, w: target.w - inset*2, h: target.h - inset*2 - metaH };
+
+    ctx.fillStyle = "#0E0E10"; ctx.fillRect(0,0,target.w,target.h);
+    if (lastShot){
+      const iw = lastShot.width, ih = lastShot.height;
+      const scale = Math.max(imgArea.w/iw, imgArea.h/ih);
+      const dw = iw*scale, dh = ih*scale;
+      const dx = imgArea.x + (imgArea.w - dw)/2;
+      const dy = imgArea.y + (imgArea.h - dh)/2;
+      // rounded image
+      ctx.save();
+      (function roundRect(ctx,x,y,w,h,r){
+        ctx.beginPath(); ctx.moveTo(x+r,y);
+        ctx.arcTo(x+w,y,x+w,y+h,r);
+        ctx.arcTo(x+w,y+h,x,y+h,r);
+        ctx.arcTo(x,y+h,x,y,r);
+        ctx.arcTo(x,y,x+w,y,r);
+        ctx.closePath();
+      })(ctx, imgArea.x, imgArea.y, imgArea.w, imgArea.h, 24);
+      ctx.clip();
+      ctx.drawImage(lastShot, dx, dy, dw, dh);
+      ctx.restore();
+    }
+    // caption
+    ctx.font = "600 32px Inter, system-ui, -apple-system, Segoe UI, Roboto";
+    ctx.fillStyle = "#EDEDEF";
+    ctx.textBaseline = "alphabetic";
+    const pad = 28;
+    let cx = imgArea.x + pad, cy = imgArea.y + imgArea.h - pad;
+    ctx.textAlign = "left";
+    if (captionPos === "BC"){ cx = imgArea.x + imgArea.w/2; ctx.textAlign = "center"; }
+    if (captionPos === "BR"){ cx = imgArea.x + imgArea.w - pad; ctx.textAlign = "right"; }
+    (function wrapText(ctx,text,x,y,maxWidth,lineHeight){
+      const words = String(text||"").split(" ");
+      let line = ""; const lines = [];
+      for(let i=0;i<words.length;i++){
+        const test = line + words[i] + " ";
+        if (ctx.measureText(test).width > maxWidth && i>0){ lines.push(line.trim()); line = words[i] + " "; }
+        else { line = test; }
+      }
+      lines.push(line.trim());
+      for(let i=0;i<lines.length;i++){ ctx.fillText(lines[i], x, y - (lines.length-1-i)*lineHeight); }
+    })(ctx, captionEl.value, cx, cy, imgArea.w - pad*2, 36);
+
+    // meta strip
+    const y0 = target.h - metaH - inset;
+    ctx.fillStyle = "#151518"; ctx.strokeStyle = "#2A2A30";
+    (function roundRect(ctx,x,y,w,h,r){
+      ctx.beginPath(); ctx.moveTo(x+r,y);
+      ctx.arcTo(x+w,y,x+w,y+h,r);
+      ctx.arcTo(x+w,y+h,x,y+h,r);
+      ctx.arcTo(x,y+h,x,y,r);
+      ctx.arcTo(x,y,x+w,y,r);
+      ctx.closePath();
+    })(ctx, inset, y0, target.w - inset*2, metaH, 12);
+    ctx.fill(); ctx.stroke();
+
+    ctx.font = "500 18px 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo";
+    ctx.fillStyle = "#B8B8BE"; ctx.textAlign = "left";
+    ctx.fillText(new Date().toISOString(), inset+20, y0+36);
+    ctx.textAlign = "right";
+    const rightText = [meta.focal, meta.iso, ratio].filter(Boolean).join("  •  ");
+    ctx.fillText(rightText, target.w - inset - 20, y0+36);
+
+    c.toBlob((blob)=>{
+      if(!blob){ return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `intoview_${ratio.replace(":","-")}_${Date.now()}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }, "image/png", 0.92);
+  });
+
+  // --- Liquid level (canvas) ---
+  (function(){
+    const c = levelCanvas;
+    const ctx = c.getContext("2d");
+    const w = c.width, h = c.height;
+    let roll = 0;
+
+    function roundRect(ctx,x,y,w,h,r){
+      ctx.beginPath();
+      ctx.moveTo(x+r,y);
+      ctx.arcTo(x+w,y,x+w,y+h,r);
+      ctx.arcTo(x+w,y+h,x,y+h,r);
+      ctx.arcTo(x,y+h,x,y,r);
+      ctx.arcTo(x,y,x+w,y,r);
+      ctx.closePath();
+    }
+    function clipRoundRect(ctx,x,y,w,h,r){ roundRect(ctx,x,y,w,h,r); ctx.clip(); }
+
+    function draw(){
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      c.width = 240*dpr; c.height = 56*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,240,56);
+
+      const r=16;
+      const styles = getComputedStyle(document.documentElement);
+      const surface2 = styles.getPropertyValue('--surface2').trim() || '#1A1A1F';
+      const border = styles.getPropertyValue('--border').trim() || '#2A2A30';
+      const accent = styles.getPropertyValue('--accent').trim() || '#59D2C8';
+
+      ctx.fillStyle = surface2; ctx.strokeStyle = border; ctx.lineWidth = 1.5;
+      roundRect(ctx, .5,.5, 239, 55, r); ctx.fill(); ctx.stroke();
+
+      const angle = -roll * Math.PI/180;
+      const mid = 56*0.55;
+
+      ctx.save();
+      clipRoundRect(ctx, 1,1, 238, 54, r-2);
+
+      ctx.translate(240/2, mid);
+      ctx.rotate(angle);
+      ctx.fillStyle = accent; ctx.globalAlpha = .9;
+      ctx.fillRect(-240, 0, 480, 56);
+      ctx.globalAlpha = 1;
+
+      const grd = ctx.createLinearGradient(-240, -56, 240, 56);
+      grd.addColorStop(0, 'rgba(255,255,255,0.10)');
+      grd.addColorStop(1, 'rgba(255,255,255,0.00)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(-240, -56, 480, 112);
+
+      ctx.restore();
+
+      // bubble
+      const bubbleR = 8;
+      const bubbleX = 240/2 + ((45 - (roll+45)) / 90) * 80;
+      const bubbleY = mid - 4;
+      ctx.beginPath();
+      ctx.arc(bubbleX, bubbleY, bubbleR, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fill();
+    }
+
+    function setRoll(val){ roll = Math.max(-45, Math.min(45, val)); draw(); }
+
+    function onOrient(e){
+      setRoll(e.gamma || 0);
+    }
+    function onMouse(e){
+      const pct = (e.clientX / innerWidth) * 2 - 1;
+      setRoll(pct * 30);
+    }
+
+    if ('DeviceOrientationEvent' in window){
+      window.addEventListener('deviceorientation', onOrient);
+    } else {
+      window.addEventListener('mousemove', onMouse);
+    }
+    draw();
+  })();
+
+  // Draw preview on load and when caption changes
+  window.addEventListener("load", drawExport);
 })();
 </script>
 </body>
