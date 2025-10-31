@@ -3,431 +3,659 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>intoview • note — single file</title>
+<title>intoview • note — single file (flow, B&W outlined • tight)</title>
+<link rel="icon" href="data:,"/>
 <style>
-  :root{
-    --bg:#0E0E10; --surface1:#151518; --surface2:#1A1A1F; --border:#2A2A30;
-    --fg:#EDEDEF; --fg-2:#B8B8BE; --fg-3:#8C8C92; --inverse:#0B1211;
-    --accent:#59D2C8; --accent-600:#3FB9AF; --accent-700:#2EA59B; --accent-400:#79E1D9;
-    --success:#3CCB7A; --warning:#E7B04A; --danger:#F16565;
-    --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px;
-    --shadow-e1:0 1px 0 rgba(255,255,255,.02), 0 1px 2px rgba(0,0,0,.30);
-    --shadow-e2:0 4px 12px rgba(0,0,0,.35);
-    --ring-focus:0 0 0 2px rgba(89,210,200,.55);
-  }
-  html,body{background:var(--bg);color:var(--fg);margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica Neue,Arial,Noto Sans,Apple Color Emoji,Segoe UI Emoji}
-  *,*:before,*:after{box-sizing:border-box}
-  .wrap{max-width:720px;margin:0 auto;padding:16px 16px 28px}
-  .muted{color:var(--fg-2)}
-  .card{background:var(--surface1);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-e1);padding:12px}
-  .row{display:flex;gap:8px;align-items:center}
-  .row.wrap{flex-wrap:wrap}
-  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 16px;border-radius:12px;border:1px solid transparent;background:var(--accent);color:var(--inverse);cursor:pointer;transition:.15s ease-in-out}
-  .btn:hover{filter:brightness(1.05)}
-  .btn:active{filter:brightness(.95)}
-  .btn.sec{background:var(--surface1);border-color:var(--border);color:var(--fg)}
-  .btn.sm{height:36px;padding:0 12px;font-size:14px}
-  .btn.block{width:100%}
-  .focus{outline:none;box-shadow:var(--ring-focus)}
-  textarea,input{font:inherit;color:inherit}
-  textarea.caption{width:100%;min-height:84px;background:var(--surface1);border:1px solid var(--border);border-radius:12px;padding:12px;resize:vertical}
-  .vf{position:relative;aspect-ratio:4/3;width:100%;overflow:hidden;border-radius:12px;border:1px solid var(--border);background:#000}
-  video{width:100%;height:100%;object-fit:cover;display:block}
-  .mask{position:absolute;inset:0;pointer-events:none}
-  .mask .shade{position:absolute;inset:0;outline:1200px solid rgba(0,0,0,.35)}
-  .mask .grid{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr;opacity:.30}
-  .mask .grid > div{border-right:1px solid var(--border)}
-  .mask .grid > div:nth-child(3n){border-right:0}
-  .mask .grid:after{content:"";grid-column:1/-1;border-top:1px solid var(--border);align-self:center}
-  .level{position:absolute;left:12px;right:12px;bottom:12px;display:flex;justify-content:center}
-  .export-surface{background:var(--surface2);border:1px solid var(--border);border-radius:12px;aspect-ratio:4/3;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
-  .foot{height:24px}
-  @media (prefers-reduced-motion: reduce){
-    *{animation:none!important;transition:none!important}
-  }
+/* ==========================================================
+   Intoview • Mobile Design System — B&W Outlined Edition (tight)
+   Based on your last working build with minimal, safe upgrades:
+   • Safe-area paddings
+   • Ratio-classed viewfinder + chip toggle
+   • Small a11y/robustness polish
+   ========================================================== */
+
+/* ---------- TOKEN VARIABLES (B&W) ---------- */
+:root{
+  /* Ink & Paper */
+  --paper:#FFFFFF;       /* canvas */
+  --ink:#111111;         /* primary stroke/text */
+  --ink-2:#444444;       /* secondary text/lines */
+  --ink-3:#777777;       /* muted helpers */
+
+  /* Surfaces use paper; components rely on outlines only */
+  --bg-0:var(--paper); --bg-1:var(--paper); --bg-2:var(--paper); --bg-3:var(--paper);
+  --fg:var(--ink); --fg-2:var(--ink-2); --fg-3:var(--ink-3);
+
+  /* Stroke weights */
+  --rule:1.5px; --hair:1px;
+
+  /* Radii — squared, light rounding */
+  --r-xs:2px; --r-sm:4px; --r-md:4px; --r-lg:6px; --r-xl:8px; --r-pill:8px;
+
+  /* Spacing (4pt base) */
+  --s0:0; --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s7:28px; --s8:32px; --s10:40px; --s12:48px;
+
+  /* Size & Layout */
+  --container-max: 720px;
+  --touch:44px; --touch-lg:52px; --capture:72px;
+
+  /* Typography (system) */
+  --font-ui: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --fs-xs:11px; --fs-sm:13px; --fs-md:15px; --fs-lg:17px; --fs-xl:20px; --fs-display:28px;
+  --lh-tight:1.15; --lh-snug:1.28; --lh-normal:1.45;
+
+  /* Motion — minimal */
+  --ease: cubic-bezier(.2,.7,.2,1);
+  --t-fast:100ms var(--ease); --t-base:150ms var(--ease); --t-slow:200ms var(--ease);
+}
+
+/* ---------- PAGE SHELL ---------- */
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--fg);
+  font:400 var(--fs-md)/var(--lh-normal) var(--font-ui);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale}
+.header{position:sticky;top:0;z-index:10;background:var(--paper);border-bottom:var(--hair) solid var(--ink-2)}
+.header__inner{max-width:var(--container-max);margin:0 auto;
+  padding:12px calc(16px + env(safe-area-inset-right)) 12px calc(16px + env(safe-area-inset-left));
+  display:flex;gap:12px;align-items:center;justify-content:space-between}
+.title{font:800 var(--fs-xl)/var(--lh-tight) var(--font-ui)}
+.subtitle{color:var(--fg-2);font-size:var(--fs-sm)}
+
+.container{max-width:var(--container-max);margin:0 auto;
+  padding:16px calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
+.section{margin:24px 0;border:var(--rule) solid var(--ink);border-radius:var(--r-sm);background:var(--paper)}
+.section__hd{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:var(--hair) dashed var(--ink-2)}
+.section__bd{padding:16px}
+.badge{padding:6px 8px;border-radius:var(--r-xs);border:var(--hair) solid var(--ink-2);background:var(--paper);font:700 var(--fs-xs)/1 var(--font-mono);color:var(--fg-2)}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+
+/* ---------- COMPONENTS (OUTLINED) ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;padding:0 16px;border-radius:var(--r-sm);
+  border:var(--rule) solid var(--ink);background:transparent;color:var(--fg);
+  font:800 var(--fs-md)/1 var(--font-ui);transition:transform var(--t-fast)}
+.btn:active{transform:translateY(1px)}
+.btn--ghost{border:var(--hair) solid var(--ink-2);color:var(--fg)}
+.btn--lg{min-height:52px;padding:0 20px;border-radius:var(--r-sm)}
+
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{min-width:52px;height:36px;padding:0 10px;border-radius:var(--r-sm);display:inline-flex;align-items:center;justify-content:center;
+  border:var(--hair) solid var(--ink-2);background:transparent;color:var(--fg);font-weight:700}
+.chip[aria-pressed="true"]{border-color:var(--ink)}
+
+.field{display:flex;flex-direction:column;gap:8px;max-width:100%}
+.label{font:800 var(--fs-sm)/1 var(--font-ui);color:var(--fg)}
+.input,.textarea{background:var(--paper);border:var(--rule) solid var(--ink);color:var(--fg);border-radius:var(--r-sm);padding:10px 12px}
+.input:focus,.textarea:focus{outline:2px solid var(--ink);outline-offset:1px}
+.textarea{min-height:96px;resize:vertical}
+.helper{color:var(--fg-2);font-size:var(--fs-sm)}
+.counter{color:var(--fg-2);font:700 var(--fs-sm)/1 var(--font-mono)}
+
+.card{border:var(--rule) solid var(--ink);border-radius:var(--r-sm);background:var(--paper)}
+
+/* Viewfinder */
+.vf{position:relative;aspect-ratio:4/3;width:100%;overflow:hidden;border-radius:var(--r-sm);border:var(--rule) solid var(--ink);background:#000}
+.vf.r11{aspect-ratio:1/1}
+.vf.r43{aspect-ratio:4/3}
+.vf.r169{aspect-ratio:16/9}
+video{width:100%;height:100%;object-fit:cover;display:block}
+.mask{position:absolute;inset:0;pointer-events:none}
+.mask .grid{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr;opacity:.6}
+.mask .grid > div{border-right:var(--hair) solid var(--ink-2)}
+.mask .grid > div:nth-child(3n){border-right:0}
+.mask .grid:after{content:"";grid-column:1/-1;border-top:var(--hair) dashed var(--ink-2);align-self:center}
+.level{position:absolute;left:12px;right:12px;bottom:12px;display:flex;justify-content:center}
+
+/* Export preview surface */
+.preview{background:var(--paper);border:var(--rule) solid var(--ink);border-radius:var(--r-sm);aspect-ratio:4/3;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
+
+/* Steps */
+.step{display:none}
+.step.active{display:block}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.caption-opts{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+
+/* Strip motif */
+.strip{height:8px;border-top:var(--hair) solid var(--ink-2);border-bottom:var(--hair) solid var(--ink-2)}
+
+/* Accessibility helpers */
+.visually-hidden{position:absolute!important;clip:rect(1px,1px,1px,1px)!important;width:1px!important;height:1px!important;overflow:hidden!important;padding:0!important;border:0!important}
+
+/* ---------- DARK THEME OVERRIDES ---------- */
+html[data-theme="dark"]{
+  --paper:#0B0B0C;
+  --ink:#F3F3F5;
+  --ink-2:#C9C9CF;
+  --ink-3:#9A9AA2;
+}
 </style>
 </head>
 <body>
-  <main class="wrap">
-    <div class="muted" style="margin-bottom:8px;font-size:14px">intoview • note</div>
+  <header class="header" role="banner">
+    <div class="header__inner">
+      <div>
+        <div class="title">intoview • note</div>
+        <div class="subtitle">B&W outlined flow — camera → review → caption → export</div>
+      </div>
+      <div class="row">
+        <button class="btn btn--ghost" id="themeToggle" aria-pressed="false" title="Toggle theme">Theme: <span id="themeLabel">Light</span></button>
+        <button class="btn btn--ghost" id="importPhotoTop">Import</button>
+      </div>
+    </div>
+  </header>
 
-    <section class="card">
-      <div class="vf" id="vf">
-        <video id="video" playsinline muted></video>
-        <div class="mask">
-          <div class="shade"></div>
-          <div class="grid">
-            <div></div><div></div><div></div>
-            <div></div><div></div><div></div>
-            <div></div><div></div><div></div>
+  <main class="container" role="main">
+    <!-- STEP 0: Splash / Permission -->
+    <section class="section step active" data-step="0" id="step0">
+      <div class="section__hd">
+        <div class="row"><strong>Start</strong></div>
+        <span class="badge">Step 0</span>
+      </div>
+      <div class="section__bd">
+        <div class="row" style="justify-content:space-between">
+          <div class="subtitle">Camera opens instantly. You’ll add caption and export next.</div>
+        </div>
+        <div class="grid2" style="margin-top:12px">
+          <button class="btn btn--lg" id="startCamera">Open Camera</button>
+          <button class="btn btn--lg btn--ghost" id="importPhoto">Import Photo</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 1: Viewfinder -->
+    <section class="section step" data-step="1" id="step1">
+      <div class="section__hd">
+        <div class="row"><strong>Viewfinder</strong></div>
+        <span class="badge">Step 1</span>
+      </div>
+      <div class="section__bd">
+        <div class="card" style="padding:12px">
+          <div class="vf r43" id="vf" role="img" aria-label="Live camera view with grid overlay">
+            <video id="video" playsinline muted></video>
+            <div class="mask" aria-hidden="true">
+              <div class="grid">
+                <div></div><div></div><div></div>
+                <div></div><div></div><div></div>
+                <div></div><div></div><div></div>
+              </div>
+            </div>
+            <div class="level"><canvas id="level" width="240" height="56" style="width:240px;height:56px"></canvas></div>
+          </div>
+
+          <div class="chips" role="group" aria-label="Aspect ratio" style="margin-top:12px">
+            <button class="chip" id="r169" aria-pressed="false">16:9</button>
+            <button class="chip" id="r43"  aria-pressed="true">4:3</button>
+            <button class="chip" id="r11"  aria-pressed="false">1:1</button>
+          </div>
+
+          <div class="row" style="margin-top:12px">
+            <button class="btn btn--lg" id="capture">Capture</button>
+            <button class="btn btn--lg btn--ghost" id="importAlt">Import</button>
+          </div>
+          <input type="file" accept="image/*" id="importHidden" style="display:none"/>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2: Review -->
+    <section class="section step" data-step="2" id="step2">
+      <div class="section__hd">
+        <div class="row"><strong>Review</strong></div>
+        <span class="badge">Step 2</span>
+      </div>
+      <div class="section__bd">
+        <div class="preview"><canvas id="reviewCanvas" style="width:100%;height:auto;max-height:72vh"></canvas></div>
+        <div class="grid2" style="margin-top:12px">
+          <button class="btn btn--lg btn--ghost" id="retake">Retake</button>
+          <button class="btn btn--lg" id="keep">Keep</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 3: Caption -->
+    <section class="section step" data-step="3" id="step3">
+      <div class="section__hd">
+        <div class="row"><strong>Caption</strong></div>
+        <span class="badge">Step 3</span>
+      </div>
+      <div class="section__bd">
+        <div class="field">
+          <label class="label" for="caption">Note</label>
+          <textarea id="caption" class="textarea" maxlength="140" placeholder="Say something…">A quick visual note</textarea>
+          <div class="row" style="justify-content:flex-end"><div class="counter" id="capCount">0/140</div></div>
+        </div>
+        <div class="row" style="justify-content:space-between;margin-top:8px">
+          <div class="label">Position</div>
+          <div class="caption-opts">
+            <button class="chip" id="posBL" aria-pressed="true">BL</button>
+            <button class="chip" id="posBC" aria-pressed="false">BC</button>
+            <button class="chip" id="posBR" aria-pressed="false">BR</button>
           </div>
         </div>
-        <div class="level"><canvas id="level" width="240" height="56" style="width:240px;height:56px"></canvas></div>
-      </div>
-
-      <div class="grid3" style="margin-top:12px">
-        <button class="btn sm sec" id="r169">16:9</button>
-        <button class="btn sm" id="r43">4:3</button>
-        <button class="btn sm sec" id="r11">1:1</button>
-      </div>
-
-      <div class="row" style="margin-top:8px">
-        <button class="btn block" id="capture">Capture</button>
-      </div>
-
-      <canvas id="raw" style="display:none"></canvas>
-    </section>
-
-    <section class="card" style="margin-top:12px">
-      <div class="row" style="justify-content:space-between;margin-bottom:8px">
-        <div class="muted" style="font-size:14px">Caption</div>
-        <div class="row">
-          <button class="btn sm" id="posBL">BL</button>
-          <button class="btn sm sec" id="posBC">BC</button>
-          <button class="btn sm sec" id="posBR">BR</button>
+        <div class="grid2" style="margin-top:12px">
+          <button class="btn btn--lg btn--ghost" id="captionBack">Back</button>
+          <button class="btn btn--lg" id="toExport">Next</button>
         </div>
       </div>
-      <textarea id="caption" class="caption" placeholder="Say something…">A quick visual note</textarea>
     </section>
 
-    <section style="margin-top:12px">
-      <div class="card" style="padding:12px">
+    <!-- STEP 4: Export -->
+    <section class="section step" data-step="4" id="step4">
+      <div class="section__hd">
+        <div class="row"><strong>Export</strong></div>
+        <span class="badge">Step 4</span>
+      </div>
+      <div class="section__bd">
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
-          <div class="muted" style="font-size:14px">Export • <span id="expRatioTxt">4:3</span></div>
-          <button class="btn sm" id="exportBtn">Export PNG</button>
+          <div class="subtitle">Export • <span id="expRatioTxt">4:3</span></div>
+          <div class="chips" role="group" aria-label="Export ratio">
+            <button class="chip" id="exp43" aria-pressed="true">4:3</button>
+            <button class="chip" id="exp11" aria-pressed="false">1:1</button>
+          </div>
         </div>
-        <div class="export-surface">
+        <div class="preview">
           <canvas id="exportCanvas" style="width:100%;height:auto;max-height:72vh"></canvas>
         </div>
+        <div class="grid2" style="margin-top:12px">
+          <button class="btn btn--lg btn--ghost" id="exportBack">Back</button>
+          <button class="btn btn--lg" id="exportBtn">Export PNG</button>
+        </div>
       </div>
     </section>
 
-    <div class="foot"></div>
+    <!-- STEP 5: Done -->
+    <section class="section step" data-step="5" id="step5">
+      <div class="section__hd">
+        <div class="row"><strong>Done</strong></div>
+        <span class="badge">Step 5</span>
+      </div>
+      <div class="section__bd center">
+        <div class="row" style="flex-direction:column;align-items:center">
+          <div class="badge">Saved / Exported</div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn btn--lg btn--ghost" id="newFromHere">New note</button>
+            <button class="btn btn--lg" id="shareAction">Share</button>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
 <script>
 (function(){
-  const $ = (sel)=>document.querySelector(sel);
-  const $$ = (sel)=>document.querySelectorAll(sel);
+  // Theme toggle (light/dark) — persists
+  const themeToggle = document.getElementById('themeToggle');
+  const themeLabel  = document.getElementById('themeLabel');
+  function applyTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    const pressed = t === 'dark';
+    themeToggle?.setAttribute('aria-pressed', String(pressed));
+    if (themeLabel) themeLabel.textContent = pressed ? 'Dark' : 'Light';
+    try { localStorage.setItem('iv_bw_theme', t); } catch {}
+  }
+  const savedTheme = (()=>{ try{ return localStorage.getItem('iv_bw_theme'); }catch{ return null } })();
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+  themeToggle?.addEventListener('click', ()=>{
+    const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    // redraw previews to match theme
+    drawReview(); drawExport();
+  });
+
+  // Step navigation
+  const steps = [...document.querySelectorAll(".step")];
+  let stepIndex = 0;
+  function go(i){
+    stepIndex = Math.max(0, Math.min(steps.length-1, i));
+    steps.forEach((el, idx)=>el.classList.toggle("active", idx===stepIndex));
+  }
+  go(0);
+
+  // Elements
+  const $ = (s)=>document.querySelector(s);
+  const vf = $("#vf");
   const video = $("#video");
-  const raw = $("#raw");
-  const exportCanvas = $("#exportCanvas");
-  const expRatioTxt = $("#expRatioTxt");
-  const captionEl = $("#caption");
-  const r169=$("#r169"), r43=$("#r43"), r11=$("#r11");
-  const posBL=$("#posBL"), posBC=$("#posBC"), posBR=$("#posBR");
-  const captureBtn=$("#capture"), exportBtn=$("#exportBtn");
   const levelCanvas = $("#level");
+  const reviewCanvas = $("#reviewCanvas");
+  const exportCanvas = $("#exportCanvas");
+  const captionEl = $("#caption");
+  const capCount = $("#capCount");
+  const expRatioTxt = $("#expRatioTxt");
+  const importHidden = $("#importHidden");
 
-  let ratio = "4:3";            // '16:9' | '4:3' | '1:1'
-  let captionPos = "BL";        // 'BL'|'BC'|'BR'
-  let lastShot = null;          // HTMLCanvasElement
-  let meta = { focal:"26mm", iso:"ISO 200" };
+  // Counters
+  function bindCount(el, out){
+    if(!el||!out) return;
+    const max = el.getAttribute('maxlength')|0;
+    const update = ()=>{ out.textContent = `${el.value.length}/${max}` };
+    el.addEventListener('input', update); update();
+  }
+  bindCount(captionEl, capCount);
 
-  // --- Camera init ---
+  // State
+  let viewRatio = "4:3"; // live capture aspect
+  let captionPos = "BL";
+  let lastShot = null;   // canvas
+  let expRatio = "4:3";  // export preview aspect
+
+  // Splash actions
+  $("#startCamera")?.addEventListener("click", initCameraAndGo);
+  $("#importPhoto")?.addEventListener("click", ()=>importHidden.click());
+  $("#importPhotoTop")?.addEventListener("click", ()=>importHidden.click());
+  $("#importAlt")?.addEventListener("click", ()=>importHidden.click());
+  importHidden?.addEventListener("change", onImportFile);
+
+  async function initCameraAndGo(){
+    await initCamera();
+    go(1);
+  }
+
+  // Init camera
   async function initCamera(){
     try{
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
       video.srcObject = stream;
       await video.play();
+      startLevel(levelCanvas);
     }catch(err){
-      console.warn("Camera not available/denied", err);
+      alert("Camera permission denied or unavailable. You can import a photo instead.");
+      console.warn(err);
     }
   }
-  initCamera();
 
-  // --- Ratio buttons ---
-  function setRatio(r){
-    ratio = r;
-    r169.classList.toggle("sec", r!=="16:9");
-    r43.classList.toggle("sec", r!=="4:3");
-    r11.classList.toggle("sec", r!=="1:1");
-    expRatioTxt.textContent = r;
+  // Ratio chips (viewfinder)
+  const r169=$("#r169"), r43=$("#r43"), r11=$("#r11");
+  function setChipPressed(el, pressed){ el.setAttribute("aria-pressed", String(pressed)); }
+  function setViewRatio(r){
+    viewRatio = r;
+    setChipPressed(r169, r==="16:9");
+    setChipPressed(r43,  r==="4:3");
+    setChipPressed(r11,  r==="1:1");
+    // Also reflect on-screen by switching aspect-ratio class
+    vf.classList.toggle("r169", r==="16:9");
+    vf.classList.toggle("r43",  r==="4:3");
+    vf.classList.toggle("r11",  r==="1:1");
   }
-  r169.addEventListener("click", ()=>setRatio("16:9"));
-  r43.addEventListener("click", ()=>setRatio("4:3"));
-  r11.addEventListener("click", ()=>setRatio("1:1"));
-  setRatio("4:3");
+  r169?.addEventListener("click", ()=>setViewRatio("16:9"));
+  r43 ?.addEventListener("click", ()=>setViewRatio("4:3"));
+  r11 ?.addEventListener("click", ()=>setViewRatio("1:1"));
+  setViewRatio("4:3");
 
-  // --- Caption pos ---
-  function setPos(p){
-    captionPos = p;
-    posBL.classList.toggle("sec", p!=="BL");
-    posBC.classList.toggle("sec", p!=="BC");
-    posBR.classList.toggle("sec", p!=="BR");
+  // Capture / Import
+  document.getElementById("capture")?.addEventListener("click", onCapture);
+  function onImportFile(e){
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const img = new Image();
+    img.onload = ()=>{
+      const c = document.createElement("canvas");
+      c.width = img.width; c.height = img.height;
+      c.getContext("2d").drawImage(img, 0, 0);
+      lastShot = c;
+      drawReview();
+      go(2);
+    };
+    img.src = URL.createObjectURL(file);
   }
-  posBL.addEventListener("click", ()=>setPos("BL"));
-  posBC.addEventListener("click", ()=>setPos("BC"));
-  posBR.addEventListener("click", ()=>setPos("BR"));
-  setPos("BL");
 
-  // --- Capture ---
-  function capture(){
+  function onCapture(){
     if(!video.videoWidth) return;
     const vw = video.videoWidth, vh = video.videoHeight;
-    const [rw, rh] = ratio.split(":").map(Number);
+    const [rw, rh] = viewRatio.split(":").map(Number);
     const targ = rw/rh;
     let sw = vw, sh = Math.round(vw / targ);
     if (sh > vh){ sh = vh; sw = Math.round(vh * targ); }
     const sx = Math.floor((vw - sw)/2);
     const sy = Math.floor((vh - sh)/2);
 
-    raw.width = sw; raw.height = sh;
-    const ctx = raw.getContext("2d");
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
-
-    // copy to immutable canvas
-    const shot = document.createElement("canvas");
-    shot.width = sw; shot.height = sh;
-    shot.getContext("2d").drawImage(raw,0,0);
-    lastShot = shot;
-    drawExport(); // refresh preview
+    const c = document.createElement("canvas");
+    c.width = sw; c.height = sh;
+    c.getContext("2d").drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    lastShot = c;
+    drawReview();
+    go(2);
   }
-  captureBtn.addEventListener("click", capture);
 
-  // --- Export drawing ---
-  function roundRect(ctx, x,y,w,h,r){
-    ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.arcTo(x+w,y,x+w,y+h,r);
-    ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r);
-    ctx.arcTo(x,y,x+w,y,r);
-    ctx.closePath();
+  // Review
+  document.getElementById("retake")?.addEventListener("click", ()=>go(1));
+  document.getElementById("keep")  ?.addEventListener("click", ()=>go(3));
+
+  function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function drawReview(){
+    if(!lastShot) return;
+    const size = {w: 1200, h: 900};
+    reviewCanvas.width = size.w; reviewCanvas.height = size.h;
+    const ctx = reviewCanvas.getContext("2d");
+    const cs = getComputedStyle(document.documentElement);
+    const paper = cs.getPropertyValue('--paper').trim() || '#FFFFFF';
+    const ink = cs.getPropertyValue('--ink').trim() || '#111111';
+
+    ctx.fillStyle = paper; ctx.fillRect(0,0,size.w,size.h);
+    const inset=24;
+    const area = {x: inset, y: inset, w: size.w - inset*2, h: size.h - inset*2};
+    const iw = lastShot.width, ih = lastShot.height;
+    const scale = Math.max(area.w/iw, area.h/ih);
+    const dw = iw*scale, dh = ih*scale;
+    const dx = area.x + (area.w - dw)/2;
+    const dy = area.y + (area.h - dh)/2;
+    ctx.save(); roundRect(ctx, area.x, area.y, area.w, area.h, 6); ctx.clip();
+    ctx.drawImage(lastShot, dx, dy, dw, dh);
+    ctx.restore();
+
+    // outline image area
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.5;
+    roundRect(ctx, area.x, area.y, area.w, area.h, 6); ctx.stroke();
   }
-  function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+
+  // Caption step
+  const posBL=$("#posBL"), posBC=$("#posBC"), posBR=$("#posBR");
+  function setPos(p){
+    captionPos = p;
+    setChipPressed(posBL, p==="BL");
+    setChipPressed(posBC, p==="BC");
+    setChipPressed(posBR, p==="BR");
+  }
+  posBL?.addEventListener("click", ()=>setPos("BL"));
+  posBC?.addEventListener("click", ()=>setPos("BC"));
+  posBR?.addEventListener("click", ()=>setPos("BR"));
+  setPos("BL");
+  document.getElementById("captionBack")?.addEventListener("click", ()=>go(2));
+  document.getElementById("toExport")   ?.addEventListener("click", ()=>{ drawExport(); go(4); });
+
+  // Export step
+  const exp43=$("#exp43"), exp11=$("#exp11");
+  function setExpRatio(r){
+    expRatio = r;
+    expRatioTxt.textContent = r;
+    setChipPressed(exp43, r==="4:3");
+    setChipPressed(exp11, r==="1:1");
+    drawExport();
+  }
+  exp43?.addEventListener("click", ()=>setExpRatio("4:3"));
+  exp11?.addEventListener("click", ()=>setExpRatio("1:1"));
+  setExpRatio("4:3");
+
+  document.getElementById("exportBack")?.addEventListener("click", ()=>go(3));
+  document.getElementById("exportBtn") ?.addEventListener("click", doExport);
+
+  function wrapText(ctx,text,x,y,maxWidth,lineHeight){
     const words = String(text||"").split(" ");
     let line = ""; const lines = [];
     for(let i=0;i<words.length;i++){
       const test = line + words[i] + " ";
-      if (ctx.measureText(test).width > maxWidth && i>0){
-        lines.push(line.trim()); line = words[i] + " ";
-      } else line = test;
+      if (ctx.measureText(test).width > maxWidth && i>0){ lines.push(line.trim()); line = words[i] + " "; }
+      else { line = test; }
     }
     lines.push(line.trim());
-    for(let i=0;i<lines.length;i++){
-      ctx.fillText(lines[i], x, y - (lines.length-1-i)*lineHeight);
-    }
+    for(let i=0;i<lines.length;i++){ ctx.fillText(lines[i], x, y - (lines.length-1-i)*lineHeight); }
   }
 
   function drawExport(){
-    const ratioForCanvas = (ratio==="1:1") ? [1,1] : [4,3]; // preview surface stays 4:3 (or 1:1)
-    const size = (ratio==="1:1") ? {w:1200,h:1200} : {w:1200,h:900};
+    if(!lastShot) return;
+    const size = (expRatio==="1:1") ? {w:1200,h:1200} : {w:1200,h:900};
     exportCanvas.width = size.w; exportCanvas.height = size.h;
     const ctx = exportCanvas.getContext("2d");
+    const cs = getComputedStyle(document.documentElement);
+    const paper = cs.getPropertyValue('--paper').trim() || '#FFFFFF';
+    const ink = cs.getPropertyValue('--ink').trim() || '#111111';
+    const ink2 = cs.getPropertyValue('--ink-2').trim() || '#444444';
 
-    // bg
-    ctx.fillStyle = "#0E0E10"; ctx.fillRect(0,0,size.w,size.h);
+    // background
+    ctx.fillStyle = paper; ctx.fillRect(0,0,size.w,size.h);
 
-    const inset = 24, metaH = 56;
-    const imgArea = { x: inset, y: inset, w: size.w - inset*2, h: size.h - inset*2 - metaH };
+    const inset = 24, stripH = 20; // film-strip motif below image
+    const imgArea = { x: inset, y: inset, w: size.w - inset*2, h: size.h - inset*2 - stripH - 24 };
 
-    if (lastShot){
-      const iw = lastShot.width, ih = lastShot.height;
-      const scale = Math.max(imgArea.w/iw, imgArea.h/ih);
-      const dw = iw*scale, dh = ih*scale;
-      const dx = imgArea.x + (imgArea.w - dw)/2;
-      const dy = imgArea.y + (imgArea.h - dh)/2;
-      ctx.save(); roundRect(ctx, imgArea.x, imgArea.y, imgArea.w, imgArea.h, 20); ctx.clip();
-      ctx.drawImage(lastShot, dx, dy, dw, dh);
-      ctx.restore();
-    }
+    // draw image with outline
+    const iw = lastShot.width, ih = lastShot.height;
+    const scale = Math.max(imgArea.w/iw, imgArea.h/ih);
+    const dw = iw*scale, dh = ih*scale;
+    const dx = imgArea.x + (imgArea.w - dw)/2;
+    const dy = imgArea.y + (imgArea.h - dh)/2;
+    ctx.save(); roundRect(ctx, imgArea.x, imgArea.y, imgArea.w, imgArea.h, 6); ctx.clip();
+    ctx.drawImage(lastShot, dx, dy, dw, dh);
+    ctx.restore();
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.5; roundRect(ctx, imgArea.x, imgArea.y, imgArea.w, imgArea.h, 6); ctx.stroke();
 
-    // caption
-    ctx.font = "600 28px Inter, system-ui, -apple-system, Segoe UI, Roboto";
-    ctx.fillStyle = "#EDEDEF";
+    // caption — B&W text
+    ctx.font = "800 20px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = ink;
     ctx.textBaseline = "alphabetic";
-    const pad = 24;
-    let cx = imgArea.x + pad;
-    let cy = imgArea.y + imgArea.h - pad;
     ctx.textAlign = "left";
+    const pad = 16;
+    let cx = imgArea.x + pad, cy = imgArea.y + imgArea.h - pad;
     if (captionPos === "BC"){ cx = imgArea.x + imgArea.w/2; ctx.textAlign = "center"; }
     if (captionPos === "BR"){ cx = imgArea.x + imgArea.w - pad; ctx.textAlign = "right"; }
-    wrapText(ctx, captionEl.value, cx, cy, imgArea.w - pad*2, 34);
+    wrapText(ctx, captionEl.value, cx, cy, imgArea.w - pad*2, 24);
 
-    // metadata strip
-    const y0 = size.h - metaH - inset;
-    ctx.fillStyle = "#151518"; ctx.strokeStyle = "#2A2A30";
-    roundRect(ctx, inset, y0, size.w - inset*2, metaH, 12); ctx.fill(); ctx.stroke();
+    // film-strip motif band
+    const y0 = imgArea.y + imgArea.h + 12;
+    ctx.strokeStyle = ink2; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(inset, y0); ctx.lineTo(size.w - inset, y0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(inset, y0 + stripH); ctx.lineTo(size.w - inset, y0 + stripH); ctx.stroke();
 
-    ctx.font = "500 16px 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo";
-    ctx.fillStyle = "#B8B8BE"; ctx.textAlign = "left";
-    ctx.fillText(new Date().toISOString(), inset+20, y0+36);
-    ctx.textAlign = "right";
-    const rightText = [meta.focal, meta.iso, ratio].filter(Boolean).join("  •  ");
-    ctx.fillText(rightText, size.w - inset - 20, y0+36);
+    // right-aligned metadata (time • ratio)
+    ctx.font = "700 14px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = ink2; ctx.textAlign = "right";
+    const metaRight = [new Date().toISOString(), expRatio].join("  •  ");
+    ctx.fillText(metaRight, size.w - inset, y0 - 6);
   }
 
-  captionEl.addEventListener("input", drawExport);
-
-  // Export button
-  exportBtn.addEventListener("click", ()=>{
-    // upscale export a bit for quality
-    const target = (ratio==="1:1") ? {w:1600,h:1600} : {w:1600,h:1200};
-    const c = document.createElement("canvas");
-    c.width = target.w; c.height = target.h;
+  function doExport(){
+    if(!lastShot) return;
+    const target = (expRatio==="1:1") ? {w:1600,h:1600} : {w:1600,h:1200};
+    const c = document.createElement("canvas"); c.width = target.w; c.height = target.h;
     const ctx = c.getContext("2d");
+    const cs = getComputedStyle(document.documentElement);
+    const paper = cs.getPropertyValue('--paper').trim() || '#FFFFFF';
+    const ink = cs.getPropertyValue('--ink').trim() || '#111111';
+    const ink2 = cs.getPropertyValue('--ink-2').trim() || '#444444';
 
-    // Render using same function but with overridden size constants
-    // inline minimal duplicate to respect target size
-    const inset = 32, metaH = 56;
-    const imgArea = { x: inset, y: inset, w: target.w - inset*2, h: target.h - inset*2 - metaH };
+    ctx.fillStyle = paper; ctx.fillRect(0,0,target.w,target.h);
+    const inset = 32, stripH = 24;
+    const imgArea = { x: inset, y: inset, w: target.w - inset*2, h: target.h - inset*2 - stripH - 28 };
 
-    ctx.fillStyle = "#0E0E10"; ctx.fillRect(0,0,target.w,target.h);
-    if (lastShot){
-      const iw = lastShot.width, ih = lastShot.height;
-      const scale = Math.max(imgArea.w/iw, imgArea.h/ih);
-      const dw = iw*scale, dh = ih*scale;
-      const dx = imgArea.x + (imgArea.w - dw)/2;
-      const dy = imgArea.y + (imgArea.h - dh)/2;
-      // rounded image
-      ctx.save();
-      (function roundRect(ctx,x,y,w,h,r){
-        ctx.beginPath(); ctx.moveTo(x+r,y);
-        ctx.arcTo(x+w,y,x+w,y+h,r);
-        ctx.arcTo(x+w,y+h,x,y+h,r);
-        ctx.arcTo(x,y+h,x,y,r);
-        ctx.arcTo(x,y,x+w,y,r);
-        ctx.closePath();
-      })(ctx, imgArea.x, imgArea.y, imgArea.w, imgArea.h, 24);
-      ctx.clip();
-      ctx.drawImage(lastShot, dx, dy, dw, dh);
-      ctx.restore();
-    }
-    // caption
-    ctx.font = "600 32px Inter, system-ui, -apple-system, Segoe UI, Roboto";
-    ctx.fillStyle = "#EDEDEF";
-    ctx.textBaseline = "alphabetic";
-    const pad = 28;
-    let cx = imgArea.x + pad, cy = imgArea.y + imgArea.h - pad;
-    ctx.textAlign = "left";
+    const iw = lastShot.width, ih = lastShot.height;
+    const scale = Math.max(imgArea.w/iw, imgArea.h/ih);
+    const dw = iw*scale, dh = ih*scale;
+    const dx = imgArea.x + (imgArea.w - dw)/2;
+    const dy = imgArea.y + (imgArea.h - dh)/2;
+    ctx.save(); roundRect(ctx, imgArea.x, imgArea.y, imgArea.w, imgArea.h, 6); ctx.clip();
+    ctx.drawImage(lastShot, dx, dy, dw, dh); ctx.restore();
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.5; roundRect(ctx, imgArea.x, imgArea.y, imgArea.w, imgArea.h, 6); ctx.stroke();
+
+    ctx.font = "800 22px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = ink; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+    const pad = 18; let cx = imgArea.x + pad, cy = imgArea.y + imgArea.h - pad;
     if (captionPos === "BC"){ cx = imgArea.x + imgArea.w/2; ctx.textAlign = "center"; }
     if (captionPos === "BR"){ cx = imgArea.x + imgArea.w - pad; ctx.textAlign = "right"; }
-    (function wrapText(ctx,text,x,y,maxWidth,lineHeight){
-      const words = String(text||"").split(" ");
-      let line = ""; const lines = [];
-      for(let i=0;i<words.length;i++){
-        const test = line + words[i] + " ";
-        if (ctx.measureText(test).width > maxWidth && i>0){ lines.push(line.trim()); line = words[i] + " "; }
-        else { line = test; }
-      }
-      lines.push(line.trim());
-      for(let i=0;i<lines.length;i++){ ctx.fillText(lines[i], x, y - (lines.length-1-i)*lineHeight); }
-    })(ctx, captionEl.value, cx, cy, imgArea.w - pad*2, 36);
+    wrapText(ctx, captionEl.value, cx, cy, imgArea.w - pad*2, 26);
 
-    // meta strip
-    const y0 = target.h - metaH - inset;
-    ctx.fillStyle = "#151518"; ctx.strokeStyle = "#2A2A30";
-    (function roundRect(ctx,x,y,w,h,r){
-      ctx.beginPath(); ctx.moveTo(x+r,y);
-      ctx.arcTo(x+w,y,x+w,y+h,r);
-      ctx.arcTo(x+w,y+h,x,y+h,r);
-      ctx.arcTo(x,y+h,x,y,r);
-      ctx.arcTo(x,y,x+w,y,r);
-      ctx.closePath();
-    })(ctx, inset, y0, target.w - inset*2, metaH, 12);
-    ctx.fill(); ctx.stroke();
+    const y0 = imgArea.y + imgArea.h + 14;
+    ctx.strokeStyle = ink2; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(inset, y0); ctx.lineTo(target.w - inset, y0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(inset, y0 + stripH); ctx.lineTo(target.w - inset, y0 + stripH); ctx.stroke();
 
-    ctx.font = "500 18px 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo";
-    ctx.fillStyle = "#B8B8BE"; ctx.textAlign = "left";
-    ctx.fillText(new Date().toISOString(), inset+20, y0+36);
-    ctx.textAlign = "right";
-    const rightText = [meta.focal, meta.iso, ratio].filter(Boolean).join("  •  ");
-    ctx.fillText(rightText, target.w - inset - 20, y0+36);
+    ctx.font = "700 16px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = ink2; ctx.textAlign = "right";
+    const metaRight = [new Date().toISOString(), expRatio].join("  •  ");
+    ctx.fillText(metaRight, target.w - inset, y0 - 8);
 
     c.toBlob((blob)=>{
-      if(!blob){ return; }
+      if(!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = `intoview_${ratio.replace(":","-")}_${Date.now()}.png`;
+      a.href = url; a.download = `intoview_bw_${expRatio.replace(":","-")}_${Date.now()}.png`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     }, "image/png", 0.92);
-  });
+  }
 
-  // --- Liquid level (canvas) ---
-  (function(){
-    const c = levelCanvas;
+  // Liquid level — B&W outlined (no gradient)
+  function startLevel(c){
     const ctx = c.getContext("2d");
-    const w = c.width, h = c.height;
     let roll = 0;
-
-    function roundRect(ctx,x,y,w,h,r){
-      ctx.beginPath();
-      ctx.moveTo(x+r,y);
-      ctx.arcTo(x+w,y,x+w,y+h,r);
-      ctx.arcTo(x+w,y+h,x,y+h,r);
-      ctx.arcTo(x,y+h,x,y,r);
-      ctx.arcTo(x,y,x+w,y,r);
-      ctx.closePath();
-    }
-    function clipRoundRect(ctx,x,y,w,h,r){ roundRect(ctx,x,y,w,h,r); ctx.clip(); }
-
     function draw(){
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      c.width = 240*dpr; c.height = 56*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
-      ctx.clearRect(0,0,240,56);
+      const w = 240, h = 56;
+      const dpr = Math.max(1, devicePixelRatio||1);
+      c.width = w*dpr; c.height = h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,w,h);
+      const cs = getComputedStyle(document.documentElement);
+      const paper = cs.getPropertyValue('--paper').trim() || '#FFFFFF';
+      const ink = cs.getPropertyValue('--ink').trim() || '#111111';
+      const ink2 = cs.getPropertyValue('--ink-2').trim() || '#444444';
 
-      const r=16;
-      const styles = getComputedStyle(document.documentElement);
-      const surface2 = styles.getPropertyValue('--surface2').trim() || '#1A1A1F';
-      const border = styles.getPropertyValue('--border').trim() || '#2A2A30';
-      const accent = styles.getPropertyValue('--accent').trim() || '#59D2C8';
+      // frame
+      ctx.fillStyle = paper; ctx.fillRect(0,0,w,h);
+      ctx.strokeStyle = ink; ctx.lineWidth = 1.5;
+      ctx.strokeRect(0.75,0.75,w-1.5,h-1.5);
 
-      ctx.fillStyle = surface2; ctx.strokeStyle = border; ctx.lineWidth = 1.5;
-      roundRect(ctx, .5,.5, 239, 55, r); ctx.fill(); ctx.stroke();
-
+      // "liquid" — solid band tilted
       const angle = -roll * Math.PI/180;
-      const mid = 56*0.55;
-
+      const mid = h*0.55;
       ctx.save();
-      clipRoundRect(ctx, 1,1, 238, 54, r-2);
-
-      ctx.translate(240/2, mid);
+      ctx.translate(w/2, mid);
       ctx.rotate(angle);
-      ctx.fillStyle = accent; ctx.globalAlpha = .9;
-      ctx.fillRect(-240, 0, 480, 56);
-      ctx.globalAlpha = 1;
-
-      const grd = ctx.createLinearGradient(-240, -56, 240, 56);
-      grd.addColorStop(0, 'rgba(255,255,255,0.10)');
-      grd.addColorStop(1, 'rgba(255,255,255,0.00)');
-      ctx.fillStyle = grd;
-      ctx.fillRect(-240, -56, 480, 112);
-
+      ctx.fillStyle = ink2;
+      ctx.fillRect(-w, 0, w*2, h);
       ctx.restore();
 
-      // bubble
-      const bubbleR = 8;
-      const bubbleX = 240/2 + ((45 - (roll+45)) / 90) * 80;
-      const bubbleY = mid - 4;
+      // bubble — paper circle
+      const bubbleR = 7;
+      const bubbleX = w/2 + ((45 - (roll+45))/90)*80;
+      const bubbleY = mid - 3;
       ctx.beginPath();
       ctx.arc(bubbleX, bubbleY, bubbleR, 0, Math.PI*2);
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillStyle = paper;
       ctx.fill();
+      ctx.strokeStyle = ink; ctx.lineWidth = 1;
+      ctx.stroke();
     }
-
     function setRoll(val){ roll = Math.max(-45, Math.min(45, val)); draw(); }
-
-    function onOrient(e){
-      setRoll(e.gamma || 0);
-    }
-    function onMouse(e){
-      const pct = (e.clientX / innerWidth) * 2 - 1;
-      setRoll(pct * 30);
-    }
-
-    if ('DeviceOrientationEvent' in window){
-      window.addEventListener('deviceorientation', onOrient);
-    } else {
-      window.addEventListener('mousemove', onMouse);
-    }
+    function onOrient(e){ setRoll(e.gamma||0); }
+    function onMouse(e){ setRoll(((e.clientX/innerWidth)*2-1)*30); }
+    if('DeviceOrientationEvent' in window){ window.addEventListener('deviceorientation', onOrient); }
+    else { window.addEventListener('mousemove', onMouse); }
     draw();
-  })();
+  }
 
-  // Draw preview on load and when caption changes
-  window.addEventListener("load", drawExport);
+  // Done / Share
+  document.getElementById("newFromHere")?.addEventListener("click", ()=>{ captionEl.value = "A quick visual note"; setPos("BL"); setExpRatio("4:3"); go(1); });
+  document.getElementById("shareAction") ?.addEventListener("click", async ()=>{ try{ await navigator.share({ title:"intoview • note", text:"Shared from intoview • note" }); }catch(e){} });
+
+  // Back helper (optional — not injected into header by default)
+  const backBtnHeader = document.createElement('button');
+  backBtnHeader.className = 'btn btn--ghost';
+  backBtnHeader.textContent = 'Back';
+  backBtnHeader.addEventListener('click', ()=>go(stepIndex-1));
+  // document.querySelector('.header__inner .row')?.prepend(backBtnHeader);
+
+  // Expose go for debugging
+  window.__go = go;
 })();
 </script>
 </body>
