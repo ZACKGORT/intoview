@@ -1,6 +1,132 @@
-// app.js (ES module) — intoview • note — Phantom Card Archive
-// Drop into: <script type="module" src="app.js"></script>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>intoview • note — Phantom Card Archive</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+    <style>
+      :root{
+        --paper:#0E0E10;
+        --ink:#FFFFFF;
+        --ink-2:#9F9F9F;
+        --ink-3:#6C6C6C;
+        --accent:#59D2C8;
+        --danger:#FF6363;
+      }
+
+      *{box-sizing:border-box}
+      html,body,#root{height:100%}
+      body{
+        margin:0; background:var(--paper); color:var(--ink);
+        font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+        overflow:hidden;
+      }
+      .header{
+        position:fixed; inset:0 0 auto 0; z-index:7;
+        display:flex; gap:12px; align-items:baseline; flex-wrap:wrap;
+        padding:14px 16px;
+        border-bottom:1px solid var(--ink-2);
+        background:linear-gradient(180deg,#0a0a0ccc,#0a0a0c66 40%,transparent);
+        backdrop-filter:blur(6px);
+      }
+      .header .dot{
+        width:8px; height:8px; border-radius:50%;
+        background:var(--accent);
+        box-shadow:0 0 0 6px color-mix(in oklab, var(--accent), transparent 80%);
+      }
+      .header h1{margin:0; font-size:18px}
+      .header small{opacity:.85}
+      .canvas-wrap{position:absolute; inset:0}
+      .canvas-wrap.blocked{pointer-events:none}
+
+      .fallback-grid{
+        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.10;
+        color:var(--ink);
+        background-image:
+          repeating-linear-gradient(to right, currentColor 0 1px, transparent 1px 48px),
+          repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 48px);
+      }
+
+      .hud{
+        position:fixed; z-index:8; inset:auto 12px 12px auto; display:flex; gap:8px;
+        font:inherit;
+      }
+      .hud button{
+        appearance:none; cursor:pointer; font:inherit;
+        border:1px solid var(--ink-2); background:transparent; color:var(--ink);
+        padding:8px 10px; border-radius:10px;
+        transition:transform .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
+      }
+      .hud button:hover{ transform:translateY(-1px) }
+      .hud .accent{ border-color:var(--accent); color:#0b0b0d; background:var(--accent); }
+      .hud .danger{ border-color:var(--danger); color:#0b0b0d; background:var(--danger); }
+      .hud .active{ outline:2px solid color-mix(in oklab, var(--accent), white 12%); outline-offset:1px }
+
+      /* Overlay flow */
+      .overlay{
+        position:fixed; inset:72px 16px 16px 16px; z-index:9;
+        display:none;
+      }
+      .overlay.open{ display:grid; place-items:center; }
+      .sheet{
+        width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5;
+        border:1px solid #2a2a2e; border-radius:12px; padding:16px;
+        box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
+      }
+      .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+      .grid{display:grid; gap:12px}
+      .cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .label{font-weight:600; opacity:.9}
+      .input,.textarea{
+        width:100%; border:1px solid #3b3b40; background:#101015; color:#fff;
+        border-radius:8px; padding:10px 12px; font:inherit;
+      }
+      .textarea{min-height:96px; resize:vertical}
+      .btn{
+        appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff;
+        padding:10px 14px; border-radius:10px; font-weight:600;
+      }
+      .btn.ghost{ background:transparent }
+      .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
+      .hint{color:#c9c9cf; font-size:12px}
+      .vf{
+        position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e;
+        border-radius:10px; overflow:hidden; background:#000;
+      }
+      video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98)}
+      .preview{
+        position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px;
+        overflow:hidden; background:#000; display:block;
+      }
+      .chip{border:1px solid #3b3b40; border-radius:8px; padding:8px 10px; background:#121216}
+      .titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
+      .titlebar h2{margin:0; font-size:16px}
+      .center{justify-content:center}
+      .kbd{font:600 12px/1 JetBrains Mono, ui-monospace, monospace; padding:3px 6px; border:1px solid #3b3b40; border-radius:6px; color:#c9c9cf}
+      .tight{gap:6px}
+      .hidden{display:none !important}
+      .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <span class="dot" aria-hidden="true"></span>
+      <h1>intoview • note</h1>
+      <small>
+        Phantom archive (row-major) • drag to pan •
+        <span class="kbd">1</span> flat <span class="kbd">2</span> curved <span class="kbd">0</span> reset •
+        <span class="kbd">N</span> new • <span class="kbd">M</span> manage/delete
+      </small>
+    </header>
+
+    <div id="root"></div>
+
+    <script type="module">
 import React, {
   useEffect,
   useMemo,
@@ -906,3 +1032,6 @@ function App(){
 /* ========= Mount ========= */
 const root = createRoot(document.getElementById("root"));
 root.render(React.createElement(App));
+    </script>
+  </body>
+</html>
