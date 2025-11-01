@@ -637,39 +637,28 @@ function GridView(props){
   );
 }
 
-/* ========= Camera (fixed) + export ========= */
+/* ========= Camera (hardened) + export ========= */
 function useCamera(){
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [error, setError] = useState("");
 
-  const waitForReady = (v) => new Promise((resolve) => {
-    if (!v) return resolve(false);
-    const done = () => resolve(true);
-    if (v.readyState >= 2 && v.videoWidth && v.videoHeight) return done();
-    const onCanPlay = () => { v.removeEventListener("canplay", onCanPlay); done(); };
-    const onLoadedData = () => { v.removeEventListener("loadeddata", onLoadedData); done(); };
-    v.addEventListener("canplay", onCanPlay, { once: true });
-    v.addEventListener("loadeddata", onLoadedData, { once: true });
-  });
-
   const attach = async (stream) => {
     streamRef.current = stream;
     const v = videoRef.current;
     if (!v) return;
-
     v.srcObject = stream;
-    v.muted = true;
-    v.autoplay = true;
-    v.playsInline = true;
-    v.setAttribute("playsinline", "");
-    v.setAttribute("autoplay", "");
+    v.muted = true;                 // autoplay on iOS
+    v.setAttribute("playsinline",""); // iOS Safari
+    v.setAttribute("autoplay","");
 
-    try { await v.play(); } catch {}
+    await new Promise((resolve) => {
+      if (v.readyState >= 2 && v.videoWidth) return resolve();
+      const onMeta = () => { v.removeEventListener("loadedmetadata", onMeta); resolve(); };
+      v.addEventListener("loadedmetadata", onMeta, { once: true });
+    });
 
-    // Ensure dimensions + a painted frame exist before we allow capture
-    await waitForReady(v);
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    try { await v.play(); } catch { /* user gesture may be required; UI buttons provide it */ }
   };
 
   const start = async () => {
@@ -692,19 +681,18 @@ function useCamera(){
 
     for (const c of attempts){
       try {
-        const stream = await navigator.mediaDevices.getUserMedia(c);
-        await attach(stream);
-        const v = videoRef.current;
-        if (v && v.videoWidth && v.videoHeight) return true; // ready to capture
-      } catch { /* try next */ }
+        const s = await navigator.mediaDevices.getUserMedia(c);
+        await attach(s);
+        return true;
+      } catch (e) { /* try next constraints */ }
     }
 
-    setError("Could not start camera. Permission denied or blocked by embed/sandbox.");
+    setError("Could not start camera. Permission denied or preview sandbox blocked it.");
     return false;
   };
 
   const stop = () => {
-    streamRef.current?.getTracks?.forEach(t => t.stop());
+    streamRef.current?.getTracks?.().forEach(t => t.stop());
     streamRef.current = null;
     const v = videoRef.current;
     if (v) v.srcObject = null;
@@ -726,6 +714,21 @@ function useCamera(){
   return { videoRef, start, stop, captureSquareCanvas, error };
 }
 
+async function exportCardPNGFromCanvas(sourceCanvas, title, caption, gps = ""){
+  const img = await new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = rej;
+    im.src = sourceCanvas.toDataURL("image/png");
+  });
+  const cnv = makeCardCanvas({ img, title, caption, gps, ts: nowTS() });
+  return new Promise((resolve) => {
+    cnv.toBlob(b => {
+      const url = URL.createObjectURL(b);
+      resolve({ url, blob: b });
+    }, "image/png", 0.96);
+  });
+}
 
 /* ========= Overlay flow ========= */
 function OverlayFlow({ open, onClose, onAddToArchive }){
