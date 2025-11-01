@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>Phantom-style Grid — Single File (R3F + Three)</title>
+    <title>Phantom-style Grid — Card Tiles (R3F + Three)</title>
 
     <!-- Fonts (optional) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
@@ -43,7 +43,7 @@
       .canvas-wrap{position:absolute; inset:0}
 
       .fallback-grid{
-        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.12;
+        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.10;
         color:var(--ink);
         background-image:
           repeating-linear-gradient(to right, currentColor 0 1px, transparent 1px 48px),
@@ -66,31 +66,27 @@
   <body>
     <header class="header">
       <span class="dot" aria-hidden="true"></span>
-      <h1>Phantom-style Grid</h1>
-      <small>drag to pan • ambient parallax • flat/curved shader • image tiles w/ labels</small>
+      <h1>Phantom-style Grid — Card Tiles</h1>
+      <small>drag to pan • ambient parallax • flat/curved shader • card chrome on each tile</small>
     </header>
 
     <div id="root"></div>
 
     <script type="module">
-      /* ===========================================================
-         ESM imports (versions pinned)
-         =========================================================== */
       import React, { useEffect, useMemo, useState, Suspense } from 'https://esm.sh/react@18.3.1';
       import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
       import * as THREE from 'https://esm.sh/three@0.160.1';
       import { Canvas, useFrame, useThree } from 'https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1';
       import gsap from 'https://esm.sh/gsap@3.12.5';
 
-      // three/examples post-processing
       import { EffectComposer } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js';
       import { RenderPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js';
       import { ShaderPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js';
       import { OutputPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js';
 
       /* ===========================================================
-         Your images + editable titles/captions
-         (edit title/caption as you like)
+         Your images with editable title/caption (GPS/ts optional)
+         NOTE: Tiles = cols * rows (70). Remainder show camera icon.
          =========================================================== */
       const IMAGES = [
         {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp', title:'wmzWGlaw', caption:'—'},
@@ -147,7 +143,6 @@
         zoomOut: 1.85,
         distortion: { flat: 0.0, curved: 0.6 }
       };
-
       const WorkgridState = { INTRO:'INTRO', DEFAULT:'DEFAULT', RESET:'RESET' };
 
       /* ===========================================================
@@ -210,14 +205,28 @@
       }
 
       /* ===========================================================
-         Image → canvas composite with title/caption overlays
-         (one CanvasTexture per unique image, reused across tiles)
+         Card compositor (canvas → CanvasTexture)
+         Matches your card’s chrome: top/bottom bars, hairlines, border.
          =========================================================== */
-      const TEX_SIZE = 768;         // balance quality/perf
-      const P = 20;                 // padding in px
-      const TITLE_SIZE = 26;        // px
-      const CAPTION_SIZE = 18;      // px
-      const STRIP_ALPHA = 0.28;     // bg behind text
+      const TEX_SIZE = 768;           // raise to 1024 for crisper text
+      const HAIR = 1;                 // device hairline
+      const BAR_H = 28;               // top/bottom bars height
+      const PAD = 12;                 // text padding inside bars
+      const CAP_SIZE = 18;
+      const TITLE_SIZE = 20;
+      const MONO = 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+      const UI   = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+
+      function nowTS(){
+        const d = new Date();
+        // YYYY-MM-DD • HH:MM (24h)
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+        const hh = String(d.getHours()).padStart(2,'0');
+        const mm = String(d.getMinutes()).padStart(2,'0');
+        return `${y}-${m}-${day} • ${hh}:${mm}`;
+      }
 
       function loadImage(url){
         return new Promise((resolve, reject) => {
@@ -229,61 +238,115 @@
         });
       }
 
-      function drawLabelBG(ctx, x, y, w, h, alpha){
-        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-        ctx.fillRect(x, y, w, h);
+      function drawHair(ctx, x, y, w){
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillRect(x, y, w, HAIR);
       }
 
-      function ellipsize(ctx, text, maxWidth){
-        if (ctx.measureText(text).width <= maxWidth) return text;
-        let t = text;
-        while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth){
-          t = t.slice(0, -1);
-        }
-        return t + '…';
-      }
-
-      function makeTextureFrom(img, title, caption){
-        const c = document.createElement('canvas');
-        c.width = TEX_SIZE; c.height = TEX_SIZE;
-        const ctx = c.getContext('2d');
-
-        // cover-fit the image inside square
+      function coverImage(ctx, img, x, y, w, h){
         const iw = img.naturalWidth || img.width;
         const ih = img.naturalHeight || img.height;
-        const s = TEX_SIZE;
-        const ir = iw / ih;
+        const ir = iw/ih, ar = w/h;
         let dw, dh, dx, dy;
-        if (ir > 1){           // wide
-          dh = s; dw = ir * s; dx = (s - dw) / 2; dy = 0;
-        } else if (ir < 1){    // tall
-          dw = s; dh = s / ir; dx = 0; dy = (s - dh) / 2;
-        } else {               // square
-          dw = s; dh = s; dx = 0; dy = 0;
+        if(ir > ar){ // img wider
+          dh = h; dw = ir * h; dx = x + (w - dw)/2; dy = y;
+        } else {
+          dw = w; dh = w/ir; dx = x; dy = y + (h - dh)/2;
         }
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, dx, dy, dw, dh);
+      }
 
-        // Title strip (top-left)
-        ctx.font = `600 ${TITLE_SIZE}px Inter, system-ui, sans-serif`;
-        ctx.fillStyle = '#fff';
+      function drawCameraIcon(ctx, cx, cy, s=44){
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        // body
+        const w = s*1.6, h = s*1.0;
+        ctx.beginPath();
+        ctx.rect(-w/2, -h/2, w, h);
+        ctx.stroke();
+        // lens
+        ctx.beginPath();
+        ctx.arc(0, 0, s*0.35, 0, Math.PI*2);
+        ctx.stroke();
+        // top flash
+        ctx.beginPath();
+        ctx.moveTo(w*0.25, -h*0.45);
+        ctx.lineTo(w*0.45, -h*0.45);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function makeCardTexture({img, title='[ title ]', caption='[ caption ]', gps='', ts=nowTS()}){
+        const s = TEX_SIZE;
+        const c = document.createElement('canvas');
+        c.width = s; c.height = s;
+        const ctx = c.getContext('2d');
+
+        // card background
+        ctx.fillStyle = '#000'; ctx.fillRect(0,0,s,s);
+
+        // border (1px inside to stay crisp)
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+        ctx.strokeRect(0.5,0.5, s-1, s-1);
+
+        // top bar
+        ctx.fillStyle = '#000'; ctx.fillRect(0,0,s,BAR_H);
+        ctx.font = `600 ${TITLE_SIZE}px ${UI}`;
+        ctx.fillStyle = '#e6e6e6';
         ctx.textBaseline = 'top';
-        const maxTopW = s - P*2;
-        const titleText = ellipsize(ctx, title, maxTopW);
-        const titleW = Math.ceil(ctx.measureText(titleText).width);
-        const titleH = TITLE_SIZE + 8;
-        drawLabelBG(ctx, P-6, P-6, titleW + 12, titleH + 8, STRIP_ALPHA);
-        ctx.fillText(titleText, P, P);
+        ctx.fillText(title, PAD, Math.floor((BAR_H - TITLE_SIZE)/2));
 
-        // Caption strip (bottom-left)
-        ctx.font = `500 ${CAPTION_SIZE}px Inter, system-ui, sans-serif`;
-        ctx.textBaseline = 'alphabetic';
-        const maxBotW = s - P*2;
-        const capText = ellipsize(ctx, caption, maxBotW);
-        const capW = Math.ceil(ctx.measureText(capText).width);
-        const capH = CAPTION_SIZE + 8;
-        drawLabelBG(ctx, P-6, s - P - capH - 6, capW + 12, capH + 8, STRIP_ALPHA);
-        ctx.fillText(capText, P, s - P - 8);
+        // GPS (right, mono)
+        if (gps){
+          ctx.font = `500 ${12}px ${MONO}`;
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'right';
+          ctx.fillStyle = '#cfcfcf';
+          ctx.fillText(gps, s - PAD, BAR_H/2);
+          ctx.textAlign = 'left';
+        }
+
+        // hairline under top
+        drawHair(ctx, 0, BAR_H, s);
+
+        // image area (square by default)
+        const imgTop = BAR_H + HAIR;
+        const imgBottomBar = BAR_H + HAIR; // reserve for bottom bar + hair
+        const imgH = s - imgTop - (BAR_H + HAIR); // middle area height
+        const imgW = s;
+        if (img){
+          coverImage(ctx, img, 0, imgTop, imgW, imgH);
+          // subtle image treatment (grayscale-ish)
+          ctx.fillStyle = 'rgba(0,0,0,0.03)'; // tiny wash
+          ctx.fillRect(0, imgTop, imgW, imgH);
+        } else {
+          // empty state
+          ctx.fillStyle = '#111'; ctx.fillRect(0, imgTop, imgW, imgH);
+          drawCameraIcon(ctx, s/2, imgTop + imgH/2, 40);
+        }
+
+        // hairline above bottom bar
+        drawHair(ctx, 0, s - BAR_H - HAIR, s);
+
+        // bottom bar
+        ctx.fillStyle = '#000'; ctx.fillRect(0, s - BAR_H, s, BAR_H);
+        // caption (left)
+        ctx.font = `500 ${CAP_SIZE}px ${UI}`;
+        ctx.fillStyle = '#e6e6e6';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+        ctx.fillText(caption, PAD, s - BAR_H/2);
+
+        // timestamp (right, mono)
+        ctx.font = `500 ${12}px ${MONO}`;
+        ctx.fillStyle = '#cfcfcf';
+        ctx.textAlign = 'right';
+        ctx.fillText(ts, s - PAD, s - BAR_H/2);
+        ctx.textAlign = 'left';
 
         const tex = new THREE.CanvasTexture(c);
         tex.colorSpace = THREE.SRGBColorSpace;
@@ -293,14 +356,23 @@
       }
 
       async function buildTextures(items){
-        // Load unique images and composite
-        const imgs = await Promise.all(items.map(i => loadImage(i.src)));
-        return imgs.map((img, i) => makeTextureFrom(img, items[i].title || `Image ${i+1}`, items[i].caption || '—'));
+        // Load images for items that have src; build one “empty card” texture too
+        const imgs = await Promise.all(items.map(i => i.src ? loadImage(i.src).catch(() => null) : Promise.resolve(null)));
+        return imgs.map((img, i) => makeCardTexture({
+          img,
+          title: items[i].title || `[${i+1}]`,
+          caption: items[i].caption || '—',
+          gps: items[i].gps || '',
+          ts: items[i].ts || nowTS()
+        }));
+      }
+
+      function makeEmptyTexture(){
+        return makeCardTexture({ img:null, title:'', caption:'', gps:'', ts:'' });
       }
 
       /* ===========================================================
-         Grid with per-tile image textures (labels baked in)
-         Non-inverted dragging (content follows finger)
+         Grid (per-tile card textures). Non-inverted dragging.
          =========================================================== */
       class Grid extends THREE.Group {
         constructor(canvas, camera, opts, items){
@@ -309,7 +381,6 @@
           this.camera = camera;
           this.opts = opts;
 
-          // state
           this.pointerUv = new THREE.Vector2(0.5, 0.5);
           this.isPointerDown = false;
           this.velocity = new THREE.Vector2();
@@ -317,31 +388,32 @@
           this.viewW = 1; this.viewH = 1;
           this._lastPX = null; this._lastPY = null;
 
-          // content
           this.tiles = [];
           this.tileGeom = new THREE.PlaneGeometry(opts.tile, opts.tile, 1, 1);
 
-          this.wireMat = new THREE.MeshBasicMaterial({
-            color:'#aeb4c2', wireframe:true, transparent:true, opacity:.35
-          });
-          this.wireInst = null;
-
-          // base layout
+          // Layout first
           this.layout();
 
-          // compose textures once, then assign (reused if fewer than tiles)
-          buildTextures(items).then(texs => {
-            const total = this.tiles.length;
-            for (let i=0;i<total;i++){
-              const tex = texs[i % texs.length];
+          // Compose textures and assign
+          const totalTiles = opts.cols * opts.rows;
+          const slice = items.slice(0, totalTiles); // if more, drop extras; if less, fill blank
+          const blanksNeeded = Math.max(0, totalTiles - slice.length);
+
+          Promise.all([
+            buildTextures(slice),
+            Promise.resolve(makeEmptyTexture())
+          ]).then(([texs, emptyTex]) => {
+            // Assign textures row-major
+            for (let i=0;i<totalTiles;i++){
               const mat = new THREE.MeshStandardMaterial({
-                map: tex, roughness:.45, metalness:0, side:THREE.DoubleSide
+                map: i < texs.length ? texs[i] : emptyTex,
+                roughness:.45, metalness:0, side:THREE.DoubleSide
               });
               this.tiles[i].material = mat;
             }
           }).catch(err => console.error('Texture build error:', err));
 
-          // events
+          // Events
           this.onPointerMove = this.onPointerMove.bind(this);
           this.onPointerDown = this.onPointerDown.bind(this);
           this.onPointerUp = this.onPointerUp.bind(this);
@@ -357,7 +429,6 @@
           window.removeEventListener('pointerup', this.onPointerUp);
           window.removeEventListener('pointercancel', this.onPointerUp);
           this.tileGeom.dispose();
-          this.wireMat.dispose();
           this.tiles.forEach(m => m.material && m.material.dispose());
         }
 
@@ -370,9 +441,9 @@
           const sizeX = stepX * (cols - 1);
           const sizeY = stepY * (rows - 1);
 
+          // Clear
           this.tiles.forEach(m => this.remove(m));
           this.tiles = [];
-          if (this.wireInst) this.remove(this.wireInst);
 
           let i = 0;
           for (let r=0;r<rows;r++){
@@ -380,7 +451,7 @@
               const x = c*stepX - sizeX/2;
               const y = r*stepY - sizeY/2;
               const mesh = new THREE.Mesh(this.tileGeom, new THREE.MeshStandardMaterial({
-                color:'#171923', roughness:.55, metalness:0, side:THREE.DoubleSide
+                color:'#111', roughness:.55, metalness:0, side:THREE.DoubleSide
               }));
               mesh.position.set(x,y,0);
               this.add(mesh);
@@ -388,22 +459,6 @@
               i++;
             }
           }
-
-          // Instanced wires on top
-          const total = cols * rows;
-          this.wireInst = new THREE.InstancedMesh(this.tileGeom, this.wireMat, total);
-          const o = new THREE.Object3D();
-          i = 0;
-          for (let r=0;r<rows;r++){
-            for (let c=0;c<cols;c++){
-              const x = c*stepX - sizeX/2;
-              const y = r*stepY - sizeY/2;
-              o.position.set(x,y,0); o.rotation.set(0,0,0); o.scale.set(1,1,1); o.updateMatrix();
-              this.wireInst.setMatrixAt(i++, o.matrix);
-            }
-          }
-          this.wireInst.instanceMatrix.needsUpdate = true;
-          this.add(this.wireInst);
         }
 
         _pxToNorm(dx, dy){
@@ -517,7 +572,7 @@
           React.createElement(Canvas, {
             gl:{ antialias:true, powerPreference:'high-performance' },
             camera:{ fov:35, position:[0,0,CONFIG.zoomOut] },
-            dpr:[1, 1.75]
+            dpr:[1, 1.5]  // slightly conservative DPR for perf
           },
             React.createElement('ambientLight', { intensity:1 }),
             React.createElement('directionalLight', { intensity:.7, position:[2,3,4] }),
@@ -556,7 +611,6 @@
         );
       }
 
-      // mount
       const root = createRoot(document.getElementById('root'));
       root.render(React.createElement(App));
     </script>
