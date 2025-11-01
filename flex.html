@@ -3,9 +3,8 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>Phantom-style Grid — Card Tiles (R3F + Three)</title>
+    <title>intoview • note — Phantom Grid Gallery</title>
 
-    <!-- Fonts (optional) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -27,8 +26,8 @@
         overflow:hidden;
       }
       .header{
-        position:fixed; inset:0 0 auto 0; z-index:3;
-        display:flex; gap:12px; align-items:baseline;
+        position:fixed; inset:0 0 auto 0; z-index:7;
+        display:flex; gap:12px; align-items:baseline; flex-wrap:wrap;
         padding:14px 16px;
         border-bottom:1px solid var(--ink-2);
         background:linear-gradient(180deg,#0a0a0ccc,#0a0a0c66 40%,transparent);
@@ -40,10 +39,12 @@
         box-shadow:0 0 0 6px color-mix(in oklab, var(--accent), transparent 80%);
       }
       .header h1{margin:0; font-size:18px}
+      .header small{opacity:.8}
       .canvas-wrap{position:absolute; inset:0}
+      .canvas-wrap.blocked{pointer-events:none}
 
       .fallback-grid{
-        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.10;
+        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.12;
         color:var(--ink);
         background-image:
           repeating-linear-gradient(to right, currentColor 0 1px, transparent 1px 48px),
@@ -51,44 +52,89 @@
       }
 
       .hud{
-        position:fixed; z-index:4; inset:auto 12px 12px auto; display:flex; gap:8px;
+        position:fixed; z-index:8; inset:auto 12px 12px auto; display:flex; gap:8px;
         font:inherit;
       }
       .hud button{
         appearance:none; cursor:pointer; font:inherit;
         border:1px solid var(--ink-2); background:transparent; color:var(--ink);
         padding:8px 10px; border-radius:10px;
-        transition:transform .12s ease;
+        transition:transform .12s ease, background .12s ease;
       }
       .hud button:hover{ transform:translateY(-1px) }
+      .hud .accent{ border-color:var(--accent); color:var(--paper); background:var(--accent); }
+
+      /* Overlay flow */
+      .overlay{
+        position:fixed; inset:72px 16px 16px 16px; z-index:9;
+        display:none;
+      }
+      .overlay.open{ display:grid; place-items:center; }
+      .sheet{
+        width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5;
+        border:1px solid #2a2a2e; border-radius:12px; padding:16px;
+        box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
+      }
+      .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+      .grid{display:grid; gap:12px}
+      .cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .label{font-weight:600; opacity:.9}
+      .input,.textarea{
+        width:100%; border:1px solid #3b3b40; background:#101015; color:#fff;
+        border-radius:8px; padding:10px 12px; font:inherit;
+      }
+      .textarea{min-height:96px; resize:vertical}
+      .btn{
+        appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff;
+        padding:10px 14px; border-radius:10px; font-weight:600;
+      }
+      .btn.ghost{ background:transparent }
+      .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
+      .hint{color:#c9c9cf; font-size:12px}
+      .vf{
+        position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e;
+        border-radius:10px; overflow:hidden; background:#000;
+      }
+      video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98)}
+      .preview{
+        position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px;
+        overflow:hidden; background:#000; display:block;
+      }
+      .chip{border:1px solid #3b3b40; border-radius:8px; padding:8px 10px; background:#121216}
+      .titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
+      .titlebar h2{margin:0; font-size:16px}
+      .right{margin-left:auto}
+      .center{justify-content:center}
+      .success{display:grid; place-items:center; gap:8px; padding:24px 0}
+      .kbd{font:600 12px/1 JetBrains Mono, ui-monospace, monospace; padding:3px 6px; border:1px solid #3b3b40; border-radius:6px; color:#c9c9cf}
+      .tight{gap:6px}
+      .small{font-size:12px}
+      .hidden{display:none !important}
+      .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
     </style>
   </head>
   <body>
     <header class="header">
       <span class="dot" aria-hidden="true"></span>
-      <h1>Phantom-style Grid — Card Tiles</h1>
-      <small>drag to pan • ambient parallax • flat/curved shader • card chrome on each tile</small>
+      <h1>intoview • note</h1>
+      <small>Phantom gallery • drag to pan • <span class="kbd">1</span> flat <span class="kbd">2</span> curved <span class="kbd">0</span> reset • <span class="kbd">N</span> new</small>
     </header>
 
     <div id="root"></div>
 
     <script type="module">
-      import React, { useEffect, useMemo, useState, Suspense } from 'https://esm.sh/react@18.3.1';
+      import React, { useEffect, useMemo, useRef, useState, Suspense } from 'https://esm.sh/react@18.3.1';
       import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
       import * as THREE from 'https://esm.sh/three@0.160.1';
       import { Canvas, useFrame, useThree } from 'https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1';
       import gsap from 'https://esm.sh/gsap@3.12.5';
 
-      import { EffectComposer } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js';
-      import { RenderPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js';
-      import { ShaderPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js';
-      import { OutputPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js';
+      import { EffectComposer } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js?deps=three@0.160.1';
+      import { RenderPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js?deps=three@0.160.1';
+      import { ShaderPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js?deps=three@0.160.1';
+      import { OutputPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js?deps=three@0.160.1';
 
-      /* ===========================================================
-         Your images with editable title/caption (GPS/ts optional)
-         NOTE: Tiles = cols * rows (70). Remainder show camera icon.
-         =========================================================== */
-      const IMAGES = [
+      const SEED_IMAGES = [
         {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp', title:'wmzWGlaw', caption:'—'},
         {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp', title:'IMG-8403', caption:'—'},
         {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp', title:'DSC08656', caption:'—'},
@@ -128,26 +174,13 @@
         {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp', title:'ZAX09767', caption:'—'},
       ];
 
-      /* ===========================================================
-         Config & state
-         =========================================================== */
       const CONFIG = {
-        cols: 10,
-        rows: 7,
-        tile: 0.32,
-        gap: 0.08,
-        ambient: 0.20,
-        dragEase: 0.14,
-        velEase: 0.92,
-        zoomIn: 0.75,
-        zoomOut: 1.85,
+        cols: 10, rows: 7, tile: 0.32, gap: 0.08, ambient: 0.20,
+        dragEase: 0.14, velEase: 0.92, zoomIn: 0.75, zoomOut: 1.85,
         distortion: { flat: 0.0, curved: 0.6 }
       };
       const WorkgridState = { INTRO:'INTRO', DEFAULT:'DEFAULT', RESET:'RESET' };
 
-      /* ===========================================================
-         Distortion shader
-         =========================================================== */
       class DistortionShader extends THREE.ShaderMaterial {
         constructor(){
           super({
@@ -204,176 +237,92 @@
         }
       }
 
-      /* ===========================================================
-         Card compositor (canvas → CanvasTexture)
-         Matches your card’s chrome: top/bottom bars, hairlines, border.
-         =========================================================== */
-      const TEX_SIZE = 768;           // raise to 1024 for crisper text
-      const HAIR = 1;                 // device hairline
-      const BAR_H = 28;               // top/bottom bars height
-      const PAD = 12;                 // text padding inside bars
-      const CAP_SIZE = 18;
-      const TITLE_SIZE = 20;
-      const MONO = 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-      const UI   = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
-
-      function nowTS(){
-        const d = new Date();
-        // YYYY-MM-DD • HH:MM (24h)
-        const y = d.getFullYear();
-        const m = String(d.getMonth()+1).padStart(2,'0');
-        const day = String(d.getDate()).padStart(2,'0');
-        const hh = String(d.getHours()).padStart(2,'0');
-        const mm = String(d.getMinutes()).padStart(2,'0');
-        return `${y}-${m}-${day} • ${hh}:${mm}`;
-      }
+      /* ---------- compositing helpers ---------- */
+      const TEX_SIZE = 768, P = 20, TITLE_SIZE = 26, CAPTION_SIZE = 18, STRIP_ALPHA = 0.28;
+      const isHttp = url => /^https?:/i.test(url);
+      const isBlobOrData = url => /^blob:|^data:/i.test(url);
 
       function loadImage(url){
         return new Promise((resolve, reject) => {
           const img = new Image();
-          img.crossOrigin = 'anonymous';
+          if (isHttp(url)) img.crossOrigin = 'anonymous';
           img.onload = () => resolve(img);
           img.onerror = reject;
           img.src = url;
         });
       }
-
-      function drawHair(ctx, x, y, w){
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fillRect(x, y, w, HAIR);
+      function loadTextureDirect(url){
+        return new Promise((resolve, reject)=>{
+          const loader = new THREE.TextureLoader();
+          if (isHttp(url)) loader.setCrossOrigin('anonymous');
+          loader.load(url, (tex)=>{ tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy=8; resolve(tex); }, undefined, reject);
+        });
       }
-
-      function coverImage(ctx, img, x, y, w, h){
+      function drawLabelBG(ctx, x, y, w, h, alpha){
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx.fillRect(x, y, w, h);
+      }
+      function ellipsize(ctx, text, maxWidth){
+        if (!text) return '';
+        if (ctx.measureText(text).width <= maxWidth) return text;
+        let t = text;
+        while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth){ t = t.slice(0, -1); }
+        return t + '…';
+      }
+      function coverDraw(ctx, img, s){
         const iw = img.naturalWidth || img.width;
         const ih = img.naturalHeight || img.height;
-        const ir = iw/ih, ar = w/h;
-        let dw, dh, dx, dy;
-        if(ir > ar){ // img wider
-          dh = h; dw = ir * h; dx = x + (w - dw)/2; dy = y;
-        } else {
-          dw = w; dh = w/ir; dx = x; dy = y + (h - dh)/2;
-        }
+        const ir = iw / ih;
+        let dw=s, dh=s, dx=0, dy=0;
+        if (ir > 1){ dh = s; dw = ir*s; dx = (s - dw)/2; }
+        else if (ir < 1){ dw = s; dh = s/ir; dy = (s - dh)/2; }
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, dx, dy, dw, dh);
       }
+      async function buildTextureFor(item){
+        // For blob/data we skip label-baking and just load the texture directly.
+        if (isBlobOrData(item.src)) return loadTextureDirect(item.src);
 
-      function drawCameraIcon(ctx, cx, cy, s=44){
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.5;
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        // body
-        const w = s*1.6, h = s*1.0;
-        ctx.beginPath();
-        ctx.rect(-w/2, -h/2, w, h);
-        ctx.stroke();
-        // lens
-        ctx.beginPath();
-        ctx.arc(0, 0, s*0.35, 0, Math.PI*2);
-        ctx.stroke();
-        // top flash
-        ctx.beginPath();
-        ctx.moveTo(w*0.25, -h*0.45);
-        ctx.lineTo(w*0.45, -h*0.45);
-        ctx.stroke();
-        ctx.restore();
-      }
+        // Label-bake for remote sources
+        try{
+          const img = await loadImage(item.src);
+          const c = document.createElement('canvas');
+          c.width = TEX_SIZE; c.height = TEX_SIZE;
+          const ctx = c.getContext('2d');
+          coverDraw(ctx, img, TEX_SIZE);
 
-      function makeCardTexture({img, title='[ title ]', caption='[ caption ]', gps='', ts=nowTS()}){
-        const s = TEX_SIZE;
-        const c = document.createElement('canvas');
-        c.width = s; c.height = s;
-        const ctx = c.getContext('2d');
+          ctx.font = `600 ${TITLE_SIZE}px Inter, system-ui, sans-serif`;
+          ctx.fillStyle = '#fff'; ctx.textBaseline = 'top';
+          const titleText = ellipsize(ctx, (item.title||'').toUpperCase(), TEX_SIZE - P*2);
+          if (titleText){
+            const w = Math.ceil(ctx.measureText(titleText).width);
+            const h = TITLE_SIZE + 8;
+            drawLabelBG(ctx, P-6, P-6, w + 12, h + 8, STRIP_ALPHA);
+            ctx.fillText(titleText, P, P);
+          }
 
-        // card background
-        ctx.fillStyle = '#000'; ctx.fillRect(0,0,s,s);
+          ctx.font = `500 ${CAPTION_SIZE}px Inter, system-ui, sans-serif`;
+          ctx.textBaseline = 'alphabetic';
+          const capText = ellipsize(ctx, item.caption||'', TEX_SIZE - P*2);
+          if (capText){
+            const w2 = Math.ceil(ctx.measureText(capText).width);
+            const h2 = CAPTION_SIZE + 8;
+            drawLabelBG(ctx, P-6, TEX_SIZE - P - h2 - 6, w2 + 12, h2 + 8, STRIP_ALPHA);
+            ctx.fillText(capText, P, TEX_SIZE - P - 8);
+          }
 
-        // border (1px inside to stay crisp)
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-        ctx.strokeRect(0.5,0.5, s-1, s-1);
-
-        // top bar
-        ctx.fillStyle = '#000'; ctx.fillRect(0,0,s,BAR_H);
-        ctx.font = `600 ${TITLE_SIZE}px ${UI}`;
-        ctx.fillStyle = '#e6e6e6';
-        ctx.textBaseline = 'top';
-        ctx.fillText(title, PAD, Math.floor((BAR_H - TITLE_SIZE)/2));
-
-        // GPS (right, mono)
-        if (gps){
-          ctx.font = `500 ${12}px ${MONO}`;
-          ctx.textBaseline = 'middle';
-          ctx.textAlign = 'right';
-          ctx.fillStyle = '#cfcfcf';
-          ctx.fillText(gps, s - PAD, BAR_H/2);
-          ctx.textAlign = 'left';
+          const tex = new THREE.CanvasTexture(c);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 8;
+          tex.needsUpdate = true;
+          return tex;
+        }catch{
+          return await loadTextureDirect(item.src);
         }
-
-        // hairline under top
-        drawHair(ctx, 0, BAR_H, s);
-
-        // image area (square by default)
-        const imgTop = BAR_H + HAIR;
-        const imgBottomBar = BAR_H + HAIR; // reserve for bottom bar + hair
-        const imgH = s - imgTop - (BAR_H + HAIR); // middle area height
-        const imgW = s;
-        if (img){
-          coverImage(ctx, img, 0, imgTop, imgW, imgH);
-          // subtle image treatment (grayscale-ish)
-          ctx.fillStyle = 'rgba(0,0,0,0.03)'; // tiny wash
-          ctx.fillRect(0, imgTop, imgW, imgH);
-        } else {
-          // empty state
-          ctx.fillStyle = '#111'; ctx.fillRect(0, imgTop, imgW, imgH);
-          drawCameraIcon(ctx, s/2, imgTop + imgH/2, 40);
-        }
-
-        // hairline above bottom bar
-        drawHair(ctx, 0, s - BAR_H - HAIR, s);
-
-        // bottom bar
-        ctx.fillStyle = '#000'; ctx.fillRect(0, s - BAR_H, s, BAR_H);
-        // caption (left)
-        ctx.font = `500 ${CAP_SIZE}px ${UI}`;
-        ctx.fillStyle = '#e6e6e6';
-        ctx.textBaseline = 'middle';
-        ctx.textAlign = 'left';
-        ctx.fillText(caption, PAD, s - BAR_H/2);
-
-        // timestamp (right, mono)
-        ctx.font = `500 ${12}px ${MONO}`;
-        ctx.fillStyle = '#cfcfcf';
-        ctx.textAlign = 'right';
-        ctx.fillText(ts, s - PAD, s - BAR_H/2);
-        ctx.textAlign = 'left';
-
-        const tex = new THREE.CanvasTexture(c);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.anisotropy = 8;
-        tex.needsUpdate = true;
-        return tex;
       }
+      const buildTextures = (items)=>Promise.all(items.map(buildTextureFor));
 
-      async function buildTextures(items){
-        // Load images for items that have src; build one “empty card” texture too
-        const imgs = await Promise.all(items.map(i => i.src ? loadImage(i.src).catch(() => null) : Promise.resolve(null)));
-        return imgs.map((img, i) => makeCardTexture({
-          img,
-          title: items[i].title || `[${i+1}]`,
-          caption: items[i].caption || '—',
-          gps: items[i].gps || '',
-          ts: items[i].ts || nowTS()
-        }));
-      }
-
-      function makeEmptyTexture(){
-        return makeCardTexture({ img:null, title:'', caption:'', gps:'', ts:'' });
-      }
-
-      /* ===========================================================
-         Grid (per-tile card textures). Non-inverted dragging.
-         =========================================================== */
+      /* ---------- Grid ---------- */
       class Grid extends THREE.Group {
         constructor(canvas, camera, opts, items){
           super();
@@ -391,29 +340,14 @@
           this.tiles = [];
           this.tileGeom = new THREE.PlaneGeometry(opts.tile, opts.tile, 1, 1);
 
-          // Layout first
+          this.wireMat = new THREE.MeshBasicMaterial({
+            color:'#aeb4c2', wireframe:true, transparent:true, opacity:.35
+          });
+          this.wireInst = null;
+
           this.layout();
+          this._init(items);
 
-          // Compose textures and assign
-          const totalTiles = opts.cols * opts.rows;
-          const slice = items.slice(0, totalTiles); // if more, drop extras; if less, fill blank
-          const blanksNeeded = Math.max(0, totalTiles - slice.length);
-
-          Promise.all([
-            buildTextures(slice),
-            Promise.resolve(makeEmptyTexture())
-          ]).then(([texs, emptyTex]) => {
-            // Assign textures row-major
-            for (let i=0;i<totalTiles;i++){
-              const mat = new THREE.MeshStandardMaterial({
-                map: i < texs.length ? texs[i] : emptyTex,
-                roughness:.45, metalness:0, side:THREE.DoubleSide
-              });
-              this.tiles[i].material = mat;
-            }
-          }).catch(err => console.error('Texture build error:', err));
-
-          // Events
           this.onPointerMove = this.onPointerMove.bind(this);
           this.onPointerDown = this.onPointerDown.bind(this);
           this.onPointerUp = this.onPointerUp.bind(this);
@@ -422,18 +356,44 @@
           window.addEventListener('pointerup', this.onPointerUp, { passive:true });
           window.addEventListener('pointercancel', this.onPointerUp, { passive:true });
         }
-
         dispose(){
           this.canvas.removeEventListener('pointermove', this.onPointerMove);
           this.canvas.removeEventListener('pointerdown', this.onPointerDown);
           window.removeEventListener('pointerup', this.onPointerUp);
           window.removeEventListener('pointercancel', this.onPointerUp);
           this.tileGeom.dispose();
+          this.wireMat.dispose();
           this.tiles.forEach(m => m.material && m.material.dispose());
         }
-
+        async _init(items){
+          try{
+            const texs = await buildTextures(items);
+            const total = this.tiles.length;
+            for (let i=0;i<total;i++){
+              const tex = texs[i % texs.length];
+              const mat = new THREE.MeshStandardMaterial({
+                map: tex, roughness:.45, metalness:0, side:THREE.DoubleSide
+              });
+              this.tiles[i].material = mat;
+            }
+          }catch(err){ console.error('Texture init error:', err); }
+        }
+        async prependItem(item){
+          try{
+            const tex = await buildTextureFor(item);
+            const mat = new THREE.MeshStandardMaterial({
+              map: tex, roughness:.45, metalness:0, side:THREE.DoubleSide
+            });
+            for (let i=this.tiles.length-1; i>0; i--){
+              const prev = this.tiles[i-1].material;
+              this.tiles[i].material = prev;
+            }
+            const old0 = this.tiles[0].material;
+            if (old0 && old0 !== mat) old0.dispose?.();
+            this.tiles[0].material = mat;
+          }catch(err){ console.error('Prepend error:', err); }
+        }
         setViewport(w,h){ this.viewW=w; this.viewH=h; }
-
         layout(){
           const { cols, rows, tile, gap } = this.opts;
           const stepX = tile + gap;
@@ -441,9 +401,9 @@
           const sizeX = stepX * (cols - 1);
           const sizeY = stepY * (rows - 1);
 
-          // Clear
           this.tiles.forEach(m => this.remove(m));
           this.tiles = [];
+          if (this.wireInst) this.remove(this.wireInst);
 
           let i = 0;
           for (let r=0;r<rows;r++){
@@ -451,7 +411,7 @@
               const x = c*stepX - sizeX/2;
               const y = r*stepY - sizeY/2;
               const mesh = new THREE.Mesh(this.tileGeom, new THREE.MeshStandardMaterial({
-                color:'#111', roughness:.55, metalness:0, side:THREE.DoubleSide
+                color:'#171923', roughness:.55, metalness:0, side:THREE.DoubleSide
               }));
               mesh.position.set(x,y,0);
               this.add(mesh);
@@ -459,13 +419,26 @@
               i++;
             }
           }
-        }
 
+          const total = cols * rows;
+          this.wireInst = new THREE.InstancedMesh(this.tileGeom, this.wireMat, total);
+          const o = new THREE.Object3D();
+          i = 0;
+          for (let r=0;r<rows;r++){
+            for (let c=0;c<cols;c++){
+              const x = c*stepX - sizeX/2;
+              const y = r*stepY - sizeY/2;
+              o.position.set(x,y,0); o.rotation.set(0,0,0); o.scale.set(1,1,1); o.updateMatrix();
+              this.wireInst.setMatrixAt(i++, o.matrix);
+            }
+          }
+          this.wireInst.instanceMatrix.needsUpdate = true;
+          this.add(this.wireInst);
+        }
         _pxToNorm(dx, dy){
           const s = Math.min(this.viewW, this.viewH);
           return new THREE.Vector2(dx / s, dy / s);
         }
-
         onPointerMove(e){
           const rect = this.canvas.getBoundingClientRect();
           const x = (e.clientX - rect.left) / rect.width;
@@ -478,25 +451,22 @@
             this._lastPX = e.clientX; this._lastPY = e.clientY;
 
             const d = this._pxToNorm(dx, dy);
-            this.offset.x += d.x * 6.0;     // follow finger (non-inverted)
+            this.offset.x += d.x * 6.0;
             this.offset.y += -d.y * 6.0;
 
             this.velocity.lerp(new THREE.Vector2(d.x, -d.y), 1 - this.opts.velEase);
           }
         }
-
         onPointerDown(e){
           this.isPointerDown = true;
           this._lastPX = e.clientX; this._lastPY = e.clientY;
           gsap.to(this.camera.position, { z: CONFIG.zoomIn, duration:1, ease:'power2.out' });
         }
-
         onPointerUp(){
           this.isPointerDown = false;
           this._lastPX = this._lastPY = null;
           gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration:1, ease:'power2.out' });
         }
-
         update(){
           const cursorOffset = this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
           if (!this.isPointerDown){
@@ -508,45 +478,47 @@
           this.position.x += (tx - this.position.x) * this.opts.dragEase;
           this.position.y += (ty - this.position.y) * this.opts.dragEase;
         }
-
         resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); }
       }
 
-      /* ===========================================================
-         Postprocessing
-         =========================================================== */
       function Postprocessing({ workgridState }){
         const { gl, scene, camera, size } = useThree();
         const { composer, shader } = useMemo(() => {
-          const renderPass = new RenderPass(scene, camera);
-          const shader = new DistortionShader();
-          const shaderPass = new ShaderPass(shader);
-          const outputPass = new OutputPass();
-          const composer = new EffectComposer(gl);
-          composer.addPass(renderPass);
-          composer.addPass(shaderPass);
-          composer.addPass(outputPass);
-          return { composer, shader };
+          try{
+            const renderPass = new RenderPass(scene, camera);
+            const shader = new DistortionShader();
+            const shaderPass = new ShaderPass(shader);
+            const outputPass = new OutputPass();
+            const composer = new EffectComposer(gl);
+            composer.addPass(renderPass);
+            composer.addPass(shaderPass);
+            composer.addPass(outputPass);
+            return { composer, shader };
+          }catch(e){
+            console.warn('Composer init failed, skipping post FX', e);
+            return { composer:null, shader:null };
+          }
         }, [gl, scene, camera]);
 
         useEffect(() => {
-          composer.setSize(size.width, size.height);
+          if (!composer || !shader) return;
+          const dpr = gl.getPixelRatio?.() || 1;
+          composer.setSize(size.width * dpr, size.height * dpr);
+          composer.setPixelRatio?.(dpr);
           shader.update();
-        }, [composer, shader, size]);
+        }, [composer, shader, size, gl]);
 
         useEffect(() => {
+          if (!shader) return;
           if (workgridState === WorkgridState.INTRO) shader.setDistortion(CONFIG.distortion.flat);
           else shader.setDistortion(CONFIG.distortion.curved);
         }, [workgridState, shader]);
 
-        useFrame(() => { composer.render(); }, 1);
+        useFrame(() => { composer?.render(); }, 1);
         return null;
       }
 
-      /* ===========================================================
-         R3F primitive wrapper
-         =========================================================== */
-      function ProjectsGridPrimitive({ workgridState, items }){
+      function ProjectsGridPrimitive({ workgridState, initialItems, prependItemSignal }){
         const { gl, camera, size } = useThree();
         const grid = useMemo(() => {
           return new Grid(gl.domElement, camera, {
@@ -557,8 +529,15 @@
             ambient: CONFIG.ambient,
             dragEase: CONFIG.dragEase,
             velEase: CONFIG.velEase
-          }, items);
-        }, [gl, camera, items]);
+          }, initialItems);
+        }, [gl, camera]);
+
+        const lastSignal = useRef(0);
+        useEffect(() => {
+          if (!prependItemSignal || prependItemSignal.seq === lastSignal.current) return;
+          lastSignal.current = prependItemSignal.seq;
+          grid.prependItem(prependItemSignal.item);
+        }, [prependItemSignal, grid]);
 
         useFrame(() => grid.update());
         useEffect(() => { grid.setViewport(size.width, size.height); }, [size, grid]);
@@ -567,46 +546,314 @@
         return React.createElement('primitive', { object: grid });
       }
 
-      function GridView({ workgridState, items }){
+      function GridView({ workgridState, initialItems, prependItemSignal }){
         return (
           React.createElement(Canvas, {
             gl:{ antialias:true, powerPreference:'high-performance' },
             camera:{ fov:35, position:[0,0,CONFIG.zoomOut] },
-            dpr:[1, 1.5]  // slightly conservative DPR for perf
+            dpr:[1, 2]
           },
             React.createElement('ambientLight', { intensity:1 }),
             React.createElement('directionalLight', { intensity:.7, position:[2,3,4] }),
-            React.createElement(ProjectsGridPrimitive, { workgridState, items }),
+            React.createElement(ProjectsGridPrimitive, { workgridState, initialItems, prependItemSignal }),
             React.createElement(Postprocessing, { workgridState })
           )
         );
       }
 
+      /* ---------- camera + compose ---------- */
+      function useCamera(){
+        const videoRef = useRef(null);
+        const streamRef = useRef(null);
+        const start = async () => {
+          if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
+            alert('Camera requires HTTPS. Use Import instead.');
+            return false;
+          }
+          try{
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' }, audio:false });
+            streamRef.current = stream;
+            if (videoRef.current){
+              videoRef.current.srcObject = stream;
+              await videoRef.current.play();
+            }
+            return true;
+          }catch(e){
+            console.warn('Camera error', e);
+            alert('Camera unavailable. Use Import instead.');
+            return false;
+          }
+        };
+        const stop = () => {
+          streamRef.current?.getTracks?.().forEach(t=>t.stop());
+          streamRef.current = null;
+          if (videoRef.current) videoRef.current.srcObject = null;
+        };
+        const captureSquareCanvas = () => {
+          const v = videoRef.current;
+          if (!v || !v.videoWidth) return null;
+          const vw = v.videoWidth, vh = v.videoHeight;
+          const s = Math.min(vw, vh);
+          const sx = Math.floor((vw - s)/2), sy = Math.floor((vh - s)/2);
+          const c = document.createElement('canvas'); c.width = s; c.height = s;
+          const ctx = c.getContext('2d'); ctx.drawImage(v, sx, sy, s, s, 0,0, s,s);
+          return c;
+        };
+        return { videoRef, start, stop, captureSquareCanvas };
+      }
+
+      function composeNoteCanvas(sourceCanvas, title, caption){
+        const out = document.createElement('canvas');
+        out.width = TEX_SIZE; out.height = TEX_SIZE;
+        const ctx = out.getContext('2d');
+
+        const img = new Image();
+        img.src = sourceCanvas.toDataURL('image/png');
+        return new Promise((resolve)=>{
+          img.onload = () => {
+            coverDraw(ctx, img, TEX_SIZE);
+            ctx.font = `600 ${TITLE_SIZE}px Inter, system-ui, sans-serif`;
+            ctx.fillStyle = '#fff'; ctx.textBaseline = 'top';
+            const titleText = ellipsize(ctx, (title||'').toUpperCase(), TEX_SIZE - P*2);
+            if (titleText){
+              const w = Math.ceil(ctx.measureText(titleText).width);
+              const h = TITLE_SIZE + 8;
+              drawLabelBG(ctx, P-6, P-6, w+12, h+8, STRIP_ALPHA);
+              ctx.fillText(titleText, P, P);
+            }
+            ctx.font = `500 ${CAPTION_SIZE}px Inter, system-ui, sans-serif`;
+            ctx.textBaseline = 'alphabetic';
+            const capText = ellipsize(ctx, caption||'', TEX_SIZE - P*2);
+            if (capText){
+              const w2 = Math.ceil(ctx.measureText(capText).width);
+              const h2 = CAPTION_SIZE + 8;
+              drawLabelBG(ctx, P-6, TEX_SIZE - P - h2 - 6, w2+12, h2+8, STRIP_ALPHA);
+              ctx.fillText(capText, P, TEX_SIZE - P - 8);
+            }
+            out.toBlob(b => {
+              const url = URL.createObjectURL(b);
+              resolve({ url, blob:b });
+            }, 'image/png', 0.96);
+          };
+        });
+      }
+
+      /* ---------- overlay flow ---------- */
+      function OverlayFlow({ open, onClose, onAddToGallery }){
+        const [step, setStep] = useState(0);
+        const [title, setTitle] = useState('');
+        const [caption, setCaption] = useState('A quick visual note');
+        const [reviewCanvas, setReviewCanvas] = useState(null);
+        const [exportUrl, setExportUrl] = useState('');
+        const [exporting, setExporting] = useState(false);
+
+        const camera = useCamera();
+        const filePickRef = useRef(null);
+        const sheetRef = useRef(null);
+        const reviewMountRef = useRef(null);
+
+        // Mount/unmount the raw canvas imperatively
+        useEffect(()=>{
+          const mount = reviewMountRef.current;
+          if (!mount) return;
+          // clear previous
+          while (mount.firstChild) mount.removeChild(mount.firstChild);
+          if (reviewCanvas && step === 2){
+            reviewCanvas.style.width = '100%';
+            reviewCanvas.style.height = '100%';
+            mount.appendChild(reviewCanvas);
+          }
+        }, [reviewCanvas, step]);
+
+        // Focus trap
+        useEffect(()=>{
+          if (!open) return;
+          const root = sheetRef.current;
+          if (!root) return;
+          const focusables = ()=>[...root.querySelectorAll('button, [href], input, textarea')].filter(el=>!el.disabled && el.offsetParent !== null);
+          const first = ()=>focusables()[0];
+          const last  = ()=>focusables()[focusables().length-1];
+          first()?.focus();
+          const onKey = (e)=>{
+            if (e.key === 'Escape'){ e.preventDefault(); onClose?.(); }
+            if (e.key === 'Tab'){
+              const fs = focusables(); if (!fs.length) return;
+              const f = document.activeElement;
+              if (e.shiftKey && f === fs[0]){ e.preventDefault(); fs[fs.length-1].focus(); }
+              else if (!e.shiftKey && f === fs[fs.length-1]){ e.preventDefault(); fs[0].focus(); }
+            }
+          };
+          root.addEventListener('keydown', onKey);
+          return ()=>root.removeEventListener('keydown', onKey);
+        }, [open, onClose]);
+
+        useEffect(()=>{
+          if (!open){
+            camera.stop();
+            setStep(0); setTitle(''); setCaption('A quick visual note');
+            setReviewCanvas(null); setExportUrl(''); setExporting(false);
+          }
+        }, [open]);
+
+        const startCamera = async ()=>{
+          const ok = await camera.start();
+          setStep(ok ? 1 : 0);
+        };
+        const captureShot = ()=>{
+          const c = camera.captureSquareCanvas();
+          if (c){ setReviewCanvas(c); setStep(2); }
+        };
+        const pickFile = ()=>{ filePickRef.current?.click(); };
+        const onFileChange = (e)=>{
+          const f = e.target.files?.[0]; if (!f) return;
+          const img = new Image();
+          const url = URL.createObjectURL(f);
+          img.onload = ()=>{
+            const s = Math.min(img.width, img.height);
+            const sx = Math.floor((img.width - s)/2);
+            const sy = Math.floor((img.height - s)/2);
+            const c = document.createElement('canvas'); c.width = s; c.height = s;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, sx, sy, s, s, 0,0, s,s);
+            URL.revokeObjectURL(url);
+            setReviewCanvas(c);
+            setStep(2);
+          };
+          img.src = url;
+        };
+
+        const doExport = async ()=>{
+          if (!reviewCanvas) return;
+          setExporting(true);
+          const { url } = await composeNoteCanvas(reviewCanvas, title, caption);
+          setExportUrl(url);
+          setExporting(false);
+          setStep(5);
+          onAddToGallery?.({ src:url, title:title||'[ title ]', caption:caption||'' });
+        };
+
+        if (!open) return null;
+        return (
+          React.createElement('div', { className:'overlay open' },
+            React.createElement('div', { className:'sheet', ref:sheetRef, role:'dialog', 'aria-modal':'true' },
+              React.createElement('div', { className:'titlebar' },
+                React.createElement('h2', null,
+                  step===0 && 'Start',
+                  step===1 && 'Viewfinder',
+                  step===2 && 'Review',
+                  step===3 && 'Details',
+                  step===4 && 'Export',
+                  step===5 && 'Done'
+                ),
+                React.createElement('div', { className:'row tight' },
+                  React.createElement('button', { className:'btn ghost', onClick:onClose }, 'Close')
+                )
+              ),
+
+              step===0 && React.createElement('div', { className:'grid', style:{gap:'12px'} },
+                React.createElement('div', { className:'hint' }, 'Camera opens instantly (HTTPS only) or import an image.'),
+                React.createElement('div', { className:'grid cols-2' },
+                  React.createElement('button', { className:'btn primary', onClick:startCamera }, 'Open Camera'),
+                  React.createElement('button', { className:'btn', onClick:pickFile }, 'Import Photo')
+                ),
+                React.createElement('input', {
+                  ref:filePickRef, type:'file', accept:'image/*',
+                  className:'hidden', onChange:onFileChange
+                })
+              ),
+
+              step===1 && React.createElement(React.Fragment, null,
+                React.createElement('div', { className:'vf' },
+                  React.createElement('video', { ref:camera.videoRef, playsInline:true, muted:true })
+                ),
+                React.createElement('div', { className:'row', style:{marginTop:'12px'} },
+                  React.createElement('button', { className:'btn', onClick:()=>{ camera.stop(); setStep(0);} }, 'Back'),
+                  React.createElement('button', { className:'btn primary right', onClick:captureShot }, 'Capture')
+                )
+              ),
+
+              step===2 && React.createElement(React.Fragment, null,
+                React.createElement('div', { className:'preview', ref:reviewMountRef }),
+                React.createElement('div', { className:'row', style:{marginTop:'12px'} },
+                  React.createElement('button', { className:'btn', onClick:()=>{ camera.stop(); setStep(1);} }, 'Retake'),
+                  React.createElement('button', { className:'btn primary right', onClick:()=>setStep(3) }, 'Keep')
+                )
+              ),
+
+              step===3 && React.createElement('div', { className:'grid' },
+                React.createElement('label', { className:'label', htmlFor:'t' }, 'Title (40 cap)'),
+                React.createElement('input', { id:'t', maxLength:40, className:'input', value:title, onChange:e=>setTitle(e.target.value) }),
+                React.createElement('label', { className:'label', htmlFor:'c' }, 'Note (100 cap)'),
+                React.createElement('textarea', { id:'c', maxLength:100, className:'textarea', value:caption, onChange:e=>setCaption(e.target.value) }),
+                React.createElement('div', { className:'row', style:{marginTop:'6px'} },
+                  React.createElement('button', { className:'btn', onClick:()=>setStep(2) }, 'Back'),
+                  React.createElement('button', { className:'btn primary right', onClick:()=>setStep(4) }, 'Next')
+                )
+              ),
+
+              step===4 && React.createElement('div', { className:'grid' },
+                React.createElement('div', { className:'hint' }, 'Export will generate a 1:1 PNG with overlays and add it to the grid.'),
+                React.createElement('div', { className:'row' },
+                  React.createElement('button', { className:'btn', onClick:()=>setStep(3) }, 'Back'),
+                  React.createElement('button', { className:'btn primary right', disabled:exporting, onClick:doExport }, exporting ? 'Exporting…' : 'Export PNG & Save')
+                )
+              ),
+
+              step===5 && React.createElement('div', { className:'success' },
+                React.createElement('div', { className:'chip' }, 'Saved / Exported'),
+                exportUrl ? React.createElement('a', { href:exportUrl, download:`intoview-note_${Date.now()}.png`, className:'btn' }, 'Download again') : null,
+                React.createElement('div', { className:'row center' },
+                  React.createElement('button', { className:'btn', onClick:()=>{ setStep(0); setTitle(''); setCaption('A quick visual note'); setReviewCanvas(null); } }, 'New note'),
+                  React.createElement('button', { className:'btn primary', onClick:onClose }, 'Close')
+                )
+              )
+            )
+          )
+        );
+      }
+
+      /* ---------- App ---------- */
       function App(){
-        const [state, setState] = useState(WorkgridState.DEFAULT);
+        const [wgState, setWgState] = useState(WorkgridState.DEFAULT);
+        const [overlayOpen, setOverlayOpen] = useState(false);
+        const [prependSignal, setPrependSignal] = useState(null);
+        const signalSeq = useRef(1);
+
         useEffect(() => {
           const onKey = (e) => {
-            if (e.key === '1') setState(WorkgridState.INTRO);
-            if (e.key === '2') setState(WorkgridState.DEFAULT);
-            if (e.key === '0') setState(WorkgridState.RESET);
+            if (overlayOpen) return;
+            if (e.key === '1') setWgState(WorkgridState.INTRO);
+            if (e.key === '2') setWgState(WorkgridState.DEFAULT);
+            if (e.key === '0') setWgState(WorkgridState.RESET);
+            if (e.key === 'n' || e.key === 'N') setOverlayOpen(true);
           };
           window.addEventListener('keydown', onKey);
           return () => window.removeEventListener('keydown', onKey);
-        }, []);
+        }, [overlayOpen]);
+
+        const addNoteToGallery = (note) => {
+          setPrependSignal({ item: note, seq: signalSeq.current++ });
+        };
 
         return (
           React.createElement(React.Fragment, null,
-            React.createElement('div', { className:'canvas-wrap' },
+            React.createElement('div', { className:'canvas-wrap' + (overlayOpen ? ' blocked' : '') },
               React.createElement('div', { className:'fallback-grid' }),
               React.createElement(Suspense, { fallback:null },
-                React.createElement(GridView, { workgridState: state, items: IMAGES })
+                React.createElement(GridView, { workgridState: wgState, initialItems: SEED_IMAGES, prependItemSignal: prependSignal })
               )
             ),
             React.createElement('div', { className:'hud' },
-              React.createElement('button', { onClick: () => setState(WorkgridState.INTRO) }, 'Flat'),
-              React.createElement('button', { onClick: () => setState(WorkgridState.DEFAULT) }, 'Curved'),
-              React.createElement('button', { onClick: () => setState(WorkgridState.RESET) }, 'Reset')
-            )
+              React.createElement('button', { onClick: () => setWgState(WorkgridState.INTRO) }, 'Flat'),
+              React.createElement('button', { onClick: () => setWgState(WorkgridState.DEFAULT) }, 'Curved'),
+              React.createElement('button', { onClick: () => setWgState(WorkgridState.RESET) }, 'Reset'),
+              React.createElement('button', { className:'accent', onClick: () => setOverlayOpen(true) }, 'New note')
+            ),
+            React.createElement(OverlayFlow, {
+              open: overlayOpen,
+              onClose: ()=> setOverlayOpen(false),
+              onAddToGallery: addNoteToGallery
+            })
           )
         );
       }
