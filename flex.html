@@ -11,25 +11,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
     <style>
-      /* ===============================
-         Reason & Resolution tokens
-         (B&W Outlined Edition — minimal)
-         =============================== */
       :root{
-        --paper:#0E0E10;     /* app canvas (dark) */
-        --ink:#FFFFFF;       /* primary text/lines */
-        --ink-2:#9F9F9F;     /* hairlines */
-        --ink-3:#6C6C6C;     /* muted helpers */
-        --accent:#59D2C8;    /* accent, tweak freely */
+        --paper:#0E0E10;
+        --ink:#FFFFFF;
+        --ink-2:#9F9F9F;
+        --ink-3:#6C6C6C;
+        --accent:#59D2C8;
       }
 
-      /* ============== Base UI ============== */
       *{box-sizing:border-box}
       html,body,#root{height:100%}
       body{
-        margin:0;
-        background:var(--paper);
-        color:var(--ink);
+        margin:0; background:var(--paper); color:var(--ink);
         font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
         overflow:hidden;
       }
@@ -49,7 +42,7 @@
       .header h1{margin:0; font-size:18px}
       .canvas-wrap{position:absolute; inset:0}
 
-      /* Hairline fallback grid so something is visible immediately */
+      /* Hairline fallback so something is visible immediately */
       .fallback-grid{
         position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.12;
         color:var(--ink);
@@ -75,7 +68,7 @@
     <header class="header">
       <span class="dot" aria-hidden="true"></span>
       <h1>Phantom-style Grid</h1>
-      <small>drag to pan • ambient parallax • flat/curved shader</small>
+      <small>drag to pan • ambient parallax • flat/curved shader • image tiles</small>
     </header>
 
     <div id="root"></div>
@@ -97,6 +90,23 @@
       import { OutputPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js';
 
       /* ===========================================================
+         Plug your images here (URLs, data: URIs, or local paths)
+         =========================================================== */
+      const IMAGES = [
+        // ——— Replace these with your own URLs ———
+        'https://picsum.photos/id/1011/1200/800',
+        'https://picsum.photos/id/1025/1200/1200',
+        'https://picsum.photos/id/1035/800/1200',
+        'https://picsum.photos/id/1042/1600/1000',
+        'https://picsum.photos/id/1050/1200/900',
+        'https://picsum.photos/id/1069/1200/1600',
+        'https://picsum.photos/id/1076/1600/1200',
+        'https://picsum.photos/id/1084/1200/1200',
+        'https://picsum.photos/id/1080/1200/900',
+        'https://picsum.photos/id/1003/1600/1100',
+      ];
+
+      /* ===========================================================
          Config & state
          =========================================================== */
       const CONFIG = {
@@ -104,45 +114,34 @@
         rows: 7,
         tile: 0.32,
         gap: 0.08,
-        ambient: 0.20,      // UV-based ambient offset scale
-        dragEase: 0.14,     // lerp factor toward target
-        velEase: 0.92,      // velocity decay per frame
-        zoomIn: 0.75,       // camera z while dragging
-        zoomOut: 1.85,      // camera z idle
-        distortion: {
-          flat: 0.0,
-          curved: 0.6
-        }
+        ambient: 0.20,
+        dragEase: 0.14,
+        velEase: 0.92,
+        zoomIn: 0.75,
+        zoomOut: 1.85,
+        distortion: { flat: 0.0, curved: 0.6 }
       };
 
-      const WorkgridState = {
-        INTRO: 'INTRO',     // flat distortion
-        DEFAULT: 'DEFAULT', // curved distortion
-        RESET: 'RESET'
-      };
+      const WorkgridState = { INTRO:'INTRO', DEFAULT:'DEFAULT', RESET:'RESET' };
 
       /* ===========================================================
-         DistortionShader (custom shader material + vignette)
-         mirrors the fragment approach from the case study
+         Distortion shader (unchanged)
          =========================================================== */
       class DistortionShader extends THREE.ShaderMaterial {
         constructor(){
           super({
-            name: 'DistortionShader',
-            uniforms: {
-              tDiffuse: { value: null },
-              distortion: { value: new THREE.Vector2(0,0) },
-              vignetteOffset: { value: 0.08 },
-              vignetteDarkness: { value: 0.38 }
+            name:'DistortionShader',
+            uniforms:{
+              tDiffuse:{ value:null },
+              distortion:{ value:new THREE.Vector2(0,0) },
+              vignetteOffset:{ value:0.08 },
+              vignetteDarkness:{ value:0.38 }
             },
-            vertexShader: /* glsl */`
+            vertexShader:/* glsl */`
               varying vec2 vUv;
-              void main(){
-                vUv = uv;
-                gl_Position = vec4(position, 1.0);
-              }
+              void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }
             `,
-            fragmentShader: /* glsl */`
+            fragmentShader:/* glsl */`
               precision highp float;
               uniform sampler2D tDiffuse;
               uniform vec2 distortion;
@@ -156,15 +155,10 @@
               void main(){
                 vec2 suv = getShiftedUv(vUv);
                 float d = length(suv);
-
-                // lens distortion (barrel)
                 suv *= (0.88 + distortion * dot(suv, suv));
                 vec2 uv2 = getUnshiftedUv(suv);
-
-                // vignette (focus toward center)
                 float vig = smoothstep(0.8, vignetteOffset * 0.799,
                                        (vignetteDarkness + vignetteOffset) * d);
-
                 vec3 col = texture2D(tDiffuse, uv2).rgb * vig;
                 gl_FragColor = vec4(col, 1.0);
               }
@@ -174,8 +168,7 @@
           this.update();
         }
         update(){
-          const w = window.innerWidth;
-          const h = window.innerHeight;
+          const w = window.innerWidth, h = window.innerHeight;
           const ratio = Math.min(w, h) / Math.max(w, h);
           this.uniforms.distortion.value.set(
             this._distortionIntensity * ratio,
@@ -184,20 +177,56 @@
         }
         setDistortion(value){
           gsap.to(this, {
-            _distortionIntensity: value,
-            duration: 1,
-            ease: 'power2.out',
-            onUpdate: () => this.update()
+            _distortionIntensity:value, duration:1, ease:'power2.out',
+            onUpdate:() => this.update()
           });
         }
       }
 
       /* ===========================================================
-         Grid (vanilla Three.js) mounted as a R3F primitive
-         Implements: ambient offset, drag zoom, inertia
+         Utils: load textures + set "cover" crop inside a square tile
+         =========================================================== */
+      function loadTextures(urls){
+        const loader = new THREE.TextureLoader();
+        return Promise.all(urls.map(url => new Promise((res, rej) => {
+          loader.load(url, tex => {
+            // color management for r160+
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.anisotropy = 8;
+            tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+            tex.generateMipmaps = true;
+            res(tex);
+          }, undefined, rej);
+        })));
+      }
+
+      function applyCoverCrop(tex){
+        const img = tex.image;
+        if (!img || !img.width || !img.height) return;
+        const aspect = img.width / img.height; // w/h
+        // Reset
+        tex.repeat.set(1,1);
+        tex.offset.set(0,0);
+        if (aspect > 1){
+          // wide → crop left/right
+          const rx = 1 / aspect;
+          tex.repeat.set(rx, 1);
+          tex.offset.set((1 - rx) * 0.5, 0);
+        } else if (aspect < 1){
+          // tall → crop top/bottom
+          const ry = aspect;
+          tex.repeat.set(1, ry);
+          tex.offset.set(0, (1 - ry) * 0.5);
+        }
+        tex.needsUpdate = true;
+      }
+
+      /* ===========================================================
+         Grid (now: individual Meshes with per-tile image textures)
+         Also: touch/mouse drag fixed so movement is not inverted
          =========================================================== */
       class Grid extends THREE.Group {
-        constructor(canvas, camera, opts){
+        constructor(canvas, camera, opts, images){
           super();
           this.canvas = canvas;
           this.camera = camera;
@@ -206,29 +235,40 @@
           // state
           this.pointerUv = new THREE.Vector2(0.5, 0.5);
           this.isPointerDown = false;
-          this.drag = new THREE.Vector2();
           this.velocity = new THREE.Vector2();
           this.offset = new THREE.Vector2();
           this.viewW = 1; this.viewH = 1;
 
-          // instanced tiles
-          const total = opts.cols * opts.rows;
-          this.planeGeom = new THREE.PlaneGeometry(opts.tile, opts.tile, 1, 1);
-          this.planeMat = new THREE.MeshStandardMaterial({
-            color:'#171923', roughness:.55, metalness:0, side:THREE.DoubleSide
-          });
-          this.inst = new THREE.InstancedMesh(this.planeGeom, this.planeMat, total);
-          this.inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          this._lastPX = null;
+          this._lastPY = null;
 
-          this.planeWireMat = new THREE.MeshBasicMaterial({
+          // content
+          this.tiles = [];
+          this.tileGeom = new THREE.PlaneGeometry(opts.tile, opts.tile, 1, 1);
+
+          // overlay hairlines as instanced wire (keeps the clean grid)
+          this.wireMat = new THREE.MeshBasicMaterial({
             color:'#aeb4c2', wireframe:true, transparent:true, opacity:.35
           });
-          this.wire = new THREE.InstancedMesh(this.planeGeom, this.planeWireMat, total);
-          this.wire.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          this.wireInst = null; // built in layout()
 
-          this.add(this.inst);
-          this.add(this.wire);
+          // Build layout and then load images
           this.layout();
+
+          // Asynchronously load textures and map across tiles
+          loadTextures(images).then(texs => {
+            texs.forEach(t => applyCoverCrop(t));
+            const total = this.tiles.length;
+            for (let i=0;i<total;i++){
+              const tex = texs[i % texs.length];
+              const mat = new THREE.MeshStandardMaterial({
+                map: tex, roughness:.45, metalness:0, side:THREE.DoubleSide
+              });
+              this.tiles[i].material = mat;
+            }
+          }).catch(err => {
+            console.error('Texture load error:', err);
+          });
 
           // events
           this.onPointerMove = this.onPointerMove.bind(this);
@@ -239,70 +279,115 @@
           window.addEventListener('pointerup', this.onPointerUp, { passive:true });
           window.addEventListener('pointercancel', this.onPointerUp, { passive:true });
         }
+
         dispose(){
           this.canvas.removeEventListener('pointermove', this.onPointerMove);
           this.canvas.removeEventListener('pointerdown', this.onPointerDown);
           window.removeEventListener('pointerup', this.onPointerUp);
           window.removeEventListener('pointercancel', this.onPointerUp);
-          this.planeGeom.dispose();
-          this.planeMat.dispose();
-          this.planeWireMat.dispose();
+          this.tileGeom.dispose();
+          this.wireMat.dispose();
+          this.tiles.forEach(m => m.material && m.material.dispose());
         }
+
         setViewport(w,h){ this.viewW=w; this.viewH=h; }
+
         layout(){
           const { cols, rows, tile, gap } = this.opts;
           const stepX = tile + gap;
           const stepY = tile + gap;
           const sizeX = stepX * (cols - 1);
           const sizeY = stepY * (rows - 1);
-          const o = new THREE.Object3D();
+
+          // Clear previous
+          this.tiles.forEach(m => this.remove(m));
+          this.tiles = [];
+          if (this.wireInst) this.remove(this.wireInst);
+
+          // Create tiles
           let i = 0;
-          for(let r=0;r<rows;r++){
-            for(let c=0;c<cols;c++){
+          for (let r=0;r<rows;r++){
+            for (let c=0;c<cols;c++){
+              const x = c*stepX - sizeX/2;
+              const y = r*stepY - sizeY/2;
+              const mesh = new THREE.Mesh(this.tileGeom, new THREE.MeshStandardMaterial({
+                color:'#171923', roughness:.55, metalness:0, side:THREE.DoubleSide
+              }));
+              mesh.position.set(x,y,0);
+              this.add(mesh);
+              this.tiles.push(mesh);
+              i++;
+            }
+          }
+
+          // Instanced wire overlay
+          const total = cols * rows;
+          this.wireInst = new THREE.InstancedMesh(this.tileGeom, this.wireMat, total);
+          const o = new THREE.Object3D();
+          i = 0;
+          for (let r=0;r<rows;r++){
+            for (let c=0;c<cols;c++){
               const x = c*stepX - sizeX/2;
               const y = r*stepY - sizeY/2;
               o.position.set(x,y,0);
               o.rotation.set(0,0,0);
               o.scale.set(1,1,1);
               o.updateMatrix();
-              this.inst.setMatrixAt(i, o.matrix);
-              this.wire.setMatrixAt(i, o.matrix);
-              i++;
+              this.wireInst.setMatrixAt(i++, o.matrix);
             }
           }
-          this.inst.instanceMatrix.needsUpdate = true;
-          this.wire.instanceMatrix.needsUpdate = true;
+          this.wireInst.instanceMatrix.needsUpdate = true;
+          this.add(this.wireInst);
         }
+
+        // Convert pixel delta to a normalized world-ish delta (stable across sizes)
+        _pxToNorm(dx, dy){
+          const s = Math.min(this.viewW, this.viewH);
+          return new THREE.Vector2(dx / s, dy / s);
+        }
+
         onPointerMove(e){
           const rect = this.canvas.getBoundingClientRect();
           const x = (e.clientX - rect.left) / rect.width;
           const y = (e.clientY - rect.top) / rect.height;
           this.pointerUv.set(x,y);
-          if(this.isPointerDown){
-            const dpx = (e.movementX||0) / Math.min(this.viewW,this.viewH);
-            const dpy = (e.movementY||0) / Math.min(this.viewW,this.viewH);
-            this.drag.add(new THREE.Vector2(dpx, dpy));
-            this.velocity.lerp(this.drag, 1 - this.opts.velEase);
+
+          if (this.isPointerDown){
+            // Use absolute delta so it works on touch (movementX/Y can be 0 on some mobiles)
+            const dx = (this._lastPX === null ? 0 : (e.clientX - this._lastPX));
+            const dy = (this._lastPY === null ? 0 : (e.clientY - this._lastPY));
+            this._lastPX = e.clientX; this._lastPY = e.clientY;
+
+            // Non-inverted: content follows the finger/mouse
+            const d = this._pxToNorm(dx, dy);
+            // X: drag right -> move right (positive)
+            // Y: drag down  -> move down  (negative Y in our world coords)
+            this.offset.x += d.x * 6.0;
+            this.offset.y += -d.y * 6.0;
+
+            // Keep a velocity trail for inertia when releasing
+            this.velocity.lerp(new THREE.Vector2(d.x, -d.y), 1 - this.opts.velEase);
           }
         }
-        onPointerDown(){
+
+        onPointerDown(e){
           this.isPointerDown = true;
-          this.drag.set(0,0);
+          this._lastPX = e.clientX; this._lastPY = e.clientY;
           gsap.to(this.camera.position, { z: CONFIG.zoomIn, duration:1, ease:'power2.out' });
         }
+
         onPointerUp(){
           this.isPointerDown = false;
+          this._lastPX = this._lastPY = null;
           gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration:1, ease:'power2.out' });
         }
+
         update(){
           // ambient cursor offset (opposite to cursor in UV)
           const cursorOffset = this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
 
-          // drag vs inertia
-          if(this.isPointerDown){
-            this.offset.add(this.drag.clone().multiplyScalar(6));
-            this.drag.set(0,0);
-          } else {
+          // inertia
+          if (!this.isPointerDown){
             this.offset.add(this.velocity.clone().multiplyScalar(5));
             this.velocity.multiplyScalar(this.opts.velEase);
           }
@@ -312,12 +397,12 @@
           this.position.x += (tx - this.position.x) * this.opts.dragEase;
           this.position.y += (ty - this.position.y) * this.opts.dragEase;
         }
-        resetPosition(){ this.offset.set(0,0); }
+
+        resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); }
       }
 
       /* ===========================================================
-         Postprocessing component (R3F)
-         RenderPass → DistortionShader(ShaderPass) → OutputPass
+         Postprocessing (unchanged)
          =========================================================== */
       function Postprocessing({ workgridState }){
         const { gl, scene, camera, size } = useThree();
@@ -339,11 +424,8 @@
         }, [composer, shader, size]);
 
         useEffect(() => {
-          if (workgridState === WorkgridState.INTRO) {
-            shader.setDistortion(CONFIG.distortion.flat);
-          } else {
-            shader.setDistortion(CONFIG.distortion.curved);
-          }
+          if (workgridState === WorkgridState.INTRO) shader.setDistortion(CONFIG.distortion.flat);
+          else shader.setDistortion(CONFIG.distortion.curved);
         }, [workgridState, shader]);
 
         useFrame(() => { composer.render(); }, 1);
@@ -351,9 +433,9 @@
       }
 
       /* ===========================================================
-         R3F primitive wrapper for our vanilla Grid
+         R3F primitive wrapper
          =========================================================== */
-      function ProjectsGridPrimitive({ workgridState }){
+      function ProjectsGridPrimitive({ workgridState, images }){
         const { gl, camera, size } = useThree();
         const grid = useMemo(() => {
           return new Grid(gl.domElement, camera, {
@@ -364,20 +446,17 @@
             ambient: CONFIG.ambient,
             dragEase: CONFIG.dragEase,
             velEase: CONFIG.velEase
-          });
-        }, [gl, camera]);
+          }, images);
+        }, [gl, camera, images]);
 
         useFrame(() => grid.update());
-
         useEffect(() => { grid.setViewport(size.width, size.height); }, [size, grid]);
-        useEffect(() => {
-          if (workgridState === WorkgridState.RESET) grid.resetPosition();
-        }, [workgridState, grid]);
+        useEffect(() => { if (workgridState === WorkgridState.RESET) grid.resetPosition(); }, [workgridState, grid]);
 
         return React.createElement('primitive', { object: grid });
       }
 
-      function GridView({ workgridState }){
+      function GridView({ workgridState, images }){
         return (
           React.createElement(Canvas, {
             gl:{ antialias:true, powerPreference:'high-performance' },
@@ -386,7 +465,7 @@
           },
             React.createElement('ambientLight', { intensity:1 }),
             React.createElement('directionalLight', { intensity:.7, position:[2,3,4] }),
-            React.createElement(ProjectsGridPrimitive, { workgridState }),
+            React.createElement(ProjectsGridPrimitive, { workgridState, images }),
             React.createElement(Postprocessing, { workgridState })
           )
         );
@@ -394,8 +473,6 @@
 
       function App(){
         const [state, setState] = useState(WorkgridState.DEFAULT);
-
-        // keyboard quick switch (1=flat, 2=curved, 0=reset)
         useEffect(() => {
           const onKey = (e) => {
             if (e.key === '1') setState(WorkgridState.INTRO);
@@ -411,7 +488,7 @@
             React.createElement('div', { className:'canvas-wrap' },
               React.createElement('div', { className:'fallback-grid' }),
               React.createElement(Suspense, { fallback:null },
-                React.createElement(GridView, { workgridState: state })
+                React.createElement(GridView, { workgridState: state, images: IMAGES })
               )
             ),
             React.createElement('div', { className:'hud' },
