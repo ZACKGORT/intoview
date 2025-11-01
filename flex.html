@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — Phantom Grid Gallery</title>
+    <title>intoview • note — Phantom Card Archive</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,6 +16,7 @@
         --ink-2:#9F9F9F;
         --ink-3:#6C6C6C;
         --accent:#59D2C8;
+        --danger:#FF6363;
       }
 
       *{box-sizing:border-box}
@@ -39,12 +40,12 @@
         box-shadow:0 0 0 6px color-mix(in oklab, var(--accent), transparent 80%);
       }
       .header h1{margin:0; font-size:18px}
-      .header small{opacity:.8}
+      .header small{opacity:.85}
       .canvas-wrap{position:absolute; inset:0}
       .canvas-wrap.blocked{pointer-events:none}
 
       .fallback-grid{
-        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.12;
+        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.10;
         color:var(--ink);
         background-image:
           repeating-linear-gradient(to right, currentColor 0 1px, transparent 1px 48px),
@@ -59,10 +60,12 @@
         appearance:none; cursor:pointer; font:inherit;
         border:1px solid var(--ink-2); background:transparent; color:var(--ink);
         padding:8px 10px; border-radius:10px;
-        transition:transform .12s ease, background .12s ease;
+        transition:transform .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
       }
       .hud button:hover{ transform:translateY(-1px) }
-      .hud .accent{ border-color:var(--accent); color:var(--paper); background:var(--accent); }
+      .hud .accent{ border-color:var(--accent); color:#0b0b0d; background:var(--accent); }
+      .hud .danger{ border-color:var(--danger); color:#0b0b0d; background:var(--danger); }
+      .hud .active{ outline:2px solid color-mix(in oklab, var(--accent), white 12%); outline-offset:1px }
 
       /* Overlay flow */
       .overlay{
@@ -103,12 +106,9 @@
       .chip{border:1px solid #3b3b40; border-radius:8px; padding:8px 10px; background:#121216}
       .titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
       .titlebar h2{margin:0; font-size:16px}
-      .right{margin-left:auto}
       .center{justify-content:center}
-      .success{display:grid; place-items:center; gap:8px; padding:24px 0}
       .kbd{font:600 12px/1 JetBrains Mono, ui-monospace, monospace; padding:3px 6px; border:1px solid #3b3b40; border-radius:6px; color:#c9c9cf}
       .tight{gap:6px}
-      .small{font-size:12px}
       .hidden{display:none !important}
       .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
     </style>
@@ -117,7 +117,11 @@
     <header class="header">
       <span class="dot" aria-hidden="true"></span>
       <h1>intoview • note</h1>
-      <small>Phantom gallery • drag to pan • <span class="kbd">1</span> flat <span class="kbd">2</span> curved <span class="kbd">0</span> reset • <span class="kbd">N</span> new</small>
+      <small>
+        Phantom archive (row-major) • drag to pan •
+        <span class="kbd">1</span> flat <span class="kbd">2</span> curved <span class="kbd">0</span> reset •
+        <span class="kbd">N</span> new • <span class="kbd">M</span> manage/delete
+      </small>
     </header>
 
     <div id="root"></div>
@@ -134,7 +138,9 @@
       import { ShaderPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js?deps=three@0.160.1';
       import { OutputPass } from 'https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js?deps=three@0.160.1';
 
-      const SEED_IMAGES = [
+      /* ===== Archive seeds (treated as already-saved notes; will be carded at runtime) ===== */
+      const STORAGE_KEY = 'intoview_archive_cards_v1';
+      const SEEDS = [
         {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp', title:'wmzWGlaw', caption:'—'},
         {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp', title:'IMG-8403', caption:'—'},
         {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp', title:'DSC08656', caption:'—'},
@@ -174,6 +180,7 @@
         {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp', title:'ZAX09767', caption:'—'},
       ];
 
+      /* ===== Config ===== */
       const CONFIG = {
         cols: 10, rows: 7, tile: 0.32, gap: 0.08, ambient: 0.20,
         dragEase: 0.14, velEase: 0.92, zoomIn: 0.75, zoomOut: 1.85,
@@ -181,6 +188,172 @@
       };
       const WorkgridState = { INTRO:'INTRO', DEFAULT:'DEFAULT', RESET:'RESET' };
 
+      /* ===== Card compositor (bars + hairlines + border) ===== */
+      const TEX_SIZE = 768;         // 1024 if you want crisper type
+      const HAIR = 1;
+      const BAR_H = 28;
+      const PAD = 12;
+      const CAP_SIZE = 18;
+      const TITLE_SIZE = 20;
+      const MONO = 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+      const UI   = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+
+      const isBlobOrData = u => /^blob:|^data:/i.test(u);
+      function nowTS(){
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+        const hh = String(d.getHours()).padStart(2,'0');
+        const mm = String(d.getMinutes()).padStart(2,'0');
+        return `${y}-${m}-${day} • ${hh}:${mm}`;
+      }
+      function loadImage(url){
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          if (!isBlobOrData(url)) img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = url;
+        });
+      }
+      function drawHair(ctx, x, y, w){
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillRect(x, y, w, HAIR);
+      }
+      function coverImage(ctx, img, x, y, w, h){
+        const iw = img.naturalWidth || img.width;
+        const ih = img.naturalHeight || img.height;
+        const ir = iw/ih, ar = w/h;
+        let dw, dh, dx, dy;
+        if(ir > ar){ dh = h; dw = ir * h; dx = x + (w - dw)/2; dy = y; }
+        else       { dw = w; dh = w/ir;   dx = x;               dy = y + (h - dh)/2; }
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, dx, dy, dw, dh);
+      }
+      function drawCameraIcon(ctx, cx, cy, s=44){
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        const w = s*1.6, h = s*1.0;
+        ctx.beginPath(); ctx.rect(-w/2, -h/2, w, h); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, s*0.35, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(w*0.25, -h*0.45); ctx.lineTo(w*0.45, -h*0.45); ctx.stroke();
+        ctx.restore();
+      }
+      function makeCardCanvas({img, title='[ title ]', caption='[ caption ]', gps='', ts=nowTS()}){
+        const s = TEX_SIZE;
+        const c = document.createElement('canvas');
+        c.width = s; c.height = s;
+        const ctx = c.getContext('2d');
+
+        // background + border
+        ctx.fillStyle = '#000'; ctx.fillRect(0,0,s,s);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(0.5,0.5, s-1, s-1);
+
+        // top bar
+        ctx.fillStyle = '#000'; ctx.fillRect(0,0,s,BAR_H);
+        ctx.font = `600 ${TITLE_SIZE}px ${UI}`;
+        ctx.fillStyle = '#e6e6e6';
+        ctx.textBaseline = 'top';
+        ctx.textAlign = 'left';
+        ctx.fillText(title, PAD, Math.floor((BAR_H - TITLE_SIZE)/2));
+
+        // GPS (right)
+        if (gps){
+          ctx.font = `500 12px ${MONO}`;
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'right';
+          ctx.fillStyle = '#cfcfcf';
+          ctx.fillText(gps, s - PAD, BAR_H/2);
+          ctx.textAlign = 'left';
+        }
+
+        // hairline under top
+        drawHair(ctx, 0, BAR_H, s);
+
+        // image region
+        const imgTop = BAR_H + HAIR;
+        const imgH   = s - imgTop - (BAR_H + HAIR);
+        if (img){
+          coverImage(ctx, img, 0, imgTop, s, imgH);
+          ctx.fillStyle = 'rgba(0,0,0,0.03)';
+          ctx.fillRect(0, imgTop, s, imgH);
+        } else {
+          ctx.fillStyle = '#111'; ctx.fillRect(0, imgTop, s, imgH);
+          drawCameraIcon(ctx, s/2, imgTop + imgH/2, 40);
+        }
+
+        // hairline above bottom
+        drawHair(ctx, 0, s - BAR_H - HAIR, s);
+
+        // bottom bar
+        ctx.fillStyle = '#000'; ctx.fillRect(0, s - BAR_H, s, BAR_H);
+        ctx.font = `500 ${CAP_SIZE}px ${UI}`;
+        ctx.fillStyle = '#e6e6e6';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+        ctx.fillText(caption, PAD, s - BAR_H/2);
+
+        // timestamp
+        ctx.font = `500 12px ${MONO}`;
+        ctx.fillStyle = '#cfcfcf';
+        ctx.textAlign = 'right';
+        ctx.fillText(ts, s - PAD, s - BAR_H/2);
+        ctx.textAlign = 'left';
+
+        return c;
+      }
+      function makeCardTextureFromCanvas(cnv){
+        const tex = new THREE.CanvasTexture(cnv);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 8;
+        tex.needsUpdate = true;
+        return tex;
+      }
+      function makeEmptyTexture(){
+        const cnv = makeCardCanvas({img:null, title:'', caption:'', gps:'', ts:''});
+        return makeCardTextureFromCanvas(cnv);
+      }
+      async function textureForItem(item){
+        if (!item || !item.src){
+          return makeEmptyTexture();
+        }
+        // If baked (already a composed PNG), just load and use directly.
+        if (item.baked){
+          const img = await loadImage(item.src).catch(() => null);
+          if (!img) return makeEmptyTexture();
+          // No extra frame—image already contains card chrome
+          const tex = new THREE.Texture(img);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.needsUpdate = true;
+          tex.anisotropy = 8;
+          return tex;
+        }
+        // Otherwise, build card at runtime
+        const img = await loadImage(item.src).catch(() => null);
+        const cnv = makeCardCanvas({
+          img,
+          title: item.title || '',
+          caption: item.caption || '—',
+          gps: item.gps || '',
+          ts: item.ts || nowTS()
+        });
+        return makeCardTextureFromCanvas(cnv);
+      }
+      async function buildRowMajorTextures(items, totalTiles){
+        const empty = makeEmptyTexture();
+        const texs = new Array(totalTiles).fill(empty);
+        const count = Math.min(items.length, totalTiles);
+        for (let i=0; i<count; i++){
+          try { texs[i] = await textureForItem(items[i]); } catch {}
+        }
+        return texs;
+      }
+
+      /* ===== Distortion shader ===== */
       class DistortionShader extends THREE.ShaderMaterial {
         constructor(){
           super({
@@ -202,15 +375,13 @@
               uniform float vignetteOffset;
               uniform float vignetteDarkness;
               varying vec2 vUv;
-
-              vec2 getShiftedUv(vec2 uv){ return 2.0 * (uv - 0.5); }
-              vec2 getUnshiftedUv(vec2 suv){ return suv * 0.5 + 0.5; }
-
+              vec2 s(vec2 uv){ return 2.0 * (uv - 0.5); }
+              vec2 u(vec2 suv){ return suv * 0.5 + 0.5; }
               void main(){
-                vec2 suv = getShiftedUv(vUv);
+                vec2 suv = s(vUv);
                 float d = length(suv);
                 suv *= (0.88 + distortion * dot(suv, suv));
-                vec2 uv2 = getUnshiftedUv(suv);
+                vec2 uv2 = u(suv);
                 float vig = smoothstep(0.8, vignetteOffset * 0.799,
                                        (vignetteDarkness + vignetteOffset) * d);
                 vec3 col = texture2D(tDiffuse, uv2).rgb * vig;
@@ -218,113 +389,22 @@
               }
             `
           });
-          this._distortionIntensity = 0;
+          this._dist = 0;
           this.update();
         }
         update(){
-          const w = window.innerWidth, h = window.innerHeight;
-          const ratio = Math.min(w, h) / Math.max(w, h);
-          this.uniforms.distortion.value.set(
-            this._distortionIntensity * ratio,
-            this._distortionIntensity * ratio
-          );
+          const w = innerWidth, h = innerHeight;
+          const r = Math.min(w, h) / Math.max(w, h);
+          this.uniforms.distortion.value.set(this._dist * r, this._dist * r);
         }
         setDistortion(value){
-          gsap.to(this, {
-            _distortionIntensity:value, duration:1, ease:'power2.out',
-            onUpdate:() => this.update()
-          });
+          gsap.to(this, { _dist:value, duration:1, ease:'power2.out', onUpdate:()=>this.update() });
         }
       }
 
-      /* ---------- compositing helpers ---------- */
-      const TEX_SIZE = 768, P = 20, TITLE_SIZE = 26, CAPTION_SIZE = 18, STRIP_ALPHA = 0.28;
-      const isHttp = url => /^https?:/i.test(url);
-      const isBlobOrData = url => /^blob:|^data:/i.test(url);
-
-      function loadImage(url){
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          if (isHttp(url)) img.crossOrigin = 'anonymous';
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = url;
-        });
-      }
-      function loadTextureDirect(url){
-        return new Promise((resolve, reject)=>{
-          const loader = new THREE.TextureLoader();
-          if (isHttp(url)) loader.setCrossOrigin('anonymous');
-          loader.load(url, (tex)=>{ tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy=8; resolve(tex); }, undefined, reject);
-        });
-      }
-      function drawLabelBG(ctx, x, y, w, h, alpha){
-        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-        ctx.fillRect(x, y, w, h);
-      }
-      function ellipsize(ctx, text, maxWidth){
-        if (!text) return '';
-        if (ctx.measureText(text).width <= maxWidth) return text;
-        let t = text;
-        while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth){ t = t.slice(0, -1); }
-        return t + '…';
-      }
-      function coverDraw(ctx, img, s){
-        const iw = img.naturalWidth || img.width;
-        const ih = img.naturalHeight || img.height;
-        const ir = iw / ih;
-        let dw=s, dh=s, dx=0, dy=0;
-        if (ir > 1){ dh = s; dw = ir*s; dx = (s - dw)/2; }
-        else if (ir < 1){ dw = s; dh = s/ir; dy = (s - dh)/2; }
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, dx, dy, dw, dh);
-      }
-      async function buildTextureFor(item){
-        // For blob/data we skip label-baking and just load the texture directly.
-        if (isBlobOrData(item.src)) return loadTextureDirect(item.src);
-
-        // Label-bake for remote sources
-        try{
-          const img = await loadImage(item.src);
-          const c = document.createElement('canvas');
-          c.width = TEX_SIZE; c.height = TEX_SIZE;
-          const ctx = c.getContext('2d');
-          coverDraw(ctx, img, TEX_SIZE);
-
-          ctx.font = `600 ${TITLE_SIZE}px Inter, system-ui, sans-serif`;
-          ctx.fillStyle = '#fff'; ctx.textBaseline = 'top';
-          const titleText = ellipsize(ctx, (item.title||'').toUpperCase(), TEX_SIZE - P*2);
-          if (titleText){
-            const w = Math.ceil(ctx.measureText(titleText).width);
-            const h = TITLE_SIZE + 8;
-            drawLabelBG(ctx, P-6, P-6, w + 12, h + 8, STRIP_ALPHA);
-            ctx.fillText(titleText, P, P);
-          }
-
-          ctx.font = `500 ${CAPTION_SIZE}px Inter, system-ui, sans-serif`;
-          ctx.textBaseline = 'alphabetic';
-          const capText = ellipsize(ctx, item.caption||'', TEX_SIZE - P*2);
-          if (capText){
-            const w2 = Math.ceil(ctx.measureText(capText).width);
-            const h2 = CAPTION_SIZE + 8;
-            drawLabelBG(ctx, P-6, TEX_SIZE - P - h2 - 6, w2 + 12, h2 + 8, STRIP_ALPHA);
-            ctx.fillText(capText, P, TEX_SIZE - P - 8);
-          }
-
-          const tex = new THREE.CanvasTexture(c);
-          tex.colorSpace = THREE.SRGBColorSpace;
-          tex.anisotropy = 8;
-          tex.needsUpdate = true;
-          return tex;
-        }catch{
-          return await loadTextureDirect(item.src);
-        }
-      }
-      const buildTextures = (items)=>Promise.all(items.map(buildTextureFor));
-
-      /* ---------- Grid ---------- */
+      /* ===== Grid with row-major mapping + manage/delete ===== */
       class Grid extends THREE.Group {
-        constructor(canvas, camera, opts, items){
+        constructor(canvas, camera, opts){
           super();
           this.canvas = canvas;
           this.camera = camera;
@@ -338,15 +418,14 @@
           this._lastPX = null; this._lastPY = null;
 
           this.tiles = [];
+          this.tileItems = [];
+          this.ray = new THREE.Raycaster();
+          this.manageMode = false;
+          this.onTileSelect = null;
+
           this.tileGeom = new THREE.PlaneGeometry(opts.tile, opts.tile, 1, 1);
 
-          this.wireMat = new THREE.MeshBasicMaterial({
-            color:'#aeb4c2', wireframe:true, transparent:true, opacity:.35
-          });
-          this.wireInst = null;
-
           this.layout();
-          this._init(items);
 
           this.onPointerMove = this.onPointerMove.bind(this);
           this.onPointerDown = this.onPointerDown.bind(this);
@@ -362,38 +441,10 @@
           window.removeEventListener('pointerup', this.onPointerUp);
           window.removeEventListener('pointercancel', this.onPointerUp);
           this.tileGeom.dispose();
-          this.wireMat.dispose();
           this.tiles.forEach(m => m.material && m.material.dispose());
         }
-        async _init(items){
-          try{
-            const texs = await buildTextures(items);
-            const total = this.tiles.length;
-            for (let i=0;i<total;i++){
-              const tex = texs[i % texs.length];
-              const mat = new THREE.MeshStandardMaterial({
-                map: tex, roughness:.45, metalness:0, side:THREE.DoubleSide
-              });
-              this.tiles[i].material = mat;
-            }
-          }catch(err){ console.error('Texture init error:', err); }
-        }
-        async prependItem(item){
-          try{
-            const tex = await buildTextureFor(item);
-            const mat = new THREE.MeshStandardMaterial({
-              map: tex, roughness:.45, metalness:0, side:THREE.DoubleSide
-            });
-            for (let i=this.tiles.length-1; i>0; i--){
-              const prev = this.tiles[i-1].material;
-              this.tiles[i].material = prev;
-            }
-            const old0 = this.tiles[0].material;
-            if (old0 && old0 !== mat) old0.dispose?.();
-            this.tiles[0].material = mat;
-          }catch(err){ console.error('Prepend error:', err); }
-        }
         setViewport(w,h){ this.viewW=w; this.viewH=h; }
+        setManageMode(flag){ this.manageMode = !!flag; }
         layout(){
           const { cols, rows, tile, gap } = this.opts;
           const stepX = tile + gap;
@@ -403,37 +454,42 @@
 
           this.tiles.forEach(m => this.remove(m));
           this.tiles = [];
-          if (this.wireInst) this.remove(this.wireInst);
+          this.tileItems = [];
 
-          let i = 0;
           for (let r=0;r<rows;r++){
             for (let c=0;c<cols;c++){
               const x = c*stepX - sizeX/2;
               const y = r*stepY - sizeY/2;
               const mesh = new THREE.Mesh(this.tileGeom, new THREE.MeshStandardMaterial({
-                color:'#171923', roughness:.55, metalness:0, side:THREE.DoubleSide
+                color:'#111', roughness:.55, metalness:0, side:THREE.DoubleSide
               }));
               mesh.position.set(x,y,0);
               this.add(mesh);
               this.tiles.push(mesh);
-              i++;
+              this.tileItems.push(null);
             }
           }
-
-          const total = cols * rows;
-          this.wireInst = new THREE.InstancedMesh(this.tileGeom, this.wireMat, total);
-          const o = new THREE.Object3D();
-          i = 0;
-          for (let r=0;r<rows;r++){
-            for (let c=0;c<cols;c++){
-              const x = c*stepX - sizeX/2;
-              const y = r*stepY - sizeY/2;
-              o.position.set(x,y,0); o.rotation.set(0,0,0); o.scale.set(1,1,1); o.updateMatrix();
-              this.wireInst.setMatrixAt(i++, o.matrix);
-            }
+        }
+        async loadRowMajor(items){
+          const total = this.tiles.length;
+          const mats = await buildRowMajorTextures(items, total);
+          // assign + record item mapping
+          for (let i=0;i<total;i++){
+            const old = this.tiles[i].material;
+            if (old) old.dispose?.();
+            this.tiles[i].material = new THREE.MeshStandardMaterial({
+              map: mats[i], roughness:.45, metalness:0, side:THREE.DoubleSide
+            });
+            this.tileItems[i] = i < items.length ? items[i] : null;
           }
-          this.wireInst.instanceMatrix.needsUpdate = true;
-          this.add(this.wireInst);
+        }
+        removeAt(index){
+          const old = this.tiles[index].material;
+          if (old) old.dispose?.();
+          this.tiles[index].material = new THREE.MeshStandardMaterial({
+            map: makeEmptyTexture(), roughness:.45, metalness:0, side:THREE.DoubleSide
+          });
+          this.tileItems[index] = null;
         }
         _pxToNorm(dx, dy){
           const s = Math.min(this.viewW, this.viewH);
@@ -444,6 +500,8 @@
           const x = (e.clientX - rect.left) / rect.width;
           const y = (e.clientY - rect.top) / rect.height;
           this.pointerUv.set(x,y);
+
+          if (this.manageMode) return;
 
           if (this.isPointerDown){
             const dx = (this._lastPX === null ? 0 : (e.clientX - this._lastPX));
@@ -458,18 +516,35 @@
           }
         }
         onPointerDown(e){
+          if (this.manageMode){
+            const rect = this.canvas.getBoundingClientRect();
+            const ndc = {
+              x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+              y: -((e.clientY - rect.top) / rect.height) * 2 + 1
+            };
+            this.ray.setFromCamera(ndc, this.camera);
+            const hit = this.ray.intersectObjects(this.tiles, false)[0];
+            if (hit){
+              const idx = this.tiles.indexOf(hit.object);
+              const item = this.tileItems[idx];
+              this.onTileSelect?.(idx, item);
+            }
+            return;
+          }
           this.isPointerDown = true;
           this._lastPX = e.clientX; this._lastPY = e.clientY;
           gsap.to(this.camera.position, { z: CONFIG.zoomIn, duration:1, ease:'power2.out' });
         }
         onPointerUp(){
-          this.isPointerDown = false;
-          this._lastPX = this._lastPY = null;
-          gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration:1, ease:'power2.out' });
+          if (!this.manageMode){
+            this.isPointerDown = false;
+            this._lastPX = this._lastPY = null;
+            gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration:1, ease:'power2.out' });
+          }
         }
         update(){
           const cursorOffset = this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
-          if (!this.isPointerDown){
+          if (!this.isPointerDown && !this.manageMode){
             this.offset.add(this.velocity.clone().multiplyScalar(5));
             this.velocity.multiplyScalar(this.opts.velEase);
           }
@@ -481,6 +556,7 @@
         resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); }
       }
 
+      /* ===== Post-processing ===== */
       function Postprocessing({ workgridState }){
         const { gl, scene, camera, size } = useThree();
         const { composer, shader } = useMemo(() => {
@@ -495,7 +571,7 @@
             composer.addPass(outputPass);
             return { composer, shader };
           }catch(e){
-            console.warn('Composer init failed, skipping post FX', e);
+            console.warn('Composer init failed', e);
             return { composer:null, shader:null };
           }
         }, [gl, scene, camera]);
@@ -510,43 +586,37 @@
 
         useEffect(() => {
           if (!shader) return;
-          if (workgridState === WorkgridState.INTRO) shader.setDistortion(CONFIG.distortion.flat);
-          else shader.setDistortion(CONFIG.distortion.curved);
+          shader.setDistortion(
+            workgridState === WorkgridState.INTRO
+              ? CONFIG.distortion.flat
+              : CONFIG.distortion.curved
+          );
         }, [workgridState, shader]);
 
         useFrame(() => { composer?.render(); }, 1);
         return null;
       }
 
-      function ProjectsGridPrimitive({ workgridState, initialItems, prependItemSignal }){
+      /* ===== R3F primitive wrapper ===== */
+      function ProjectsGridPrimitive({ workgridState, archive, version, manageMode, onTileSelect }){
         const { gl, camera, size } = useThree();
-        const grid = useMemo(() => {
-          return new Grid(gl.domElement, camera, {
-            cols: CONFIG.cols,
-            rows: CONFIG.rows,
-            tile: CONFIG.tile,
-            gap: CONFIG.gap,
-            ambient: CONFIG.ambient,
-            dragEase: CONFIG.dragEase,
-            velEase: CONFIG.velEase
-          }, initialItems);
-        }, [gl, camera]);
+        const grid = useMemo(() => new Grid(gl.domElement, camera, {
+          cols: CONFIG.cols, rows: CONFIG.rows, tile: CONFIG.tile, gap: CONFIG.gap,
+          ambient: CONFIG.ambient, dragEase: CONFIG.dragEase, velEase: CONFIG.velEase
+        }), [gl, camera]);
 
-        const lastSignal = useRef(0);
-        useEffect(() => {
-          if (!prependItemSignal || prependItemSignal.seq === lastSignal.current) return;
-          lastSignal.current = prependItemSignal.seq;
-          grid.prependItem(prependItemSignal.item);
-        }, [prependItemSignal, grid]);
+        useEffect(()=>{ grid.setViewport(size.width, size.height); }, [size, grid]);
+        useEffect(()=>{ grid.onTileSelect = onTileSelect; }, [grid, onTileSelect]);
+        useEffect(()=>{ grid.setManageMode(manageMode); }, [manageMode, grid]);
+
+        useEffect(()=>{ grid.loadRowMajor(archive); }, [version]); // bump version to refresh
 
         useFrame(() => grid.update());
-        useEffect(() => { grid.setViewport(size.width, size.height); }, [size, grid]);
         useEffect(() => { if (workgridState === WorkgridState.RESET) grid.resetPosition(); }, [workgridState, grid]);
 
         return React.createElement('primitive', { object: grid });
       }
-
-      function GridView({ workgridState, initialItems, prependItemSignal }){
+      function GridView(props){
         return (
           React.createElement(Canvas, {
             gl:{ antialias:true, powerPreference:'high-performance' },
@@ -555,13 +625,13 @@
           },
             React.createElement('ambientLight', { intensity:1 }),
             React.createElement('directionalLight', { intensity:.7, position:[2,3,4] }),
-            React.createElement(ProjectsGridPrimitive, { workgridState, initialItems, prependItemSignal }),
-            React.createElement(Postprocessing, { workgridState })
+            React.createElement(ProjectsGridPrimitive, props),
+            React.createElement(Postprocessing, { workgridState: props.workgridState })
           )
         );
       }
 
-      /* ---------- camera + compose ---------- */
+      /* ===== Camera + export using the same card compositor ===== */
       function useCamera(){
         const videoRef = useRef(null);
         const streamRef = useRef(null);
@@ -601,45 +671,25 @@
         };
         return { videoRef, start, stop, captureSquareCanvas };
       }
-
-      function composeNoteCanvas(sourceCanvas, title, caption){
-        const out = document.createElement('canvas');
-        out.width = TEX_SIZE; out.height = TEX_SIZE;
-        const ctx = out.getContext('2d');
-
-        const img = new Image();
-        img.src = sourceCanvas.toDataURL('image/png');
+      async function exportCardPNGFromCanvas(sourceCanvas, title, caption, gps=''){
+        // Convert source canvas to Image
+        const img = await new Promise((res, rej)=>{
+          const im = new Image();
+          im.onload = ()=>res(im);
+          im.onerror = rej;
+          im.src = sourceCanvas.toDataURL('image/png');
+        });
+        const cnv = makeCardCanvas({ img, title, caption, gps, ts: nowTS() });
         return new Promise((resolve)=>{
-          img.onload = () => {
-            coverDraw(ctx, img, TEX_SIZE);
-            ctx.font = `600 ${TITLE_SIZE}px Inter, system-ui, sans-serif`;
-            ctx.fillStyle = '#fff'; ctx.textBaseline = 'top';
-            const titleText = ellipsize(ctx, (title||'').toUpperCase(), TEX_SIZE - P*2);
-            if (titleText){
-              const w = Math.ceil(ctx.measureText(titleText).width);
-              const h = TITLE_SIZE + 8;
-              drawLabelBG(ctx, P-6, P-6, w+12, h+8, STRIP_ALPHA);
-              ctx.fillText(titleText, P, P);
-            }
-            ctx.font = `500 ${CAPTION_SIZE}px Inter, system-ui, sans-serif`;
-            ctx.textBaseline = 'alphabetic';
-            const capText = ellipsize(ctx, caption||'', TEX_SIZE - P*2);
-            if (capText){
-              const w2 = Math.ceil(ctx.measureText(capText).width);
-              const h2 = CAPTION_SIZE + 8;
-              drawLabelBG(ctx, P-6, TEX_SIZE - P - h2 - 6, w2+12, h2+8, STRIP_ALPHA);
-              ctx.fillText(capText, P, TEX_SIZE - P - 8);
-            }
-            out.toBlob(b => {
-              const url = URL.createObjectURL(b);
-              resolve({ url, blob:b });
-            }, 'image/png', 0.96);
-          };
+          cnv.toBlob(b => {
+            const url = URL.createObjectURL(b);
+            resolve({ url, blob:b });
+          }, 'image/png', 0.96);
         });
       }
 
-      /* ---------- overlay flow ---------- */
-      function OverlayFlow({ open, onClose, onAddToGallery }){
+      /* ===== Overlay flow ===== */
+      function OverlayFlow({ open, onClose, onAddToArchive }){
         const [step, setStep] = useState(0);
         const [title, setTitle] = useState('');
         const [caption, setCaption] = useState('A quick visual note');
@@ -652,11 +702,10 @@
         const sheetRef = useRef(null);
         const reviewMountRef = useRef(null);
 
-        // Mount/unmount the raw canvas imperatively
+        // Mount/unmount review canvas
         useEffect(()=>{
           const mount = reviewMountRef.current;
           if (!mount) return;
-          // clear previous
           while (mount.firstChild) mount.removeChild(mount.firstChild);
           if (reviewCanvas && step === 2){
             reviewCanvas.style.width = '100%';
@@ -725,11 +774,18 @@
         const doExport = async ()=>{
           if (!reviewCanvas) return;
           setExporting(true);
-          const { url } = await composeNoteCanvas(reviewCanvas, title, caption);
+          const { url } = await exportCardPNGFromCanvas(reviewCanvas, title || '[ title ]', caption || '—');
           setExportUrl(url);
           setExporting(false);
           setStep(5);
-          onAddToGallery?.({ src:url, title:title||'[ title ]', caption:caption||'' });
+          onAddToArchive?.({
+            id: 'note_' + Date.now(),
+            src: url,             // baked card PNG
+            title: title || '[ title ]',
+            caption: caption || '—',
+            baked: true,          // important: prevent double-framing
+            ts: nowTS()
+          });
         };
 
         if (!open) return null;
@@ -768,7 +824,7 @@
                 ),
                 React.createElement('div', { className:'row', style:{marginTop:'12px'} },
                   React.createElement('button', { className:'btn', onClick:()=>{ camera.stop(); setStep(0);} }, 'Back'),
-                  React.createElement('button', { className:'btn primary right', onClick:captureShot }, 'Capture')
+                  React.createElement('button', { className:'btn primary', onClick:captureShot, style:{marginLeft:'auto'} }, 'Capture')
                 )
               ),
 
@@ -776,7 +832,7 @@
                 React.createElement('div', { className:'preview', ref:reviewMountRef }),
                 React.createElement('div', { className:'row', style:{marginTop:'12px'} },
                   React.createElement('button', { className:'btn', onClick:()=>{ camera.stop(); setStep(1);} }, 'Retake'),
-                  React.createElement('button', { className:'btn primary right', onClick:()=>setStep(3) }, 'Keep')
+                  React.createElement('button', { className:'btn primary', onClick:()=>setStep(3), style:{marginLeft:'auto'} }, 'Keep')
                 )
               ),
 
@@ -787,21 +843,21 @@
                 React.createElement('textarea', { id:'c', maxLength:100, className:'textarea', value:caption, onChange:e=>setCaption(e.target.value) }),
                 React.createElement('div', { className:'row', style:{marginTop:'6px'} },
                   React.createElement('button', { className:'btn', onClick:()=>setStep(2) }, 'Back'),
-                  React.createElement('button', { className:'btn primary right', onClick:()=>setStep(4) }, 'Next')
+                  React.createElement('button', { className:'btn primary', onClick:()=>setStep(4), style:{marginLeft:'auto'} }, 'Next')
                 )
               ),
 
               step===4 && React.createElement('div', { className:'grid' },
-                React.createElement('div', { className:'hint' }, 'Export will generate a 1:1 PNG with overlays and add it to the grid.'),
+                React.createElement('div', { className:'hint' }, 'Export generates a 1:1 card PNG and adds it to the archive.'),
                 React.createElement('div', { className:'row' },
                   React.createElement('button', { className:'btn', onClick:()=>setStep(3) }, 'Back'),
-                  React.createElement('button', { className:'btn primary right', disabled:exporting, onClick:doExport }, exporting ? 'Exporting…' : 'Export PNG & Save')
+                  React.createElement('button', { className:'btn primary', disabled:exporting, onClick:doExport, style:{marginLeft:'auto'} }, exporting ? 'Exporting…' : 'Export PNG & Save')
                 )
               ),
 
-              step===5 && React.createElement('div', { className:'success' },
+              step===5 && React.createElement('div', { className:'grid center' },
                 React.createElement('div', { className:'chip' }, 'Saved / Exported'),
-                exportUrl ? React.createElement('a', { href:exportUrl, download:`intoview-note_${Date.now()}.png`, className:'btn' }, 'Download again') : null,
+                exportUrl ? React.createElement('a', { href:exportUrl, download:`intoview-note_${Date.now()}.png`, className:'btn', style:{justifySelf:'center'} }, 'Download again') : null,
                 React.createElement('div', { className:'row center' },
                   React.createElement('button', { className:'btn', onClick:()=>{ setStep(0); setTitle(''); setCaption('A quick visual note'); setReviewCanvas(null); } }, 'New note'),
                   React.createElement('button', { className:'btn primary', onClick:onClose }, 'Close')
@@ -812,12 +868,38 @@
         );
       }
 
-      /* ---------- App ---------- */
+      /* ===== App: archive + persistence + delete ===== */
+      function seedArchive(){
+        const now = Date.now();
+        return SEEDS.map((it, i)=>({
+          id: 'seed_'+i,
+          src: it.src,
+          title: it.title || '',
+          caption: it.caption || '—',
+          baked: false,          // runtime compositor will frame these
+          ts: nowTS()
+        }));
+      }
+      function loadArchive(){
+        try{
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return seedArchive();
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : seedArchive();
+        }catch{ return seedArchive(); }
+      }
+      function saveArchive(arr){
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{}
+      }
+
       function App(){
         const [wgState, setWgState] = useState(WorkgridState.DEFAULT);
         const [overlayOpen, setOverlayOpen] = useState(false);
-        const [prependSignal, setPrependSignal] = useState(null);
-        const signalSeq = useRef(1);
+        const [manageMode, setManageMode] = useState(false);
+
+        const [archive, setArchive] = useState(loadArchive());
+        const [version, setVersion] = useState(1);
+        useEffect(()=>{ saveArchive(archive); }, [archive]);
 
         useEffect(() => {
           const onKey = (e) => {
@@ -826,13 +908,25 @@
             if (e.key === '2') setWgState(WorkgridState.DEFAULT);
             if (e.key === '0') setWgState(WorkgridState.RESET);
             if (e.key === 'n' || e.key === 'N') setOverlayOpen(true);
+            if (e.key === 'm' || e.key === 'M') setManageMode(v => !v);
           };
           window.addEventListener('keydown', onKey);
           return () => window.removeEventListener('keydown', onKey);
         }, [overlayOpen]);
 
-        const addNoteToGallery = (note) => {
-          setPrependSignal({ item: note, seq: signalSeq.current++ });
+        const bump = ()=>setVersion(v=>v+1);
+
+        const addNoteToArchive = (note) => {
+          setArchive(arr => [...arr, note]); // append => row-major fills left→right, top→bottom
+          bump();
+        };
+
+        const handleTileSelect = (tileIndex, item) => {
+          if (!manageMode || !item) return;
+          const ok = confirm('Delete this note from the archive?');
+          if (!ok) return;
+          setArchive(arr => arr.filter(x => x.id !== item.id));
+          bump();
         };
 
         return (
@@ -840,19 +934,29 @@
             React.createElement('div', { className:'canvas-wrap' + (overlayOpen ? ' blocked' : '') },
               React.createElement('div', { className:'fallback-grid' }),
               React.createElement(Suspense, { fallback:null },
-                React.createElement(GridView, { workgridState: wgState, initialItems: SEED_IMAGES, prependItemSignal: prependSignal })
+                React.createElement(GridView, {
+                  workgridState: wgState,
+                  archive, version,
+                  manageMode,
+                  onTileSelect: handleTileSelect
+                })
               )
             ),
             React.createElement('div', { className:'hud' },
               React.createElement('button', { onClick: () => setWgState(WorkgridState.INTRO) }, 'Flat'),
               React.createElement('button', { onClick: () => setWgState(WorkgridState.DEFAULT) }, 'Curved'),
               React.createElement('button', { onClick: () => setWgState(WorkgridState.RESET) }, 'Reset'),
-              React.createElement('button', { className:'accent', onClick: () => setOverlayOpen(true) }, 'New note')
+              React.createElement('button', { className:'accent', onClick: () => setOverlayOpen(true) }, 'New note'),
+              React.createElement('button', {
+                className: manageMode ? 'danger active' : '',
+                onClick: () => setManageMode(v=>!v),
+                title:'Tap a tile to delete while active'
+              }, manageMode ? 'Manage: Delete (ON)' : 'Manage: Delete')
             ),
             React.createElement(OverlayFlow, {
               open: overlayOpen,
               onClose: ()=> setOverlayOpen(false),
-              onAddToGallery: addNoteToGallery
+              onAddToArchive: addNoteToArchive
             })
           )
         );
