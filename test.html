@@ -22,8 +22,8 @@
   --vig-outer:   100%;
 
   /* Heavier edge blur (dramatic but tasteful) */
-  --edge-blur:   120px;     /* ↑ from 96 */
-  --edge-mask-i: 30%;       /* tighter clear center */
+  --edge-blur:   50px;
+  --edge-mask-i: 30%;
   --edge-mask-o: 99.5%;
 
   /* Layering */
@@ -164,7 +164,7 @@ body::after{
 .zoom-rail__tooltip{
   position:absolute;
   top: calc(100% - var(--zoom-pct, 0%));
-  left: -44px;                 /* to the left of the rail */
+  left: -44px;
   transform: translateY(-50%);
   font-weight:700; font-size:12px; color:var(--ink-2);
   text-shadow:0 1px 2px rgba(0,0,0,.55);
@@ -218,29 +218,62 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
   opacity:.85;
 }
 
-/* ===== FAB (button + label) — centered, bottom-anchored ===== */
+/* ===== Leveler (bubble vial) ===== */
+.leveler{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+  width:min(260px, 72%); height:30px; border-radius:999px;
+  background:rgba(0,0,0,.45); border:1px solid #2a2a2e; box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+  display:flex; align-items:center; justify-content:center; z-index:2; pointer-events:auto;
+}
+.leveler .vial{ position:absolute; inset:4px; border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06)); }
+.leveler .bubble{
+  position:absolute; top:50%; transform:translate(-50%,-50%);
+  left:var(--bubble-x, 50%);
+  width:22px; height:22px; border-radius:999px;
+  background:#ffe066; box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 2px 10px rgba(0,0,0,.35);
+}
+.leveler .deg{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  font:600 12px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:#cfcfcf; text-shadow:0 1px 1px rgba(0,0,0,.5);
+}
+.leveler.good .vial{ outline:2px solid rgba(120,255,120,.35); outline-offset:-2px; }
+.leveler .enable{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.35));
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  color:#fff; font-weight:600; font-size:12px; border-radius:inherit; cursor:pointer;
+  border:1px solid #2a2a2e;
+}
+
+/* ===== FAB (button + inline label) ===== */
 .fab-wrap{
   position:fixed;
   left:50%;
   bottom: var(--fab-bottom);
-  transform: translateX(-50%); /* no vertical translate */
+  transform: translateX(-50%);
   z-index:var(--z-ui);
-  display:flex; flex-direction:column; align-items:center; gap:8px;
+  display:flex; flex-direction:column; align-items:center;
 }
 .fab{
   width:var(--fab-size); height:var(--fab-size); border-radius:999px;
   background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
-  display:grid; place-items:center; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  cursor:pointer;
   box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
   transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
+  padding:0;
 }
-.fab:hover{ background:#fff; border-color:rgb(255 255 255 / .22) }
-.fab:active{ background:#0B0C0E; transform:translateY(1px) }
-.fab svg{ width:56%; height:56%; display:block }
-.fab-label{
-  padding-top:.5em;
-  font:600 10px/1.1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color:#fff; opacity:.86; letter-spacing:.02em; user-select:none; pointer-events:none;
+.fab:focus-visible{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px; }
+.fab:active{ transform:translateY(1px) }
+.fab:hover{ background:rgba(255,255,255,.10); border-color:rgb(255 255 255 / .22); }
+.fab svg{ width:58%; height:auto; display:block }
+.fab .cube--dark{ display:none }
+.fab:hover .cube--light{ display:none }
+.fab:hover .cube--dark{ display:inline }
+.fab .fab-label{
+  font:600 11px/1.1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:#fff; opacity:.92; letter-spacing:.06em; user-select:none; pointer-events:none;
   text-shadow:0 1px 2px rgba(0,0,0,.55);
 }
 
@@ -256,7 +289,6 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
 @media (prefers-reduced-motion: reduce){
   .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
 }
-
     </style>
   </head>
   <body>
@@ -748,6 +780,7 @@ function HelpOverlay({ open, onClose }){
           React.createElement("div",null,"• Toggle: square↔circle for distortion"),
           React.createElement("div",null,"• Trash: tap any tile to delete (while active)"),
           React.createElement("div",null,"• FAB block: new note"),
+          React.createElement("div",null,"• Leveler: tap “Enable leveler” on the Viewfinder step"),
           React.createElement("div",null,"• Shortcuts: 1/2 = Flat/Curved, 0 = Reset, N = New, M = Manage, ? = Help")
         )
       )
@@ -757,23 +790,108 @@ function HelpOverlay({ open, onClose }){
 
 /* ========= Camera + export ========= */
 function useCamera(){
-  const videoRef=useRef(null), streamRef=useRef(null);
-  const start=async()=>{
-    if(location.protocol!=="https:" && location.hostname!=="localhost"){ alert("Camera requires HTTPS. Use Import instead."); return false; }
-    try{ const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
-      streamRef.current=stream; if(videoRef.current){ videoRef.current.srcObject=stream; await videoRef.current.play(); } return true;
-    }catch(e){ console.warn("Camera error",e); alert("Camera unavailable. Use Import instead."); return false; }
-  };
+  const videoRef=useRef(null), streamRef=useRef(null), [error,setError]=useState("");
+  const isHttps = () => location.protocol==="https:" || location.hostname==="localhost";
+  const isIframe = () => window.top !== window.self;
   const stop=()=>{ streamRef.current?.getTracks?.().forEach(t=>t.stop()); streamRef.current=null; if(videoRef.current) videoRef.current.srcObject=null; };
-  const captureSquareCanvas=()=>{ const v=videoRef.current; if(!v||!v.videoWidth) return null;
-    const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(vw,vh),sx=Math.floor((vw-s)/2),sy=Math.floor((vh-s)/2);
-    const c=document.createElement("canvas"); c.width=s; c.height=s; c.getContext("2d").drawImage(v,sx,sy,s,s,0,0,s,s); return c; };
-  return { videoRef, start, stop, captureSquareCanvas };
+
+  const start=async()=>{
+    setError("");
+    if(!isHttps()){ setError("Camera requires HTTPS (or localhost). Use Import instead."); return false; }
+    const v = videoRef.current;
+    if(!v){ setError("Video element missing."); return false; }
+
+    try{
+      // iOS/Safari quirks
+      v.setAttribute("playsinline",""); v.setAttribute("autoplay",""); v.setAttribute("muted","");
+      v.playsInline = true; v.muted = true;
+
+      const constraints = {
+        video: {
+          facingMode: { ideal:"environment" },
+          width:  { ideal:1920 },
+          height: { ideal:1080 }
+        },
+        audio: false
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      v.srcObject = stream;
+
+      // Wait for metadata then play (Safari)
+      await new Promise(res=>{
+        const onReady = () => { v.removeEventListener("loadedmetadata", onReady); res(); };
+        v.addEventListener("loadedmetadata", onReady);
+      });
+      await v.play().catch(()=>{ /* Safari may auto-play anyway */ });
+
+      return true;
+    }catch(e){
+      console.warn("Camera error:", e);
+      let msg = "Camera unavailable.";
+      if(isIframe()){
+        msg += " Tip: your preview may be sandboxed. Click “Open in new tab” below.";
+      }
+      if(e?.name==="NotAllowedError"){ msg = "Camera permission denied. Check browser permissions."; }
+      if(e?.name==="NotFoundError"){ msg = "No suitable camera found."; }
+      if(e?.name==="OverconstrainedError"){ msg = "Camera constraints not supported on this device."; }
+      setError(msg);
+      stop();
+      return false;
+    }
+  };
+
+  return { videoRef, start, stop, error };
 }
+
 async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
   const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=sourceCanvas.toDataURL("image/png"); });
   const cnv = makeCardCanvas({ img, title, caption, gps, ts:nowTS() });
   return new Promise(resolve=>{ cnv.toBlob(b=>{ const url=URL.createObjectURL(b); resolve({url,blob:b}); },"image/png",0.96); });
+}
+
+/* ========= Leveler ========= */
+function Leveler(){
+  const [enabled,setEnabled]=useState(false);
+  const [deg,setDeg]=useState(0);
+
+  useEffect(()=>{
+    if(!enabled) return;
+    const onOrient = (e)=>{
+      // roll: left/right tilt is gamma (-90..90). Clamp to [-45,45] for UI.
+      const g = (typeof e.gamma === "number") ? e.gamma : 0;
+      const clamped = Math.max(-45, Math.min(45, g));
+      setDeg(clamped);
+    };
+    window.addEventListener("deviceorientation", onOrient, true);
+    return ()=>window.removeEventListener("deviceorientation", onOrient, true);
+  },[enabled]);
+
+  const good = Math.abs(deg) <= 2;
+  const xPct = ((deg + 45) / 90) * 100; // 0..100
+  const needPermission = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
+
+  const askPermission = async ()=>{
+    try{
+      if(needPermission){
+        const st = await DeviceOrientationEvent.requestPermission();
+        if(st === "granted") setEnabled(true);
+      }else{
+        // Non iOS: enabling is enough (listener will fire)
+        setEnabled(true);
+      }
+    }catch{ /* ignore */ }
+  };
+
+  return (
+    React.createElement("div",{ className:`leveler ${good?"good":""}` },
+      React.createElement("div",{ className:"vial" }),
+      React.createElement("div",{ className:"bubble", style:{ "--bubble-x": `${xPct}%` } }),
+      React.createElement("div",{ className:"deg" }, `${deg.toFixed(1)}°`),
+      !enabled && React.createElement("button",{ className:"enable", onClick:askPermission },
+        "Enable leveler")
+    )
+  );
 }
 
 /* ========= Overlay flow (note capture) ========= */
@@ -797,7 +915,11 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
   useEffect(()=>{ if(!open){ camera.stop(); setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); setExportUrl(""); setExporting(false);} },[open]);
 
   const startCamera=async()=>{ const ok=await camera.start(); setStep(ok?1:0); };
-  const captureShot=()=>{ const c=camera.captureSquareCanvas(); if(c){ setReviewCanvas(c); setStep(2);} };
+  const captureShot=()=>{ const v=camera.videoRef.current; if(!v||!v.videoWidth){ return; }
+    const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(vw,vh),sx=Math.floor((vw-s)/2),sy=Math.floor((vh-s)/2);
+    const c=document.createElement("canvas"); c.width=s; c.height=s; const ctx=c.getContext("2d"); ctx.drawImage(v,sx,sy,s,s,0,0,s,s);
+    setReviewCanvas(c); setStep(2);
+  };
   const pickFile=()=>filePickRef.current?.click();
   const onFileChange=e=>{
     const f=e.target.files?.[0]; if(!f) return; const img=new Image(); const url=URL.createObjectURL(f);
@@ -811,6 +933,8 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
     onAddToArchive?.({ id:"note_"+Date.now(), src:url, title:title||"[ title ]", caption:caption||"—", baked:true, ts:nowTS(), createdMs:Date.now() });
   };
 
+  const openNewTab = ()=>{ const u = new URL(location.href); u.hash="#camera"; window.open(u.toString(), "_blank", "noopener,noreferrer"); };
+
   if(!open) return null;
   return (
     React.createElement("div",{className:"overlay open curved"},
@@ -820,16 +944,21 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
           React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
         ),
         step===0 && React.createElement("div",{className:"grid"},
-          React.createElement("div",{className:"hint"},"Camera opens instantly (HTTPS only) or import an image."),
+          camera.error ? React.createElement("div",{className:"hint", style:{color:"#ffb4b4"}}, camera.error) : null,
           React.createElement("div",{className:"grid cols-2"},
             React.createElement("button",{className:"btn primary",onClick:startCamera},"Open Camera"),
             React.createElement("button",{className:"btn",onClick:pickFile},"Import Photo")),
+          React.createElement("div",{className:"row tight"},
+            React.createElement("button",{className:"btn ghost",onClick:openNewTab},"Open in new tab (camera fix)"),
+            React.createElement("span",{className:"hint"},"Useful if your preview iframe blocks camera.")
+          ),
           React.createElement("input",{ref:filePickRef,type:"file",accept:"image/*",className:"hidden",onChange:onFileChange})
         ),
         step===1 && React.createElement(React.Fragment,null,
           React.createElement("div",{className:"vf"},
-            React.createElement("video",{ref:camera.videoRef,playsInline:true,muted:true}),
-            React.createElement("span",{className:"perfs","aria-hidden":"true"})
+            React.createElement("video",{ref:camera.videoRef,playsInline:true,autoPlay:true,muted:true}),
+            React.createElement("span",{className:"perfs","aria-hidden":"true"}),
+            React.createElement(Leveler,null)
           ),
           React.createElement("div",{className:"row",style:{marginTop:"12px"}},
             React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(0);}},"Back"),
@@ -869,8 +998,8 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
 /* ========= Vertical Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
   const pctLabel = Math.round(zoom * 100);
-  const norm = (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin);
-  const clamped = Math.max(0, Math.min(1, norm));
+  const norm = (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMax + CONFIG.zoomMax - CONFIG.zoomMin); // simplify below
+  const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
   const pct = clamped * 100;
 
   const trackRef = React.useRef(null);
@@ -967,6 +1096,9 @@ function App(){
       if(e.key==="?"||e.key==="h"||e.key==="H") setHelpOpen(true);
     }; window.addEventListener("keydown",onKey); return ()=>window.removeEventListener("keydown",onKey); },[overlayOpen,helpOpen]);
 
+  // Auto-open overlay if #camera in URL (helps with “open in new tab” flow)
+  useEffect(()=>{ if(location.hash==="#camera"){ setOverlayOpen(true); } },[]);
+
   const addNoteToArchive=note=> setArchive(arr=>[...arr, note]);
   const handleTileSelect=(tileIndex,item)=>{
     if(!manageMode||!item) return;
@@ -1058,7 +1190,7 @@ function App(){
             )
           )
         ),
-        React.createElement("div",{ className:"fab-label" },"NEW")
+        React.createElement("div",{ className:"fab-label" },"...")
       )
     )
   );
