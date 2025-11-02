@@ -37,8 +37,8 @@
          0   : WebGL & content
          120 : Content overlays (help, capture) — intentionally BELOW effects
          149 : Grain
-         150 : Edge blur (backdrop-filter), above all content
-         151 : Vignette (darkening), above all content
+         150 : Edge blur (backdrop-filter), above content
+         151 : Vignette (darkening), above content
          200 : Header + Controls + Zoom rail + FAB (logo block), ABOVE effects
       */
 
@@ -59,8 +59,9 @@
         background: rgba(0,0,0,0.001);
         backdrop-filter: blur(var(--edge-blur));
         -webkit-backdrop-filter: blur(var(--edge-blur));
-        mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), black var(--edge-mask-o));
-        -webkit-mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), black var(--edge-mask-o));
+        /* Mask: center transparent, edges opaque (white) */
+        mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
+        -webkit-mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
       }
       .vignette{
         position:fixed; inset:0; pointer-events:none; z-index:151;
@@ -93,7 +94,7 @@
         will-change:transform;
       }
 
-      /* ===== Header ===== */
+      /* ===== Header (HUD) ===== */
       .header{
         position:fixed; inset:0 0 auto 0;
         z-index:200;
@@ -101,19 +102,25 @@
         gap:12px; padding:12px 14px;
         pointer-events:none; /* allow buttons to re-enable */
       }
-      .logo{ display:flex; align-items:center; height:22px; pointer-events:auto; }
-      .logo svg{ height:22px; width:auto; display:block; }
+      /* New brand block (from your logo demo) */
+      .brand{
+        display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
+      }
+      .brand img{
+        display:block; height:40px; width:auto;
+        filter:none !important; mix-blend-mode:normal;
+      }
 
       /* Controls group (right side) */
       .controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
       .icon-btn{
-        appearance:none; cursor:pointer; border:1px solid var(--ink-2);
+        appearance:none; cursor:pointer; border:0px solid var(--ink-2);
         background:rgba(0,0,0,.35); color:var(--ink);
         padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
         transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease;
       }
       .icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
-      .icon-btn.active{ outline:2px solid color-mix(in oklab, var(--danger), white 10%); outline-offset:1px; }
+      .icon-btn.active{ outline:0px solid color-mix(in oklab, var(--danger), white 10%); outline-offset:1px; }
       .icon-btn svg{ display:block; width:18px; height:18px; }
 
       /* ===== Zoom rail (horizontal, bottom-center) ===== */
@@ -170,7 +177,7 @@
       .titlebar h2{margin:0; font-size:16px}
       .tight{gap:6px} .hidden{display:none !important} .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
 
-      /* Film-strip chrome for camera (cohesive aesthetic) */
+      /* Film-strip chrome for camera */
       .vf::before, .vf::after{
         content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
         background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
@@ -186,25 +193,23 @@
         opacity:.85;
       }
 
-      /* ===== FAB: logo block button (bottom-right) ===== */
-      .fab-block{
+      /* ===== FAB: cube button (integrated) ===== */
+      .fab{
         position:fixed; right:16px; bottom:18px;
         z-index:200; pointer-events:auto;
-        width:64px; height:48px; border-radius:10px;
-        background:#f2f2f2; color:#0b0b0d;
-        border:1px solid #cfcfcf;
+        width:72px; height:72px; border-radius:16px;
+        background:#111214; color:#fff;
+        border:1px solid rgb(255 255 255 / .14);
         display:grid; place-items:center; cursor:pointer;
-        box-shadow:0 8px 28px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.06) inset;
+        box-shadow:0 16px 36px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06) inset;
         transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
       }
-      .fab-block:hover{ background:#1a1a1a; color:#fff; border-color:#2a2a2e; transform:translateY(-1px); }
-      .fab-block:active{ transform:translateY(0); }
-      .fab-block .block-shape{
-        width:60%; height:60%; background:currentColor; border-radius:6px;
-        box-shadow:0 0 0 1px rgba(0,0,0,.5) inset;
-      }
+      .fab:hover{ background:#1A1C20; border-color:rgb(255 255 255 / .22) }
+      .fab:active{ background:#0B0C0E; transform:translateY(1px) }
+      .fab svg{ width:56%; height:56%; display:block }
+
       @media (max-width:768px){
-        .fab-block{ right:12px; bottom:12px; width:60px; height:44px; }
+        .fab{ right:12px; bottom:12px; width:64px; height:64px; }
       }
 
       @media (prefers-reduced-motion: reduce){
@@ -273,9 +278,8 @@ const CONFIG = {
   cols:10, rows:7, tile:0.32, gap:0.08,
   ambient:0.20, dragEase:0.14, velEase:0.92,
   zoomOut:1.85,
-  distortion:{ flat:0.0, curved:0.46 }, // default levels
+  distortion:{ flat:0.0, curved:0.46 },
 
-  /* Interactivity tuning */
   clickBounceDelta: 0.25,
   longPressMsMouse: 380,
   longPressMsTouch: 520,
@@ -285,7 +289,6 @@ const CONFIG = {
   dragMultTouch: 4.0,
   touchDragEase: 0.18,
 
-  /* Scroll/pinch zoom */
   zoomMin: 0.45,
   zoomMax: 3.00,
   wheelScale: 0.0015
@@ -350,7 +353,7 @@ class DistortionShader extends THREE.ShaderMaterial{
     fragmentShader:`precision highp float; uniform sampler2D tDiffuse; uniform vec2 distortion; varying vec2 vUv;
     vec2 s(vec2 uv){ return 2.0*(uv-0.5);} vec2 u(vec2 suv){ return suv*0.5+0.5;}
     void main(){ vec2 suv=s(vUv); suv*=(0.88 + distortion*dot(suv,suv)); vec2 uv2=u(suv);
-      vec3 col=texture2D(tDiffuse,uv2).rgb; gl_FragColor=vec4(col,1.0); }`
+      vec3 col=texture2D(tDiffuse, uv2).rgb; gl_FragColor=vec4(col,1.0); }`
   }); this._dist=0; this.update(); }
   update(){ const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h); this.uniforms.distortion.value.set(this._dist*r,this._dist*r); }
   setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
@@ -449,7 +452,6 @@ class Grid extends THREE.Group{
     }
   }
 
-  /* helpers */
   _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
   _ndcFromClient(clientX, clientY){
     const rect=this.canvas.getBoundingClientRect();
@@ -500,7 +502,6 @@ class Grid extends THREE.Group{
     gsap.to(this.camera.position, { z: target, duration: 0.16, ease:"power2.out" });
   }
 
-  /* pinch helpers */
   _updatePointer(e){ if(e.pointerType==="touch") this.pointerMap.set(e.pointerId, { x:e.clientX, y:e.clientY }); }
   _removePointer(e){ if(e.pointerType==="touch"){ this.pointerMap.delete(e.pointerId); if(this.pointerMap.size<2){ this.pinchDist0=null; this.cameraZ0=null; } } }
   _twoTouchDistance(){ const v=[...this.pointerMap.values()]; if(v.length<2) return null; const a=v[0],b=v[1]; return Math.hypot(b.x-a.x, b.y-a.y); }
@@ -634,7 +635,7 @@ function Postprocessing({ workgridState }){
   },[composer,shader,size,gl]);
   useEffect(()=>{ if(!shader) return;
     const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
-    const scale = size.width < 800 ? 0.75 : 1.0;   // subtle on mobile
+    const scale = size.width < 800 ? 0.75 : 1.0;
     shader.setDistortion(base * scale);
   },[workgridState,shader,size.width]);
   useFrame(()=>{ composer?.render(); }, 1);
@@ -857,11 +858,11 @@ function ZoomRail({ zoom, onScrub }) {
   );
 }
 
-/* ========= Icon: Flat/Curved morph (square -> rounded -> circle) ========= */
+/* ========= Icon: Flat/Curved morph ========= */
 function MorphDistortionIcon({ isCurved, onToggle }){
   const rectRef = useRef(null);
   useEffect(()=>{
-    const target = isCurved ? 9 : 2; // animate corners
+    const target = isCurved ? 9 : 2;
     gsap.to(rectRef.current, { attr:{ rx: target, ry: target }, duration:0.25, ease:"power2.out" });
   },[isCurved]);
 
@@ -875,7 +876,7 @@ function MorphDistortionIcon({ isCurved, onToggle }){
   );
 }
 
-/* ========= Icon: Reset (square with circle inside) ========= */
+/* ========= Icon: Reset ========= */
 function ResetIcon({ onClick }){
   return (
     React.createElement("button",{ className:"icon-btn", onClick, title:"Reset view", "aria-label":"Reset view" },
@@ -908,14 +909,13 @@ function App(){
   const [manageMode,setManageMode]=useState(false);
   const [helpOpen,setHelpOpen]=useState(false);
   const [archive,setArchive]=useState(loadArchive());
-  const [zoom, setZoom] = useState(CONFIG.zoomOut);           // camera z
-  const gridCtrl = useRef({ setZoom: (z)=>{} });              // controller for scrubbing
+  const [zoom, setZoom] = useState(CONFIG.zoomOut);
+  const gridCtrl = useRef({ setZoom: (z)=>{} });
   useEffect(()=>{ saveArchive(archive); },[archive]);
 
   const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
   const combinedItems=useMemo(()=>[...sortedArchive, ...SEED], [sortedArchive]);
 
-  // Sync DOM curve intensity
   useEffect(()=>{ document.documentElement.style.setProperty("--curve-k", String(wgState===WorkgridState.INTRO ? 0 : 1)); },[wgState]);
 
   useEffect(()=>{ const onKey=e=>{ if(overlayOpen||helpOpen) return;
@@ -940,7 +940,7 @@ function App(){
 
   return (
     React.createElement(React.Fragment,null,
-      /* WebGL layer (z=0) */
+      /* WebGL layer */
       React.createElement("div",{className:"canvas-wrap"},
         React.createElement("div",{className:"fallback-grid"}),
         React.createElement(Suspense,{fallback:null},
@@ -955,9 +955,16 @@ function App(){
         )
       ),
 
-      /* Header (logo + icon controls) — z=200 */
+      /* Header (brand img + icon controls) — integrated logo */
       React.createElement("header",{className:"header"},
-        React.createElement("span",{id:"logoMount",className:"logo","aria-label":"intoview"}),
+        React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
+          React.createElement("img",{
+            id:"brandLogo",
+            alt:"intoview",
+            decoding:"async",
+            src:"https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg"
+          })
+        ),
         React.createElement("div",{className:"controls"},
           React.createElement(MorphDistortionIcon,{ isCurved, onToggle:()=>setWgState(isCurved?WorkgridState.INTRO:WorkgridState.DEFAULT) }),
           React.createElement(ResetIcon,{ onClick:()=>setWgState(WorkgridState.RESET) }),
@@ -972,7 +979,7 @@ function App(){
         )
       ),
 
-      /* Modals (below effects by design) */
+      /* Modals */
       React.createElement(HelpOverlay,{ open:helpOpen, onClose:()=>setHelpOpen(false) }),
       React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive }),
 
@@ -980,12 +987,35 @@ function App(){
       React.createElement("div",{className:"edge-blur"}),
       React.createElement("div",{className:"vignette"}),
 
-      /* Zoom rail (ABOVE effects with controls) */
+      /* Zoom rail */
       React.createElement(ZoomRail,{ zoom, onScrub:(z)=> gridCtrl.current?.setZoom?.(z) }),
 
-      /* FAB — logo block (New note) */
-      React.createElement("button",{ className:"fab-block", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"New note" },
-        React.createElement("span",{ className:"block-shape", "aria-hidden":"true" })
+      /* FAB — integrated cube button */
+      React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"New note" },
+        React.createElement("svg",{viewBox:"0 0 100 100","aria-hidden":"true"},
+          React.createElement("defs",null,
+            React.createElement("linearGradient",{id:"cubeTop",x1:"0",x2:"1",y1:"0",y2:"1"},
+              React.createElement("stop",{offset:"0","stop-color":"#fff","stop-opacity":"1"}),
+              React.createElement("stop",{offset:"1","stop-color":"#dcdcdc","stop-opacity":"1"})
+            ),
+            React.createElement("linearGradient",{id:"cubeSide",x1:"0",x2:"1",y1:"0",y2:"1"},
+              React.createElement("stop",{offset:"0","stop-color":"#e8e8e8"}),
+              React.createElement("stop",{offset:"1","stop-color":"#bdbdbd"})
+            ),
+            React.createElement("linearGradient",{id:"cubeDark",x1:"0",x2:"1",y1:"0",y2:"1"},
+              React.createElement("stop",{offset:"0","stop-color":"#8a8a8a"}),
+              React.createElement("stop",{offset:"1","stop-color":"#4b4b4b"})
+            ),
+            React.createElement("filter",{id:"cubeGlow",x:"-50%",y:"-50%",width:"200%",height:"200%"},
+              React.createElement("feDropShadow",{dx:"0",dy:"6","stdDeviation":"6","flood-color":"#000","flood-opacity":".45"})
+            )
+          ),
+          React.createElement("g",{filter:"url(#cubeGlow)"},
+            React.createElement("polygon",{fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
+            React.createElement("polygon",{fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
+            React.createElement("polygon",{fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
+          )
+        )
       )
     )
   );
@@ -1014,61 +1044,6 @@ function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify
 /* ========= Mount ========= */
 const root = createRoot(document.getElementById("root"));
 root.render(React.createElement(App));
-
-/* ========= Inline external SVG (force light) ========= */
-async function inlineExternalSVG(url, mountEl, {color="#fff"} = {}) {
-  const mount = (typeof mountEl === "string") ? document.querySelector(mountEl) : mountEl;
-  if (!mount) return;
-
-  try {
-    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const txt = await res.text();
-
-    const temp = document.createElement("div");
-    temp.innerHTML = txt.trim();
-    const svg = temp.querySelector("svg");
-    if (!svg) throw new Error("No <svg> root");
-
-    svg.removeAttribute("width");
-    svg.removeAttribute("height");
-    if (!svg.getAttribute("viewBox")) {
-      const w = svg.getAttribute("width") || 100;
-      const h = svg.getAttribute("height") || 24;
-      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    }
-
-    // Force light appearance
-    svg.querySelectorAll("*").forEach(n => {
-      if (n.hasAttribute("fill")) n.setAttribute("fill", color);
-      if (n.hasAttribute("stroke")) n.setAttribute("stroke", color);
-    });
-    svg.style.color = color;
-    svg.querySelectorAll("[stroke]").forEach(n => n.setAttribute("vector-effect", "non-scaling-stroke"));
-
-    mount.replaceChildren(svg);
-  } catch (err) {
-    console.warn("Logo inline failed:", err);
-    const fallback = document.createElement("span");
-    fallback.textContent = "intoview";
-    fallback.style.fontWeight = "700";
-    mount.replaceChildren(fallback);
-  }
-}
-
-const LOGO_URL_PRIMARY = "https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg";
-const LOGO_URL_FALLBACK = "https://cdn.jsdelivr.net/gh/ZACKGORT/intoview@978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg";
-
-function mountLogoWhenReady(tries=0){
-  const el = document.getElementById("logoMount");
-  if(!el){
-    if(tries<20) requestAnimationFrame(()=>mountLogoWhenReady(tries+1));
-    return;
-  }
-  inlineExternalSVG(LOGO_URL_PRIMARY, el, { color:"#fff" })
-    .catch(()=> inlineExternalSVG(LOGO_URL_FALLBACK, el, { color:"#fff" }));
-}
-requestAnimationFrame(()=>mountLogoWhenReady());
     </script>
   </body>
 </html>
