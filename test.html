@@ -3,119 +3,197 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — Phantom Card Archive</title>
+    <title>intoview • note — Phantom Card Archive (All-UI Distortion)</title>
 
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
     <style>
       :root{
-        --paper:#0E0E10; --ink:#FFFFFF; --ink-2:#C9C9CF; --ink-3:#9A9AA2;
-        --accent:#59D2C8; --danger:#FF6363;
-        --hair:1px; --rule:1.5px;
-        --r-xs:2px; --r-sm:6px; --r-md:8px; --r-lg:12px;
-        --fs-xs:11px; --fs-sm:13px; --fs-md:15px; --fs-lg:17px; --fs-xl:20px; --fs-display:28px;
-        --ease:cubic-bezier(.2,.7,.2,1);
+        --paper:#000000;
+        --ink:#FFFFFF;
+        --ink-2:#9F9F9F;
+        --ink-3:#6C6C6C;
+        --accent:#59D2C8;
+        --danger:#FF6363;
+        --dom-curve-k: 1;
       }
       *{box-sizing:border-box}
       html,body,#root{height:100%}
       body{
-        margin:0; background:var(--paper); color:var(--ink);
-        font:14px/1.45 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+        margin:0;
+        background:#000;
+        color:var(--ink);
+        font:14px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
         overflow:hidden;
+        -webkit-font-smoothing:antialiased;
       }
 
-      /* ------ Header + canvas ------ */
-      .header{
-        position:fixed; inset:0 0 auto 0; z-index:7; display:flex; gap:12px; align-items:baseline; flex-wrap:wrap;
-        padding:14px 16px; border-bottom:1px solid color-mix(in oklab, var(--ink-2), transparent 60%);
-        background:linear-gradient(180deg,#0a0a0ccc,#0a0a0c66 40%,transparent); backdrop-filter:blur(6px);
+      /* ===== WebGL layer ===== */
+      .canvas-wrap{
+        position:absolute;
+        inset:0;
+        z-index:0;
+        background:#000;
       }
-      .header .dot{width:8px; height:8px; border-radius:50%; background:var(--accent);
-        box-shadow:0 0 0 6px color-mix(in oklab, var(--accent), transparent 80%);}
-      .header h1{margin:0; font-size:18px}
-      .header small{opacity:.85}
-      .kbd{font:600 12px/1 JetBrains Mono, ui-monospace, monospace; padding:3px 6px; border:1px solid #2b2b2f; border-radius:6px; color:#c9c9cf}
-
-      .canvas-wrap{position:absolute; inset:0}
-      .canvas-wrap.blocked{pointer-events:none}
+      .canvas-wrap canvas{
+        touch-action:none;
+        cursor:grab;
+      }
+      .canvas-wrap canvas.dragging{
+        cursor:grabbing;
+      }
+      /* if you want the lined grid, set opacity back up */
       .fallback-grid{
-        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.10; color:var(--ink);
+        position:absolute; inset:0; z-index:0;
+        pointer-events:none;
+        opacity:0; /* hidden */
         background-image:
-          repeating-linear-gradient(to right, currentColor 0 1px, transparent 1px 48px),
-          repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 48px);
+          repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
+          repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
       }
 
-      /* ------ HUD buttons ------ */
-      .hud{position:fixed; z-index:8; inset:auto 12px 12px auto; display:flex; gap:8px}
-      .btn{appearance:none; cursor:pointer; font:600 var(--fs-md)/1 Inter; border:1px solid #3b3b40; background:#141419; color:#fff;
-        padding:10px 14px; border-radius:10px; transition:transform .12s var(--ease), background .12s var(--ease), border-color .12s var(--ease), color .12s var(--ease);}
-      .btn:hover{ transform:translateY(-1px) }
-      .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
-      .btn.ghost{ background:transparent }
-      .btn.danger{ border-color:var(--danger); background:var(--danger); color:#0b0b0d }
-      .btn.active{ outline:2px solid color-mix(in oklab, var(--accent), white 12%); outline-offset:1px }
+      /* ===== Fixed header + HUD (ALWAYS visible) ===== */
+      .header{
+        position:fixed;
+        inset:0 0 auto 0;
+        z-index:40;
+        display:flex;
+        gap:12px;
+        align-items:baseline;
+        flex-wrap:wrap;
+        padding:14px 16px;
+        background:linear-gradient(180deg,rgba(0,0,0,.9),rgba(0,0,0,.4) 40%,transparent);
+        border-bottom:1px solid rgba(255,255,255,.065);
+        backdrop-filter:blur(6px);
+      }
+      .header .dot{
+        width:8px; height:8px; border-radius:999px;
+        background:var(--accent);
+        box-shadow:0 0 0 6px rgba(89,210,200,.12);
+      }
+      .header h1{
+        margin:0;
+        font-size:17px;
+      }
+      .header small{opacity:.8}
 
-      /* ------ Overlay (outlined flow) ------ */
-      .overlay{position:fixed; inset:72px 16px 16px 16px; z-index:9; display:none;}
-      .overlay.open{ display:grid; place-items:center; }
+      .hud{
+        position:fixed;
+        inset:auto 12px 12px auto;
+        z-index:40;
+        display:flex;
+        gap:8px;
+      }
+      .hud button{
+        appearance:none;
+        border:1px solid rgba(255,255,255,.25);
+        background:rgba(0,0,0,.65);
+        color:#fff;
+        border-radius:10px;
+        padding:8px 12px 8px;
+        font:600 13px/1 Inter,system-ui;
+        cursor:pointer;
+        backdrop-filter:blur(5px);
+        display:inline-flex;
+        align-items:center;
+        gap:6px;
+      }
+      .hud button:hover{
+        background:rgba(255,255,255,.08);
+      }
+      .hud button.accent{
+        border-color:var(--accent);
+        background:var(--accent);
+        color:#000;
+      }
+      .hud button.danger{
+        border-color:var(--danger);
+        background:var(--danger);
+        color:#000;
+      }
+      .hud button.active{
+        box-shadow:0 0 0 2px rgba(89,210,200,.5);
+      }
+
+      /* ===== Warped DOM container (only for in-app flow) ===== */
+      .dom-curve{
+        position:relative;
+        z-index:30;          /* under header/HUD (40) but above canvas (0) */
+        transform-style:preserve-3d;
+        transform:
+          perspective(1000px)
+          translateZ(calc(-200px * var(--dom-curve-k)))
+          scale(calc(1 + var(--dom-curve-k) * 0.06));
+        will-change:transform;
+        pointer-events:none; /* we re-enable for overlay below */
+      }
+      .dom-curve::after{
+        content:"";
+        position:fixed;
+        inset:0;
+        pointer-events:none;
+        z-index:-1;
+        opacity:calc(.45 * var(--dom-curve-k));
+        background:
+          radial-gradient(120% 90% at 50% 50%,
+            rgba(0,0,0,0) 42%,
+            rgba(0,0,0,0.22) 78%,
+            rgba(0,0,0,0.5) 100%);
+        mix-blend-mode:multiply;
+      }
+
+      /* ===== Overlay (re-enables pointer events) ===== */
+      .overlay{
+        position:fixed;
+        inset:72px 16px 16px 16px;
+        display:none;
+        place-items:center;
+        pointer-events:auto;
+      }
+      .overlay.open{ display:grid; }
       .sheet{
         width:min(860px, 100%);
-        background:color-mix(in oklab, #0b0b0d, #151518 28%);
-        color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
-        box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
+        background:rgba(4,4,4,.95);
+        color:#f3f3f5;
+        border:1px solid rgba(255,255,255,.12);
+        border-radius:12px;
+        padding:16px;
+        box-shadow:0 20px 60px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.3);
+        backdrop-filter:blur(12px);
       }
-      .titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
+      .titlebar{
+        display:flex; align-items:center; justify-content:space-between;
+        gap:12px; margin-bottom:12px;
+      }
       .titlebar h2{margin:0; font-size:16px}
       .grid{display:grid; gap:12px}
       .cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-      .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-      .label{font-weight:600; opacity:.9}
-      .input,.textarea{width:100%; border:var(--rule) solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit;}
+      .label{font-weight:600}
+      .input,.textarea{
+        width:100%; border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.35);
+        color:#fff; border-radius:8px; padding:10px 12px; font:inherit;
+      }
       .textarea{min-height:96px; resize:vertical}
+      .btn{
+        appearance:none; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.05);
+        color:#fff; border-radius:10px; padding:10px 14px; font-weight:600; cursor:pointer;
+      }
+      .btn.primary{ background:var(--accent); border-color:var(--accent); color:#000; }
+      .btn.ghost{ background:transparent}
       .hint{color:#c9c9cf; font-size:12px}
-
-      .chip{border:var(--hair) solid #3b3b40; border-radius:8px; padding:8px 10px; background:#121216; color:#e7e7ec; font-weight:600}
-      .chip[aria-pressed="true"]{ border-color:var(--accent); box-shadow:inset 0 0 0 1px color-mix(in oklab, var(--accent), white 12%); }
-
-      .vf{position:relative; aspect-ratio:4/3; width:100%; border:var(--rule) solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000;}
-      video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.05) brightness(.98)}
-      .vf .mask{position:absolute; inset:0; pointer-events:none}
-      .vf .grid{position:absolute; inset:0; display:grid; grid-template-columns:1fr 1fr 1fr; grid-template-rows:1fr 1fr 1fr; opacity:.5}
-      .vf .grid > div{border-right:var(--hair) solid color-mix(in oklab, var(--ink-2), transparent 40%)}
-      .vf .grid > div:nth-child(3n){border-right:0}
-      .vf .grid::after{content:""; grid-column:1/-1; border-top:var(--hair) dashed color-mix(in oklab, var(--ink-2), transparent 40%); align-self:center}
-
-      .level{position:absolute; left:12px; right:12px; bottom:12px; display:flex; justify-content:center}
-      .level canvas{width:240px; height:56px}
-
-      .preview{position:relative; width:100%; aspect-ratio:4/3; border:var(--rule) solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center}
-      .canvas-fit{width:100%; height:auto; max-height:72vh}
-
+      .vf{position:relative; aspect-ratio:4/3; width:100%; border:1px solid rgba(255,255,255,.15); border-radius:10px; overflow:hidden; background:#000;}
+      video{width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98)}
+      .preview{width:100%; aspect-ratio:1/1; border:1px solid rgba(255,255,255,.15); border-radius:10px; overflow:hidden; background:#000;}
       .hidden{display:none !important}
-      .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
-
-      /* step visibility */
-      .step{display:none}
-      .step.active{display:block}
     </style>
   </head>
   <body>
-    <header class="header">
-      <span class="dot" aria-hidden="true"></span>
-      <h1>intoview • note</h1>
-      <small>
-        Phantom archive • drag to pan •
-        <span class="kbd">1</span> flat <span class="kbd">2</span> curved <span class="kbd">0</span> reset •
-        <span class="kbd">N</span> new • <span class="kbd">M</span> manage/delete
-      </small>
-    </header>
-
     <div id="root"></div>
 
     <script type="module">
-/* ===== Imports ===== */
 import React,{useEffect,useMemo,useRef,useState,Suspense} from "https://esm.sh/react@18.3.1";
 import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 import * as THREE from "https://esm.sh/three@0.160.1";
@@ -126,712 +204,746 @@ import { RenderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postproces
 import { ShaderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js?deps=three@0.160.1";
 import { OutputPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js?deps=three@0.160.1";
 
-/* ===== Config ===== */
-const STORAGE_KEY = "intoview_archive_cards_v3"; // new key for this build
+/* ========= Seed images ========= */
+const SEED = [
+  {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp', title:'wmzWGlaw', caption:'—'},
+  {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp', title:'IMG-8403', caption:'—'},
+  {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp', title:'DSC08656', caption:'—'},
+  {src:'https://i.ibb.co/bMJNnQtg/DSC08604.webp', title:'DSC08604', caption:'—'},
+  {src:'https://i.ibb.co/qLWQC0cN/DSC08358.webp', title:'DSC08358', caption:'—'},
+  {src:'https://i.ibb.co/rRdNxC5g/DSC08300.webp', title:'DSC08300', caption:'—'},
+  {src:'https://i.ibb.co/MD923R2f/DSC08254.webp', title:'DSC08254', caption:'—'},
+  {src:'https://i.ibb.co/TBtrSYKc/DSC08233.webp', title:'DSC08233', caption:'—'},
+  {src:'https://i.ibb.co/23QsQrCG/DSC05954.webp', title:'DSC05954', caption:'—'},
+  {src:'https://i.ibb.co/ym1z1pyb/DSC05994.webp', title:'DSC05994', caption:'—'},
+  {src:'https://i.ibb.co/bjMXB8HJ/2328964849369731672-5144774570.webp', title:'2328964849…4570', caption:'—'},
+  {src:'https://i.ibb.co/fd1SDQQs/2399506735674938043-5144774570.webp', title:'2399506735…4570', caption:'—'},
+  {src:'https://i.ibb.co/0pNWKFbk/2319420263505008414-5144774570.webp', title:'2319420263…4570', caption:'—'},
+  {src:'https://i.ibb.co/WvW71PR3/2288089293770285108-5144774570.webp', title:'2288089293…4570', caption:'—'},
+  {src:'https://i.ibb.co/1YyFqBj3/2278120764300123596-5144774570.webp', title:'2278120764…4570', caption:'—'},
+  {src:'https://i.ibb.co/99B3hgp3/2274809041971350857-5144774570.webp', title:'2274809041…4570', caption:'—'},
+  {src:'https://i.ibb.co/HpnrrYMR/2269419019461331921-5144774570.webp', title:'2269419019…4570', caption:'—'},
+  {src:'https://i.ibb.co/6Rqf37ft/6039d4bbb15be328fc33b54d-IMG-6478.webp', title:'IMG-6478', caption:'—'},
+  {src:'https://i.ibb.co/k2svMNFv/603d10120fba838e599b6b5e-IMG-1563.webp', title:'IMG-1563', caption:'—'},
+  {src:'https://i.ibb.co/WNtnFQqP/603d1185cafcb2591f42b1ad-IMG-3932.webp', title:'IMG-3932', caption:'—'},
+  {src:'https://i.ibb.co/pvFThr4K/603d1185b8ec32082f451ba9-IMG-3882.webp', title:'IMG-3882', caption:'—'},
+  {src:'https://i.ibb.co/N2cSNMf4/603d102d9f59a611886a6893-IMG-2151.webp', title:'IMG-2151', caption:'—'},
+  {src:'https://i.ibb.co/KjzkkW68/603d102d0f02c70fdf7d84eb-IMG-4696.webp', title:'IMG-4696', caption:'—'},
+  {src:'https://i.ibb.co/DPyhP1T7/603d100d889053cc334ee5fc-IMG-2083.webp', title:'IMG-2083', caption:'—'},
+  {src:'https://i.ibb.co/Fbr1sSb6/603d8d7a3a6df470a4a661a1-DSC00726.webp', title:'DSC00726', caption:'—'},
+  {src:'https://i.ibb.co/5gddKNw3/603d0bb2331da47ee88db089-DSC02085.webp', title:'DSC02085', caption:'—'},
+  {src:'https://i.ibb.co/9HZMK0nw/603d0b8b038105ae6904872a-DSC08334.webp', title:'DSC08334', caption:'—'},
+  {src:'https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp', title:'DSC08281', caption:'—'},
+  {src:'https://i.ibb.co/QvHqKh2P/603afe37ba16f8f9174cf501-IMG-1878.webp', title:'IMG-1878', caption:'—'},
+  {src:'https://i.ibb.co/tpK7LjSv/603a967ac64cec73069e2454-ZAX09877.webp', title:'ZAX09877', caption:'—'},
+  {src:'https://i.ibb.co/0yjJ4j8L/603a967a5dc3e982f571b744-ZAX00968.webp', title:'ZAX00968', caption:'—'},
+  {src:'https://i.ibb.co/zWBgb5Sj/603a95ee83ba30ff4ac9bc6a-DSC00423-1.webp', title:'DSC00423-1', caption:'—'},
+  {src:'https://i.ibb.co/FLS6ZdgN/603a95ed29478f4bc91875b5-DSC08933.webp', title:'DSC08933', caption:'—'},
+  {src:'https://i.ibb.co/5Xr0MDSw/603a93f06a41f45766a3361a-DSC09212.webp', title:'DSC09212', caption:'—'},
+  {src:'https://i.ibb.co/wNFR8hJR/603a93f1d03490ae9d2aa64a-IMG-3824.webp', title:'IMG-3824', caption:'—'},
+  {src:'https://i.ibb.co/39wDDcbS/603a93f0e815e830d1783e07-IMG-2033.webp', title:'IMG-2033', caption:'—'},
+  {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp', title:'ZAX09767', caption:'—'},
+];
+
+const STORAGE_KEY = "intoview_archive_cards_v4";
 const CONFIG = {
   cols:10, rows:7, tile:0.32, gap:0.08,
   ambient:0.20, dragEase:0.14, velEase:0.92,
-  zoomIn:0.78, zoomOut:1.85,
-  surface:{ bow:0.55, tiltX:0.18, tiltY:0.10 } // subtle “bowl” (clean edges)
+  zoomIn:0.75, zoomOut:1.85,
+  distortion:{ flat:0.0, curved:0.6 }
 };
 const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
 
-/* ===== Small utils ===== */
+/* ===== utils for card rendering ===== */
 const TEX_SIZE=768, HAIR=1, BAR_H=28, PAD=12, CAP_SIZE=18, TITLE_SIZE=20;
 const MONO="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 const UI="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
 const isBlobOrData = u => /^blob:|^data:/i.test(u);
 function nowTS(){
-  const d = new Date();
-  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
-  const hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const day=String(d.getDate()).padStart(2,"0");
+  const hh=String(d.getHours()).padStart(2,"0");
+  const mm=String(d.getMinutes()).padStart(2,"0");
   return `${y}-${m}-${day} • ${hh}:${mm}`;
 }
-function getCreatedMs(item, idx=0){
-  if (typeof item?.createdMs==="number") return item.createdMs;
-  if (item?.id){ const m=String(item.id).match(/^note_(\d+)$/); if(m){ const n=+m[1]; if(!Number.isNaN(n)) return n; } }
-  if (item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
-    const t=Date.parse(item.ts.replace(" • ","T")+":00"); if(!Number.isNaN(t)) return t;
-  }
-  return idx;
+function loadImage(url){
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    if(!isBlobOrData(url)) img.crossOrigin="anonymous";
+    img.onload=()=>res(img);
+    img.onerror=()=>rej(new Error("image fail "+url));
+    img.src=url;
+  });
 }
-
-/* ===== Card compositor (black card w/ white hairlines, mono bars) ===== */
-function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous"; img.onload=()=>res(img); img.onerror=rej; img.src=url; }); }
-function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
+function drawHair(ctx,x,y,w){
+  ctx.fillStyle="rgba(255,255,255,0.6)";
+  ctx.fillRect(x,y,w,HAIR);
+}
 function coverImage(ctx,img,x,y,w,h){
   const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
   if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
   const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
-  if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
-  ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
+  if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; }
+  else{ dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
+  ctx.imageSmoothingQuality="high";
+  ctx.drawImage(img,dx,dy,dw,dh);
 }
 function drawCameraIcon(ctx,cx,cy,s=44){
-  ctx.save(); ctx.translate(cx,cy); ctx.strokeStyle="#fff"; ctx.lineWidth=1.5; ctx.lineCap="round"; ctx.lineJoin="round";
-  const w=s*1.6,h=s*1.0; ctx.beginPath(); ctx.rect(-w/2,-h/2,w,h); ctx.stroke();
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.strokeStyle="#fff";
+  ctx.lineWidth=1.5;
+  ctx.lineCap="round";
+  ctx.lineJoin="round";
+  const w=s*1.6, h=s*1.0;
+  ctx.beginPath(); ctx.rect(-w/2, -h/2, w, h); ctx.stroke();
   ctx.beginPath(); ctx.arc(0,0,s*0.35,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(w*0.25,-h*0.45); ctx.lineTo(w*0.45,-h*0.45); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w*0.25, -h*0.45); ctx.lineTo(w*0.45,-h*0.45); ctx.stroke();
   ctx.restore();
 }
-function makeCardCanvas({ img, title="[ title ]", caption="[ caption ]", gps="", ts=nowTS(), ratio="4:3" }){
-  // Square or 4:3 export surface — inner bars scale with output
-  const isSquare = ratio==="1:1";
-  const W = isSquare ? TEX_SIZE : TEX_SIZE;  // we’ll scale bars not canvas
-  const H = isSquare ? TEX_SIZE : Math.round(TEX_SIZE * 0.75);
-  const c=document.createElement("canvas"); c.width=W; c.height=H; const ctx=c.getContext("2d");
+function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=nowTS()}){
+  const s=TEX_SIZE;
+  const c=document.createElement("canvas");
+  c.width=s; c.height=s;
+  const ctx=c.getContext("2d");
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,s);
+  ctx.strokeStyle="#fff"; ctx.lineWidth=1;
+  ctx.strokeRect(0.5,0.5,s-1,s-1);
 
-  // black card + hairline border
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.strokeRect(0.5,0.5, W-1, H-1);
+  // top bar
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H);
+  ctx.font=`600 ${TITLE_SIZE}px ${UI}`;
+  ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
+  ctx.fillText(title, PAD, Math.floor((BAR_H - TITLE_SIZE)/2));
+  if(gps){
+    ctx.font=`500 12px ${MONO}`;
+    ctx.textBaseline="middle";
+    ctx.textAlign="right";
+    ctx.fillStyle="#cfcfcf";
+    ctx.fillText(gps, s-PAD, BAR_H/2);
+    ctx.textAlign="left";
+  }
+  drawHair(ctx,0,BAR_H,s);
 
-  // bars
-  const topBar = Math.round((isSquare? TEX_SIZE : TEX_SIZE*0.75) * 0.10); // 10% height
-  const botBar = topBar;
-
-  // title bar
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,W,topBar);
-  ctx.font=`600 ${TITLE_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
-  ctx.fillText(title, PAD, topBar/2);
-
-  // gps right
-  if (gps){
-    ctx.font=`500 12px ${MONO}`; ctx.textAlign="right"; ctx.fillStyle="#cfcfcf";
-    ctx.fillText(gps, W-PAD, topBar/2); ctx.textAlign="left";
+  // image area
+  const imgTop=BAR_H+HAIR;
+  const imgH=s - imgTop - (BAR_H+HAIR);
+  if(img){
+    coverImage(ctx,img,0,imgTop,s,imgH);
+    ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(0,imgTop,s,imgH);
+  } else {
+    ctx.fillStyle="#111"; ctx.fillRect(0,imgTop,s,imgH);
+    drawCameraIcon(ctx, s/2, imgTop + imgH/2, 40);
   }
 
-  drawHair(ctx,0,topBar,W);
+  // bottom bar
+  drawHair(ctx, 0, s - BAR_H - HAIR, s);
+  ctx.fillStyle="#000"; ctx.fillRect(0, s-BAR_H, s, BAR_H);
 
-  // image region
-  const imgTop=topBar+HAIR;
-  const imgH=H - imgTop - (botBar+HAIR);
-  if(img){ coverImage(ctx,img,0,imgTop,W,imgH); ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(0,imgTop,W,imgH); }
-  else{ ctx.fillStyle="#111"; ctx.fillRect(0,imgTop,W,imgH); drawCameraIcon(ctx,W/2, imgTop + imgH/2, 40); }
+  // caption
+  ctx.font=`500 ${CAP_SIZE}px ${UI}`;
+  ctx.fillStyle="#e6e6e6";
+  ctx.textBaseline="middle";
+  ctx.textAlign="left";
+  ctx.fillText(caption, PAD, s - BAR_H /2);
 
-  drawHair(ctx,0,H-botBar-HAIR,W);
-
-  // caption bar
-  ctx.fillStyle="#000"; ctx.fillRect(0,H-botBar,W,botBar);
-  ctx.font=`500 ${CAP_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
-  ctx.fillText(caption, PAD, H - botBar/2);
-
-  // timestamp right
-  ctx.font=`500 12px ${MONO}`; ctx.fillStyle="#cfcfcf"; ctx.textAlign="right";
-  ctx.fillText(nowTS(), W-PAD, H - botBar/2);
+  // timestamp
+  ctx.font=`500 12px ${MONO}`;
+  ctx.fillStyle="#cfcfcf";
+  ctx.textAlign="right";
+  ctx.fillText(ts, s-PAD, s - BAR_H/2);
 
   return c;
 }
-function makeCardTextureFromCanvas(cnv){ const tex=new THREE.CanvasTexture(cnv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; }
-function makeEmptyTexture(){ return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""})); }
+function makeCardTextureFromCanvas(c){
+  const tex=new THREE.CanvasTexture(c);
+  tex.colorSpace=THREE.SRGBColorSpace;
+  tex.anisotropy=8;
+  tex.needsUpdate=true;
+  return tex;
+}
+function makeEmptyTexture(){
+  return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""}));
+}
 async function textureForItem(item){
-  if(!item||!item.src) return makeEmptyTexture();
+  if(!item || !item.src) return makeEmptyTexture();
   if(item.baked){
-    try{ const img=await loadImage(item.src); const tex=new THREE.Texture(img); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; }
-    catch { return makeEmptyTexture(); }
+    try{
+      const img=await loadImage(item.src);
+      const tex=new THREE.Texture(img);
+      tex.colorSpace=THREE.SRGBColorSpace;
+      tex.anisotropy=8;
+      tex.needsUpdate=true;
+      return tex;
+    }catch(e){
+      console.warn(e);
+      return makeEmptyTexture();
+    }
   }
-  const img=await loadImage(item.src).catch(()=>null);
-  return makeCardTextureFromCanvas(makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()}));
+  const img=await loadImage(item.src).catch(e=>{ console.warn(e); return null; });
+  return makeCardTextureFromCanvas(makeCardCanvas({
+    img,
+    title:item.title||"",
+    caption:item.caption||"—",
+    gps:item.gps||"",
+    ts:item.ts||nowTS()
+  }));
 }
 async function buildRowMajorTextures(items,totalTiles){
-  const empty=makeEmptyTexture(); const texs=new Array(totalTiles).fill(empty);
-  const count=Math.min(items.length,totalTiles);
-  for(let i=0;i<count;i++){ try{ texs[i]=await textureForItem(items[i]); }catch{} }
+  const empty=makeEmptyTexture();
+  const texs=new Array(totalTiles).fill(empty);
+  const count=Math.min(items.length, totalTiles);
+  for(let i=0;i<count;i++){
+    try{ texs[i]=await textureForItem(items[i]); }catch(e){ console.warn(e); }
+  }
   return texs;
 }
 
-/* ===== Post shader — no screen-space warp (clean edges) ===== */
-class NoopShader extends THREE.ShaderMaterial{
-  constructor(){ super({
-    uniforms:{ tDiffuse:{value:null} },
-    vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position,1.0); }`,
-    fragmentShader:`precision highp float; uniform sampler2D tDiffuse; varying vec2 vUv;
-      void main(){ gl_FragColor = texture2D(tDiffuse, vUv); }`
-  });}
+/* ===== Post shader (R3F) ===== */
+class DistortionShader extends THREE.ShaderMaterial{
+  constructor(){
+    super({
+      name:"DistortionShader",
+      uniforms:{
+        tDiffuse:{value:null},
+        distortion:{value:new THREE.Vector2(0,0)},
+        vignetteOffset:{value:0.08},
+        vignetteDarkness:{value:0.38}
+      },
+      vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position,1.0); }`,
+      fragmentShader:`precision highp float;
+        uniform sampler2D tDiffuse;
+        uniform vec2 distortion;
+        uniform float vignetteOffset;
+        uniform float vignetteDarkness;
+        varying vec2 vUv;
+        vec2 s(vec2 uv){ return 2.0*(uv-0.5);}
+        vec2 u(vec2 suv){ return suv*0.5 + 0.5;}
+        void main(){
+          vec2 suv = s(vUv);
+          float d = length(suv);
+          suv *= (0.88 + distortion * dot(suv, suv));
+          vec2 uv2 = u(suv);
+          float vig = smoothstep(0.8, vignetteOffset * 0.799, (vignetteDarkness + vignetteOffset) * d);
+          vec3 col = texture2D(tDiffuse, uv2).rgb * vig;
+          gl_FragColor = vec4(col, 1.0);
+        }`
+    });
+    this._dist=0;
+    this.update();
+  }
+  update(){
+    const w=innerWidth, h=innerHeight, r=Math.min(w,h)/Math.max(w,h);
+    this.uniforms.distortion.value.set(this._dist*r, this._dist*r);
+  }
+  setDistortion(v){
+    gsap.to(this,{
+      _dist:v,
+      duration:1,
+      ease:"power2.out",
+      onUpdate:()=>this.update()
+    });
+  }
 }
 
-/* ===== Grid with global “bowl” (cards remain flat) ===== */
+/* ===== Grid class (row-major, draggable) ===== */
 class Grid extends THREE.Group{
-  constructor(canvas,camera,opts){ super();
-    this.canvas=canvas; this.camera=camera; this.opts=opts;
-    this.pointerUv=new THREE.Vector2(0.5,0.5); this.isPointerDown=false;
-    this.velocity=new THREE.Vector2(); this.offset=new THREE.Vector2();
-    this.viewW=1; this.viewH=1; this._lastPX=null; this._lastPY=null;
-    this.tiles=[]; this.tileItems=[]; this.ray=new THREE.Raycaster();
-    this.manageMode=false; this.onTileSelect=null; this.curveAmt=1;   // default curved
-    this.tileGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
+  constructor(canvas,camera,opts){
+    super();
+    this.canvas=canvas;
+    this.camera=camera;
+    this.opts=opts;
+    this.pointerUv=new THREE.Vector2(0.5,0.5);
+    this.isPointerDown=false;
+    this.velocity=new THREE.Vector2();
+    this.offset=new THREE.Vector2();
+    this.viewW=1; this.viewH=1;
+    this._lastPX=null; this._lastPY=null;
+    this.tiles=[];
+    this.tileItems=[];
+    this.ray=new THREE.Raycaster();
+    this.manageMode=false;
+    this.onTileSelect=null;
+
+    this.tileGeom=new THREE.PlaneGeometry(opts.tile, opts.tile, 1, 1);
     this.layout();
+
     this.onPointerMove=this.onPointerMove.bind(this);
     this.onPointerDown=this.onPointerDown.bind(this);
     this.onPointerUp=this.onPointerUp.bind(this);
-    canvas.addEventListener("pointermove",this.onPointerMove,{passive:true});
-    canvas.addEventListener("pointerdown",this.onPointerDown,{passive:true});
-    window.addEventListener("pointerup",this.onPointerUp,{passive:true});
-    window.addEventListener("pointercancel",this.onPointerUp,{passive:true});
+
+    canvas.addEventListener("pointermove", this.onPointerMove, { passive:true });
+    canvas.addEventListener("pointerdown", this.onPointerDown, { passive:true });
+    window.addEventListener("pointerup", this.onPointerUp, { passive:true });
+    window.addEventListener("pointercancel", this.onPointerUp, { passive:true });
   }
-  dispose(){ this.canvas.removeEventListener("pointermove",this.onPointerMove);
-    this.canvas.removeEventListener("pointerdown",this.onPointerDown);
-    window.removeEventListener("pointerup",this.onPointerUp);
-    window.removeEventListener("pointercancel",this.onPointerUp);
-    this.tileGeom.dispose(); this.tiles.forEach(m=>m.material&&m.material.dispose()); }
+  dispose(){
+    this.canvas.removeEventListener("pointermove", this.onPointerMove);
+    this.canvas.removeEventListener("pointerdown", this.onPointerDown);
+    window.removeEventListener("pointerup", this.onPointerUp);
+    window.removeEventListener("pointercancel", this.onPointerUp);
+    this.tileGeom.dispose();
+    this.tiles.forEach(m=>m.material?.dispose?.());
+  }
   setViewport(w,h){ this.viewW=w; this.viewH=h; }
   setManageMode(f){ this.manageMode=!!f; }
-  setCurved(flag){ gsap.to(this,{ curveAmt: flag?1:0, duration:0.8, ease:"power2.out" }); }
+
   layout(){
-    const {cols,rows,tile,gap}=this.opts, stepX=tile+gap, stepY=tile+gap;
-    const sizeX=stepX*(cols-1), sizeY=stepY*(rows-1);
-    this.tiles.forEach(m=>this.remove(m)); this.tiles=[]; this.tileItems=[]; this.basePos=[];
-    for(let r=0;r<rows;r++){
-      for(let c=0;c<cols;c++){
+    const {cols,rows,tile,gap} = this.opts;
+    const stepX = tile + gap;
+    const stepY = tile + gap;
+    const sizeX = stepX * (cols - 1);
+    const sizeY = stepY * (rows - 1);
+
+    // clear
+    this.tiles.forEach(m=>this.remove(m));
+    this.tiles=[]; this.tileItems=[];
+
+    // top-left → right → next row
+    for(let r=0; r<rows; r++){
+      for(let c=0; c<cols; c++){
         const x = c*stepX - sizeX/2;
-        const y =  sizeY/2 - r*stepY; // top row index 0
-        const mesh=new THREE.Mesh(this.tileGeom,new THREE.MeshStandardMaterial({color:"#111",roughness:.55,metalness:0,side:THREE.DoubleSide}));
-        mesh.position.set(x,y,0); this.add(mesh); this.tiles.push(mesh); this.tileItems.push(null); this.basePos.push({x,y});
+        const y = sizeY/2 - r*stepY;
+        const mesh = new THREE.Mesh(
+          this.tileGeom,
+          new THREE.MeshBasicMaterial({color:0x0})
+        );
+        mesh.position.set(x,y,0);
+        this.add(mesh);
+        this.tiles.push(mesh);
+        this.tileItems.push(null);
       }
     }
-    this.sizeX=sizeX; this.sizeY=sizeY;
   }
-  async loadRowMajor(items){
-    const total=this.tiles.length, mats=await buildRowMajorTextures(items,total);
+
+  async setItems(items){
+    const total = this.tiles.length;
+    const texs = await buildRowMajorTextures(items, total);
     for(let i=0;i<total;i++){
-      const old=this.tiles[i].material; if(old) old.dispose?.();
-      this.tiles[i].material=new THREE.MeshStandardMaterial({ map:mats[i], roughness:.45, metalness:0, side:THREE.DoubleSide });
-      this.tileItems[i]= i<items.length ? items[i] : null;
+      this.tiles[i].material?.dispose?.();
+      this.tiles[i].material = new THREE.MeshBasicMaterial({ map: texs[i] });
+      this.tileItems[i] = i < items.length ? items[i] : null;
     }
   }
-  removeAt(index){
-    const old=this.tiles[index].material; if(old) old.dispose?.();
-    this.tiles[index].material=new THREE.MeshStandardMaterial({ map:makeEmptyTexture(), roughness:.45, metalness:0, side:THREE.DoubleSide });
-    this.tileItems[index]=null;
+
+  _pxToNorm(dx,dy){
+    const s = Math.min(this.viewW, this.viewH);
+    return new THREE.Vector2(dx/s, dy/s);
   }
-  _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
+
   onPointerMove(e){
-    const rect=this.canvas.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
-    this.pointerUv.set(x,y); if(this.manageMode) return;
+    const rect=this.canvas.getBoundingClientRect();
+    const x=(e.clientX-rect.left)/rect.width;
+    const y=(e.clientY-rect.top)/rect.height;
+    this.pointerUv.set(x,y);
+
+    if(this.manageMode) return;
+
     if(this.isPointerDown){
-      const dx=(this._lastPX===null?0:(e.clientX-this._lastPX)), dy=(this._lastPY===null?0:(e.clientY-this._lastPY));
-      this._lastPX=e.clientX; this._lastPY=e.clientY;
-      const d=this._pxToNorm(dx,dy); this.offset.x+=d.x*6.0; this.offset.y+=-d.y*6.0;
-      this.velocity.lerp(new THREE.Vector2(d.x,-d.y), 1-this.opts.velEase);
+      const dx = (this._lastPX===null?0:(e.clientX - this._lastPX));
+      const dy = (this._lastPY===null?0:(e.clientY - this._lastPY));
+      this._lastPX = e.clientX; this._lastPY = e.clientY;
+
+      const d = this._pxToNorm(dx,dy);
+      this.offset.x += d.x * 6.0;
+      this.offset.y += -d.y * 6.0;
+
+      this.velocity.lerp(new THREE.Vector2(d.x, -d.y), 1 - this.opts.velEase);
     }
   }
+
   onPointerDown(e){
     if(this.manageMode){
       const rect=this.canvas.getBoundingClientRect();
-      const ndc={ x:((e.clientX-rect.left)/rect.width)*2-1, y:-((e.clientY-rect.top)/rect.height)*2+1 };
-      this.ray.setFromCamera(ndc,this.camera);
-      const hit=this.ray.intersectObjects(this.tiles,false)[0];
-      if(hit){ const idx=this.tiles.indexOf(hit.object); const item=this.tileItems[idx]; this.onTileSelect?.(idx,item); }
+      const ndc = {
+        x: ((e.clientX - rect.left) / rect.width)*2 - 1,
+        y: -((e.clientY - rect.top) / rect.height)*2 + 1
+      };
+      this.ray.setFromCamera(ndc, this.camera);
+      const hit = this.ray.intersectObjects(this.tiles, false)[0];
+      if(hit){
+        const idx = this.tiles.indexOf(hit.object);
+        const item = this.tileItems[idx];
+        this.onTileSelect?.(idx, item);
+      }
       return;
     }
-    this.isPointerDown=true; this._lastPX=e.clientX; this._lastPY=e.clientY;
-    gsap.to(this.camera.position,{ z:CONFIG.zoomIn, duration:1, ease:"power2.out" });
-  }
-  onPointerUp(){ if(!this.manageMode){ this.isPointerDown=false; this._lastPX=this._lastPY=null;
-    gsap.to(this.camera.position,{ z:CONFIG.zoomOut, duration:1, ease:"power2.out" }); } }
-  update(){
-    const cursorOffset=this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
-    if(!this.isPointerDown && !this.manageMode){ this.offset.add(this.velocity.clone().multiplyScalar(5)); this.velocity.multiplyScalar(this.opts.velEase); }
-    const tx=this.offset.x+cursorOffset.x, ty=this.offset.y-cursorOffset.y;
-    this.position.x += (tx-this.position.x)*this.opts.dragEase;
-    this.position.y += (ty-this.position.y)*this.opts.dragEase;
 
-    // global bowl (cards remain flat)
-    if(!this.basePos) return;
-    const { bow, tiltX, tiltY } = CONFIG.surface;
-    const halfX = Math.max(1e-6, this.sizeX*0.5);
-    const halfY = Math.max(1e-6, this.sizeY*0.5);
-    const amt = this.curveAmt;
-    for(let i=0;i<this.tiles.length;i++){
-      const mesh=this.tiles[i], base=this.basePos[i];
-      const nx=base.x/halfX, ny=base.y/halfY;
-      const z  = amt * bow * (1.0 - (0.7*nx*nx + 0.3*ny*ny));
-      const rx = -amt * tiltY * ny;
-      const ry =  amt * tiltX * nx;
-      mesh.position.set(base.x, base.y, z);
-      mesh.rotation.set(rx, ry, 0);
+    this.isPointerDown = true;
+    this.canvas.classList.add("dragging");
+    this._lastPX = e.clientX; this._lastPY = e.clientY;
+    gsap.to(this.camera.position, { z: CONFIG.zoomIn, duration:0.8, ease:"power2.out" });
+  }
+
+  onPointerUp(){
+    if(!this.manageMode){
+      this.isPointerDown = false;
+      this.canvas.classList.remove("dragging");
+      this._lastPX = this._lastPY = null;
+      gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration:0.8, ease:"power2.out" });
     }
   }
-  resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); }
+
+  update(){
+    const cursorOffset = this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
+
+    if(!this.isPointerDown && !this.manageMode){
+      this.offset.add(this.velocity.clone().multiplyScalar(5));
+      this.velocity.multiplyScalar(this.opts.velEase);
+    }
+
+    const tx = this.offset.x + cursorOffset.x;
+    const ty = this.offset.y - cursorOffset.y;
+
+    this.position.x += (tx - this.position.x) * this.opts.dragEase;
+    this.position.y += (ty - this.position.y) * this.opts.dragEase;
+  }
+
+  resetPosition(){
+    this.offset.set(0,0);
+    this.velocity.set(0,0);
+  }
 }
 
-/* ===== Postprocessing (no warp) ===== */
-function Postprocessing(){
+/* ===== Postprocessing component ===== */
+function Postprocessing({ workgridState }){
   const { gl, scene, camera, size } = useThree();
-  const composer = useMemo(()=>{
+  const { composer, shader } = useMemo(()=>{
     try{
-      const c = new EffectComposer(gl);
-      c.addPass(new RenderPass(scene, camera));
-      c.addPass(new ShaderPass(new NoopShader()));
-      c.addPass(new OutputPass());
-      return c;
-    }catch(e){ console.warn("Composer init failed", e); return null; }
+      const renderPass=new RenderPass(scene,camera);
+      const shader=new DistortionShader();
+      const shaderPass=new ShaderPass(shader);
+      const outputPass=new OutputPass();
+      const composer=new EffectComposer(gl);
+      composer.addPass(renderPass);
+      composer.addPass(shaderPass);
+      composer.addPass(outputPass);
+      return { composer, shader };
+    }catch(e){
+      console.warn("composer fail", e);
+      return { composer:null, shader:null };
+    }
   },[gl,scene,camera]);
-  useEffect(()=>{ if(!composer) return; const dpr=gl.getPixelRatio?.()||1; composer.setSize(size.width*dpr,size.height*dpr); composer.setPixelRatio?.(dpr); },[composer,size,gl]);
-  useFrame(()=>{ composer?.render(); },1);
+
+  useEffect(()=>{
+    if(!composer || !shader) return;
+    const dpr = Math.min(2, gl.getPixelRatio?.() || 1.5);
+    composer.setPixelRatio?.(dpr);
+    composer.setSize(size.width, size.height);
+    shader.update();
+  },[composer,shader,size,gl]);
+
+  useEffect(()=>{
+    if(!shader) return;
+    shader.setDistortion(
+      workgridState === WorkgridState.INTRO
+        ? CONFIG.distortion.flat
+        : CONFIG.distortion.curved
+    );
+  },[workgridState,shader]);
+
+  useFrame(()=>{ composer?.render(); }, 1);
   return null;
 }
 
-/* ===== Primitive wrapper ===== */
-function ProjectsGridPrimitive({ workgridState, archive, version, manageMode, onTileSelect }){
+/* ===== R3F primitive wrapper ===== */
+function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect }){
   const { gl, camera, size } = useThree();
+
   const grid = useMemo(()=> new Grid(gl.domElement, camera, {
-    cols:CONFIG.cols, rows:CONFIG.rows, tile:CONFIG.tile, gap:CONFIG.gap,
-    ambient:CONFIG.ambient, dragEase:CONFIG.dragEase, velEase:CONFIG.velEase
-  }),[gl,camera]);
-
-  useEffect(()=>{ grid.setViewport(size.width,size.height); },[size,grid]);
-  useEffect(()=>{ grid.onTileSelect=onTileSelect; },[grid,onTileSelect]);
-  useEffect(()=>{ grid.setManageMode(manageMode); },[manageMode,grid]);
-  useEffect(()=>{ grid.loadRowMajor(archive); },[version,archive,grid]);
-
-  useEffect(()=>{
-    if (workgridState===WorkgridState.RESET) grid.resetPosition();
-    grid.setCurved(workgridState!==WorkgridState.INTRO);
-  },[workgridState,grid]);
+    cols:CONFIG.cols, rows:CONFIG.rows,
+    tile:CONFIG.tile, gap:CONFIG.gap,
+    ambient:CONFIG.ambient,
+    dragEase:CONFIG.dragEase,
+    velEase:CONFIG.velEase
+  }), [gl, camera]);
 
   useFrame(()=>grid.update());
-  return React.createElement("primitive",{object:grid});
+  useEffect(()=>{ grid.setViewport(size.width, size.height); }, [size, grid]);
+  useEffect(()=>{ grid.onTileSelect = onTileSelect; }, [grid, onTileSelect]);
+  useEffect(()=>{ grid.setManageMode(manageMode); }, [manageMode, grid]);
+  useEffect(()=>{ grid.setItems(items); }, [items, grid]);
+  useEffect(()=>{ if(workgridState===WorkgridState.RESET) grid.resetPosition(); }, [workgridState, grid]);
+
+  return React.createElement("primitive", { object: grid });
 }
 function GridView(props){
-  return React.createElement(Canvas, {
-      gl:{antialias:true, powerPreference:"high-performance"},
-      camera:{ fov:35, position:[0,0,CONFIG.zoomOut] }, dpr:[1,2]
+  return (
+    React.createElement(Canvas, {
+      gl:{ antialias:true, powerPreference:"high-performance" },
+      camera:{ fov:35, position:[0,0,CONFIG.zoomOut] },
+      dpr:[1,2],
+      onCreated:({ gl })=>{
+        gl.setClearColor(0x000000, 1);
+        gl.outputColorSpace = THREE.SRGBColorSpace;
+        gl.toneMapping = THREE.NoToneMapping;
+      }
     },
-    React.createElement("ambientLight",{intensity:1}),
-    React.createElement("directionalLight",{intensity:.7, position:[2,3,4]}),
-    React.createElement(ProjectsGridPrimitive, props),
-    React.createElement(Postprocessing, {})
+      React.createElement("ambientLight", { intensity:1 }),
+      React.createElement("directionalLight", { intensity:.7, position:[2,3,4] }),
+      React.createElement(ProjectsGridPrimitive, props),
+      React.createElement(Postprocessing, { workgridState: props.workgridState })
+    )
   );
 }
 
-/* ===== Camera + flow composition helpers ===== */
+/* ===== Camera / export ===== */
 function useCamera(){
   const videoRef=useRef(null), streamRef=useRef(null);
   const start=async()=>{
     if(location.protocol!=="https:" && location.hostname!=="localhost"){
-      alert("Camera requires HTTPS (or localhost). Use Import instead."); return false;
+      alert("Camera requires HTTPS. Use Import instead.");
+      return false;
     }
     try{
-      const stream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } }, audio:false });
-      streamRef.current=stream; if(videoRef.current){ videoRef.current.srcObject=stream; await videoRef.current.play(); }
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
+      streamRef.current=stream;
+      if(videoRef.current){ videoRef.current.srcObject=stream; await videoRef.current.play(); }
       return true;
-    }catch(e){ console.warn("Camera error", e); alert("Camera unavailable. Use Import instead."); return false; }
+    }catch(e){
+      console.warn("camera", e);
+      alert("Camera unavailable. Use Import instead.");
+      return false;
+    }
   };
   const stop=()=>{ streamRef.current?.getTracks?.().forEach(t=>t.stop()); streamRef.current=null; if(videoRef.current) videoRef.current.srcObject=null; };
-  const captureCanvas=(ratio="4:3")=>{
-    const v=videoRef.current; if(!v||!v.videoWidth) return null;
+  const captureSquareCanvas=()=>{
+    const v=videoRef.current;
+    if(!v || !v.videoWidth) return null;
     const vw=v.videoWidth, vh=v.videoHeight;
-    const [rw, rh] = ratio.split(":").map(Number);
-    const targ = rw / rh;
-    let sw = vw, sh = Math.round(vw / targ);
-    if (sh > vh){ sh = vh; sw = Math.round(vh * targ); }
-    const sx = Math.floor((vw - sw)/2), sy = Math.floor((vh - sh)/2);
-    const c=document.createElement("canvas"); c.width=sw; c.height=sh;
-    c.getContext("2d").drawImage(v,sx,sy,sw,sh,0,0,sw,sh); return c;
+    const s=Math.min(vw,vh);
+    const sx=Math.floor((vw-s)/2);
+    const sy=Math.floor((vh-s)/2);
+    const c=document.createElement("canvas");
+    c.width=s; c.height=s;
+    c.getContext("2d").drawImage(v, sx, sy, s, s, 0, 0, s, s);
+    return c;
   };
-  return { videoRef, start, stop, captureCanvas };
+  return { videoRef, start, stop, captureSquareCanvas };
+}
+async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
+  const img = await new Promise((res,rej)=>{
+    const im=new Image();
+    im.onload=()=>res(im);
+    im.onerror=rej;
+    im.src=sourceCanvas.toDataURL("image/png");
+  });
+  const cnv = makeCardCanvas({ img, title, caption, gps, ts:nowTS() });
+  return new Promise(resolve=>{
+    cnv.toBlob(b=>{
+      const url=URL.createObjectURL(b);
+      resolve({url, blob:b});
+    }, "image/png", 0.96);
+  });
 }
 
-/* ===== Overlay (outlined flow inside React) ===== */
-function OverlayFlow({ open, onClose, onAddToArchive }){
-  const sheetRef = useRef(null);
-
-  // steps
-  const [step, setStep] = useState(0);
-
-  // viewfinder state
-  const camera = useCamera();
-  const levelRef = useRef(null);
-  const [viewRatio, setViewRatio] = useState("4:3");
-
-  // review
-  const [reviewCanvas, setReviewCanvas] = useState(null);
-  const reviewMountRef = useRef(null);
-
-  // details
-  const [title, setTitle] = useState("");
-  const [caption, setCaption] = useState("A quick visual note");
-  const [monoBars, setMonoBars] = useState(true);
-  const [gpsOn, setGpsOn] = useState(false);
-  const [gpsText, setGpsText] = useState("");
-
-  // export
-  const [expRatio, setExpRatio] = useState("4:3");
-  const exportCanvasRef = useRef(null);
-  const [exporting, setExporting] = useState(false);
-
-  // file import
-  const filePickRef = useRef(null);
-
-  // mount/unmount review canvas into placeholder
-  useEffect(()=>{
-    const mount = reviewMountRef.current;
-    if(!mount) return;
-    while(mount.firstChild) mount.removeChild(mount.firstChild);
-    if(reviewCanvas && step===2){
-      reviewCanvas.className = "canvas-fit";
-      reviewCanvas.style.width="100%"; reviewCanvas.style.height="auto";
-      mount.appendChild(reviewCanvas);
+/* ===== persistence ===== */
+function getCreatedMs(item, idx=0){
+  if(typeof item?.createdMs==="number") return item.createdMs;
+  if(item?.id){
+    const m=String(item.id).match(/^note_(\d+)$/);
+    if(m){
+      const n=+m[1];
+      if(!Number.isNaN(n)) return n;
     }
-  }, [reviewCanvas, step]);
+  }
+  if(item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
+    const t=Date.parse(item.ts.replace(" • ","T")+":00");
+    if(!Number.isNaN(t)) return t;
+  }
+  return idx;
+}
+function loadArchive(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw) return [];
+    const parsed=JSON.parse(raw);
+    if(!Array.isArray(parsed)) return [];
+    return parsed.map((it,i)=>({...it, createdMs:getCreatedMs(it,i)}));
+  }catch{
+    return [];
+  }
+}
+function saveArchive(arr){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{}
+}
 
-  // focus trap + Esc
+/* ===== overlay flow ===== */
+function OverlayFlow({ open, onClose, onAddToArchive }){
+  const [step,setStep]=useState(0);
+  const [title,setTitle]=useState("");
+  const [caption,setCaption]=useState("A quick visual note");
+  const [reviewCanvas,setReviewCanvas]=useState(null);
+  const [exportUrl,setExportUrl]=useState("");
+  const [exporting,setExporting]=useState(false);
+
+  const camera=useCamera();
+  const filePickRef=useRef(null);
+  const sheetRef=useRef(null);
+  const previewMountRef=useRef(null);
+
+  // mount preview canvas when in review
+  useEffect(()=>{
+    const m=previewMountRef.current;
+    if(!m) return;
+    while(m.firstChild) m.removeChild(m.firstChild);
+    if(reviewCanvas && step===2){
+      reviewCanvas.style.width="100%";
+      reviewCanvas.style.height="100%";
+      m.appendChild(reviewCanvas);
+    }
+  },[reviewCanvas,step]);
+
+  // focus trap + esc close
   useEffect(()=>{
     if(!open) return;
-    const root = sheetRef.current;
-    const q = ()=>[...root.querySelectorAll("button,[href],input,textarea")].filter(el=>!el.disabled && el.offsetParent!==null);
-    const onKey = (e)=>{
+    const el=sheetRef.current;
+    if(!el) return;
+    const getFocusables=()=>[...el.querySelectorAll("button,[href],input,textarea")].filter(n=>!n.disabled && n.offsetParent!==null);
+    const onKey=e=>{
       if(e.key==="Escape"){ e.preventDefault(); onClose?.(); }
       if(e.key==="Tab"){
-        const fs=q(); if(!fs.length) return; const f=document.activeElement;
-        if(e.shiftKey && f===fs[0]){ e.preventDefault(); fs[fs.length-1].focus(); }
-        else if(!e.shiftKey && f===fs[fs.length-1]){ e.preventDefault(); fs[0].focus(); }
+        const f=getFocusables();
+        if(!f.length) return;
+        const cur=document.activeElement;
+        if(e.shiftKey && cur===f[0]){ e.preventDefault(); f[f.length-1].focus(); }
+        else if(!e.shiftKey && cur===f[f.length-1]){ e.preventDefault(); f[0].focus(); }
       }
     };
-    root.addEventListener("keydown", onKey);
-    return ()=>root.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+    el.addEventListener("keydown", onKey);
+    return ()=>el.removeEventListener("keydown", onKey);
+  },[open,onClose]);
 
-  // reset on close
+  // reset when closing
   useEffect(()=>{
     if(!open){
-      camera.stop(); setStep(0); setViewRatio("4:3"); setReviewCanvas(null);
-      setTitle(""); setCaption("A quick visual note"); setMonoBars(true); setGpsOn(false); setGpsText("");
-      setExpRatio("4:3"); setExporting(false);
+      camera.stop();
+      setStep(0);
+      setTitle("");
+      setCaption("A quick visual note");
+      setReviewCanvas(null);
+      setExportUrl("");
+      setExporting(false);
     }
-  }, [open]);
+  },[open]);
 
-  // level gauge draw (simple outlined bar + bubble)
-  useEffect(()=>{
-    if(step!==1) return;
-    const c = levelRef.current; if(!c) return;
-    const ctx = c.getContext("2d");
-    let roll = 0, raf=0;
-
-    function draw(){
-      const w=240, h=56, dpr=Math.max(1, devicePixelRatio||1);
-      c.width=w*dpr; c.height=h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
-      ctx.clearRect(0,0,w,h);
-
-      // tokens
-      const paper=getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()||'#0E0E10';
-      const ink =getComputedStyle(document.documentElement).getPropertyValue('--ink').trim()||'#FFFFFF';
-      const ink2=getComputedStyle(document.documentElement).getPropertyValue('--ink-2').trim()||'#C9C9CF';
-
-      // frame
-      ctx.fillStyle=paper; ctx.fillRect(0,0,w,h);
-      ctx.strokeStyle=ink; ctx.lineWidth=1.5; ctx.strokeRect(0.75,0.75,w-1.5,h-1.5);
-
-      // band
-      const mid=h*0.55;
-      ctx.save();
-      ctx.translate(w/2, mid);
-      ctx.rotate((-roll) * Math.PI/180);
-      ctx.fillStyle=ink2; ctx.globalAlpha=.35;
-      ctx.fillRect(-w, 0, w*2, h);
-      ctx.restore();
-      ctx.globalAlpha=1;
-
-      // bubble
-      const bubbleR=7;
-      const bubbleX = w/2 + ((45 - (roll+45))/90)*80;
-      const bubbleY = mid - 3;
-      ctx.beginPath(); ctx.arc(bubbleX, bubbleY, bubbleR, 0, Math.PI*2);
-      ctx.fillStyle=paper; ctx.fill();
-      ctx.strokeStyle=ink; ctx.lineWidth=1; ctx.stroke();
-    }
-    function setRoll(val){ roll = Math.max(-45, Math.min(45, val)); draw(); }
-    function onOrient(e){ setRoll(e.gamma||0); }
-    function onMouse(e){ setRoll(((e.clientX/innerWidth)*2-1)*30); }
-
-    if('DeviceOrientationEvent' in window){ window.addEventListener('deviceorientation', onOrient); }
-    else { window.addEventListener('mousemove', onMouse); }
-    draw();
-    return ()=>{
-      window.removeEventListener('deviceorientation', onOrient);
-      window.removeEventListener('mousemove', onMouse);
-      cancelAnimationFrame(raf);
-    };
-  }, [step]);
-
-  // export preview re-draw
-  useEffect(()=>{
-    if(step!==4) return;
-    drawExportPreview();
-    // eslint-disable-next-line
-  }, [step, expRatio, title, caption, monoBars, gpsOn, gpsText, reviewCanvas]);
-
-  // helpers
-  const startCamera = async()=>{ const ok = await camera.start(); setStep(ok?1:0); };
-  const capture = ()=>{
-    const c = camera.captureCanvas(viewRatio);
-    if (c){ setReviewCanvas(c); setStep(2); }
+  const startCamera=async()=>{
+    const ok=await camera.start();
+    setStep(ok?1:0);
   };
-  const importPick = ()=>filePickRef.current?.click();
-  const onFileChange = e =>{
-    const f=e.target.files?.[0]; if(!f) return;
-    const img=new Image(); const url=URL.createObjectURL(f);
+  const captureShot=()=>{
+    const c=camera.captureSquareCanvas();
+    if(c){
+      setReviewCanvas(c);
+      setStep(2);
+    }
+  };
+  const pickFile=()=>filePickRef.current?.click();
+  const onFileChange=e=>{
+    const f=e.target.files?.[0];
+    if(!f) return;
+    const img=new Image();
+    const url=URL.createObjectURL(f);
     img.onload=()=>{
+      const s=Math.min(img.width,img.height);
+      const sx=Math.floor((img.width-s)/2);
+      const sy=Math.floor((img.height-s)/2);
       const c=document.createElement("canvas");
-      c.width=img.width; c.height=img.height;
-      c.getContext("2d").drawImage(img,0,0);
+      c.width=s; c.height=s;
+      c.getContext("2d").drawImage(img, sx, sy, s, s, 0, 0, s, s);
       URL.revokeObjectURL(url);
-      setReviewCanvas(c); setStep(2);
+      setReviewCanvas(c);
+      setStep(2);
     };
     img.src=url;
   };
-
-  const requestGPS = async ()=>{
-    if(!gpsOn){ setGpsText(""); return; }
-    if(!('geolocation' in navigator)){ setGpsText("[gps unavailable]"); return; }
-    try{
-      const pos = await new Promise((res,rej)=> navigator.geolocation.getCurrentPosition(res,rej,{ enableHighAccuracy:false, timeout:8000 }));
-      const { latitude, longitude } = pos.coords;
-      const lat = latitude.toFixed(4), lon = longitude.toFixed(4);
-      setGpsText(`[ ${lat}° N ${lon}° W ]`);
-    }catch(e){ setGpsText("[gps denied]"); }
-  };
-  useEffect(()=>{ requestGPS(); }, [gpsOn]);
-
-  function wrapText(ctx,text,x,y,maxWidth,lineHeight,align){
-    const words = String(text||"").split(" ");
-    let line = ""; const lines = [];
-    for(let i=0;i<words.length;i++){
-      const test = line + words[i] + " ";
-      if (ctx.measureText(test).width > maxWidth && i>0){ lines.push(line.trim()); line = words[i] + " "; }
-      else { line = test; }
-    }
-    lines.push(line.trim());
-    ctx.textAlign = align || "left";
-    for(let i=0;i<lines.length;i++){
-      ctx.fillText(lines[i], x, y - (lines.length-1-i)*lineHeight);
-    }
-  }
-  function rightText(ctx, text, x, y){
-    const w = ctx.measureText(text).width; ctx.textAlign="left"; ctx.fillText(text, x - w, y);
-  }
-  function desaturate(data){
-    for(let i=0;i<data.length;i+=4){
-      const r=data[i], g=data[i+1], b=data[i+2];
-      let y = 0.2126*r + 0.7152*g + 0.0722*b; y/=255; y = Math.pow(y, 0.9); y = (y-0.5)*1.1 + 0.5; y = Math.max(0, Math.min(1, y));
-      y = Math.round(y*255);
-      data[i]=data[i+1]=data[i+2]=y;
-    }
-  }
-
-  function drawComposition(ctx, W, H, final){
-    if(!reviewCanvas) return;
-    // base
-    ctx.fillStyle="#000"; ctx.fillRect(0,0,W,H);
-    // border
-    const hair=1; ctx.strokeStyle="#fff"; ctx.lineWidth=hair; ctx.strokeRect(hair/2, hair/2, W-hair, H-hair);
-
-    // bars
-    const barPx = final ? 64 : 32;
-    const pad   = final ? 16 : 12;
-    const topBarH = barPx;
-    const botBarH = barPx;
-
-    // inner box
-    const innerX = hair; const innerY = topBarH + hair;
-    const innerW = W - hair*2; const innerH = H - (topBarH + botBarH) - hair*2;
-
-    // cover image
-    const iw = reviewCanvas.width, ih = reviewCanvas.height;
-    const boxR = innerW/innerH, imgR = iw/ih;
-    let dw=innerW, dh=innerH, dx=innerX, dy=innerY;
-    if(imgR > boxR){ dh = innerH; dw = dh * imgR; dx = innerX + (innerW-dw)/2; }
-    else { dw = innerW; dh = dw / imgR; dy = innerY + (innerH-dh)/2; }
-    ctx.drawImage(reviewCanvas, dx, dy, dw, dh);
-
-    // filmic grayscale
-    const imgData = ctx.getImageData(dx, dy, dw, dh);
-    desaturate(imgData.data);
-    ctx.putImageData(imgData, dx, dy);
-
-    // hairlines
-    ctx.globalAlpha = .9; ctx.fillStyle = "#fff";
-    ctx.fillRect(0, topBarH, W, hair);
-    ctx.fillRect(0, H - botBarH - hair, W, hair);
-    ctx.globalAlpha = 1;
-
-    // type on bars
-    const fontSize = final ? 24 : 12;
-    const mono = monoBars;
-    ctx.fillStyle = "#e6e6e6";
-    ctx.font = `${mono ? '700' : '600'} ${fontSize}px ${mono ? MONO : UI}`;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "left";
-
-    const titleTxt = (title.trim() || "[ title ]").toUpperCase();
-    ctx.fillText(titleTxt, innerX + pad, topBarH/2);
-
-    if (gpsOn && gpsText){
-      rightText(ctx, gpsText, W - (innerX + pad), topBarH/2);
-    }
-
-    const captionTxt = caption.trim() || "[ short caption goes here ]";
-    wrapText(ctx, captionTxt, innerX + pad, H - (botBarH/2), innerW - pad*2, Math.round(fontSize*1.2), "left");
-
-    const ts = new Date().toLocaleString([], { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
-    rightText(ctx, ts, W - (innerX + pad), H - (botBarH/2));
-  }
-
-  function drawExportPreview(){
-    if(!reviewCanvas) return;
-    const c = exportCanvasRef.current; if(!c) return;
-    const size = (expRatio==='1:1') ? {w:1200,h:1200} : {w:1200,h:900};
-    c.width = size.w; c.height = size.h;
-    const ctx = c.getContext("2d");
-    drawComposition(ctx, size.w, size.h, false);
-  }
-
-  async function doExport(){
+  const doExport=async()=>{
     if(!reviewCanvas) return;
     setExporting(true);
-    const W = 2400;
-    const H = (expRatio==='1:1') ? 2400 : 1800;
-    const c = document.createElement("canvas"); c.width=W; c.height=H;
-    const ctx = c.getContext("2d");
-    drawComposition(ctx, W, H, true);
-    c.toBlob((blob)=>{
-      if(!blob) return setExporting(false);
-      const url = URL.createObjectURL(blob);
-      // add to archive as baked card
-      onAddToArchive?.({
-        id:"note_"+Date.now(), src:url, title:title||"[ title ]", caption:caption||"—",
-        baked:true, ts:nowTS(), createdMs:Date.now()
-      });
-      // download
-      const a=document.createElement("a");
-      a.href=url; a.download=`intoview-collector_${expRatio.replace(":","-")}_${Date.now()}.png`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setExporting(false); setStep(5);
-    }, "image/png", 0.96);
-  }
+    const { url } = await exportCardPNGFromCanvas(reviewCanvas, title || "[ title ]", caption || "—");
+    setExportUrl(url);
+    setExporting(false);
+    setStep(5);
+    onAddToArchive?.({
+      id:"note_"+Date.now(),
+      src:url,
+      title:title||"[ title ]",
+      caption:caption||"—",
+      baked:true,
+      ts:nowTS(),
+      createdMs:Date.now()
+    });
+  };
 
   if(!open) return null;
   return (
     React.createElement("div",{className:"overlay open"},
       React.createElement("div",{className:"sheet",ref:sheetRef,role:"dialog","aria-modal":"true"},
         React.createElement("div",{className:"titlebar"},
-          React.createElement("h2",null, step===0&&"Start", step===1&&"Viewfinder", step===2&&"Review", step===3&&"Details", step===4&&"Export", step===5&&"Done"),
-          React.createElement("div",{className:"row"},
-            React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
+          React.createElement("h2",null,
+            step===0 && "Start",
+            step===1 && "Viewfinder",
+            step===2 && "Review",
+            step===3 && "Details",
+            step===4 && "Export",
+            step===5 && "Done"
+          ),
+          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
+        ),
+
+        step===0 && React.createElement("div",{className:"grid"},
+          React.createElement("div",{className:"hint"},"Camera opens instantly (HTTPS only) or import an image."),
+          React.createElement("div",{className:"grid cols-2"},
+            React.createElement("button",{className:"btn primary",onClick:startCamera},"Open Camera"),
+            React.createElement("button",{className:"btn",onClick:pickFile},"Import Photo")
+          ),
+          React.createElement("input",{ref:filePickRef,type:"file",accept:"image/*",className:"hidden",onChange:onFileChange})
+        ),
+
+        step===1 && React.createElement(React.Fragment,null,
+          React.createElement("div",{className:"vf"},
+            React.createElement("video",{ref:camera.videoRef,playsInline:true,muted:true})
+          ),
+          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))"}},
+            React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(0);}},"Back"),
+            React.createElement("button",{className:"btn primary",onClick:captureShot},"Capture")
           )
         ),
 
-        /* Step 0 */
-        step===0 && React.createElement("section",{className:"step active"},
-          React.createElement("div",{className:"grid"},
-            React.createElement("div",{className:"hint"},"Camera opens instantly (HTTPS only), or import a photo."),
-            React.createElement("div",{className:"grid cols-2"},
-              React.createElement("button",{className:"btn primary", onClick:startCamera},"Open Camera"),
-              React.createElement("button",{className:"btn", onClick:()=>filePickRef.current?.click()},"Import Photo")
-            ),
-            React.createElement("input",{ref:filePickRef, type:"file", accept:"image/*", className:"hidden", onChange:onFileChange})
+        step===2 && React.createElement(React.Fragment,null,
+          React.createElement("div",{className:"preview",ref:previewMountRef}),
+          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))"}},
+            React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(1);}},"Retake"),
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(3)},"Keep")
           )
         ),
 
-        /* Step 1 */
-        step===1 && React.createElement("section",{className:"step active"},
-          React.createElement("div",{className:"grid"},
-            React.createElement("div",{className:"vf"},
-              React.createElement("video",{ref:camera.videoRef, playsInline:true, muted:true}),
-              React.createElement("div",{className:"mask"},
-                React.createElement("div",{className:"grid"},
-                  React.createElement("div"),React.createElement("div"),React.createElement("div"),
-                  React.createElement("div"),React.createElement("div"),React.createElement("div"),
-                  React.createElement("div"),React.createElement("div"),React.createElement("div")
-                )
-              ),
-              React.createElement("div",{className:"level"},
-                React.createElement("canvas",{ref:levelRef, width:240, height:56})
-              )
-            ),
-            React.createElement("div",{className:"row"},
-              React.createElement("button",{className:"chip", "aria-pressed":viewRatio==='16:9', onClick:()=>setViewRatio('16:9')},"16:9"),
-              React.createElement("button",{className:"chip", "aria-pressed":viewRatio==='4:3',  onClick:()=>setViewRatio('4:3')},"4:3"),
-              React.createElement("button",{className:"chip", "aria-pressed":viewRatio==='1:1',  onClick:()=>setViewRatio('1:1')},"1:1")
-            ),
-            React.createElement("div",{className:"row"},
-              React.createElement("button",{className:"btn", onClick:()=>{ camera.stop(); setStep(0); }},"Back"),
-              React.createElement("button",{className:"btn primary", onClick:capture, style:{marginLeft:"auto"}},"Capture"),
-              React.createElement("button",{className:"btn", onClick:()=>filePickRef.current?.click()},"Import")
-            ),
-            React.createElement("input",{ref:filePickRef, type:"file", accept:"image/*", className:"hidden", onChange:onFileChange})
+        step===3 && React.createElement("div",{className:"grid"},
+          React.createElement("label",{className:"label",htmlFor:"t"},"Title (40 cap)"),
+          React.createElement("input",{id:"t",maxLength:40,className:"input",value:title,onChange:e=>setTitle(e.target.value)}),
+          React.createElement("label",{className:"label",htmlFor:"c"},"Note (100 cap)"),
+          React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
+          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))"}},
+            React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4)},"Next")
           )
         ),
 
-        /* Step 2 */
-        step===2 && React.createElement("section",{className:"step active"},
-          React.createElement("div",{className:"grid"},
-            React.createElement("div",{className:"preview"},
-              React.createElement("div",{ref:reviewMountRef, style:{width:"100%"}})
-            ),
-            React.createElement("div",{className:"grid cols-2"},
-              React.createElement("button",{className:"btn", onClick:()=>setStep(1)},"Retake"),
-              React.createElement("button",{className:"btn primary", onClick:()=>setStep(3)},"Keep")
-            )
+        step===4 && React.createElement("div",{className:"grid"},
+          React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
+          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))"}},
+            React.createElement("button",{className:"btn",onClick:()=>setStep(3)},"Back"),
+            React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport},exporting?"Exporting…":"Export PNG & Save")
           )
         ),
 
-        /* Step 3 */
-        step===3 && React.createElement("section",{className:"step active"},
-          React.createElement("div",{className:"grid"},
-            React.createElement("label",{className:"label", htmlFor:"t"},"Title (40 cap)"),
-            React.createElement("input",{id:"t",className:"input", maxLength:40, value:title, onChange:e=>setTitle(e.target.value)}),
-            React.createElement("div",{className:"row", style:{justifyContent:"space-between"}},
-              React.createElement("div",{className:"hint"},"Optional GPS seed"),
-              React.createElement("div",{className:"hint"}, `${title.length}/40`)
-            ),
-
-            React.createElement("label",{className:"label", htmlFor:"c"},"Note (100 cap)"),
-            React.createElement("textarea",{id:"c",className:"textarea", maxLength:100, value:caption, onChange:e=>setCaption(e.target.value)}),
-            React.createElement("div",{className:"row", style:{justifyContent:"flex-end"}},
-              React.createElement("div",{className:"hint"}, `${caption.length}/100`)
-            ),
-
-            React.createElement("div",{className:"row"},
-              React.createElement("button",{className:"chip","aria-pressed":gpsOn, onClick:()=>setGpsOn(v=>!v)}, "GPS"),
-              React.createElement("button",{className:"chip","aria-pressed":monoBars, onClick:()=>setMonoBars(v=>!v)},"Mono bars"),
-              gpsOn && React.createElement("span",{className:"hint"}, gpsText||"—")
-            ),
-
-            React.createElement("div",{className:"grid cols-2"},
-              React.createElement("button",{className:"btn", onClick:()=>setStep(2)},"Back"),
-              React.createElement("button",{className:"btn primary", onClick:()=>setStep(4)},"Next")
-            )
-          )
-        ),
-
-        /* Step 4 */
-        step===4 && React.createElement("section",{className:"step active"},
-          React.createElement("div",{className:"grid"},
-            React.createElement("div",{className:"row", style:{justifyContent:"space-between"}},
-              React.createElement("div",{className:"hint"}, `Export • ${expRatio}`),
-              React.createElement("div",{className:"row"},
-                React.createElement("button",{className:"chip","aria-pressed":expRatio==='4:3', onClick:()=>setExpRatio('4:3')},"4:3"),
-                React.createElement("button",{className:"chip","aria-pressed":expRatio==='1:1', onClick:()=>setExpRatio('1:1')},"1:1")
-              )
-            ),
-            React.createElement("div",{className:"preview", style:{aspectRatio: expRatio==='1:1'?'1 / 1':'4 / 3'}},
-              React.createElement("canvas",{ref:exportCanvasRef, className:"canvas-fit"})
-            ),
-            React.createElement("div",{className:"grid cols-2"},
-              React.createElement("button",{className:"btn", onClick:()=>setStep(3)},"Back"),
-              React.createElement("button",{className:"btn primary", disabled:exporting, onClick:doExport}, exporting?"Exporting…":"Export PNG")
-            )
-          )
-        ),
-
-        /* Step 5 */
-        step===5 && React.createElement("section",{className:"step active"},
-          React.createElement("div",{className:"grid", style:{placeItems:"center", textAlign:"center"}},
-            React.createElement("div",{className:"chip"},"Saved / Exported"),
-            React.createElement("div",{className:"row", style:{justifyContent:"center"}},
-              React.createElement("button",{className:"btn", onClick:()=>{ setStep(1); }},"New note"),
-              React.createElement("button",{className:"btn primary", onClick:onClose},"Close")
-            )
+        step===5 && React.createElement("div",{className:"grid",style:{placeItems:"center"}},
+          exportUrl && React.createElement("a",{className:"btn",href:exportUrl,download:`intoview-note_${Date.now()}.png`},"Download again"),
+          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))", width:"100%"}},
+            React.createElement("button",{className:"btn",onClick:()=>{setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null);}},"New note"),
+            React.createElement("button",{className:"btn primary",onClick:onClose},"Close")
           )
         )
       )
@@ -839,28 +951,28 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
   );
 }
 
-/* ===== Persistence ===== */
-function loadArchive(){
-  try{
-    const raw=localStorage.getItem(STORAGE_KEY);
-    if(!raw) return [];
-    const parsed=JSON.parse(raw);
-    if(!Array.isArray(parsed)) return [];
-    return parsed.map((it,i)=>({ ...it, createdMs:getCreatedMs(it,i) }));
-  }catch{ return []; }
-}
-function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
-
 /* ===== App ===== */
 function App(){
   const [wgState,setWgState]=useState(WorkgridState.DEFAULT);
   const [overlayOpen,setOverlayOpen]=useState(false);
   const [manageMode,setManageMode]=useState(false);
-
   const [archive,setArchive]=useState(loadArchive());
-  const [version,setVersion]=useState(1);
+
   useEffect(()=>{ saveArchive(archive); },[archive]);
 
+  const sortedArchive=useMemo(
+    ()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),
+    [archive]
+  );
+  const combinedItems=useMemo(()=>[...sortedArchive, ...SEED], [sortedArchive]);
+
+  // sync warp var
+  useEffect(()=>{
+    const k = wgState === WorkgridState.INTRO ? 0 : 1;
+    document.documentElement.style.setProperty("--dom-curve-k", String(k));
+  },[wgState]);
+
+  // keyboard
   useEffect(()=>{
     const onKey=e=>{
       if(overlayOpen) return;
@@ -870,41 +982,66 @@ function App(){
       if(e.key==="n"||e.key==="N") setOverlayOpen(true);
       if(e.key==="m"||e.key==="M") setManageMode(v=>!v);
     };
-    window.addEventListener("keydown",onKey); return ()=>window.removeEventListener("keydown",onKey);
+    window.addEventListener("keydown", onKey);
+    return ()=>window.removeEventListener("keydown", onKey);
   },[overlayOpen]);
 
-  const bump=()=>setVersion(v=>v+1);
-  const addNoteToArchive = note => { setArchive(arr=>[note, ...arr]); bump(); }; // newest first
-  const sortedArchive = useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
-  const handleTileSelect=(tileIndex,item)=>{
-    if(!manageMode||!item) return;
-    if(!confirm("Delete this note from the archive?")) return;
-    setArchive(arr=>arr.filter(x=>x.id!==item.id)); bump();
+  const addNoteToArchive = note => setArchive(arr=>[...arr, note]);
+
+  const handleTileSelect=(idx,item)=>{
+    if(!manageMode || !item) return;
+    if(item.id && String(item.id).startsWith("note_")){
+      if(!confirm("Delete this note from the archive?")) return;
+      setArchive(arr=>arr.filter(x=>x.id !== item.id));
+    }
   };
 
   return (
     React.createElement(React.Fragment,null,
-      React.createElement("div",{className:"canvas-wrap"+(overlayOpen?" blocked":"") },
+      /* Canvas / grid layer */
+      React.createElement("div",{className:"canvas-wrap"},
         React.createElement("div",{className:"fallback-grid"}),
         React.createElement(Suspense,{fallback:null},
-          React.createElement(GridView, { workgridState:wgState, archive:sortedArchive, version, manageMode, onTileSelect:handleTileSelect })
+          React.createElement(GridView,{
+            workgridState:wgState,
+            items:combinedItems,
+            manageMode,
+            onTileSelect:handleTileSelect
+          })
         )
       ),
-      React.createElement("div",{className:"hud"},
-        React.createElement("button",{className:"btn", onClick:()=>setWgState(WorkgridState.INTRO)},"Flat"),
-        React.createElement("button",{className:"btn", onClick:()=>setWgState(WorkgridState.DEFAULT)},"Curved"),
-        React.createElement("button",{className:"btn", onClick:()=>setWgState(WorkgridState.RESET)},"Reset"),
-        React.createElement("button",{className:"btn primary", onClick:()=>setOverlayOpen(true)},"New note"),
-        React.createElement("button",{className:"btn "+(manageMode?"danger active":""),
-          onClick:()=>setManageMode(v=>!v), title:"Tap a tile to delete while active"},
-          manageMode?"Manage: Delete (ON)":"Manage: Delete")
+
+      /* Fixed UI (not inside warp) */
+      React.createElement("header",{className:"header"},
+        React.createElement("span",{className:"dot","aria-hidden":"true"}),
+        React.createElement("h1",null,"intoview • note — Phantom archive"),
+        React.createElement("small",null,"drag to pan • 1 flat • 2 curved • 0 reset • N new • M manage/delete")
       ),
-      React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive })
+      React.createElement("div",{className:"hud"},
+        React.createElement("button",{onClick:()=>setWgState(WorkgridState.INTRO)},"Flat"),
+        React.createElement("button",{onClick:()=>setWgState(WorkgridState.DEFAULT)},"Curved"),
+        React.createElement("button",{onClick:()=>setWgState(WorkgridState.RESET)},"Reset"),
+        React.createElement("button",{className:"accent",onClick:()=>setOverlayOpen(true)},"New note"),
+        React.createElement("button",{
+          className:manageMode?"danger active":"danger",
+          onClick:()=>setManageMode(v=>!v),
+          title:"Tap a tile to delete while active"
+        }, manageMode ? "Manage: Delete (ON)" : "Manage: Delete")
+      ),
+
+      /* Warped overlay flow */
+      React.createElement("div",{className:"dom-curve"},
+        React.createElement(OverlayFlow,{
+          open:overlayOpen,
+          onClose:()=>setOverlayOpen(false),
+          onAddToArchive:addNoteToArchive
+        })
+      )
     )
   );
 }
 
-/* ===== Mount ===== */
+/* mount */
 const root = createRoot(document.getElementById("root"));
 root.render(React.createElement(App));
     </script>
