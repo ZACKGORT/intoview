@@ -32,6 +32,7 @@
   --z-blur: 150;
   --z-vig: 151;
   --z-ui: 220;
+  --z-cursor: 230; /* gooey cursor above UI */
 
   /* FAB sizing + bottom-anchored placement */
   --fab-size: 120px;
@@ -41,6 +42,9 @@
   --rail-height-desktop: 60vh;
   --rail-height-mobile:  52vh;
   --rail-right: clamp(12px, 2vw, 20px);
+
+  /* Gooey cursor */
+  --cursor-size: 28px;
 }
 
 *{box-sizing:border-box}
@@ -271,9 +275,12 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
 .fab .cube--dark{ display:none }
 .fab:hover .cube--light{ display:none }
 .fab:hover .cube--dark{ display:inline }
-.fab .fab-label{
-  font:600 11px/1.1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color:#fff; opacity:.92; letter-spacing:.06em; user-select:none; pointer-events:none;
+
+/* correct selector (label sits outside .fab) */
+.fab-label{
+  margin-top:6px;
+  font:500 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color:#fff; opacity:.8; letter-spacing:0; user-select:none; pointer-events:none;
   text-shadow:0 1px 2px rgba(0,0,0,.55);
 }
 
@@ -289,12 +296,53 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
 @media (prefers-reduced-motion: reduce){
   .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
 }
+
+/* ===== Gooey cursor (HighFlyer pen, adapted) ===== */
+#cursor{
+  position:fixed;
+  top: calc(var(--cursor-size) * -0.5);
+  left: calc(var(--cursor-size) * -0.5);
+  pointer-events:none;
+  filter:url(#goo);
+  mix-blend-mode:difference;
+  z-index:var(--z-cursor);
+}
+.cursor-circle{
+  position:absolute;
+  top:0; left:0;
+  width:var(--cursor-size);
+  height:var(--cursor-size);
+  border-radius:999px;
+  background:#fff;
+  transform-origin:center center;
+}
+.goo{ display:none; }
+@media (pointer: coarse){
+  #cursor{ display:none; } /* hide on touch-only devices */
+}
     </style>
   </head>
   <body>
+    <!-- SVG filter for gooey blending -->
+    <svg xmlns="http://www.w3.org/2000/svg" class="goo" width="0" height="0" aria-hidden="true">
+      <defs>
+        <filter id="goo">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"></feGaussianBlur>
+          <feColorMatrix in="blur" mode="matrix"
+            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 35 -15"
+            result="goo"></feColorMatrix>
+          <feComposite in="SourceGraphic" in2="goo" operator="atop"></feComposite>
+        </filter>
+      </defs>
+    </svg>
+
+    <!-- Gooey cursor host (filled by script) -->
+    <div id="cursor" aria-hidden="true"></div>
+
     <div id="root"></div>
 
     <script type="module">
+/* React + Three deps */
 import React,{useEffect,useMemo,useRef,useState,Suspense} from "https://esm.sh/react@18.3.1";
 import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 import * as THREE from "https://esm.sh/three@0.160.1";
@@ -858,7 +906,6 @@ function Leveler(){
   useEffect(()=>{
     if(!enabled) return;
     const onOrient = (e)=>{
-      // roll: left/right tilt is gamma (-90..90). Clamp to [-45,45] for UI.
       const g = (typeof e.gamma === "number") ? e.gamma : 0;
       const clamped = Math.max(-45, Math.min(45, g));
       setDeg(clamped);
@@ -868,7 +915,7 @@ function Leveler(){
   },[enabled]);
 
   const good = Math.abs(deg) <= 2;
-  const xPct = ((deg + 45) / 90) * 100; // 0..100
+  const xPct = ((deg + 45) / 90) * 100;
   const needPermission = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
 
   const askPermission = async ()=>{
@@ -877,7 +924,6 @@ function Leveler(){
         const st = await DeviceOrientationEvent.requestPermission();
         if(st === "granted") setEnabled(true);
       }else{
-        // Non iOS: enabling is enough (listener will fire)
         setEnabled(true);
       }
     }catch{ /* ignore */ }
@@ -998,7 +1044,6 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
 /* ========= Vertical Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
   const pctLabel = Math.round(zoom * 100);
-  const norm = (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMax + CONFIG.zoomMax - CONFIG.zoomMin); // simplify below
   const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
   const pct = clamped * 100;
 
@@ -1096,7 +1141,7 @@ function App(){
       if(e.key==="?"||e.key==="h"||e.key==="H") setHelpOpen(true);
     }; window.addEventListener("keydown",onKey); return ()=>window.removeEventListener("keydown",onKey); },[overlayOpen,helpOpen]);
 
-  // Auto-open overlay if #camera in URL (helps with “open in new tab” flow)
+  // Auto-open overlay if #camera in URL
   useEffect(()=>{ if(location.hash==="#camera"){ setOverlayOpen(true); } },[]);
 
   const addNoteToArchive=note=> setArchive(arr=>[...arr, note]);
@@ -1109,6 +1154,14 @@ function App(){
   };
 
   const isCurved = wgState === WorkgridState.DEFAULT;
+
+  /* ===== Cursor XY for FAB label ===== */
+  const [cursorXY, setCursorXY] = useState({ x: 0, y: 0 });
+  useEffect(()=>{
+    const onMove = (e)=> setCursorXY({ x: Math.round(e.clientX), y: Math.round(e.clientY) });
+    window.addEventListener("pointermove", onMove, { passive:true });
+    return ()=> window.removeEventListener("pointermove", onMove);
+  },[]);
 
   return (
     React.createElement(React.Fragment,null,
@@ -1190,7 +1243,7 @@ function App(){
             )
           )
         ),
-        React.createElement("div",{ className:"fab-label" },"...")
+        React.createElement("div",{ className:"fab-label" }, `x ${cursorXY.x} • y ${cursorXY.y}`)
       )
     )
   );
@@ -1219,6 +1272,42 @@ function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify
 /* ========= Mount ========= */
 const root = createRoot(document.getElementById("root"));
 root.render(React.createElement(App));
+
+/* ========= Gooey cursor init (HighFlyer pen, adapted) ========= */
+(function initGooeyCursor(){
+  const TAIL_LENGTH = 20;
+  const host = document.getElementById('cursor');
+  if(!host) return;
+
+  // build tail
+  for(let i=0;i<TAIL_LENGTH;i++){
+    const d=document.createElement('div');
+    d.className='cursor-circle';
+    host.appendChild(d);
+  }
+  const circles = Array.from(host.querySelectorAll('.cursor-circle'));
+
+  let mouseX = innerWidth/2, mouseY = innerHeight/2;
+  let history = Array(TAIL_LENGTH).fill(0).map(()=>({ x: mouseX, y: mouseY }));
+
+  const onMove = (e)=>{ mouseX = e.clientX; mouseY = e.clientY; };
+  window.addEventListener('pointermove', onMove, { passive:true });
+
+  function tick(){
+    history.shift();
+    history.push({ x: mouseX, y: mouseY });
+    for(let i=0;i<TAIL_LENGTH;i++){
+      const cur = history[i];
+      const next = history[i+1] || history[TAIL_LENGTH-1];
+      cur.x += (next.x - cur.x) * 0.35;
+      cur.y += (next.y - cur.y) * 0.35;
+      const s = Math.max(0.22, i/TAIL_LENGTH); // keep smallest dot visible
+      circles[i].style.transform = `translate(${cur.x}px, ${cur.y}px) scale(${s})`;
+    }
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
     </script>
   </body>
 </html>
