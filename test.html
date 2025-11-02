@@ -10,211 +10,253 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
     <style>
-      :root{
-        --paper:#000; --ink:#FFFFFF; --ink-2:#9F9F9F; --ink-3:#6C6C6C;
-        --accent:#59D2C8; --danger:#FF6363;
-        --curve-k:1;
+:root{
+  --paper:#000; --ink:#FFFFFF; --ink-2:#9F9F9F; --ink-3:#6C6C6C;
+  --accent:#59D2C8; --danger:#FF6363;
+  --curve-k:1;
 
-        /* Phantom-esque global effects (strong) */
-        --vig-opacity: 1;    /* master opacity */
-        --vig-inner:   20%;  /* where vignette starts darkening */
-        --vig-mid:     52%;
-        --vig-outer:   100%;
-        --edge-blur:   64px; /* heavy edge blur */
-        --edge-mask-i: 36%;  /* center clear radius */
-        --edge-mask-o: 98%;  /* how far the blur reaches */
-      }
+  /* Phantom-esque global effects */
+  --vig-opacity: 1;
+  --vig-inner:   20%;
+  --vig-mid:     52%;
+  --vig-outer:   100%;
 
-      *{box-sizing:border-box}
-      html,body,#root{height:100%}
-      body{
-        margin:0; background:#000; color:var(--ink);
-        font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
-        overflow:hidden; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-      }
+  /* Heavier edge blur (dramatic but tasteful) */
+  --edge-blur:   120px;     /* ↑ from 96 */
+  --edge-mask-i: 30%;       /* tighter clear center */
+  --edge-mask-o: 99.5%;
 
-      /* ===== Layering =====
-         0   : WebGL & content
-         120 : Content overlays (help, capture) — intentionally BELOW effects
-         149 : Grain
-         150 : Edge blur (backdrop-filter), above content
-         151 : Vignette (darkening), above content
-         200 : Header + Controls + Zoom rail + FAB (logo block), ABOVE effects
-      */
+  /* Layering */
+  --z-content: 0;
+  --z-grain: 149;
+  --z-blur: 150;
+  --z-vig: 151;
+  --z-ui: 220;
 
-      /* ===== WebGL/content layer ===== */
-      .canvas-wrap{position:absolute; inset:0; z-index:0}
-      .canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000 }
-      .canvas-wrap canvas.dragging{ cursor:grabbing }
-      .fallback-grid{
-        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.06;
-        background-image:
-          repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
-          repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
-      }
+  /* FAB sizing + bottom-anchored placement */
+  --fab-size: 120px;
+  --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
 
-      /* ===== Topmost global effects ===== */
-      .edge-blur{
-        position:fixed; inset:0; pointer-events:none; z-index:150;
-        background: rgba(0,0,0,0.001);
-        backdrop-filter: blur(var(--edge-blur));
-        -webkit-backdrop-filter: blur(var(--edge-blur));
-        /* Mask: center transparent, edges opaque (white) */
-        mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
-        -webkit-mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
-      }
-      .vignette{
-        position:fixed; inset:0; pointer-events:none; z-index:151;
-        background:
-          radial-gradient(120% 90% at 50% 50%,
-            rgba(0,0,0,0) var(--vig-inner),
-            rgba(0,0,0,0.58) var(--vig-mid),
-            rgba(0,0,0,0.98) var(--vig-outer));
-        opacity:calc(var(--vig-opacity) * var(--curve-k));
-        mix-blend-mode: normal;
-      }
-      @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-        .vignette{ opacity:calc((var(--vig-opacity) + .10) * var(--curve-k)); }
-      }
+  /* Vertical zoom rail sizing/placement */
+  --rail-height-desktop: 60vh;
+  --rail-height-mobile:  52vh;
+  --rail-right: clamp(12px, 2vw, 20px);
+}
 
-      /* ===== Subtle grain ===== */
-      body::after{
-        content:""; position:fixed; inset:0; pointer-events:none; z-index:149; opacity:.06;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
-        background-size: 120px 120px;
-      }
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{
+  margin:0; background:#000; color:var(--ink);
+  font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+  overflow:hidden; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
 
-      /* ===== Curved aesthetic for DOM elements ===== */
-      .curved{
-        transform-style:preserve-3d;
-        transform:
-          perspective(1000px)
-          translateZ(calc(-200px * var(--curve-k)))
-          scale(calc(1 + var(--curve-k) * 0.06));
-        will-change:transform;
-      }
+/* ===== Layers ===== */
+.canvas-wrap{position:absolute; inset:0; z-index:var(--z-content)}
+.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000 }
+.canvas-wrap canvas.dragging{ cursor:grabbing }
+.fallback-grid{
+  position:absolute; inset:0; z-index:var(--z-content); pointer-events:none; opacity:.06;
+  background-image:
+    repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
+}
 
-      /* ===== Header (HUD) ===== */
-      .header{
-        position:fixed; inset:0 0 auto 0;
-        z-index:200;
-        display:flex; align-items:center; justify-content:space-between;
-        gap:12px; padding:12px 14px;
-        pointer-events:none; /* allow buttons to re-enable */
-      }
-      /* New brand block (from your logo demo) */
-      .brand{
-        display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
-      }
-      .brand img{
-        display:block; height:40px; width:auto;
-        filter:none !important; mix-blend-mode:normal;
-      }
+/* Global effects above content, below UI */
+.edge-blur{
+  position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
+  background: rgba(0,0,0,0.001);
+  backdrop-filter: blur(var(--edge-blur));
+  -webkit-backdrop-filter: blur(var(--edge-blur));
+  mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
+  -webkit-mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
+}
+.vignette{
+  position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
+  background:
+    radial-gradient(120% 90% at 50% 50%,
+      rgba(0,0,0,0) var(--vig-inner),
+      rgba(0,0,0,0.58) var(--vig-mid),
+      rgba(0,0,0,0.98) var(--vig-outer));
+  opacity:calc(var(--vig-opacity) * var(--curve-k));
+  mix-blend-mode: normal;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .vignette{ opacity:calc((var(--vig-opacity) + .10) * var(--curve-k)); }
+}
 
-      /* Controls group (right side) */
-      .controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
-      .icon-btn{
-        appearance:none; cursor:pointer; border:0px solid var(--ink-2);
-        background:rgba(0,0,0,.35); color:var(--ink);
-        padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
-        transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease;
-      }
-      .icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
-      .icon-btn.active{ outline:0px solid color-mix(in oklab, var(--danger), white 10%); outline-offset:1px; }
-      .icon-btn svg{ display:block; width:18px; height:18px; }
+/* Subtle grain */
+body::after{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+}
 
-      /* ===== Zoom rail (horizontal, bottom-center) ===== */
-      .zoom-rail{
-        position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
-        width:min(600px, 88vw);
-        z-index:200; pointer-events:auto;
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      }
-      .zoom-rail__track{
-        position:relative; height:2px; width:100%;
-        background:rgba(255,255,255,.18); border-radius:2px; overflow:visible;
-      }
-      .zoom-rail__progress{
-        position:absolute; left:0; top:0; bottom:0;
-        width:var(--zoom-pct,0%); background:rgba(255,255,255,.9);
-        border-radius:2px;
-      }
-      .zoom-rail__thumb{
-        position:absolute; top:50%; left:var(--zoom-pct,0%);
-        transform:translate(-50%,-50%); width:10px; height:10px; border-radius:50%;
-        background:var(--ink);
-        box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
-      }
-      .zoom-rail__tooltip{
-        position:absolute; top:-26px; left:var(--zoom-pct,0%); transform:translateX(-50%);
-        font-weight:700; font-size:12px; color:var(--ink-2);
-        text-shadow:0 1px 2px rgba(0,0,0,.55);
-        user-select:none;
-      }
-      @media (max-width:768px){
-        .zoom-rail{ bottom:14px; width:min(520px, 92vw); }
-        .zoom-rail__tooltip{ top:-24px; }
-      }
+/* Curved DOM aesthetic */
+.curved{
+  transform-style:preserve-3d;
+  transform:
+    perspective(1000px)
+    translateZ(calc(-200px * var(--curve-k)))
+    scale(calc(1 + var(--curve-k) * 0.06));
+  will-change:transform;
+}
 
-      /* ===== Overlay flows (help / capture) ===== */
-      .overlay{position:fixed; inset:72px 16px 16px 16px; z-index:120; display:none; pointer-events:auto;}
-      .overlay.open{ display:grid; place-items:center; }
-      .sheet{width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
-        box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);}
-      .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-      .grid{display:grid; gap:12px}
-      .cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-      .label{font-weight:600; opacity:.9}
-      .input,.textarea{width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit;}
-      .textarea{min-height:96px; resize:vertical}
-      .btn{appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600;}
-      .btn.ghost{ background:transparent } .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
-      .hint{color:#c9c9cf; font-size:12px}
-      .vf{position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000;}
-      video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98)}
-      .preview{position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block;}
-      .titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
-      .titlebar h2{margin:0; font-size:16px}
-      .tight{gap:6px} .hidden{display:none !important} .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
+/* Header (UI above effects) */
+.header{
+  position:fixed; inset:0 0 auto 0;
+  z-index:var(--z-ui);
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; padding:12px 14px;
+  pointer-events:none;
+}
+.brand{
+  display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
+}
+.brand img{ display:block; height:40px; width:auto; filter:none !important; mix-blend-mode:normal; }
 
-      /* Film-strip chrome for camera */
-      .vf::before, .vf::after{
-        content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
-        background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
-        border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
-      }
-      .vf::before{ top:0; }
-      .vf::after{ bottom:0; }
-      .vf .perfs{
-        position:absolute; inset:0; pointer-events:none; z-index:1;
-        background:
-          radial-gradient(circle 3px at 8px 14px, #000 0 2.2px, transparent 2.2px) repeat-y left / 16px 28px,
-          radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
-        opacity:.85;
-      }
+.controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
+.icon-btn{
+  appearance:none; cursor:pointer; border:0px solid var(--ink-2);
+  background:rgba(0,0,0,.35); color:var(--ink);
+  padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
+  transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease;
+  position:relative; z-index:1;
+}
+.icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
+.icon-btn.active{ outline:0px solid color-mix(in oklab, var(--danger), white 10%); outline-offset:1px; }
+.icon-btn svg{ display:block; width:18px; height:18px; }
 
-      /* ===== FAB: cube button (integrated) ===== */
-      .fab{
-        position:fixed; right:16px; bottom:18px;
-        z-index:200; pointer-events:auto;
-        width:72px; height:72px; border-radius:16px;
-        background:#111214; color:#fff;
-        border:1px solid rgb(255 255 255 / .14);
-        display:grid; place-items:center; cursor:pointer;
-        box-shadow:0 16px 36px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06) inset;
-        transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
-      }
-      .fab:hover{ background:#1A1C20; border-color:rgb(255 255 255 / .22) }
-      .fab:active{ background:#0B0C0E; transform:translateY(1px) }
-      .fab svg{ width:56%; height:56%; display:block }
+/* ===== Vertical Zoom rail — hugs right edge ===== */
+.zoom-rail{
+  position:fixed;
+  right: var(--rail-right);
+  top: 50%;
+  transform: translateY(-50%);
+  height: var(--rail-height-desktop);
+  width: 2px;
+  z-index: var(--z-ui);
+  pointer-events:auto;
+  touch-action: none;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+.zoom-rail__track{
+  position:relative;
+  width: 2px;
+  height: 100%;
+  background: rgba(255,255,255,.18);
+  border-radius: 2px;
+}
+.zoom-rail__progress{
+  position:absolute; left:0; bottom:0; width:100%;
+  height: var(--zoom-pct, 0%);
+  background: rgba(255,255,255,.9);
+  border-radius: 2px;
+}
+.zoom-rail__thumb{
+  position:absolute; left:50%;
+  top: calc(100% - var(--zoom-pct, 0%));
+  transform: translate(-50%, -50%);
+  width:10px; height:10px; border-radius:50%;
+  background:var(--ink);
+  box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
+}
+.zoom-rail__tooltip{
+  position:absolute;
+  top: calc(100% - var(--zoom-pct, 0%));
+  left: -44px;                 /* to the left of the rail */
+  transform: translateY(-50%);
+  font-weight:700; font-size:12px; color:var(--ink-2);
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+  user-select:none;
+}
 
-      @media (max-width:768px){
-        .fab{ right:12px; bottom:12px; width:64px; height:64px; }
-      }
+@media (max-width:768px){
+  .zoom-rail{ height: var(--rail-height-mobile); }
+  .zoom-rail__tooltip{ left: -40px; }
+}
 
-      @media (prefers-reduced-motion: reduce){
-        .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
-      }
+/* Overlays (UI above effects) */
+.overlay{
+  position:fixed; inset:72px 16px 16px 16px; z-index:var(--z-ui);
+  display:none; pointer-events:auto;
+}
+.overlay.open{ display:grid; place-items:center; }
+.sheet{
+  width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
+}
+.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.grid{display:grid; gap:12px}
+.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.label{font-weight:600; opacity:.9}
+.input,.textarea{width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit;}
+.textarea{min-height:96px; resize:vertical}
+.btn{appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600; position:relative; z-index:1;}
+.btn.ghost{ background:transparent } .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
+.hint{color:#c9c9cf; font-size:12px}
+.vf{position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000;}
+video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98)}
+.preview{position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block;}
+.titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
+.titlebar h2{margin:0; font-size:16px}
+.tight{gap:6px} .hidden{display:none !important} .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
+
+/* Film strip chrome */
+.vf::before, .vf::after{
+  content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
+  background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
+  border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
+}
+.vf::before{ top:0; }
+.vf::after{ bottom:0; }
+.vf .perfs{
+  position:absolute; inset:0; pointer-events:none; z-index:1;
+  background:
+    radial-gradient(circle 3px at 8px 14px, #000 0 2.2px, transparent 2.2px) repeat-y left / 16px 28px,
+    radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
+  opacity:.85;
+}
+
+/* ===== FAB (button + label) — centered, bottom-anchored ===== */
+.fab-wrap{
+  position:fixed;
+  left:50%;
+  bottom: var(--fab-bottom);
+  transform: translateX(-50%); /* no vertical translate */
+  z-index:var(--z-ui);
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+}
+.fab{
+  width:var(--fab-size); height:var(--fab-size); border-radius:999px;
+  background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
+  display:grid; place-items:center; cursor:pointer;
+  box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
+  transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.fab:hover{ background:#fff; border-color:rgb(255 255 255 / .22) }
+.fab:active{ background:#0B0C0E; transform:translateY(1px) }
+.fab svg{ width:56%; height:56%; display:block }
+.fab-label{
+  padding-top:.5em;
+  font:600 10px/1.1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:#fff; opacity:.86; letter-spacing:.02em; user-select:none; pointer-events:none;
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+}
+
+/* Mobile tweaks */
+@media (max-width:768px){
+  :root{
+    --fab-size: 128px;
+    --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
+}
+
     </style>
   </head>
   <body>
@@ -775,7 +817,7 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
       React.createElement("div",{className:"sheet",ref:sheetRef,role:"dialog","aria-modal":"true"},
         React.createElement("div",{className:"titlebar"},
           React.createElement("h2",null, ["Start","Viewfinder","Review","Details","Export","Done"][step] || "Start"),
-          React.createElement("div",{className:"row tight"}, React.createElement("button",{className:"btn ghost",onClick:onClose},"Close"))
+          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
         ),
         step===0 && React.createElement("div",{className:"grid"},
           React.createElement("div",{className:"hint"},"Camera opens instantly (HTTPS only) or import an image."),
@@ -817,14 +859,14 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
           React.createElement("div",{className:"row",style:{justifyContent:"center"}},
             exportUrl ? React.createElement("a",{href:exportUrl,download:`intoview-note_${Date.now()}.png`,className:"btn"},"Download again") : null),
           React.createElement("div",{className:"row",style:{justifyContent:"center"}},
-            React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"New note"),
+            React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"intoview:note"),
             React.createElement("button",{className:"btn primary",onClick:onClose},"Close")))
       )
     )
   );
 }
 
-/* ========= Zoom Rail ========= */
+/* ========= Vertical Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
   const pctLabel = Math.round(zoom * 100);
   const norm = (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin);
@@ -832,16 +874,17 @@ function ZoomRail({ zoom, onScrub }) {
   const pct = clamped * 100;
 
   const trackRef = React.useRef(null);
-  const toZoomFromClientX = (clientX) => {
+  const toZoomFromClientY = (clientY) => {
     const el = trackRef.current; if(!el) return null;
     const r = el.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    return CONFIG.zoomMin + x * (CONFIG.zoomMax - CONFIG.zoomMin);
+    const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height)); // 0 at top, 1 at bottom
+    const frac = 1 - y; // top = 1 (max), bottom = 0 (min)
+    return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
   };
   const onPointerDown = (e) => {
     if (!onScrub) return;
-    const z = toZoomFromClientX(e.clientX); if (z!=null) onScrub(z);
-    const move = (ev)=>{ const zz = toZoomFromClientX(ev.clientX); if(zz!=null) onScrub(zz); };
+    const z = toZoomFromClientY(e.clientY); if (z!=null) onScrub(z);
+    const move = (ev)=>{ const zz = toZoomFromClientY(ev.clientY); if(zz!=null) onScrub(zz); };
     const up = ()=>{ window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up); };
     window.addEventListener("pointermove",move,{passive:true});
     window.addEventListener("pointerup",up,{once:true});
@@ -849,6 +892,7 @@ function ZoomRail({ zoom, onScrub }) {
 
   return React.createElement("div", { className:"zoom-rail", "aria-label":"Zoom" },
     React.createElement("div", { className:"zoom-rail__track", ref:trackRef, onPointerDown, role:"slider",
+      "aria-orientation":"vertical",
       "aria-valuemin":Math.round(CONFIG.zoomMin*100), "aria-valuemax":Math.round(CONFIG.zoomMax*100),
       "aria-valuenow":Math.round(zoom*100) },
       React.createElement("div", { className:"zoom-rail__progress", style:{ "--zoom-pct": `${pct}%` } }),
@@ -858,7 +902,7 @@ function ZoomRail({ zoom, onScrub }) {
   );
 }
 
-/* ========= Icon: Flat/Curved morph ========= */
+/* ========= Icons ========= */
 function MorphDistortionIcon({ isCurved, onToggle }){
   const rectRef = useRef(null);
   useEffect(()=>{
@@ -875,8 +919,6 @@ function MorphDistortionIcon({ isCurved, onToggle }){
     )
   );
 }
-
-/* ========= Icon: Reset ========= */
 function ResetIcon({ onClick }){
   return (
     React.createElement("button",{ className:"icon-btn", onClick, title:"Reset view", "aria-label":"Reset view" },
@@ -887,8 +929,6 @@ function ResetIcon({ onClick }){
     )
   );
 }
-
-/* ========= Icon: Trash (manage toggle) ========= */
 function TrashToggle({ active, onToggle }){
   return (
     React.createElement("button",{ className:`icon-btn ${active?"active":""}`, onClick:onToggle,
@@ -955,7 +995,7 @@ function App(){
         )
       ),
 
-      /* Header (brand img + icon controls) — integrated logo */
+      /* Header */
       React.createElement("header",{className:"header"},
         React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
           React.createElement("img",{
@@ -983,39 +1023,42 @@ function App(){
       React.createElement(HelpOverlay,{ open:helpOpen, onClose:()=>setHelpOpen(false) }),
       React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive }),
 
-      /* Global effects (ABOVE content, BELOW controls) */
+      /* Global effects */
       React.createElement("div",{className:"edge-blur"}),
       React.createElement("div",{className:"vignette"}),
 
-      /* Zoom rail */
+      /* Vertical zoom rail */
       React.createElement(ZoomRail,{ zoom, onScrub:(z)=> gridCtrl.current?.setZoom?.(z) }),
 
-      /* FAB — integrated cube button */
-      React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"New note" },
-        React.createElement("svg",{viewBox:"0 0 100 100","aria-hidden":"true"},
-          React.createElement("defs",null,
-            React.createElement("linearGradient",{id:"cubeTop",x1:"0",x2:"1",y1:"0",y2:"1"},
-              React.createElement("stop",{offset:"0","stop-color":"#fff","stop-opacity":"1"}),
-              React.createElement("stop",{offset:"1","stop-color":"#dcdcdc","stop-opacity":"1"})
+      /* FAB block (centered lower-third) */
+      React.createElement("div",{ className:"fab-wrap" },
+        React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"intoview:note" },
+          React.createElement("svg",{viewBox:"0 0 100 100","aria-hidden":"true"},
+            React.createElement("defs",null,
+              React.createElement("linearGradient",{id:"cubeTop",x1:"0",x2:"1",y1:"0",y2:"1"},
+                React.createElement("stop",{offset:"0","stop-color":"#fff","stop-opacity":"1"}),
+                React.createElement("stop",{offset:"1","stop-color":"#dcdcdc","stop-opacity":"1"})
+              ),
+              React.createElement("linearGradient",{id:"cubeSide",x1:"0",x2:"1",y1:"0",y2:"1"},
+                React.createElement("stop",{offset:"0","stop-color":"#e8e8e8"}),
+                React.createElement("stop",{offset:"1","stop-color":"#bdbdbd"})
+              ),
+              React.createElement("linearGradient",{id:"cubeDark",x1:"0",x2:"1",y1:"0",y2:"1"},
+                React.createElement("stop",{offset:"0","stop-color":"#8a8a8a"}),
+                React.createElement("stop",{offset:"1","stop-color":"#4b4b4b"})
+              ),
+              React.createElement("filter",{id:"cubeGlow",x:"-50%",y:"-50%",width:"200%",height:"200%"},
+                React.createElement("feDropShadow",{dx:"0",dy:"6","stdDeviation":"6","flood-color":"#000","flood-opacity":".45"})
+              )
             ),
-            React.createElement("linearGradient",{id:"cubeSide",x1:"0",x2:"1",y1:"0",y2:"1"},
-              React.createElement("stop",{offset:"0","stop-color":"#e8e8e8"}),
-              React.createElement("stop",{offset:"1","stop-color":"#bdbdbd"})
-            ),
-            React.createElement("linearGradient",{id:"cubeDark",x1:"0",x2:"1",y1:"0",y2:"1"},
-              React.createElement("stop",{offset:"0","stop-color":"#8a8a8a"}),
-              React.createElement("stop",{offset:"1","stop-color":"#4b4b4b"})
-            ),
-            React.createElement("filter",{id:"cubeGlow",x:"-50%",y:"-50%",width:"200%",height:"200%"},
-              React.createElement("feDropShadow",{dx:"0",dy:"6","stdDeviation":"6","flood-color":"#000","flood-opacity":".45"})
+            React.createElement("g",{filter:"url(#cubeGlow)"},
+              React.createElement("polygon",{fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
+              React.createElement("polygon",{fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
+              React.createElement("polygon",{fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
             )
-          ),
-          React.createElement("g",{filter:"url(#cubeGlow)"},
-            React.createElement("polygon",{fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
-            React.createElement("polygon",{fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
-            React.createElement("polygon",{fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
           )
-        )
+        ),
+        React.createElement("div",{ className:"fab-label" },"NEW")
       )
     )
   );
