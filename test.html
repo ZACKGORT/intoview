@@ -33,12 +33,13 @@
         overflow:hidden; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
       }
 
-      /* ===== Layering plan =====
-         0  : WebGL & content
-         120: Content overlays (help, capture) — intentionally BELOW effects
-         150: Edge blur (backdrop-filter), above all content
-         151: Vignette (darkening), above all content
-         200: Header + HUD (logo + buttons only), ABOVE effects
+      /* ===== Layering =====
+         0   : WebGL & content
+         120 : Content overlays (help, capture) — intentionally BELOW effects
+         149 : Grain
+         150 : Edge blur (backdrop-filter), above all content
+         151 : Vignette (darkening), above all content
+         200 : Header + Controls + Zoom rail + FAB (logo block), ABOVE effects
       */
 
       /* ===== WebGL/content layer ===== */
@@ -52,7 +53,7 @@
           repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
       }
 
-      /* ===== Topmost global effects (ABOVE all content, BELOW logo/buttons) ===== */
+      /* ===== Topmost global effects ===== */
       .edge-blur{
         position:fixed; inset:0; pointer-events:none; z-index:150;
         background: rgba(0,0,0,0.001);
@@ -75,6 +76,13 @@
         .vignette{ opacity:calc((var(--vig-opacity) + .10) * var(--curve-k)); }
       }
 
+      /* ===== Subtle grain ===== */
+      body::after{
+        content:""; position:fixed; inset:0; pointer-events:none; z-index:149; opacity:.06;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+        background-size: 120px 120px;
+      }
+
       /* ===== Curved aesthetic for DOM elements ===== */
       .curved{
         transform-style:preserve-3d;
@@ -85,41 +93,63 @@
         will-change:transform;
       }
 
-      /* ===== Header (logo + info) — ABOVE effects ===== */
+      /* ===== Header ===== */
       .header{
         position:fixed; inset:0 0 auto 0;
-        z-index:200; /* sits above vignette/blur */
-        pointer-events:auto;
+        z-index:200;
         display:flex; align-items:center; justify-content:space-between;
         gap:12px; padding:12px 14px;
+        pointer-events:none; /* allow buttons to re-enable */
       }
-      .logo{ display:flex; align-items:center; height:22px }
+      .logo{ display:flex; align-items:center; height:22px; pointer-events:auto; }
       .logo svg{ height:22px; width:auto; display:block; }
+
+      /* Controls group (right side) */
+      .controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
       .icon-btn{
         appearance:none; cursor:pointer; border:1px solid var(--ink-2);
         background:rgba(0,0,0,.35); color:var(--ink);
         padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
-        transition:transform .12s ease, border-color .12s ease, background .12s ease;
+        transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease;
       }
       .icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
+      .icon-btn.active{ outline:2px solid color-mix(in oklab, var(--danger), white 10%); outline-offset:1px; }
+      .icon-btn svg{ display:block; width:18px; height:18px; }
 
-      /* ===== HUD — ABOVE effects ===== */
-      .hud{
-        position:fixed; z-index:200; inset:auto 12px 12px auto; display:flex; gap:8px;
-        font:inherit; pointer-events:auto;
+      /* ===== Zoom rail (horizontal, bottom-center) ===== */
+      .zoom-rail{
+        position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
+        width:min(600px, 88vw);
+        z-index:200; pointer-events:auto;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       }
-      .hud button{
-        appearance:none; cursor:pointer; font:inherit; font-weight:600;
-        border:1px solid var(--ink-2); background:rgba(0,0,0,.65); color:var(--ink);
-        padding:8px 10px; border-radius:10px;
-        transition:transform .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
+      .zoom-rail__track{
+        position:relative; height:2px; width:100%;
+        background:rgba(255,255,255,.18); border-radius:2px; overflow:visible;
       }
-      .hud button:hover{ transform:translateY(-1px) }
-      .hud .accent{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
-      .hud .danger{ border-color:var(--danger); background:var(--danger); color:#0b0b0d }
-      .hud .active{ outline:2px solid color-mix(in oklab, var(--accent), white 12%); outline-offset:1px }
+      .zoom-rail__progress{
+        position:absolute; left:0; top:0; bottom:0;
+        width:var(--zoom-pct,0%); background:rgba(255,255,255,.9);
+        border-radius:2px;
+      }
+      .zoom-rail__thumb{
+        position:absolute; top:50%; left:var(--zoom-pct,0%);
+        transform:translate(-50%,-50%); width:10px; height:10px; border-radius:50%;
+        background:var(--ink);
+        box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
+      }
+      .zoom-rail__tooltip{
+        position:absolute; top:-26px; left:var(--zoom-pct,0%); transform:translateX(-50%);
+        font-weight:700; font-size:12px; color:var(--ink-2);
+        text-shadow:0 1px 2px rgba(0,0,0,.55);
+        user-select:none;
+      }
+      @media (max-width:768px){
+        .zoom-rail{ bottom:14px; width:min(520px, 92vw); }
+        .zoom-rail__tooltip{ top:-24px; }
+      }
 
-      /* ===== Overlay flows (help / capture) — BELOW effects on purpose ===== */
+      /* ===== Overlay flows (help / capture) ===== */
       .overlay{position:fixed; inset:72px 16px 16px 16px; z-index:120; display:none; pointer-events:auto;}
       .overlay.open{ display:grid; place-items:center; }
       .sheet{width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
@@ -139,6 +169,47 @@
       .titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
       .titlebar h2{margin:0; font-size:16px}
       .tight{gap:6px} .hidden{display:none !important} .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
+
+      /* Film-strip chrome for camera (cohesive aesthetic) */
+      .vf::before, .vf::after{
+        content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
+        background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
+        border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
+      }
+      .vf::before{ top:0; }
+      .vf::after{ bottom:0; }
+      .vf .perfs{
+        position:absolute; inset:0; pointer-events:none; z-index:1;
+        background:
+          radial-gradient(circle 3px at 8px 14px, #000 0 2.2px, transparent 2.2px) repeat-y left / 16px 28px,
+          radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
+        opacity:.85;
+      }
+
+      /* ===== FAB: logo block button (bottom-right) ===== */
+      .fab-block{
+        position:fixed; right:16px; bottom:18px;
+        z-index:200; pointer-events:auto;
+        width:64px; height:48px; border-radius:10px;
+        background:#f2f2f2; color:#0b0b0d;
+        border:1px solid #cfcfcf;
+        display:grid; place-items:center; cursor:pointer;
+        box-shadow:0 8px 28px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.06) inset;
+        transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
+      }
+      .fab-block:hover{ background:#1a1a1a; color:#fff; border-color:#2a2a2e; transform:translateY(-1px); }
+      .fab-block:active{ transform:translateY(0); }
+      .fab-block .block-shape{
+        width:60%; height:60%; background:currentColor; border-radius:6px;
+        box-shadow:0 0 0 1px rgba(0,0,0,.5) inset;
+      }
+      @media (max-width:768px){
+        .fab-block{ right:12px; bottom:12px; width:60px; height:44px; }
+      }
+
+      @media (prefers-reduced-motion: reduce){
+        .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
+      }
     </style>
   </head>
   <body>
@@ -202,7 +273,7 @@ const CONFIG = {
   cols:10, rows:7, tile:0.32, gap:0.08,
   ambient:0.20, dragEase:0.14, velEase:0.92,
   zoomOut:1.85,
-  distortion:{ flat:0.0, curved:0.46 }, // slightly reduced
+  distortion:{ flat:0.0, curved:0.46 }, // default levels
 
   /* Interactivity tuning */
   clickBounceDelta: 0.25,
@@ -295,6 +366,7 @@ class Grid extends THREE.Group{
     this.viewW=1; this.viewH=1; this._lastPX=null; this._lastPY=null;
     this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[]; this.ray=new THREE.Raycaster();
     this.manageMode=false; this.onTileSelect=null;
+    this.onZoomChange=null; this._lastZ=this.camera.position.z;
     this.tileGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
     this.bgGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
     this.currentDragEase = opts.dragEase;
@@ -377,14 +449,11 @@ class Grid extends THREE.Group{
     }
   }
 
-  /* ----- helpers ----- */
+  /* helpers */
   _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
   _ndcFromClient(clientX, clientY){
     const rect=this.canvas.getBoundingClientRect();
-    return {
-      x: ((clientX-rect.left)/rect.width)*2-1,
-      y: -((clientY-rect.top)/rect.height)*2+1
-    };
+    return { x: ((clientX-rect.left)/rect.width)*2-1, y: -((clientY-rect.top)/rect.height)*2+1 };
   }
   _hitTileAt(clientX, clientY){
     const ndc=this._ndcFromClient(clientX, clientY);
@@ -408,8 +477,7 @@ class Grid extends THREE.Group{
   centerTileByIndex(idx, dur=0.7){
     if(idx<0||idx>=this.tiles.length) return;
     const p=this.groups[idx].position;
-    const target = { x:-p.x, y:-p.y };
-    gsap.to(this.offset, { x:target.x, y:target.y, duration:dur, ease:"power2.out" });
+    gsap.to(this.offset, { x:-p.x, y:-p.y, duration:dur, ease:"power2.out" });
   }
   zoomToFitTile(idx, margin=1.25, dur=0.7){
     if(idx<0||idx>=this.tiles.length) return;
@@ -423,7 +491,6 @@ class Grid extends THREE.Group{
   }
   _clampZ(z){ return Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z)); }
 
-  /* ----- wheel zoom ----- */
   onWheel(e){
     if(this.manageMode) return;
     e.preventDefault();
@@ -433,24 +500,11 @@ class Grid extends THREE.Group{
     gsap.to(this.camera.position, { z: target, duration: 0.16, ease:"power2.out" });
   }
 
-  /* ----- pinch helpers ----- */
-  _updatePointer(e){
-    if(e.pointerType!=="touch") return;
-    this.pointerMap.set(e.pointerId, { x:e.clientX, y:e.clientY });
-  }
-  _removePointer(e){
-    if(e.pointerType!=="touch") return;
-    this.pointerMap.delete(e.pointerId);
-    if(this.pointerMap.size<2){ this.pinchDist0=null; this.cameraZ0=null; }
-  }
-  _twoTouchDistance(){
-    const vals=[...this.pointerMap.values()];
-    if(vals.length<2) return null;
-    const a=vals[0], b=vals[1];
-    return Math.hypot(b.x-a.x, b.y-a.y);
-  }
+  /* pinch helpers */
+  _updatePointer(e){ if(e.pointerType==="touch") this.pointerMap.set(e.pointerId, { x:e.clientX, y:e.clientY }); }
+  _removePointer(e){ if(e.pointerType==="touch"){ this.pointerMap.delete(e.pointerId); if(this.pointerMap.size<2){ this.pinchDist0=null; this.cameraZ0=null; } } }
+  _twoTouchDistance(){ const v=[...this.pointerMap.values()]; if(v.length<2) return null; const a=v[0],b=v[1]; return Math.hypot(b.x-a.x, b.y-a.y); }
 
-  /* ----- pointer handlers ----- */
   onPointerMove(e){
     const rect=this.canvas.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
     this.pointerUv.set(x,y);
@@ -459,10 +513,7 @@ class Grid extends THREE.Group{
 
     if(this.manageMode) return;
 
-    // Track touches for pinch
     this._updatePointer(e);
-
-    // If pinching, control zoom and skip pan
     if(this.pointerMap.size>=2){
       const d=this._twoTouchDistance();
       if(d && !this.pinchDist0){ this.pinchDist0=d; this.cameraZ0=this.camera.position.z; }
@@ -477,12 +528,10 @@ class Grid extends THREE.Group{
     if(this.isPointerDown){
       const dx=(this._lastPX===null?0:(e.clientX-this._lastPX)), dy=(this._lastPY===null?0:(e.clientY-this._lastPY));
       this._lastPX=e.clientX; this._lastPY=e.clientY;
-
       const d=this._pxToNorm(dx,dy);
       const mult = this.isTouch ? CONFIG.dragMultTouch : CONFIG.dragMultMouse;
       this.offset.x += d.x * mult;
       this.offset.y += -d.y * mult;
-
       const lerpAmt = 1 - (this.opts.velEase);
       this.velocity.lerp(new THREE.Vector2(d.x,-d.y), lerpAmt);
     }
@@ -499,14 +548,12 @@ class Grid extends THREE.Group{
     this.canvas.classList.add("dragging");
     this._lastPX=e.clientX; this._lastPY=e.clientY;
 
-    // click vs long-press bookkeeping
     this.downTime = performance.now();
     this.downX = e.clientX; this.downY = e.clientY;
     this.longPressFired = false;
 
     this.currentDragEase = this.isTouch ? CONFIG.touchDragEase : this.opts.dragEase;
 
-    // track touches for pinch
     this._updatePointer(e);
     if(this.pointerMap.size>=2){
       this.longPressFired = true;
@@ -520,17 +567,13 @@ class Grid extends THREE.Group{
       const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
       if(this.isPointerDown && dist <= thresh){
         const { idx } = this._hitTileAt(this._lastPX ?? this.downX, this._lastPY ?? this.downY);
-        if(idx>=0){
-          this.longPressFired = true;
-          this.zoomToFitTile(idx, 1.25, 0.7);
-        }
+        if(idx>=0){ this.longPressFired = true; this.zoomToFitTile(idx, 1.25, 0.7); }
       }
     }, holdMs);
   }
 
   onPointerUp(e){
     if(this.manageMode) return;
-
     this._removePointer(e);
 
     this.isPointerDown=false; this.canvas.classList.remove("dragging");
@@ -558,6 +601,12 @@ class Grid extends THREE.Group{
     const ease = this.currentDragEase || this.opts.dragEase;
     this.position.x += (tx-this.position.x) * ease;
     this.position.y += (ty-this.position.y) * ease;
+
+    const z = this.camera.position.z;
+    if (Math.abs(z - (this._lastZ ?? z)) > 1e-3) {
+      this._lastZ = z;
+      this.onZoomChange?.(z, { min: CONFIG.zoomMin, max: CONFIG.zoomMax });
+    }
   }
 
   resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); this._setHover(-1); }
@@ -584,14 +633,16 @@ function Postprocessing({ workgridState }){
     shader.update();
   },[composer,shader,size,gl]);
   useEffect(()=>{ if(!shader) return;
-    shader.setDistortion(workgridState==="INTRO"?CONFIG.distortion.flat:CONFIG.distortion.curved);
-  },[workgridState,shader]);
+    const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
+    const scale = size.width < 800 ? 0.75 : 1.0;   // subtle on mobile
+    shader.setDistortion(base * scale);
+  },[workgridState,shader,size.width]);
   useFrame(()=>{ composer?.render(); }, 1);
   return null;
 }
 
 /* ========= Primitive wrapper ========= */
-function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect }){
+function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect, onZoomChange, controllerRef }){
   const { gl, camera, size } = useThree();
   const grid = useMemo(()=> new Grid(gl.domElement, camera, {
     cols:CONFIG.cols, rows:CONFIG.rows, tile:CONFIG.tile, gap:CONFIG.gap,
@@ -602,7 +653,20 @@ function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect 
   useEffect(()=>{ grid.onTileSelect=onTileSelect; },[grid,onTileSelect]);
   useEffect(()=>{ grid.setManageMode(manageMode); },[manageMode,grid]);
   useEffect(()=>{ grid.setItems(items); },[items,grid]);
+  useEffect(()=>{ grid.onZoomChange = (z)=> onZoomChange?.(z); return ()=>{ grid.onZoomChange=null; }; },[grid,onZoomChange]);
   useEffect(()=>{ if(workgridState==="RESET") grid.resetPosition(); },[workgridState,grid]);
+
+  // Expose setter for zoom scrubbing
+  useEffect(()=>{
+    if(!controllerRef) return;
+    controllerRef.current = {
+      setZoom: (z) => {
+        const clamped = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z));
+        gsap.to(camera.position, { z: clamped, duration: 0.12, ease: "power2.out" });
+      }
+    };
+  },[controllerRef, camera]);
+
   return React.createElement("primitive",{object:grid});
 }
 function GridView(props){
@@ -638,8 +702,10 @@ function HelpOverlay({ open, onClose }){
           React.createElement("div",null,"• Wheel / pinch to zoom"),
           React.createElement("div",null,"• Click a tile to center it"),
           React.createElement("div",null,"• Long-press a tile to fit view"),
-          React.createElement("div",null,"• Keys: 1 = Flat, 2 = Curved, 0 = Reset"),
-          React.createElement("div",null,"• N = New note, M = Manage/Delete")
+          React.createElement("div",null,"• Toggle: square↔circle for distortion"),
+          React.createElement("div",null,"• Trash: tap any tile to delete (while active)"),
+          React.createElement("div",null,"• FAB block: new note"),
+          React.createElement("div",null,"• Shortcuts: 1/2 = Flat/Curved, 0 = Reset, N = New, M = Manage, ? = Help")
         )
       )
     )
@@ -718,7 +784,10 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
           React.createElement("input",{ref:filePickRef,type:"file",accept:"image/*",className:"hidden",onChange:onFileChange})
         ),
         step===1 && React.createElement(React.Fragment,null,
-          React.createElement("div",{className:"vf"}, React.createElement("video",{ref:camera.videoRef,playsInline:true,muted:true})),
+          React.createElement("div",{className:"vf"},
+            React.createElement("video",{ref:camera.videoRef,playsInline:true,muted:true}),
+            React.createElement("span",{className:"perfs","aria-hidden":"true"})
+          ),
           React.createElement("div",{className:"row",style:{marginTop:"12px"}},
             React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(0);}},"Back"),
             React.createElement("button",{className:"btn primary",onClick:captureShot,style:{marginLeft:"auto"}},"Capture"))
@@ -736,7 +805,7 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
           React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
           React.createElement("div",{className:"row",style:{marginTop:"6px"}},
             React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}},"Next")))
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}}, "Next")))
         ,
         step===4 && React.createElement("div",{className:"grid"},
           React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
@@ -754,6 +823,83 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
   );
 }
 
+/* ========= Zoom Rail ========= */
+function ZoomRail({ zoom, onScrub }) {
+  const pctLabel = Math.round(zoom * 100);
+  const norm = (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin);
+  const clamped = Math.max(0, Math.min(1, norm));
+  const pct = clamped * 100;
+
+  const trackRef = React.useRef(null);
+  const toZoomFromClientX = (clientX) => {
+    const el = trackRef.current; if(!el) return null;
+    const r = el.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    return CONFIG.zoomMin + x * (CONFIG.zoomMax - CONFIG.zoomMin);
+  };
+  const onPointerDown = (e) => {
+    if (!onScrub) return;
+    const z = toZoomFromClientX(e.clientX); if (z!=null) onScrub(z);
+    const move = (ev)=>{ const zz = toZoomFromClientX(ev.clientX); if(zz!=null) onScrub(zz); };
+    const up = ()=>{ window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up); };
+    window.addEventListener("pointermove",move,{passive:true});
+    window.addEventListener("pointerup",up,{once:true});
+  };
+
+  return React.createElement("div", { className:"zoom-rail", "aria-label":"Zoom" },
+    React.createElement("div", { className:"zoom-rail__track", ref:trackRef, onPointerDown, role:"slider",
+      "aria-valuemin":Math.round(CONFIG.zoomMin*100), "aria-valuemax":Math.round(CONFIG.zoomMax*100),
+      "aria-valuenow":Math.round(zoom*100) },
+      React.createElement("div", { className:"zoom-rail__progress", style:{ "--zoom-pct": `${pct}%` } }),
+      React.createElement("div", { className:"zoom-rail__thumb", style:{ "--zoom-pct": `${pct}%` } }),
+      React.createElement("div", { className:"zoom-rail__tooltip", style:{ "--zoom-pct": `${pct}%` } }, `${pctLabel}%`)
+    )
+  );
+}
+
+/* ========= Icon: Flat/Curved morph (square -> rounded -> circle) ========= */
+function MorphDistortionIcon({ isCurved, onToggle }){
+  const rectRef = useRef(null);
+  useEffect(()=>{
+    const target = isCurved ? 9 : 2; // animate corners
+    gsap.to(rectRef.current, { attr:{ rx: target, ry: target }, duration:0.25, ease:"power2.out" });
+  },[isCurved]);
+
+  return (
+    React.createElement("button", { className:"icon-btn", title:isCurved?"Curved (click to go Flat)":"Flat (click to go Curved)", onClick:onToggle, "aria-label":"Toggle distortion" },
+      React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+        React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", rx:isCurved?9:2, ry:isCurved?9:2,
+          fill:"none", stroke:"currentColor", "stroke-width":"2", ref:rectRef })
+      )
+    )
+  );
+}
+
+/* ========= Icon: Reset (square with circle inside) ========= */
+function ResetIcon({ onClick }){
+  return (
+    React.createElement("button",{ className:"icon-btn", onClick, title:"Reset view", "aria-label":"Reset view" },
+      React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+        React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", fill:"none", stroke:"currentColor", "stroke-width":"2" }),
+        React.createElement("circle",{ cx:"12", cy:"12", r:"5.5", fill:"none", stroke:"currentColor", "stroke-width":"2" })
+      )
+    )
+  );
+}
+
+/* ========= Icon: Trash (manage toggle) ========= */
+function TrashToggle({ active, onToggle }){
+  return (
+    React.createElement("button",{ className:`icon-btn ${active?"active":""}`, onClick:onToggle,
+      title: active?"Delete mode (tap a tile) — Click to exit":"Delete notes (enter delete mode)", "aria-pressed":active, "aria-label":"Toggle delete mode" },
+      React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+        React.createElement("path",{ d:"M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M8 6h8m-8 0l1 14a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2L16 6M10 10v8M14 10v8",
+          fill:"none", stroke:"currentColor", "stroke-width":"2", "stroke-linecap":"round", "stroke-linejoin":"round"})
+      )
+    )
+  );
+}
+
 /* ========= App ========= */
 function App(){
   const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
@@ -762,6 +908,8 @@ function App(){
   const [manageMode,setManageMode]=useState(false);
   const [helpOpen,setHelpOpen]=useState(false);
   const [archive,setArchive]=useState(loadArchive());
+  const [zoom, setZoom] = useState(CONFIG.zoomOut);           // camera z
+  const gridCtrl = useRef({ setZoom: (z)=>{} });              // controller for scrubbing
   useEffect(()=>{ saveArchive(archive); },[archive]);
 
   const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
@@ -788,45 +936,57 @@ function App(){
     }
   };
 
+  const isCurved = wgState === WorkgridState.DEFAULT;
+
   return (
     React.createElement(React.Fragment,null,
       /* WebGL layer (z=0) */
       React.createElement("div",{className:"canvas-wrap"},
         React.createElement("div",{className:"fallback-grid"}),
         React.createElement(Suspense,{fallback:null},
-          React.createElement(GridView,{ workgridState:wgState, items:combinedItems, manageMode, onTileSelect:handleTileSelect })
+          React.createElement(GridView,{
+            workgridState:wgState,
+            items:combinedItems,
+            manageMode,
+            onTileSelect:handleTileSelect,
+            onZoomChange:setZoom,
+            controllerRef:gridCtrl
+          })
         )
       ),
 
-      /* Header (logo + info) — z=200 above effects */
+      /* Header (logo + icon controls) — z=200 */
       React.createElement("header",{className:"header"},
         React.createElement("span",{id:"logoMount",className:"logo","aria-label":"intoview"}),
-        React.createElement("button",{className:"icon-btn","aria-label":"Info / Controls", onClick:()=>setHelpOpen(true)},
-          React.createElement("svg",{width:"18",height:"18",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor","stroke-width":"2","stroke-linecap":"round","stroke-linejoin":"round"},
-            React.createElement("circle",{cx:"12",cy:"12",r:"10"}),
-            React.createElement("line",{x1:"12",y1:"16",x2:"12",y2:"12"}),
-            React.createElement("line",{x1:"12",y1:"8",x2:"12",y2:"8"})
+        React.createElement("div",{className:"controls"},
+          React.createElement(MorphDistortionIcon,{ isCurved, onToggle:()=>setWgState(isCurved?WorkgridState.INTRO:WorkgridState.DEFAULT) }),
+          React.createElement(ResetIcon,{ onClick:()=>setWgState(WorkgridState.RESET) }),
+          React.createElement(TrashToggle,{ active:manageMode, onToggle:()=>setManageMode(v=>!v) }),
+          React.createElement("button",{className:"icon-btn","aria-label":"Info / Controls", onClick:()=>setHelpOpen(true), title:"Help / Controls"},
+            React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+              React.createElement("circle",{cx:"12",cy:"12",r:"10", fill:"none", stroke:"currentColor","stroke-width":"2"}),
+              React.createElement("line",{x1:"12",y1:"16",x2:"12",y2:"12", stroke:"currentColor","stroke-width":"2","stroke-linecap":"round"}),
+              React.createElement("circle",{cx:"12", cy:"8", r:"1.2", fill:"currentColor"})
+            )
           )
         )
-      ),
-
-      /* HUD — z=200 above effects */
-      React.createElement("div",{className:"hud curved"},
-        React.createElement("button",{onClick:()=>setWgState("INTRO")},"Flat"),
-        React.createElement("button",{onClick:()=>setWgState("DEFAULT")},"Curved"),
-        React.createElement("button",{onClick:()=>setWgState("RESET")},"Reset"),
-        React.createElement("button",{className:"accent",onClick:()=>setOverlayOpen(true)},"New note"),
-        React.createElement("button",{className:manageMode?"danger active":"", onClick:()=>setManageMode(v=>!v), title:"Tap a tile to delete while active"},
-          manageMode?"Manage: Delete (ON)":"Manage: Delete")
       ),
 
       /* Modals (below effects by design) */
       React.createElement(HelpOverlay,{ open:helpOpen, onClose:()=>setHelpOpen(false) }),
       React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive }),
 
-      /* Global effects (ABOVE content, BELOW logo/HUD) */
+      /* Global effects (ABOVE content, BELOW controls) */
       React.createElement("div",{className:"edge-blur"}),
-      React.createElement("div",{className:"vignette"})
+      React.createElement("div",{className:"vignette"}),
+
+      /* Zoom rail (ABOVE effects with controls) */
+      React.createElement(ZoomRail,{ zoom, onScrub:(z)=> gridCtrl.current?.setZoom?.(z) }),
+
+      /* FAB — logo block (New note) */
+      React.createElement("button",{ className:"fab-block", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"New note" },
+        React.createElement("span",{ className:"block-shape", "aria-hidden":"true" })
+      )
     )
   );
 }
@@ -896,7 +1056,6 @@ async function inlineExternalSVG(url, mountEl, {color="#fff"} = {}) {
   }
 }
 
-// Wait for React to paint header, then mount logo
 const LOGO_URL_PRIMARY = "https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg";
 const LOGO_URL_FALLBACK = "https://cdn.jsdelivr.net/gh/ZACKGORT/intoview@978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg";
 
