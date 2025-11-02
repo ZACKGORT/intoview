@@ -15,15 +15,16 @@
         --accent:#59D2C8; --danger:#FF6363;
         --curve-k:1;
 
-        /* Dramatic global look (Phantom-esque) */
-        --vig-opacity: .92;
-        --vig-inner:   28%;
-        --vig-mid:     62%;
+        /* Phantom-esque global effects (strong) */
+        --vig-opacity: 1;    /* master opacity */
+        --vig-inner:   20%;  /* where vignette starts darkening */
+        --vig-mid:     52%;
         --vig-outer:   100%;
-        --edge-blur:   18px;
-        --edge-mask-i: 44%;
-        --edge-mask-o: 96%;
+        --edge-blur:   64px; /* heavy edge blur */
+        --edge-mask-i: 36%;  /* center clear radius */
+        --edge-mask-o: 98%;  /* how far the blur reaches */
       }
+
       *{box-sizing:border-box}
       html,body,#root{height:100%}
       body{
@@ -32,7 +33,15 @@
         overflow:hidden; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
       }
 
-      /* ===== WebGL layer ===== */
+      /* ===== Layering plan =====
+         0  : WebGL & content
+         120: Content overlays (help, capture) — intentionally BELOW effects
+         150: Edge blur (backdrop-filter), above all content
+         151: Vignette (darkening), above all content
+         200: Header + HUD (logo + buttons only), ABOVE effects
+      */
+
+      /* ===== WebGL/content layer ===== */
       .canvas-wrap{position:absolute; inset:0; z-index:0}
       .canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000 }
       .canvas-wrap canvas.dragging{ cursor:grabbing }
@@ -43,9 +52,9 @@
           repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
       }
 
-      /* ===== Topmost global overlays (effects BELOW UI, ABOVE WebGL) ===== */
+      /* ===== Topmost global effects (ABOVE all content, BELOW logo/buttons) ===== */
       .edge-blur{
-        position:fixed; inset:0; pointer-events:none; z-index:10;
+        position:fixed; inset:0; pointer-events:none; z-index:150;
         background: rgba(0,0,0,0.001);
         backdrop-filter: blur(var(--edge-blur));
         -webkit-backdrop-filter: blur(var(--edge-blur));
@@ -53,13 +62,14 @@
         -webkit-mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), black var(--edge-mask-o));
       }
       .vignette{
-        position:fixed; inset:0; pointer-events:none; z-index:11;
+        position:fixed; inset:0; pointer-events:none; z-index:151;
         background:
           radial-gradient(120% 90% at 50% 50%,
             rgba(0,0,0,0) var(--vig-inner),
-            rgba(0,0,0,0.44) var(--vig-mid),
-            rgba(0,0,0,0.95) var(--vig-outer));
+            rgba(0,0,0,0.58) var(--vig-mid),
+            rgba(0,0,0,0.98) var(--vig-outer));
         opacity:calc(var(--vig-opacity) * var(--curve-k));
+        mix-blend-mode: normal;
       }
       @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
         .vignette{ opacity:calc((var(--vig-opacity) + .10) * var(--curve-k)); }
@@ -75,10 +85,10 @@
         will-change:transform;
       }
 
-      /* ===== Header: light logo + info button (no backing) ===== */
+      /* ===== Header (logo + info) — ABOVE effects ===== */
       .header{
         position:fixed; inset:0 0 auto 0;
-        z-index:40; /* above blur and vignette */
+        z-index:200; /* sits above vignette/blur */
         pointer-events:auto;
         display:flex; align-items:center; justify-content:space-between;
         gap:12px; padding:12px 14px;
@@ -93,9 +103,9 @@
       }
       .icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
 
-      /* ===== HUD ===== */
+      /* ===== HUD — ABOVE effects ===== */
       .hud{
-        position:fixed; z-index:40; inset:auto 12px 12px auto; display:flex; gap:8px;
+        position:fixed; z-index:200; inset:auto 12px 12px auto; display:flex; gap:8px;
         font:inherit; pointer-events:auto;
       }
       .hud button{
@@ -109,8 +119,8 @@
       .hud .danger{ border-color:var(--danger); background:var(--danger); color:#0b0b0d }
       .hud .active{ outline:2px solid color-mix(in oklab, var(--accent), white 12%); outline-offset:1px }
 
-      /* ===== Overlay flow ===== */
-      .overlay{position:fixed; inset:72px 16px 16px 16px; z-index:41; display:none; pointer-events:auto;}
+      /* ===== Overlay flows (help / capture) — BELOW effects on purpose ===== */
+      .overlay{position:fixed; inset:72px 16px 16px 16px; z-index:120; display:none; pointer-events:auto;}
       .overlay.open{ display:grid; place-items:center; }
       .sheet{width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
         box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);}
@@ -192,7 +202,7 @@ const CONFIG = {
   cols:10, rows:7, tile:0.32, gap:0.08,
   ambient:0.20, dragEase:0.14, velEase:0.92,
   zoomOut:1.85,
-  distortion:{ flat:0.0, curved:0.48 }, // reduced a touch
+  distortion:{ flat:0.0, curved:0.46 }, // slightly reduced
 
   /* Interactivity tuning */
   clickBounceDelta: 0.25,
@@ -275,7 +285,7 @@ class DistortionShader extends THREE.ShaderMaterial{
   setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
 }
 
-/* ========= Grid with hover background + scroll/pinch zoom ========= */
+/* ========= Grid with hover bg + scroll/pinch zoom ========= */
 class Grid extends THREE.Group{
   constructor(canvas,camera,opts){ super();
     this.canvas=canvas; this.camera=camera; this.opts=opts;
@@ -338,9 +348,10 @@ class Grid extends THREE.Group{
         const group=new THREE.Group();
         group.position.set(x,y,0);
 
+        // Hover background (semi-transparent, behind note)
         const bgMat=new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
         const bgMesh=new THREE.Mesh(this.bgGeom,bgMat);
-        bgMesh.position.set(0,0,-0.0005); // behind the note
+        bgMesh.position.set(0,0,-0.0005);
 
         const imgMat=new THREE.MeshBasicMaterial({ color:0xffffff }); // map set later
         const imgMesh=new THREE.Mesh(this.tileGeom,imgMat);
@@ -391,7 +402,7 @@ class Grid extends THREE.Group{
     this.hoverIdx=idx;
     if(idx>=0 && this.bgTiles[idx]){
       this.bgTiles[idx].material.color.set(0xffffff);
-      gsap.to(this.bgTiles[idx].material,{ opacity:0.18, duration:0.12, ease:"power2.out" });
+      gsap.to(this.bgTiles[idx].material,{ opacity:0.2, duration:0.12, ease:"power2.out" });
     }
   }
   centerTileByIndex(idx, dur=0.7){
@@ -612,47 +623,6 @@ function GridView(props){
   );
 }
 
-/* ========= Camera + export ========= */
-function useCamera(){
-  const videoRef=useRef(null), streamRef=useRef(null);
-  const start=async()=>{
-    if(location.protocol!=="https:" && location.hostname!=="localhost"){ alert("Camera requires HTTPS. Use Import instead."); return false; }
-    try{ const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
-      streamRef.current=stream; if(videoRef.current){ videoRef.current.srcObject=stream; await videoRef.current.play(); } return true;
-    }catch(e){ console.warn("Camera error",e); alert("Camera unavailable. Use Import instead."); return false; }
-  };
-  const stop=()=>{ streamRef.current?.getTracks?.().forEach(t=>t.stop()); streamRef.current=null; if(videoRef.current) videoRef.current.srcObject=null; };
-  const captureSquareCanvas=()=>{ const v=videoRef.current; if(!v||!v.videoWidth) return null;
-    const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(vw,vh),sx=Math.floor((vw-s)/2),sy=Math.floor((vh-s)/2);
-    const c=document.createElement("canvas"); c.width=s; c.height=s; c.getContext("2d").drawImage(v,sx,sy,s,s,0,0,s,s); return c; };
-  return { videoRef, start, stop, captureSquareCanvas };
-}
-async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
-  const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=sourceCanvas.toDataURL("image/png"); });
-  const cnv = makeCardCanvas({ img, title, caption, gps, ts:nowTS() });
-  return new Promise(resolve=>{ cnv.toBlob(b=>{ const url=URL.createObjectURL(b); resolve({url,blob:b}); },"image/png",0.96); });
-}
-
-/* ========= Persistence ========= */
-function getCreatedMs(item, idx=0){
-  if (typeof item?.createdMs==="number") return item.createdMs;
-  if (item?.id){ const m=String(item.id).match(/^note_(\d+)$/); if(m){ const n=+m[1]; if(!Number.isNaN(n)) return n; } }
-  if (item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
-    const t=Date.parse(item.ts.replace(" • ","T")+":00"); if(!Number.isNaN(t)) return t;
-  }
-  return idx;
-}
-function loadArchive(){
-  try{
-    const raw=localStorage.getItem(STORAGE_KEY);
-    if(!raw) return [];
-    const parsed=JSON.parse(raw);
-    if(!Array.isArray(parsed)) return [];
-    return parsed.map((it,i)=>({ ...it, createdMs:getCreatedMs(it,i) }));
-  }catch{ return []; }
-}
-function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
-
 /* ========= Help overlay ========= */
 function HelpOverlay({ open, onClose }){
   if(!open) return null;
@@ -674,6 +644,27 @@ function HelpOverlay({ open, onClose }){
       )
     )
   );
+}
+
+/* ========= Camera + export ========= */
+function useCamera(){
+  const videoRef=useRef(null), streamRef=useRef(null);
+  const start=async()=>{
+    if(location.protocol!=="https:" && location.hostname!=="localhost"){ alert("Camera requires HTTPS. Use Import instead."); return false; }
+    try{ const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
+      streamRef.current=stream; if(videoRef.current){ videoRef.current.srcObject=stream; await videoRef.current.play(); } return true;
+    }catch(e){ console.warn("Camera error",e); alert("Camera unavailable. Use Import instead."); return false; }
+  };
+  const stop=()=>{ streamRef.current?.getTracks?.().forEach(t=>t.stop()); streamRef.current=null; if(videoRef.current) videoRef.current.srcObject=null; };
+  const captureSquareCanvas=()=>{ const v=videoRef.current; if(!v||!v.videoWidth) return null;
+    const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(vw,vh),sx=Math.floor((vw-s)/2),sy=Math.floor((vh-s)/2);
+    const c=document.createElement("canvas"); c.width=s; c.height=s; c.getContext("2d").drawImage(v,sx,sy,s,s,0,0,s,s); return c; };
+  return { videoRef, start, stop, captureSquareCanvas };
+}
+async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
+  const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=sourceCanvas.toDataURL("image/png"); });
+  const cnv = makeCardCanvas({ img, title, caption, gps, ts:nowTS() });
+  return new Promise(resolve=>{ cnv.toBlob(b=>{ const url=URL.createObjectURL(b); resolve({url,blob:b}); },"image/png",0.96); });
 }
 
 /* ========= Overlay flow (note capture) ========= */
@@ -738,15 +729,15 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
             React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(1);}},"Retake"),
             React.createElement("button",{className:"btn primary",onClick:()=>setStep(3),style:{marginLeft:"auto"}},"Keep"))
         ),
-        step===3 && React.createElement("div",{className:"grid"},
+        step===3 && React.createElement(React.Fragment,null,
           React.createElement("label",{className:"label",htmlFor:"t"},"Title (40 cap)"),
           React.createElement("input",{id:"t",maxLength:40,className:"input",value:title,onChange:e=>setTitle(e.target.value)}),
           React.createElement("label",{className:"label",htmlFor:"c"},"Note (100 cap)"),
           React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
           React.createElement("div",{className:"row",style:{marginTop:"6px"}},
             React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}},"Next"))
-        ),
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}},"Next")))
+        ,
         step===4 && React.createElement("div",{className:"grid"},
           React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
           React.createElement("div",{className:"row"},
@@ -797,12 +788,9 @@ function App(){
     }
   };
 
-  // Expose for non-React header trigger (not strictly needed now)
-  useEffect(()=>{ window.__openHelp = () => setHelpOpen(true); },[]);
-
   return (
     React.createElement(React.Fragment,null,
-      /* WebGL layer */
+      /* WebGL layer (z=0) */
       React.createElement("div",{className:"canvas-wrap"},
         React.createElement("div",{className:"fallback-grid"}),
         React.createElement(Suspense,{fallback:null},
@@ -810,7 +798,7 @@ function App(){
         )
       ),
 
-      /* Header (logo mount + info) */
+      /* Header (logo + info) — z=200 above effects */
       React.createElement("header",{className:"header"},
         React.createElement("span",{id:"logoMount",className:"logo","aria-label":"intoview"}),
         React.createElement("button",{className:"icon-btn","aria-label":"Info / Controls", onClick:()=>setHelpOpen(true)},
@@ -822,7 +810,7 @@ function App(){
         )
       ),
 
-      /* HUD */
+      /* HUD — z=200 above effects */
       React.createElement("div",{className:"hud curved"},
         React.createElement("button",{onClick:()=>setWgState("INTRO")},"Flat"),
         React.createElement("button",{onClick:()=>setWgState("DEFAULT")},"Curved"),
@@ -832,16 +820,36 @@ function App(){
           manageMode?"Manage: Delete (ON)":"Manage: Delete")
       ),
 
-      /* Modals */
+      /* Modals (below effects by design) */
       React.createElement(HelpOverlay,{ open:helpOpen, onClose:()=>setHelpOpen(false) }),
       React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive }),
 
-      /* Global effects (below UI) */
+      /* Global effects (ABOVE content, BELOW logo/HUD) */
       React.createElement("div",{className:"edge-blur"}),
       React.createElement("div",{className:"vignette"})
     )
   );
 }
+
+/* ========= Persistence ========= */
+function getCreatedMs(item, idx=0){
+  if (typeof item?.createdMs==="number") return item.createdMs;
+  if (item?.id){ const m=String(item.id).match(/^note_(\d+)$/); if(m){ const n=+m[1]; if(!Number.isNaN(n)) return n; } }
+  if (item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
+    const t=Date.parse(item.ts.replace(" • ","T")+":00"); if(!Number.isNaN(t)) return t;
+  }
+  return idx;
+}
+function loadArchive(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw) return [];
+    const parsed=JSON.parse(raw);
+    if(!Array.isArray(parsed)) return [];
+    return parsed.map((it,i)=>({ ...it, createdMs:getCreatedMs(it,i) }));
+  }catch{ return []; }
+}
+function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
 
 /* ========= Mount ========= */
 const root = createRoot(document.getElementById("root"));
@@ -902,7 +910,6 @@ function mountLogoWhenReady(tries=0){
     .catch(()=> inlineExternalSVG(LOGO_URL_FALLBACK, el, { color:"#fff" }));
 }
 requestAnimationFrame(()=>mountLogoWhenReady());
-
     </script>
   </body>
 </html>
