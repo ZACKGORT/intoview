@@ -5,189 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
     <title>intoview • note — Phantom Card Archive (All-UI Distortion)</title>
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
     <style>
       :root{
-        --paper:#000000;
-        --ink:#FFFFFF;
-        --ink-2:#9F9F9F;
-        --ink-3:#6C6C6C;
-        --accent:#59D2C8;
-        --danger:#FF6363;
-        --dom-curve-k: 1;
+        --paper:#000; --ink:#FFFFFF; --ink-2:#9F9F9F; --ink-3:#6C6C6C;
+        --accent:#59D2C8; --danger:#FF6363;
+        --curve-k:1; /* 0 = flat, 1 = curved (DOM aesthetic) */
       }
       *{box-sizing:border-box}
       html,body,#root{height:100%}
       body{
-        margin:0;
-        background:#000;
-        color:var(--ink);
-        font:14px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        overflow:hidden;
-        -webkit-font-smoothing:antialiased;
+        margin:0; background:#000; color:var(--ink);
+        font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+        overflow:hidden; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
       }
 
       /* ===== WebGL layer ===== */
-      .canvas-wrap{
-        position:absolute;
-        inset:0;
-        z-index:0;
-        background:#000;
-      }
-      .canvas-wrap canvas{
-        touch-action:none;
-        cursor:grab;
-      }
-      .canvas-wrap canvas.dragging{
-        cursor:grabbing;
-      }
-      /* if you want the lined grid, set opacity back up */
+      .canvas-wrap{position:absolute; inset:0; z-index:0}
+      .canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000 }
+      .canvas-wrap canvas.dragging{ cursor:grabbing }
       .fallback-grid{
-        position:absolute; inset:0; z-index:0;
-        pointer-events:none;
-        opacity:0; /* hidden */
+        position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.06;
         background-image:
           repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
           repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
       }
 
-      /* ===== Fixed header + HUD (ALWAYS visible) ===== */
-      .header{
-        position:fixed;
-        inset:0 0 auto 0;
-        z-index:40;
-        display:flex;
-        gap:12px;
-        align-items:baseline;
-        flex-wrap:wrap;
-        padding:14px 16px;
-        background:linear-gradient(180deg,rgba(0,0,0,.9),rgba(0,0,0,.4) 40%,transparent);
-        border-bottom:1px solid rgba(255,255,255,.065);
-        backdrop-filter:blur(6px);
-      }
-      .header .dot{
-        width:8px; height:8px; border-radius:999px;
-        background:var(--accent);
-        box-shadow:0 0 0 6px rgba(89,210,200,.12);
-      }
-      .header h1{
-        margin:0;
-        font-size:17px;
-      }
-      .header small{opacity:.8}
-
-      .hud{
-        position:fixed;
-        inset:auto 12px 12px auto;
-        z-index:40;
-        display:flex;
-        gap:8px;
-      }
-      .hud button{
-        appearance:none;
-        border:1px solid rgba(255,255,255,.25);
-        background:rgba(0,0,0,.65);
-        color:#fff;
-        border-radius:10px;
-        padding:8px 12px 8px;
-        font:600 13px/1 Inter,system-ui;
-        cursor:pointer;
-        backdrop-filter:blur(5px);
-        display:inline-flex;
-        align-items:center;
-        gap:6px;
-      }
-      .hud button:hover{
-        background:rgba(255,255,255,.08);
-      }
-      .hud button.accent{
-        border-color:var(--accent);
-        background:var(--accent);
-        color:#000;
-      }
-      .hud button.danger{
-        border-color:var(--danger);
-        background:var(--danger);
-        color:#000;
-      }
-      .hud button.active{
-        box-shadow:0 0 0 2px rgba(89,210,200,.5);
-      }
-
-      /* ===== Warped DOM container (only for in-app flow) ===== */
-      .dom-curve{
-        position:relative;
-        z-index:30;          /* under header/HUD (40) but above canvas (0) */
-        transform-style:preserve-3d;
-        transform:
-          perspective(1000px)
-          translateZ(calc(-200px * var(--dom-curve-k)))
-          scale(calc(1 + var(--dom-curve-k) * 0.06));
-        will-change:transform;
-        pointer-events:none; /* we re-enable for overlay below */
-      }
-      .dom-curve::after{
-        content:"";
-        position:fixed;
-        inset:0;
-        pointer-events:none;
-        z-index:-1;
-        opacity:calc(.45 * var(--dom-curve-k));
+      /* ===== Global vignette over everything (visual unity with shader) ===== */
+      .vignette{
+        position:fixed; inset:0; z-index:9; pointer-events:none;
         background:
           radial-gradient(120% 90% at 50% 50%,
             rgba(0,0,0,0) 42%,
             rgba(0,0,0,0.22) 78%,
-            rgba(0,0,0,0.5) 100%);
+            rgba(0,0,0,0.42) 100%);
+        opacity:calc(.45 * var(--curve-k));
         mix-blend-mode:multiply;
       }
 
-      /* ===== Overlay (re-enables pointer events) ===== */
-      .overlay{
-        position:fixed;
-        inset:72px 16px 16px 16px;
-        display:none;
-        place-items:center;
-        pointer-events:auto;
+      /* ===== Curved aesthetic for DOM elements ===== */
+      .curved{
+        transform-style:preserve-3d;
+        transform:
+          perspective(1000px)
+          translateZ(calc(-200px * var(--curve-k)))
+          scale(calc(1 + var(--curve-k) * 0.06));
+        will-change:transform;
       }
-      .overlay.open{ display:grid; }
-      .sheet{
-        width:min(860px, 100%);
-        background:rgba(4,4,4,.95);
-        color:#f3f3f5;
-        border:1px solid rgba(255,255,255,.12);
-        border-radius:12px;
-        padding:16px;
-        box-shadow:0 20px 60px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.3);
-        backdrop-filter:blur(12px);
+
+      /* ===== Header / HUD ===== */
+      .header{ position:fixed; inset:0 0 auto 0;
+        z-index:12; pointer-events:auto;
+        display:flex; gap:12px; align-items:baseline; flex-wrap:wrap;
+        padding:14px 16px; border-bottom:1px solid var(--ink-2);
+        background:linear-gradient(180deg,#0a0a0ccc,#0a0a0c66 40%,transparent);
+        backdrop-filter:blur(6px);
       }
-      .titlebar{
-        display:flex; align-items:center; justify-content:space-between;
-        gap:12px; margin-bottom:12px;
+      .header .dot{
+        width:8px; height:8px; border-radius:50%;
+        background:var(--accent);
+        box-shadow:0 0 0 6px color-mix(in oklab, var(--accent), transparent 80%);
       }
-      .titlebar h2{margin:0; font-size:16px}
+      .header h1{margin:0; font-size:18px}
+      .header small{opacity:.85}
+
+      .hud{
+        position:fixed; z-index:12; inset:auto 12px 12px auto; display:flex; gap:8px;
+        font:inherit; pointer-events:auto;
+      }
+      .hud button{
+        appearance:none; cursor:pointer; font:inherit; font-weight:600;
+        border:1px solid var(--ink-2); background:rgba(0,0,0,.65); color:var(--ink);
+        padding:8px 10px; border-radius:10px;
+        transition:transform .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
+      }
+      .hud button:hover{ transform:translateY(-1px) }
+      .hud .accent{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
+      .hud .danger{ border-color:var(--danger); background:var(--danger); color:#0b0b0d }
+      .hud .active{ outline:2px solid color-mix(in oklab, var(--accent), white 12%); outline-offset:1px }
+
+      /* ===== Overlay flow ===== */
+      .overlay{position:fixed; inset:72px 16px 16px 16px; z-index:13; display:none; pointer-events:auto;}
+      .overlay.open{ display:grid; place-items:center; }
+      .sheet{width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
+        box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);}
+      .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
       .grid{display:grid; gap:12px}
       .cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-      .label{font-weight:600}
-      .input,.textarea{
-        width:100%; border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.35);
-        color:#fff; border-radius:8px; padding:10px 12px; font:inherit;
-      }
+      .label{font-weight:600; opacity:.9}
+      .input,.textarea{width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit;}
       .textarea{min-height:96px; resize:vertical}
-      .btn{
-        appearance:none; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.05);
-        color:#fff; border-radius:10px; padding:10px 14px; font-weight:600; cursor:pointer;
-      }
-      .btn.primary{ background:var(--accent); border-color:var(--accent); color:#000; }
-      .btn.ghost{ background:transparent}
+      .btn{appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600;}
+      .btn.ghost{ background:transparent } .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
       .hint{color:#c9c9cf; font-size:12px}
-      .vf{position:relative; aspect-ratio:4/3; width:100%; border:1px solid rgba(255,255,255,.15); border-radius:10px; overflow:hidden; background:#000;}
-      video{width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98)}
-      .preview{width:100%; aspect-ratio:1/1; border:1px solid rgba(255,255,255,.15); border-radius:10px; overflow:hidden; background:#000;}
-      .hidden{display:none !important}
+      .vf{position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000;}
+      video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98)}
+      .preview{position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block;}
+      .titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
+      .titlebar h2{margin:0; font-size:16px}
+      .tight{gap:6px} .hidden{display:none !important} .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
     </style>
   </head>
   <body>
@@ -245,7 +164,8 @@ const SEED = [
   {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp', title:'ZAX09767', caption:'—'},
 ];
 
-const STORAGE_KEY = "intoview_archive_cards_v4";
+/* ========= Config ========= */
+const STORAGE_KEY = "intoview_archive_cards_v5";
 const CONFIG = {
   cols:10, rows:7, tile:0.32, gap:0.08,
   ambient:0.20, dragEase:0.14, velEase:0.92,
@@ -254,262 +174,110 @@ const CONFIG = {
 };
 const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
 
-/* ===== utils for card rendering ===== */
+/* ========= Utilities ========= */
 const TEX_SIZE=768, HAIR=1, BAR_H=28, PAD=12, CAP_SIZE=18, TITLE_SIZE=20;
 const MONO="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 const UI="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
 const isBlobOrData = u => /^blob:|^data:/i.test(u);
-function nowTS(){
-  const d=new Date();
-  const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,"0");
-  const day=String(d.getDate()).padStart(2,"0");
-  const hh=String(d.getHours()).padStart(2,"0");
-  const mm=String(d.getMinutes()).padStart(2,"0");
-  return `${y}-${m}-${day} • ${hh}:${mm}`;
-}
-function loadImage(url){
-  return new Promise((res,rej)=>{
-    const img=new Image();
-    if(!isBlobOrData(url)) img.crossOrigin="anonymous";
-    img.onload=()=>res(img);
-    img.onerror=()=>rej(new Error("image fail "+url));
-    img.src=url;
-  });
-}
-function drawHair(ctx,x,y,w){
-  ctx.fillStyle="rgba(255,255,255,0.6)";
-  ctx.fillRect(x,y,w,HAIR);
-}
+function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"),
+  day=String(d.getDate()).padStart(2,"0"), hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
+  return `${y}-${m}-${day} • ${hh}:${mm}`; }
+function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
+  img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
+function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
 function coverImage(ctx,img,x,y,w,h){
   const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
   if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
   const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
-  if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; }
-  else{ dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
-  ctx.imageSmoothingQuality="high";
-  ctx.drawImage(img,dx,dy,dw,dh);
+  if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
+  ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
 }
-function drawCameraIcon(ctx,cx,cy,s=44){
-  ctx.save();
-  ctx.translate(cx,cy);
-  ctx.strokeStyle="#fff";
-  ctx.lineWidth=1.5;
-  ctx.lineCap="round";
-  ctx.lineJoin="round";
-  const w=s*1.6, h=s*1.0;
-  ctx.beginPath(); ctx.rect(-w/2, -h/2, w, h); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,0,s*0.35,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(w*0.25, -h*0.45); ctx.lineTo(w*0.45,-h*0.45); ctx.stroke();
-  ctx.restore();
-}
-function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=nowTS()}){
-  const s=TEX_SIZE;
-  const c=document.createElement("canvas");
-  c.width=s; c.height=s;
-  const ctx=c.getContext("2d");
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,s);
-  ctx.strokeStyle="#fff"; ctx.lineWidth=1;
-  ctx.strokeRect(0.5,0.5,s-1,s-1);
-
-  // top bar
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H);
-  ctx.font=`600 ${TITLE_SIZE}px ${UI}`;
-  ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
-  ctx.fillText(title, PAD, Math.floor((BAR_H - TITLE_SIZE)/2));
-  if(gps){
-    ctx.font=`500 12px ${MONO}`;
-    ctx.textBaseline="middle";
-    ctx.textAlign="right";
-    ctx.fillStyle="#cfcfcf";
-    ctx.fillText(gps, s-PAD, BAR_H/2);
-    ctx.textAlign="left";
-  }
+function drawCameraIcon(ctx,cx,cy,s=44){ ctx.save(); ctx.translate(cx,cy); ctx.strokeStyle="#fff"; ctx.lineWidth=1.5; ctx.lineCap="round"; ctx.lineJoin="round";
+  const w=s*1.6,h=s*1.0; ctx.beginPath(); ctx.rect(-w/2,-h/2,w,h); ctx.stroke(); ctx.beginPath(); ctx.arc(0,0,s*0.35,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w*0.25,-h*0.45); ctx.lineTo(w*0.45,-h*0.45); ctx.stroke(); ctx.restore(); }
+function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=nowTS()}) {
+  const s=TEX_SIZE, c=document.createElement("canvas"); c.width=s; c.height=s; const ctx=c.getContext("2d");
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,s); ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.strokeRect(0.5,0.5,s-1,s-1);
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H); ctx.font=`600 ${TITLE_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
+  ctx.fillText(title, PAD, Math.floor((BAR_H-TITLE_SIZE)/2));
+  if(gps){ ctx.font=`500 12px ${MONO}`; ctx.textBaseline="middle"; ctx.textAlign="right"; ctx.fillStyle="#cfcfcf"; ctx.fillText(gps, s-PAD, BAR_H/2); ctx.textAlign="left"; }
   drawHair(ctx,0,BAR_H,s);
-
-  // image area
-  const imgTop=BAR_H+HAIR;
-  const imgH=s - imgTop - (BAR_H+HAIR);
-  if(img){
-    coverImage(ctx,img,0,imgTop,s,imgH);
-    ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(0,imgTop,s,imgH);
-  } else {
-    ctx.fillStyle="#111"; ctx.fillRect(0,imgTop,s,imgH);
-    drawCameraIcon(ctx, s/2, imgTop + imgH/2, 40);
-  }
-
-  // bottom bar
-  drawHair(ctx, 0, s - BAR_H - HAIR, s);
-  ctx.fillStyle="#000"; ctx.fillRect(0, s-BAR_H, s, BAR_H);
-
-  // caption
-  ctx.font=`500 ${CAP_SIZE}px ${UI}`;
-  ctx.fillStyle="#e6e6e6";
-  ctx.textBaseline="middle";
-  ctx.textAlign="left";
-  ctx.fillText(caption, PAD, s - BAR_H /2);
-
-  // timestamp
-  ctx.font=`500 12px ${MONO}`;
-  ctx.fillStyle="#cfcfcf";
-  ctx.textAlign="right";
-  ctx.fillText(ts, s-PAD, s - BAR_H/2);
-
+  const imgTop=BAR_H+HAIR, imgH=s-imgTop-(BAR_H+HAIR);
+  if(img){ coverImage(ctx,img,0,imgTop,s,imgH); ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(0, imgTop, s, imgH); }
+  else{ ctx.fillStyle="#111"; ctx.fillRect(0,imgTop,s,imgH); drawCameraIcon(ctx,s/2,imgTop+imgH/2,40); }
+  drawHair(ctx,0,s-BAR_H-HAIR,s);
+  ctx.fillStyle="#000"; ctx.fillRect(0,s-BAR_H,s,BAR_H); ctx.font=`500 ${CAP_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
+  ctx.fillText(caption, PAD, s-BAR_H/2); ctx.font=`500 12px ${MONO}`; ctx.fillStyle="#cfcfcf"; ctx.textAlign="right"; ctx.fillText(ts, s-PAD, s-BAR_H/2);
   return c;
 }
-function makeCardTextureFromCanvas(c){
-  const tex=new THREE.CanvasTexture(c);
-  tex.colorSpace=THREE.SRGBColorSpace;
-  tex.anisotropy=8;
-  tex.needsUpdate=true;
-  return tex;
-}
-function makeEmptyTexture(){
-  return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""}));
-}
+function makeCardTextureFromCanvas(cnv){ const tex=new THREE.CanvasTexture(cnv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; }
+function makeEmptyTexture(){ return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""})); }
 async function textureForItem(item){
-  if(!item || !item.src) return makeEmptyTexture();
-  if(item.baked){
-    try{
-      const img=await loadImage(item.src);
-      const tex=new THREE.Texture(img);
-      tex.colorSpace=THREE.SRGBColorSpace;
-      tex.anisotropy=8;
-      tex.needsUpdate=true;
-      return tex;
-    }catch(e){
-      console.warn(e);
-      return makeEmptyTexture();
-    }
-  }
+  if(!item||!item.src) return makeEmptyTexture();
+  if(item.baked){ try{ const img=await loadImage(item.src); const tex=new THREE.Texture(img); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; } catch (e){ console.warn(e); return makeEmptyTexture(); } }
   const img=await loadImage(item.src).catch(e=>{ console.warn(e); return null; });
-  return makeCardTextureFromCanvas(makeCardCanvas({
-    img,
-    title:item.title||"",
-    caption:item.caption||"—",
-    gps:item.gps||"",
-    ts:item.ts||nowTS()
-  }));
+  return makeCardTextureFromCanvas(makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()}));
 }
 async function buildRowMajorTextures(items,totalTiles){
-  const empty=makeEmptyTexture();
-  const texs=new Array(totalTiles).fill(empty);
-  const count=Math.min(items.length, totalTiles);
-  for(let i=0;i<count;i++){
-    try{ texs[i]=await textureForItem(items[i]); }catch(e){ console.warn(e); }
-  }
+  const empty=makeEmptyTexture(); const texs=new Array(totalTiles).fill(empty); const count=Math.min(items.length,totalTiles);
+  for(let i=0;i<count;i++){ try{ texs[i]=await textureForItem(items[i]); }catch(e){ console.warn(e); } }
   return texs;
 }
 
-/* ===== Post shader (R3F) ===== */
+/* ========= Post shader ========= */
 class DistortionShader extends THREE.ShaderMaterial{
-  constructor(){
-    super({
-      name:"DistortionShader",
-      uniforms:{
-        tDiffuse:{value:null},
-        distortion:{value:new THREE.Vector2(0,0)},
-        vignetteOffset:{value:0.08},
-        vignetteDarkness:{value:0.38}
-      },
-      vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position,1.0); }`,
-      fragmentShader:`precision highp float;
-        uniform sampler2D tDiffuse;
-        uniform vec2 distortion;
-        uniform float vignetteOffset;
-        uniform float vignetteDarkness;
-        varying vec2 vUv;
-        vec2 s(vec2 uv){ return 2.0*(uv-0.5);}
-        vec2 u(vec2 suv){ return suv*0.5 + 0.5;}
-        void main(){
-          vec2 suv = s(vUv);
-          float d = length(suv);
-          suv *= (0.88 + distortion * dot(suv, suv));
-          vec2 uv2 = u(suv);
-          float vig = smoothstep(0.8, vignetteOffset * 0.799, (vignetteDarkness + vignetteOffset) * d);
-          vec3 col = texture2D(tDiffuse, uv2).rgb * vig;
-          gl_FragColor = vec4(col, 1.0);
-        }`
-    });
-    this._dist=0;
-    this.update();
-  }
-  update(){
-    const w=innerWidth, h=innerHeight, r=Math.min(w,h)/Math.max(w,h);
-    this.uniforms.distortion.value.set(this._dist*r, this._dist*r);
-  }
-  setDistortion(v){
-    gsap.to(this,{
-      _dist:v,
-      duration:1,
-      ease:"power2.out",
-      onUpdate:()=>this.update()
-    });
-  }
+  constructor(){ super({
+    name:"DistortionShader",
+    uniforms:{ tDiffuse:{value:null}, distortion:{value:new THREE.Vector2(0,0)}, vignetteOffset:{value:0.08}, vignetteDarkness:{value:0.38} },
+    vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position,1.0); }`,
+    fragmentShader:`precision highp float; uniform sampler2D tDiffuse; uniform vec2 distortion; uniform float vignetteOffset; uniform float vignetteDarkness; varying vec2 vUv;
+    vec2 s(vec2 uv){ return 2.0*(uv-0.5);} vec2 u(vec2 suv){ return suv*0.5+0.5;}
+    void main(){ vec2 suv=s(vUv); float d=length(suv); suv*=(0.88 + distortion*dot(suv,suv)); vec2 uv2=u(suv);
+      float vig=smoothstep(0.8, vignetteOffset*0.799, (vignetteDarkness+vignetteOffset)*d);
+      vec3 col=texture2D(tDiffuse,uv2).rgb*vig; gl_FragColor=vec4(col,1.0); }`
+  }); this._dist=0; this.update(); }
+  update(){ const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h); this.uniforms.distortion.value.set(this._dist*r,this._dist*r); }
+  setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
 }
 
-/* ===== Grid class (row-major, draggable) ===== */
+/* ========= Grid ========= */
 class Grid extends THREE.Group{
-  constructor(canvas,camera,opts){
-    super();
-    this.canvas=canvas;
-    this.camera=camera;
-    this.opts=opts;
-    this.pointerUv=new THREE.Vector2(0.5,0.5);
-    this.isPointerDown=false;
-    this.velocity=new THREE.Vector2();
-    this.offset=new THREE.Vector2();
-    this.viewW=1; this.viewH=1;
-    this._lastPX=null; this._lastPY=null;
-    this.tiles=[];
-    this.tileItems=[];
-    this.ray=new THREE.Raycaster();
-    this.manageMode=false;
-    this.onTileSelect=null;
-
-    this.tileGeom=new THREE.PlaneGeometry(opts.tile, opts.tile, 1, 1);
+  constructor(canvas,camera,opts){ super();
+    this.canvas=canvas; this.camera=camera; this.opts=opts;
+    this.pointerUv=new THREE.Vector2(0.5,0.5); this.isPointerDown=false;
+    this.velocity=new THREE.Vector2(); this.offset=new THREE.Vector2();
+    this.viewW=1; this.viewH=1; this._lastPX=null; this._lastPY=null;
+    this.tiles=[]; this.tileItems=[]; this.ray=new THREE.Raycaster();
+    this.manageMode=false; this.onTileSelect=null;
+    this.tileGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
     this.layout();
 
     this.onPointerMove=this.onPointerMove.bind(this);
     this.onPointerDown=this.onPointerDown.bind(this);
     this.onPointerUp=this.onPointerUp.bind(this);
-
-    canvas.addEventListener("pointermove", this.onPointerMove, { passive:true });
-    canvas.addEventListener("pointerdown", this.onPointerDown, { passive:true });
-    window.addEventListener("pointerup", this.onPointerUp, { passive:true });
-    window.addEventListener("pointercancel", this.onPointerUp, { passive:true });
+    canvas.addEventListener("pointermove",this.onPointerMove,{passive:true});
+    canvas.addEventListener("pointerdown",this.onPointerDown,{passive:true});
+    window.addEventListener("pointerup",this.onPointerUp,{passive:true});
+    window.addEventListener("pointercancel",this.onPointerUp,{passive:true});
   }
-  dispose(){
-    this.canvas.removeEventListener("pointermove", this.onPointerMove);
-    this.canvas.removeEventListener("pointerdown", this.onPointerDown);
-    window.removeEventListener("pointerup", this.onPointerUp);
-    window.removeEventListener("pointercancel", this.onPointerUp);
-    this.tileGeom.dispose();
-    this.tiles.forEach(m=>m.material?.dispose?.());
-  }
+  dispose(){ this.canvas.removeEventListener("pointermove",this.onPointerMove);
+    this.canvas.removeEventListener("pointerdown",this.onPointerDown);
+    window.removeEventListener("pointerup",this.onPointerUp);
+    window.removeEventListener("pointercancel",this.onPointerUp);
+    this.tileGeom.dispose(); this.tiles.forEach(m=>m.material&&m.material.dispose()); }
   setViewport(w,h){ this.viewW=w; this.viewH=h; }
   setManageMode(f){ this.manageMode=!!f; }
 
   layout(){
-    const {cols,rows,tile,gap} = this.opts;
-    const stepX = tile + gap;
-    const stepY = tile + gap;
-    const sizeX = stepX * (cols - 1);
-    const sizeY = stepY * (rows - 1);
-
-    // clear
-    this.tiles.forEach(m=>this.remove(m));
-    this.tiles=[]; this.tileItems=[];
-
-    // top-left → right → next row
-    for(let r=0; r<rows; r++){
-      for(let c=0; c<cols; c++){
+    const {cols,rows,tile,gap}=this.opts;
+    const stepX=tile+gap, stepY=tile+gap;
+    const sizeX=stepX*(cols-1), sizeY=stepY*(rows-1);
+    this.tiles.forEach(m=>this.remove(m)); this.tiles=[]; this.tileItems=[];
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
         const x = c*stepX - sizeX/2;
-        const y = sizeY/2 - r*stepY;
-        const mesh = new THREE.Mesh(
-          this.tileGeom,
-          new THREE.MeshBasicMaterial({color:0x0})
-        );
+        const y = sizeY/2 - r*stepY;   // top row first
+        const mesh=new THREE.Mesh(this.tileGeom,new THREE.MeshBasicMaterial({ color:0x101012 }));
         mesh.position.set(x,y,0);
         this.add(mesh);
         this.tiles.push(mesh);
@@ -519,95 +287,61 @@ class Grid extends THREE.Group{
   }
 
   async setItems(items){
-    const total = this.tiles.length;
-    const texs = await buildRowMajorTextures(items, total);
+    const total=this.tiles.length;
+    const texs=await buildRowMajorTextures(items,total);
     for(let i=0;i<total;i++){
-      this.tiles[i].material?.dispose?.();
-      this.tiles[i].material = new THREE.MeshBasicMaterial({ map: texs[i] });
-      this.tileItems[i] = i < items.length ? items[i] : null;
+      const old=this.tiles[i].material; old?.dispose?.();
+      this.tiles[i].material=new THREE.MeshBasicMaterial({ map:texs[i] });
+      this.tileItems[i]= i<items.length ? items[i] : null;
     }
   }
-
-  _pxToNorm(dx,dy){
-    const s = Math.min(this.viewW, this.viewH);
-    return new THREE.Vector2(dx/s, dy/s);
+  removeAt(index){
+    const old=this.tiles[index].material; old?.dispose?.();
+    this.tiles[index].material=new THREE.MeshBasicMaterial({ map:makeEmptyTexture() });
+    this.tileItems[index]=null;
   }
-
+  _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
   onPointerMove(e){
-    const rect=this.canvas.getBoundingClientRect();
-    const x=(e.clientX-rect.left)/rect.width;
-    const y=(e.clientY-rect.top)/rect.height;
-    this.pointerUv.set(x,y);
-
-    if(this.manageMode) return;
-
+    const rect=this.canvas.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
+    this.pointerUv.set(x,y); if(this.manageMode) return;
     if(this.isPointerDown){
-      const dx = (this._lastPX===null?0:(e.clientX - this._lastPX));
-      const dy = (this._lastPY===null?0:(e.clientY - this._lastPY));
-      this._lastPX = e.clientX; this._lastPY = e.clientY;
-
-      const d = this._pxToNorm(dx,dy);
-      this.offset.x += d.x * 6.0;
-      this.offset.y += -d.y * 6.0;
-
-      this.velocity.lerp(new THREE.Vector2(d.x, -d.y), 1 - this.opts.velEase);
+      const dx=(this._lastPX===null?0:(e.clientX-this._lastPX)), dy=(this._lastPY===null?0:(e.clientY-this._lastPY));
+      this._lastPX=e.clientX; this._lastPY=e.clientY;
+      const d=this._pxToNorm(dx,dy); this.offset.x+=d.x*6.0; this.offset.y+=-d.y*6.0;
+      this.velocity.lerp(new THREE.Vector2(d.x,-d.y), 1-this.opts.velEase);
     }
   }
-
   onPointerDown(e){
     if(this.manageMode){
       const rect=this.canvas.getBoundingClientRect();
-      const ndc = {
-        x: ((e.clientX - rect.left) / rect.width)*2 - 1,
-        y: -((e.clientY - rect.top) / rect.height)*2 + 1
-      };
-      this.ray.setFromCamera(ndc, this.camera);
-      const hit = this.ray.intersectObjects(this.tiles, false)[0];
-      if(hit){
-        const idx = this.tiles.indexOf(hit.object);
-        const item = this.tileItems[idx];
-        this.onTileSelect?.(idx, item);
-      }
+      const ndc={ x:((e.clientX-rect.left)/rect.width)*2-1, y:-((e.clientY-rect.top)/rect.height)*2+1 };
+      this.ray.setFromCamera(ndc,this.camera);
+      const hit=this.ray.intersectObjects(this.tiles,false)[0];
+      if(hit){ const idx=this.tiles.indexOf(hit.object); const item=this.tileItems[idx]; this.onTileSelect?.(idx,item); }
       return;
     }
-
-    this.isPointerDown = true;
-    this.canvas.classList.add("dragging");
-    this._lastPX = e.clientX; this._lastPY = e.clientY;
-    gsap.to(this.camera.position, { z: CONFIG.zoomIn, duration:0.8, ease:"power2.out" });
+    this.isPointerDown=true; this.canvas.classList.add("dragging");
+    this._lastPX=e.clientX; this._lastPY=e.clientY;
+    gsap.to(this.camera.position,{ z:CONFIG.zoomIn, duration:0.8, ease:"power2.out" });
   }
-
   onPointerUp(){
     if(!this.manageMode){
-      this.isPointerDown = false;
-      this.canvas.classList.remove("dragging");
-      this._lastPX = this._lastPY = null;
-      gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration:0.8, ease:"power2.out" });
+      this.isPointerDown=false; this.canvas.classList.remove("dragging");
+      this._lastPX=this._lastPY=null;
+      gsap.to(this.camera.position,{ z:CONFIG.zoomOut, duration:0.8, ease:"power2.out" });
     }
   }
-
   update(){
-    const cursorOffset = this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
-
-    if(!this.isPointerDown && !this.manageMode){
-      this.offset.add(this.velocity.clone().multiplyScalar(5));
-      this.velocity.multiplyScalar(this.opts.velEase);
-    }
-
-    const tx = this.offset.x + cursorOffset.x;
-    const ty = this.offset.y - cursorOffset.y;
-
-    this.position.x += (tx - this.position.x) * this.opts.dragEase;
-    this.position.y += (ty - this.position.y) * this.opts.dragEase;
+    const cursorOffset=this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
+    if(!this.isPointerDown && !this.manageMode){ this.offset.add(this.velocity.clone().multiplyScalar(5)); this.velocity.multiplyScalar(this.opts.velEase); }
+    const tx=this.offset.x+cursorOffset.x, ty=this.offset.y-cursorOffset.y;
+    this.position.x += (tx-this.position.x)*this.opts.dragEase;
+    this.position.y += (ty-this.position.y)*this.opts.dragEase;
   }
-
-  resetPosition(){
-    this.offset.set(0,0);
-    this.velocity.set(0,0);
-  }
+  resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); }
 }
 
-/* ===== Postprocessing component ===== */
+/* ========= Postprocessing ========= */
 function Postprocessing({ workgridState }){
   const { gl, scene, camera, size } = useThree();
   const { composer, shader } = useMemo(()=>{
@@ -617,141 +351,83 @@ function Postprocessing({ workgridState }){
       const shaderPass=new ShaderPass(shader);
       const outputPass=new OutputPass();
       const composer=new EffectComposer(gl);
-      composer.addPass(renderPass);
-      composer.addPass(shaderPass);
-      composer.addPass(outputPass);
+      composer.addPass(renderPass); composer.addPass(shaderPass); composer.addPass(outputPass);
       return { composer, shader };
-    }catch(e){
-      console.warn("composer fail", e);
-      return { composer:null, shader:null };
-    }
+    }catch(e){ console.warn("Composer init failed",e); return { composer:null, shader:null }; }
   },[gl,scene,camera]);
-
-  useEffect(()=>{
-    if(!composer || !shader) return;
-    const dpr = Math.min(2, gl.getPixelRatio?.() || 1.5);
+  useEffect(()=>{ if(!composer||!shader) return;
+    const dpr=Math.min(2, gl.getPixelRatio?.()||1.5);
     composer.setPixelRatio?.(dpr);
     composer.setSize(size.width, size.height);
     shader.update();
   },[composer,shader,size,gl]);
-
-  useEffect(()=>{
-    if(!shader) return;
-    shader.setDistortion(
-      workgridState === WorkgridState.INTRO
-        ? CONFIG.distortion.flat
-        : CONFIG.distortion.curved
-    );
+  useEffect(()=>{ if(!shader) return;
+    shader.setDistortion(workgridState===WorkgridState.INTRO?CONFIG.distortion.flat:CONFIG.distortion.curved);
   },[workgridState,shader]);
-
   useFrame(()=>{ composer?.render(); }, 1);
   return null;
 }
 
-/* ===== R3F primitive wrapper ===== */
+/* ========= Primitive wrapper ========= */
 function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect }){
   const { gl, camera, size } = useThree();
-
   const grid = useMemo(()=> new Grid(gl.domElement, camera, {
-    cols:CONFIG.cols, rows:CONFIG.rows,
-    tile:CONFIG.tile, gap:CONFIG.gap,
-    ambient:CONFIG.ambient,
-    dragEase:CONFIG.dragEase,
-    velEase:CONFIG.velEase
-  }), [gl, camera]);
-
+    cols:CONFIG.cols, rows:CONFIG.rows, tile:CONFIG.tile, gap:CONFIG.gap,
+    ambient:CONFIG.ambient, dragEase:CONFIG.dragEase, velEase:CONFIG.velEase
+  }),[gl,camera]);
   useFrame(()=>grid.update());
-  useEffect(()=>{ grid.setViewport(size.width, size.height); }, [size, grid]);
-  useEffect(()=>{ grid.onTileSelect = onTileSelect; }, [grid, onTileSelect]);
-  useEffect(()=>{ grid.setManageMode(manageMode); }, [manageMode, grid]);
-  useEffect(()=>{ grid.setItems(items); }, [items, grid]);
-  useEffect(()=>{ if(workgridState===WorkgridState.RESET) grid.resetPosition(); }, [workgridState, grid]);
-
-  return React.createElement("primitive", { object: grid });
+  useEffect(()=>{ grid.setViewport(size.width,size.height); },[size,grid]);
+  useEffect(()=>{ grid.onTileSelect=onTileSelect; },[grid,onTileSelect]);
+  useEffect(()=>{ grid.setManageMode(manageMode); },[manageMode,grid]);
+  useEffect(()=>{ grid.setItems(items); },[items,grid]);
+  useEffect(()=>{ if(workgridState===WorkgridState.RESET) grid.resetPosition(); },[workgridState,grid]);
+  return React.createElement("primitive",{object:grid});
 }
 function GridView(props){
-  return (
-    React.createElement(Canvas, {
+  return React.createElement(Canvas,{
       gl:{ antialias:true, powerPreference:"high-performance" },
       camera:{ fov:35, position:[0,0,CONFIG.zoomOut] },
-      dpr:[1,2],
+      dpr:[1, 2],
       onCreated:({ gl })=>{
         gl.setClearColor(0x000000, 1);
         gl.outputColorSpace = THREE.SRGBColorSpace;
         gl.toneMapping = THREE.NoToneMapping;
       }
     },
-      React.createElement("ambientLight", { intensity:1 }),
-      React.createElement("directionalLight", { intensity:.7, position:[2,3,4] }),
-      React.createElement(ProjectsGridPrimitive, props),
-      React.createElement(Postprocessing, { workgridState: props.workgridState })
-    )
+    React.createElement("ambientLight",{intensity:1}),
+    React.createElement("directionalLight",{intensity:.7, position:[2,3,4]}),
+    React.createElement(ProjectsGridPrimitive,props),
+    React.createElement(Postprocessing,{workgridState:props.workgridState})
   );
 }
 
-/* ===== Camera / export ===== */
+/* ========= Camera + export ========= */
 function useCamera(){
   const videoRef=useRef(null), streamRef=useRef(null);
   const start=async()=>{
-    if(location.protocol!=="https:" && location.hostname!=="localhost"){
-      alert("Camera requires HTTPS. Use Import instead.");
-      return false;
-    }
-    try{
-      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
-      streamRef.current=stream;
-      if(videoRef.current){ videoRef.current.srcObject=stream; await videoRef.current.play(); }
-      return true;
-    }catch(e){
-      console.warn("camera", e);
-      alert("Camera unavailable. Use Import instead.");
-      return false;
-    }
+    if(location.protocol!=="https:" && location.hostname!=="localhost"){ alert("Camera requires HTTPS. Use Import instead."); return false; }
+    try{ const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
+      streamRef.current=stream; if(videoRef.current){ videoRef.current.srcObject=stream; await videoRef.current.play(); } return true;
+    }catch(e){ console.warn("Camera error",e); alert("Camera unavailable. Use Import instead."); return false; }
   };
   const stop=()=>{ streamRef.current?.getTracks?.().forEach(t=>t.stop()); streamRef.current=null; if(videoRef.current) videoRef.current.srcObject=null; };
-  const captureSquareCanvas=()=>{
-    const v=videoRef.current;
-    if(!v || !v.videoWidth) return null;
-    const vw=v.videoWidth, vh=v.videoHeight;
-    const s=Math.min(vw,vh);
-    const sx=Math.floor((vw-s)/2);
-    const sy=Math.floor((vh-s)/2);
-    const c=document.createElement("canvas");
-    c.width=s; c.height=s;
-    c.getContext("2d").drawImage(v, sx, sy, s, s, 0, 0, s, s);
-    return c;
-  };
+  const captureSquareCanvas=()=>{ const v=videoRef.current; if(!v||!v.videoWidth) return null;
+    const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(vw,vh),sx=Math.floor((vw-s)/2),sy=Math.floor((vh-s)/2);
+    const c=document.createElement("canvas"); c.width=s; c.height=s; c.getContext("2d").drawImage(v,sx,sy,s,s,0,0,s,s); return c; };
   return { videoRef, start, stop, captureSquareCanvas };
 }
 async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
-  const img = await new Promise((res,rej)=>{
-    const im=new Image();
-    im.onload=()=>res(im);
-    im.onerror=rej;
-    im.src=sourceCanvas.toDataURL("image/png");
-  });
+  const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=sourceCanvas.toDataURL("image/png"); });
   const cnv = makeCardCanvas({ img, title, caption, gps, ts:nowTS() });
-  return new Promise(resolve=>{
-    cnv.toBlob(b=>{
-      const url=URL.createObjectURL(b);
-      resolve({url, blob:b});
-    }, "image/png", 0.96);
-  });
+  return new Promise(resolve=>{ cnv.toBlob(b=>{ const url=URL.createObjectURL(b); resolve({url,blob:b}); },"image/png",0.96); });
 }
 
-/* ===== persistence ===== */
+/* ========= Persistence ========= */
 function getCreatedMs(item, idx=0){
-  if(typeof item?.createdMs==="number") return item.createdMs;
-  if(item?.id){
-    const m=String(item.id).match(/^note_(\d+)$/);
-    if(m){
-      const n=+m[1];
-      if(!Number.isNaN(n)) return n;
-    }
-  }
-  if(item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
-    const t=Date.parse(item.ts.replace(" • ","T")+":00");
-    if(!Number.isNaN(t)) return t;
+  if (typeof item?.createdMs==="number") return item.createdMs;
+  if (item?.id){ const m=String(item.id).match(/^note_(\d+)$/); if(m){ const n=+m[1]; if(!Number.isNaN(n)) return n; } }
+  if (item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
+    const t=Date.parse(item.ts.replace(" • ","T")+":00"); if(!Number.isNaN(t)) return t;
   }
   return idx;
 }
@@ -761,287 +437,160 @@ function loadArchive(){
     if(!raw) return [];
     const parsed=JSON.parse(raw);
     if(!Array.isArray(parsed)) return [];
-    return parsed.map((it,i)=>({...it, createdMs:getCreatedMs(it,i)}));
-  }catch{
-    return [];
-  }
+    return parsed.map((it,i)=>({ ...it, createdMs:getCreatedMs(it,i) }));
+  }catch{ return []; }
 }
-function saveArchive(arr){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{}
-}
+function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
 
-/* ===== overlay flow ===== */
+/* ========= Overlay flow ========= */
 function OverlayFlow({ open, onClose, onAddToArchive }){
-  const [step,setStep]=useState(0);
-  const [title,setTitle]=useState("");
-  const [caption,setCaption]=useState("A quick visual note");
-  const [reviewCanvas,setReviewCanvas]=useState(null);
-  const [exportUrl,setExportUrl]=useState("");
-  const [exporting,setExporting]=useState(false);
+  const [step,setStep]=useState(0), [title,setTitle]=useState(""), [caption,setCaption]=useState("A quick visual note");
+  const [reviewCanvas,setReviewCanvas]=useState(null), [exportUrl,setExportUrl]=useState(""), [exporting,setExporting]=useState(false);
+  const camera=useCamera(); const filePickRef=useRef(null); const sheetRef=useRef(null); const reviewMountRef=useRef(null);
 
-  const camera=useCamera();
-  const filePickRef=useRef(null);
-  const sheetRef=useRef(null);
-  const previewMountRef=useRef(null);
+  useEffect(()=>{ const mount=reviewMountRef.current; if(!mount) return; while(mount.firstChild) mount.removeChild(mount.firstChild);
+    if(reviewCanvas && step===2){ reviewCanvas.style.width="100%"; reviewCanvas.style.height="100%"; mount.appendChild(reviewCanvas); } },[reviewCanvas,step]);
 
-  // mount preview canvas when in review
-  useEffect(()=>{
-    const m=previewMountRef.current;
-    if(!m) return;
-    while(m.firstChild) m.removeChild(m.firstChild);
-    if(reviewCanvas && step===2){
-      reviewCanvas.style.width="100%";
-      reviewCanvas.style.height="100%";
-      m.appendChild(reviewCanvas);
-    }
-  },[reviewCanvas,step]);
-
-  // focus trap + esc close
-  useEffect(()=>{
-    if(!open) return;
-    const el=sheetRef.current;
-    if(!el) return;
-    const getFocusables=()=>[...el.querySelectorAll("button,[href],input,textarea")].filter(n=>!n.disabled && n.offsetParent!==null);
-    const onKey=e=>{
-      if(e.key==="Escape"){ e.preventDefault(); onClose?.(); }
-      if(e.key==="Tab"){
-        const f=getFocusables();
-        if(!f.length) return;
-        const cur=document.activeElement;
-        if(e.shiftKey && cur===f[0]){ e.preventDefault(); f[f.length-1].focus(); }
-        else if(!e.shiftKey && cur===f[f.length-1]){ e.preventDefault(); f[0].focus(); }
-      }
-    };
-    el.addEventListener("keydown", onKey);
-    return ()=>el.removeEventListener("keydown", onKey);
+  useEffect(()=>{ if(!open) return; const root=sheetRef.current; if(!root) return;
+    const focusables=()=>[...root.querySelectorAll("button,[href],input,textarea")].filter(el=>!el.disabled&&el.offsetParent!==null);
+    const onKey=e=>{ if(e.key==="Escape"){ e.preventDefault(); onClose?.(); }
+      if(e.key==="Tab"){ const fs=focusables(); if(!fs.length) return; const f=document.activeElement;
+        if(e.shiftKey && f===fs[0]){ e.preventDefault(); fs[fs.length-1].focus(); }
+        else if(!e.shiftKey && f===fs[fs.length-1]){ e.preventDefault(); fs[0].focus(); } } };
+    root.addEventListener("keydown",onKey); return ()=>root.removeEventListener("keydown",onKey);
   },[open,onClose]);
 
-  // reset when closing
-  useEffect(()=>{
-    if(!open){
-      camera.stop();
-      setStep(0);
-      setTitle("");
-      setCaption("A quick visual note");
-      setReviewCanvas(null);
-      setExportUrl("");
-      setExporting(false);
-    }
-  },[open]);
+  useEffect(()=>{ if(!open){ camera.stop(); setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); setExportUrl(""); setExporting(false);} },[open]);
 
-  const startCamera=async()=>{
-    const ok=await camera.start();
-    setStep(ok?1:0);
-  };
-  const captureShot=()=>{
-    const c=camera.captureSquareCanvas();
-    if(c){
-      setReviewCanvas(c);
-      setStep(2);
-    }
-  };
+  const startCamera=async()=>{ const ok=await camera.start(); setStep(ok?1:0); };
+  const captureShot=()=>{ const c=camera.captureSquareCanvas(); if(c){ setReviewCanvas(c); setStep(2);} };
   const pickFile=()=>filePickRef.current?.click();
   const onFileChange=e=>{
-    const f=e.target.files?.[0];
-    if(!f) return;
-    const img=new Image();
-    const url=URL.createObjectURL(f);
-    img.onload=()=>{
-      const s=Math.min(img.width,img.height);
-      const sx=Math.floor((img.width-s)/2);
-      const sy=Math.floor((img.height-s)/2);
-      const c=document.createElement("canvas");
-      c.width=s; c.height=s;
-      c.getContext("2d").drawImage(img, sx, sy, s, s, 0, 0, s, s);
-      URL.revokeObjectURL(url);
-      setReviewCanvas(c);
-      setStep(2);
-    };
-    img.src=url;
+    const f=e.target.files?.[0]; if(!f) return; const img=new Image(); const url=URL.createObjectURL(f);
+    img.onload=()=>{ const s=Math.min(img.width,img.height), sx=Math.floor((img.width-s)/2), sy=Math.floor((img.height-s)/2);
+      const c=document.createElement("canvas"); c.width=s; c.height=s; c.getContext("2d").drawImage(img,sx,sy,s,s,0,0,s,s);
+      URL.revokeObjectURL(url); setReviewCanvas(c); setStep(2); }; img.src=url;
   };
-  const doExport=async()=>{
-    if(!reviewCanvas) return;
-    setExporting(true);
-    const { url } = await exportCardPNGFromCanvas(reviewCanvas, title || "[ title ]", caption || "—");
-    setExportUrl(url);
-    setExporting(false);
-    setStep(5);
-    onAddToArchive?.({
-      id:"note_"+Date.now(),
-      src:url,
-      title:title||"[ title ]",
-      caption:caption||"—",
-      baked:true,
-      ts:nowTS(),
-      createdMs:Date.now()
-    });
+  const doExport=async()=>{ if(!reviewCanvas) return; setExporting(true);
+    const { url } = await exportCardPNGFromCanvas(reviewCanvas, title||"[ title ]", caption||"—");
+    setExportUrl(url); setExporting(false); setStep(5);
+    onAddToArchive?.({ id:"note_"+Date.now(), src:url, title:title||"[ title ]", caption:caption||"—", baked:true, ts:nowTS(), createdMs:Date.now() });
   };
 
   if(!open) return null;
   return (
-    React.createElement("div",{className:"overlay open"},
+    React.createElement("div",{className:"overlay open curved"},
       React.createElement("div",{className:"sheet",ref:sheetRef,role:"dialog","aria-modal":"true"},
         React.createElement("div",{className:"titlebar"},
-          React.createElement("h2",null,
-            step===0 && "Start",
-            step===1 && "Viewfinder",
-            step===2 && "Review",
-            step===3 && "Details",
-            step===4 && "Export",
-            step===5 && "Done"
-          ),
-          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
+          React.createElement("h2",null, ["Start","Viewfinder","Review","Details","Export","Done"][step] || "Start"),
+          React.createElement("div",{className:"row tight"}, React.createElement("button",{className:"btn ghost",onClick:onClose},"Close"))
         ),
-
         step===0 && React.createElement("div",{className:"grid"},
           React.createElement("div",{className:"hint"},"Camera opens instantly (HTTPS only) or import an image."),
           React.createElement("div",{className:"grid cols-2"},
             React.createElement("button",{className:"btn primary",onClick:startCamera},"Open Camera"),
-            React.createElement("button",{className:"btn",onClick:pickFile},"Import Photo")
-          ),
+            React.createElement("button",{className:"btn",onClick:pickFile},"Import Photo")),
           React.createElement("input",{ref:filePickRef,type:"file",accept:"image/*",className:"hidden",onChange:onFileChange})
         ),
-
         step===1 && React.createElement(React.Fragment,null,
-          React.createElement("div",{className:"vf"},
-            React.createElement("video",{ref:camera.videoRef,playsInline:true,muted:true})
-          ),
-          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))"}},
+          React.createElement("div",{className:"vf"}, React.createElement("video",{ref:camera.videoRef,playsInline:true,muted:true})),
+          React.createElement("div",{className:"row",style:{marginTop:"12px"}},
             React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(0);}},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:captureShot},"Capture")
-          )
+            React.createElement("button",{className:"btn primary",onClick:captureShot,style:{marginLeft:"auto"}},"Capture"))
         ),
-
         step===2 && React.createElement(React.Fragment,null,
-          React.createElement("div",{className:"preview",ref:previewMountRef}),
-          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))"}},
+          React.createElement("div",{className:"preview",ref:reviewMountRef}),
+          React.createElement("div",{className:"row",style:{marginTop:"12px"}},
             React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(1);}},"Retake"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(3)},"Keep")
-          )
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(3),style:{marginLeft:"auto"}},"Keep"))
         ),
-
         step===3 && React.createElement("div",{className:"grid"},
           React.createElement("label",{className:"label",htmlFor:"t"},"Title (40 cap)"),
           React.createElement("input",{id:"t",maxLength:40,className:"input",value:title,onChange:e=>setTitle(e.target.value)}),
           React.createElement("label",{className:"label",htmlFor:"c"},"Note (100 cap)"),
           React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
-          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))"}},
+          React.createElement("div",{className:"row",style:{marginTop:"6px"}},
             React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4)},"Next")
-          )
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}},"Next"))
         ),
-
         step===4 && React.createElement("div",{className:"grid"},
           React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
-          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))"}},
+          React.createElement("div",{className:"row"},
             React.createElement("button",{className:"btn",onClick:()=>setStep(3)},"Back"),
-            React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport},exporting?"Exporting…":"Export PNG & Save")
-          )
-        ),
-
-        step===5 && React.createElement("div",{className:"grid",style:{placeItems:"center"}},
-          exportUrl && React.createElement("a",{className:"btn",href:exportUrl,download:`intoview-note_${Date.now()}.png`},"Download again"),
-          React.createElement("div",{className:"grid",style:{gridTemplateColumns:"repeat(2,minmax(0,1fr))", width:"100%"}},
-            React.createElement("button",{className:"btn",onClick:()=>{setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null);}},"New note"),
-            React.createElement("button",{className:"btn primary",onClick:onClose},"Close")
-          )
-        )
+            React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport,style:{marginLeft:"auto"}},exporting?"Exporting…":"Export PNG & Save"))),
+        step===5 && React.createElement("div",{className:"grid",style:{placeItems:"center",textAlign:"center"}},
+          React.createElement("div",{className:"row",style:{justifyContent:"center"}},
+            exportUrl ? React.createElement("a",{href:exportUrl,download:`intoview-note_${Date.now()}.png`,className:"btn"},"Download again") : null),
+          React.createElement("div",{className:"row",style:{justifyContent:"center"}},
+            React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"New note"),
+            React.createElement("button",{className:"btn primary",onClick:onClose},"Close")))
       )
     )
   );
 }
 
-/* ===== App ===== */
+/* ========= App ========= */
 function App(){
   const [wgState,setWgState]=useState(WorkgridState.DEFAULT);
   const [overlayOpen,setOverlayOpen]=useState(false);
   const [manageMode,setManageMode]=useState(false);
   const [archive,setArchive]=useState(loadArchive());
-
   useEffect(()=>{ saveArchive(archive); },[archive]);
 
-  const sortedArchive=useMemo(
-    ()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),
-    [archive]
-  );
+  const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
   const combinedItems=useMemo(()=>[...sortedArchive, ...SEED], [sortedArchive]);
 
-  // sync warp var
-  useEffect(()=>{
-    const k = wgState === WorkgridState.INTRO ? 0 : 1;
-    document.documentElement.style.setProperty("--dom-curve-k", String(k));
-  },[wgState]);
+  // Sync DOM curve intensity
+  useEffect(()=>{ document.documentElement.style.setProperty("--curve-k", String(wgState===WorkgridState.INTRO ? 0 : 1)); },[wgState]);
 
-  // keyboard
-  useEffect(()=>{
-    const onKey=e=>{
-      if(overlayOpen) return;
+  useEffect(()=>{ const onKey=e=>{ if(overlayOpen) return;
       if(e.key==="1") setWgState(WorkgridState.INTRO);
       if(e.key==="2") setWgState(WorkgridState.DEFAULT);
       if(e.key==="0") setWgState(WorkgridState.RESET);
       if(e.key==="n"||e.key==="N") setOverlayOpen(true);
       if(e.key==="m"||e.key==="M") setManageMode(v=>!v);
-    };
-    window.addEventListener("keydown", onKey);
-    return ()=>window.removeEventListener("keydown", onKey);
-  },[overlayOpen]);
+    }; window.addEventListener("keydown",onKey); return ()=>window.removeEventListener("keydown",onKey); },[overlayOpen]);
 
-  const addNoteToArchive = note => setArchive(arr=>[...arr, note]);
-
-  const handleTileSelect=(idx,item)=>{
-    if(!manageMode || !item) return;
+  const addNoteToArchive=note=> setArchive(arr=>[...arr, note]);
+  const handleTileSelect=(tileIndex,item)=>{
+    if(!manageMode||!item) return;
     if(item.id && String(item.id).startsWith("note_")){
       if(!confirm("Delete this note from the archive?")) return;
-      setArchive(arr=>arr.filter(x=>x.id !== item.id));
+      setArchive(arr=>arr.filter(x=>x.id!==item.id));
     }
   };
 
   return (
     React.createElement(React.Fragment,null,
-      /* Canvas / grid layer */
+      /* WebGL layer */
       React.createElement("div",{className:"canvas-wrap"},
         React.createElement("div",{className:"fallback-grid"}),
         React.createElement(Suspense,{fallback:null},
-          React.createElement(GridView,{
-            workgridState:wgState,
-            items:combinedItems,
-            manageMode,
-            onTileSelect:handleTileSelect
-          })
+          React.createElement(GridView,{ workgridState:wgState, items:combinedItems, manageMode, onTileSelect:handleTileSelect })
         )
       ),
-
-      /* Fixed UI (not inside warp) */
-      React.createElement("header",{className:"header"},
+      /* Global vignette */
+      React.createElement("div",{className:"vignette"}),
+      /* DOM UI (curved individually) */
+      React.createElement("header",{className:"header curved"},
         React.createElement("span",{className:"dot","aria-hidden":"true"}),
         React.createElement("h1",null,"intoview • note — Phantom archive"),
-        React.createElement("small",null,"drag to pan • 1 flat • 2 curved • 0 reset • N new • M manage/delete")
+        React.createElement("small",null,"drag to pan • ambient parallax • 1 flat / 2 curved / 0 reset • N new • M manage/delete")
       ),
-      React.createElement("div",{className:"hud"},
+      React.createElement("div",{className:"hud curved"},
         React.createElement("button",{onClick:()=>setWgState(WorkgridState.INTRO)},"Flat"),
         React.createElement("button",{onClick:()=>setWgState(WorkgridState.DEFAULT)},"Curved"),
         React.createElement("button",{onClick:()=>setWgState(WorkgridState.RESET)},"Reset"),
         React.createElement("button",{className:"accent",onClick:()=>setOverlayOpen(true)},"New note"),
-        React.createElement("button",{
-          className:manageMode?"danger active":"danger",
-          onClick:()=>setManageMode(v=>!v),
-          title:"Tap a tile to delete while active"
-        }, manageMode ? "Manage: Delete (ON)" : "Manage: Delete")
+        React.createElement("button",{className:manageMode?"danger active":"", onClick:()=>setManageMode(v=>!v), title:"Tap a tile to delete while active"},
+          manageMode?"Manage: Delete (ON)":"Manage: Delete")
       ),
-
-      /* Warped overlay flow */
-      React.createElement("div",{className:"dom-curve"},
-        React.createElement(OverlayFlow,{
-          open:overlayOpen,
-          onClose:()=>setOverlayOpen(false),
-          onAddToArchive:addNoteToArchive
-        })
-      )
+      React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive })
     )
   );
 }
 
-/* mount */
+/* ========= Mount ========= */
 const root = createRoot(document.getElementById("root"));
 root.render(React.createElement(App));
     </script>
