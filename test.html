@@ -10,55 +10,77 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
     <style>
+/* ============================================================
+   intoview:note — CSS (commented & organized)
+   PASTE this whole block into your <style> tag.
+   Where to tweak quickly:
+   1) EFFECT KNOBS (vignette/blur strength & masks)
+   2) Z-LAYERS (keep UI above global effects)
+   3) COMPONENT THEME TOKENS (colors, sizes)
+   ============================================================ */
+
 :root{
-  --paper:#000; --ink:#FFFFFF; --ink-2:#9F9F9F; --ink-3:#6C6C6C;
-  --accent:#59D2C8; --danger:#FF6363;
-  --curve-k:1;
+  /* --------- THEME TOKENS --------- */
+  --paper:#000;             /* app canvas */
+  --ink:#FFFFFF;            /* primary text/lines */
+  --ink-2:#9F9F9F;          /* secondary lines */
+  --ink-3:#6C6C6C;          /* muted helpers */
+  --accent:#59D2C8;         /* brand accent */
+  --danger:#FF6363;         /* alerts/errors */
+  --curve-k:1;              /* 0=flat, 1=curved (DOM aesthetic scale) */
 
-  /* Phantom-esque global effects */
-  --vig-opacity: 1;
-  --vig-inner:   20%;
-  --vig-mid:     52%;
-  --vig-outer:   100%;
+  /* ---------- EFFECT KNOBS ---------- */
+  /* Vignette stops: inner → mid → outer */
+  --vig-opacity: 1;         /* master opacity multiplier */
+  --vig-inner:   20%;       /* where darkness begins */
+  --vig-mid:     52%;       /* mid falloff */
+  --vig-outer:   100%;      /* outer edge */
 
-  /* Heavier edge blur (dramatic but tasteful) */
-  --edge-blur:   50px;
-  --edge-mask-i: 30%;
-  --edge-mask-o: 99.5%;
+  /* Radial EDGE blur (under vignette, above content) */
+  --edge-blur: 22px;        /* increase for stronger edge softness */
+  --edge-mask-i: 46%;       /* inner clear radius */
+  --edge-mask-o: 64%;       /* where blur fully takes over */
 
-  /* Layering */
-  --z-content: 0;
-  --z-grain: 149;
-  --z-blur: 150;
-  --z-vig: 151;
-  --z-ui: 220;
-  --z-cursor: 230; /* gooey cursor above UI */
-
-  /* FAB sizing + bottom-anchored placement */
-  --fab-size: 120px;
+  /* ---------- LAYOUT / BEHAVIOR ---------- */
+  --cursor-size: 20px;      /* gooey cursor “head” size (desktop only) */
+  --fab-size: 120px;        /* main capture button diameter */
   --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
 
-  /* Vertical zoom rail sizing/placement */
+  /* Zoom rail (vertical slider at right) */
   --rail-height-desktop: 60vh;
   --rail-height-mobile:  52vh;
   --rail-right: clamp(12px, 2vw, 20px);
 
-  /* Gooey cursor */
-  --cursor-size: 20px;
+  /* ---------- Z-LAYERS (IMPORTANT) ---------- 
+     content   < blur < vignette < UI < cursor
+     Keep UI above effects (as requested).
+     ----------------------------------------- */
+  --z-content: 0;
+  --z-grain: 149;
+  --z-blur: 150;            /* edge-blur lives here */
+  --z-vig:  151;            /* vignette sits above blur */
+  --z-ui:   220;            /* header, controls, modals, rail, FAB */
+  --z-cursor: 230;          /* gooey cursor on top */
 }
 
-*{box-sizing:border-box}
-html,body,#root{height:100%}
+/* ========== BASE / RESET ========== */
+*{ box-sizing:border-box }
+html,body,#root{ height:100% }
 body{
   margin:0; background:#000; color:var(--ink);
   font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
-  overflow:hidden; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
 }
 
-/* ===== Layers ===== */
-.canvas-wrap{position:absolute; inset:0; z-index:var(--z-content)}
-.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000 }
+/* ========== CANVAS LAYER (WebGL) ========== */
+.canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
+.canvas-wrap canvas{
+  touch-action:none; cursor:grab; background:#000;
+}
 .canvas-wrap canvas.dragging{ cursor:grabbing }
+
+/* Optional faint debug grid behind cards */
 .fallback-grid{
   position:absolute; inset:0; z-index:var(--z-content); pointer-events:none; opacity:.06;
   background-image:
@@ -66,37 +88,46 @@ body{
     repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
 }
 
-/* Global effects above content, below UI */
+/* ========== GLOBAL EDGE BLUR (radial) ========== 
+   A soft radial backdrop blur from the edges inward.
+   Tweak: --edge-blur, --edge-mask-i, --edge-mask-o
+   ---------------------------------------------- */
 .edge-blur{
   position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
-  background: rgba(0,0,0,0.001);
+  background: rgba(0,0,0,0.001); /* required to trigger backdrop-filter on some browsers */
   backdrop-filter: blur(var(--edge-blur));
   -webkit-backdrop-filter: blur(var(--edge-blur));
-  mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
-  -webkit-mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
+  /* elliptical radial mask: clear center → blurred edges */
+  mask: radial-gradient(90% 70% at 50% 50%,
+    transparent var(--edge-mask-i),
+    white       var(--edge-mask-o));
+  -webkit-mask: radial-gradient(90% 70% at 50% 50%,
+    transparent var(--edge-mask-i),
+    white       var(--edge-mask-o));
 }
+
+/* ========== VIGNETTE (above blur) ========== 
+   Tweak: --vig-opacity, --vig-inner, --vig-mid, --vig-outer
+   ------------------------------------------ */
 .vignette{
   position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
   background:
     radial-gradient(120% 90% at 50% 50%,
-      rgba(0,0,0,0) var(--vig-inner),
-      rgba(0,0,0,0.58) var(--vig-mid),
-      rgba(0,0,0,0.98) var(--vig-outer));
+      rgba(0,0,0,0)         var(--vig-inner),
+      rgba(0,0,0,0.58)      var(--vig-mid),
+      rgba(0,0,0,0.98)      var(--vig-outer));
   opacity:calc(var(--vig-opacity) * var(--curve-k));
-  mix-blend-mode: normal;
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .vignette{ opacity:calc((var(--vig-opacity) + .10) * var(--curve-k)); }
+  mix-blend-mode: normal;   /* keep it clean over UI */
 }
 
-/* Subtle grain */
+/* ========== SUBTLE GRAIN (over content, under effects) ========== */
 body::after{
   content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
   background-size: 120px 120px;
 }
 
-/* Curved DOM aesthetic */
+/* ========== CURVED DOM AESTHETIC (scale with --curve-k) ========== */
 .curved{
   transform-style:preserve-3d;
   transform:
@@ -106,13 +137,12 @@ body::after{
   will-change:transform;
 }
 
-/* Header (UI above effects) */
+/* ========== HEADER / BRAND / CONTROLS (UI ABOVE EFFECTS) ========== */
 .header{
-  position:fixed; inset:0 0 auto 0;
-  z-index:var(--z-ui);
+  position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
   display:flex; align-items:center; justify-content:space-between;
   gap:12px; padding:12px 14px;
-  pointer-events:none;
+  pointer-events:none;      /* let clicks pass EXCEPT for children explicitly turned on */
 }
 .brand{
   display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
@@ -131,83 +161,59 @@ body::after{
 .icon-btn.active{ outline:0px solid color-mix(in oklab, var(--danger), white 10%); outline-offset:1px; }
 .icon-btn svg{ display:block; width:18px; height:18px; }
 
-/* ===== Vertical Zoom rail — hugs right edge ===== */
+/* ========== ZOOM RAIL (right side) ========== */
 .zoom-rail{
-  position:fixed;
-  right: var(--rail-right);
-  top: 50%;
-  transform: translateY(-50%);
-  height: var(--rail-height-desktop);
-  width: 2px;
-  z-index: var(--z-ui);
-  pointer-events:auto;
-  touch-action: none;
+  position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
+  height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
+  pointer-events:auto; touch-action: none;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
-.zoom-rail__track{
-  position:relative;
-  width: 2px;
-  height: 100%;
-  background: rgba(255,255,255,.18);
-  border-radius: 2px;
-}
-.zoom-rail__progress{
-  position:absolute; left:0; bottom:0; width:100%;
-  height: var(--zoom-pct, 0%);
-  background: rgba(255,255,255,.9);
-  border-radius: 2px;
-}
+.zoom-rail__track{ position:relative; width:2px; height:100%; background:rgba(255,255,255,.18); border-radius:2px; }
+.zoom-rail__progress{ position:absolute; left:0; bottom:0; width:100%; height:var(--zoom-pct,0%); background:rgba(255,255,255,.9); border-radius:2px; }
 .zoom-rail__thumb{
-  position:absolute; left:50%;
-  top: calc(100% - var(--zoom-pct, 0%));
-  transform: translate(-50%, -50%);
-  width:10px; height:10px; border-radius:50%;
-  background:var(--ink);
+  position:absolute; left:50%; top: calc(100% - var(--zoom-pct, 0%)); transform: translate(-50%, -50%);
+  width:10px; height:10px; border-radius:50%; background:var(--ink);
   box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
 }
 .zoom-rail__tooltip{
-  position:absolute;
-  top: calc(100% - var(--zoom-pct, 0%));
-  left: -44px;
-  transform: translateY(-50%);
-  font-weight:700; font-size:12px; color:var(--ink-2);
-  text-shadow:0 1px 2px rgba(0,0,0,.55);
-  user-select:none;
+  position:absolute; top:calc(100% - var(--zoom-pct,0%)); left:-44px; transform:translateY(-50%);
+  font-weight:700; font-size:12px; color:var(--ink-2); text-shadow:0 1px 2px rgba(0,0,0,.55); user-select:none;
 }
-
 @media (max-width:768px){
   .zoom-rail{ height: var(--rail-height-mobile); }
   .zoom-rail__tooltip{ left: -40px; }
 }
 
-/* Overlays (UI above effects) */
-.overlay{
-  position:fixed; inset:72px 16px 16px 16px; z-index:var(--z-ui);
-  display:none; pointer-events:auto;
-}
+/* ========== MODALS / SHEETS (UI ABOVE EFFECTS) ========== */
+.overlay{ position:fixed; inset:72px 16px 16px 16px; z-index:var(--z-ui); display:none; pointer-events:auto; }
 .overlay.open{ display:grid; place-items:center; }
 .sheet{
   width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
   box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
 }
-.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-.grid{display:grid; gap:12px}
-.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.label{font-weight:600; opacity:.9}
-.input,.textarea{width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit;}
-.textarea{min-height:96px; resize:vertical}
-.btn{appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600; position:relative; z-index:1;}
-.btn.ghost{ background:transparent } .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
-.hint{color:#c9c9cf; font-size:12px}
-.vf{position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000;}
-video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98)}
-.preview{position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block;}
-.titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
-.titlebar h2{margin:0; font-size:16px}
-.tight{gap:6px} .hidden{display:none !important} .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
+.row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+.grid{ display:grid; gap:12px }
+.cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+.label{ font-weight:600; opacity:.9 }
+.input,.textarea{ width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit; }
+.textarea{ min-height:96px; resize:vertical }
+.btn{
+  appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600;
+  position:relative; z-index:1;
+}
+.btn.ghost{ background:transparent }
+.btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
+.hint{ color:#c9c9cf; font-size:12px }
+.vf{ position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; }
+video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98) }
+.preview{ position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block; }
+.titlebar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px }
+.titlebar h2{ margin:0; font-size:16px }
+.tight{ gap:6px } .hidden{ display:none !important }
+.sheet :focus{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px }
 
-/* Film strip chrome */
-.vf::before, .vf::after{
+/* ========== FILM STRIP CHROME (viewfinder top/bottom) ========== */
+.vf::before,.vf::after{
   content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
   background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
   border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
@@ -222,7 +228,7 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
   opacity:.85;
 }
 
-/* ===== Leveler (bubble vial) ===== */
+/* ========== LEVELER (bubble vial) ========== */
 .leveler{
   position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
   width:min(260px, 72%); height:30px; border-radius:999px;
@@ -231,10 +237,9 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
 }
 .leveler .vial{ position:absolute; inset:4px; border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06)); }
 .leveler .bubble{
-  position:absolute; top:50%; transform:translate(-50%,-50%);
-  left:var(--bubble-x, 50%);
-  width:22px; height:22px; border-radius:999px;
-  background:#ffe066; box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 2px 10px rgba(0,0,0,.35);
+  position:absolute; top:50%; transform:translate(-50%,-50%); left:var(--bubble-x, 50%);
+  width:22px; height:22px; border-radius:999px; background:#ffe066;
+  box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 2px 10px rgba(0,0,0,.35);
 }
 .leveler .deg{
   position:absolute; right:8px; top:50%; transform:translateY(-50%);
@@ -246,24 +251,18 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.35));
   backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
-  color:#fff; font-weight:600; font-size:12px; border-radius:inherit; cursor:pointer;
-  border:1px solid #2a2a2e;
+  color:#fff; font-weight:600; font-size:12px; border-radius:inherit; cursor:pointer; border:1px solid #2a2a2e;
 }
 
-/* ===== FAB (button + inline label) ===== */
+/* ========== FAB (UI ABOVE EFFECTS) ========== */
 .fab-wrap{
-  position:fixed;
-  left:50%;
-  bottom: var(--fab-bottom);
-  transform: translateX(-50%);
-  z-index:var(--z-ui);
-  display:flex; flex-direction:column; align-items:center;
+  position:fixed; left:50%; bottom: var(--fab-bottom); transform: translateX(-50%);
+  z-index:var(--z-ui); display:flex; flex-direction:column; align-items:center;
 }
 .fab{
   width:var(--fab-size); height:var(--fab-size); border-radius:999px;
   background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
-  cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; cursor:pointer;
   box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
   transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
   padding:0;
@@ -275,16 +274,14 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
 .fab .cube--dark{ display:none }
 .fab:hover .cube--light{ display:none }
 .fab:hover .cube--dark{ display:inline }
-
-/* correct selector (label sits outside .fab) */
 .fab-label{
   margin-top:6px;
   font:500 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color:#fff; opacity:.8; letter-spacing:0; user-select:none; pointer-events:none;
+  color:#fff; opacity:.8; user-select:none; pointer-events:none;
   text-shadow:0 1px 2px rgba(0,0,0,.55);
 }
 
-/* Mobile tweaks */
+/* Larger FAB on mobile */
 @media (max-width:768px){
   :root{
     --fab-size: 128px;
@@ -292,34 +289,22 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
   }
 }
 
-/* Reduced motion */
+/* ========== REDUCED MOTION ========== */
 @media (prefers-reduced-motion: reduce){
   .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
 }
 
-/* ===== Gooey cursor (HighFlyer pen, adapted) ===== */
+/* ========== GOOEY CURSOR (desktop only) ========== */
 #cursor{
-  position:fixed;
-  top: calc(var(--cursor-size) * -0.5);
-  left: calc(var(--cursor-size) * -0.5);
-  pointer-events:none;
-  filter:url(#goo);
-  mix-blend-mode:difference;
-  z-index:var(--z-cursor);
+  position:fixed; top: calc(var(--cursor-size) * -0.5); left: calc(var(--cursor-size) * -0.5);
+  pointer-events:none; filter:url(#goo); mix-blend-mode:difference; z-index:var(--z-cursor);
 }
 .cursor-circle{
-  position:absolute;
-  top:0; left:0;
-  width:var(--cursor-size);
-  height:var(--cursor-size);
-  border-radius:999px;
-  background:#fff;
-  transform-origin:center center;
+  position:absolute; top:0; left:0; width:var(--cursor-size); height:var(--cursor-size);
+  border-radius:999px; background:#fff; transform-origin:center center;
 }
-.goo{ display:none; }
-@media (pointer: coarse){
-  #cursor{ display:none; } /* hide on touch-only devices */
-}
+.goo{ display:none; }         /* SVG filter host */
+@media (pointer: coarse){ #cursor{ display:none; } }  /* hide on touch devices */
     </style>
   </head>
   <body>
@@ -336,7 +321,7 @@ video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale
       </defs>
     </svg>
 
-    <!-- Gooey cursor host (filled by script) -->
+    <!-- Gooey cursor host -->
     <div id="cursor" aria-hidden="true"></div>
 
     <div id="root"></div>
@@ -353,95 +338,71 @@ import { RenderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postproces
 import { ShaderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js?deps=three@0.160.1";
 import { OutputPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js?deps=three@0.160.1";
 
-/* ========= Seed images (full list) ========= */
-const FAKE = (i)=>[
-  "A brief caption.",
-  "Found light, found line.",
-  "A quick visual note.",
-  "Somewhere between places.",
-  "Texture & tone.",
-  "Quiet geometry.",
-  "Edge of focus.",
-  "A walk-by frame.",
-  "Study in contrast.",
-  "Moment, observed."
-][i % 10];
+/* ========= Seed images ========= */
+const FAKE=(i)=>[
+  "A brief caption.","Found light, found line.","A quick visual note.","Somewhere between places.","Texture & tone.",
+  "Quiet geometry.","Edge of focus.","A walk-by frame.","Study in contrast.","Moment, observed."
+][i%10];
 
-const SEED = [
-  {src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp', title:'ZAX01304', caption:FAKE(0)},
-  {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp', title:'wmzWGlaw', caption:FAKE(1)},
-  {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp', title:'IMG-8403', caption:FAKE(2)},
-  {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp', title:'DSC08656', caption:FAKE(3)},
-  {src:'https://i.ibb.co/bMJNnQtg/DSC08604.webp', title:'DSC08604', caption:FAKE(4)},
-  {src:'https://i.ibb.co/qLWQC0cN/DSC08358.webp', title:'DSC08358', caption:FAKE(5)},
-  {src:'https://i.ibb.co/rRdNxC5g/DSC08300.webp', title:'DSC08300', caption:FAKE(6)},
-  {src:'https://i.ibb.co/MD923R2f/DSC08254.webp', title:'DSC08254', caption:FAKE(7)},
-  {src:'https://i.ibb.co/TBtrSYKc/DSC08233.webp', title:'DSC08233', caption:FAKE(8)},
-  {src:'https://i.ibb.co/23QsQrCG/DSC05954.webp', title:'DSC05954', caption:FAKE(9)},
-  {src:'https://i.ibb.co/ym1z1pyb/DSC05994.webp', title:'DSC05994', caption:FAKE(10)},
-  {src:'https://i.ibb.co/bjMXB8HJ/2328964849369731672-5144774570.webp', title:'2328964849…4570', caption:FAKE(11)},
-  {src:'https://i.ibb.co/fd1SDQQs/2399506735674938043-5144774570.webp', title:'2399506735…4570', caption:FAKE(12)},
-  {src:'https://i.ibb.co/0pNWKFbk/2319420263505008414-5144774570.webp', title:'2319420263…4570', caption:FAKE(13)},
-  {src:'https://i.ibb.co/WvW71PR3/2288089293770285108-5144774570.webp', title:'2288089293…4570', caption:FAKE(14)},
-  {src:'https://i.ibb.co/1YyFqBj3/2278120764300123596-5144774570.webp', title:'2278120764…4570', caption:FAKE(15)},
-  {src:'https://i.ibb.co/99B3hgp3/2274809041971350857-5144774570.webp', title:'2274809041…4570', caption:FAKE(16)},
-  {src:'https://i.ibb.co/HpnrrYMR/2269419019461331921-5144774570.webp', title:'2269419019…4570', caption:FAKE(17)},
-  {src:'https://i.ibb.co/6Rqf37ft/6039d4bbb15be328fc33b54d-IMG-6478.webp', title:'IMG-6478', caption:FAKE(18)},
-  {src:'https://i.ibb.co/BKv7177j/603d6216612acc7c7e54bef2-IMG-1158.webp', title:'IMG-1158', caption:FAKE(19)},
-  {src:'https://i.ibb.co/k2svMNFv/603d10120fba838e599b6b5e-IMG-1563.webp', title:'IMG-1563', caption:FAKE(20)},
-  {src:'https://i.ibb.co/WNtnFQqP/603d1185cafcb2591f42b1ad-IMG-3932.webp', title:'IMG-3932', caption:FAKE(21)},
-  {src:'https://i.ibb.co/pvFThr4K/603d1185b8ec32082f451ba9-IMG-3882.webp', title:'IMG-3882', caption:FAKE(22)},
-  {src:'https://i.ibb.co/QFKMY1sH/603d138e1d5ed053b509992a-IMG-5199.webp', title:'IMG-5199', caption:FAKE(23)},
-  {src:'https://i.ibb.co/N2cSNMf4/603d102d9f59a611886a6893-IMG-2151.webp', title:'IMG-2151', caption:FAKE(24)},
-  {src:'https://i.ibb.co/KjzkkW68/603d102d0f02c70fdf7d84eb-IMG-4696.webp', title:'IMG-4696', caption:FAKE(25)},
-  {src:'https://i.ibb.co/DPyhP1T7/603d100d889053cc334ee5fc-IMG-2083.webp', title:'IMG-2083', caption:FAKE(26)},
-  {src:'https://i.ibb.co/Fbr1sSb6/603d8d7a3a6df470a4a661a1-DSC00726.webp', title:'DSC00726', caption:FAKE(27)},
-  {src:'https://i.ibb.co/5gddKNw3/603d0bb2331da47ee88db089-DSC02085.webp', title:'DSC02085', caption:FAKE(28)},
-  {src:'https://i.ibb.co/9HZMK0nw/603d0b8b038105ae6904872a-DSC08334.webp', title:'DSC08334', caption:FAKE(29)},
-  {src:'https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp', title:'DSC08281', caption:FAKE(30)},
-  {src:'https://i.ibb.co/QvHqKh2P/603afe37ba16f8f9174cf501-IMG-1878.webp', title:'IMG-1878', caption:FAKE(31)},
-  {src:'https://i.ibb.co/m5sNTvYX/603a967916b10d5bef5a6dd8-ZAX02712-1.webp', title:'ZAX02712-1', caption:FAKE(32)},
-  {src:'https://i.ibb.co/rR91Q0Z4/603a967ad03490104c2aaefe-ZAX01042-2.webp', title:'ZAX01042-2', caption:FAKE(33)},
-  {src:'https://i.ibb.co/tpK7LjSv/603a967ac64cec73069e2454-ZAX09877.webp', title:'ZAX09877', caption:FAKE(34)},
-  {src:'https://i.ibb.co/Kph6fp3M/603a967a6a41f4d56ca33b1a-ZAX00794.webp', title:'ZAX00794', caption:FAKE(35)},
-  {src:'https://i.ibb.co/0yjJ4j8L/603a967a5dc3e982f571b744-ZAX00968.webp', title:'ZAX00968', caption:FAKE(36)},
-  {src:'https://i.ibb.co/zWBgb5Sj/603a95ee83ba30ff4ac9bc6a-DSC00423-1.webp', title:'DSC00423-1', caption:FAKE(37)},
-  {src:'https://i.ibb.co/fdT1YyzJ/603a95edd03490eb412aaedc-DSC08676.webp', title:'DSC08676', caption:FAKE(38)},
-  {src:'https://i.ibb.co/FLS6ZdgN/603a95ed29478f4bc91875b5-DSC08933.webp', title:'DSC08933', caption:FAKE(39)},
-  {src:'https://i.ibb.co/5Xr0MDSw/603a93f06a41f45766a3361a-DSC09212.webp', title:'DSC09212', caption:FAKE(40)},
-  {src:'https://i.ibb.co/wNFR8hJR/603a93f1d03490ae9d2aa64a-IMG-3824.webp', title:'IMG-3824', caption:FAKE(41)},
-  {src:'https://i.ibb.co/39wDDcbS/603a93f0e815e830d1783e07-IMG-2033.webp', title:'IMG-2033', caption:FAKE(42)},
-  {src:'https://i.ibb.co/VcxChJB1/603a93eef8754819192222f7-DSC09720.webp', title:'DSC09720', caption:FAKE(43)},
-  {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp', title:'ZAX09767', caption:FAKE(44)},
-];
+const SEED=[{src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:FAKE(0)},
+{src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp',title:'wmzWGlaw',caption:FAKE(1)},
+{src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp',title:'IMG-8403',caption:FAKE(2)},
+{src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp',title:'DSC08656',caption:FAKE(3)},
+{src:'https://i.ibb.co/bMJNnQtg/DSC08604.webp',title:'DSC08604',caption:FAKE(4)},
+{src:'https://i.ibb.co/qLWQC0cN/DSC08358.webp',title:'DSC08358',caption:FAKE(5)},
+{src:'https://i.ibb.co/rRdNxC5g/DSC08300.webp',title:'DSC08300',caption:FAKE(6)},
+{src:'https://i.ibb.co/MD923R2f/DSC08254.webp',title:'DSC08254',caption:FAKE(7)},
+{src:'https://i.ibb.co/TBtrSYKc/DSC08233.webp',title:'DSC08233',caption:FAKE(8)},
+{src:'https://i.ibb.co/23QsQrCG/DSC05954.webp',title:'DSC05954',caption:FAKE(9)},
+{src:'https://i.ibb.co/ym1z1pyb/DSC05994.webp',title:'DSC05994',caption:FAKE(10)},
+{src:'https://i.ibb.co/bjMXB8HJ/2328964849369731672-5144774570.webp',title:'2328964849…4570',caption:FAKE(11)},
+{src:'https://i.ibb.co/fd1SDQQs/2399506735674938043-5144774570.webp',title:'2399506735…4570',caption:FAKE(12)},
+{src:'https://i.ibb.co/0pNWKFbk/2319420263505008414-5144774570.webp',title:'2319420263…4570',caption:FAKE(13)},
+{src:'https://i.ibb.co/WvW71PR3/2288089293770285108-5144774570.webp',title:'2288089293…4570',caption:FAKE(14)},
+{src:'https://i.ibb.co/1YyFqBj3/2278120764300123596-5144774570.webp',title:'2278120764…4570',caption:FAKE(15)},
+{src:'https://i.ibb.co/99B3hgp3/2274809041971350857-5144774570.webp',title:'2274809041…4570',caption:FAKE(16)},
+{src:'https://i.ibb.co/HpnrrYMR/2269419019461331921-5144774570.webp',title:'2269419019…4570',caption:FAKE(17)},
+{src:'https://i.ibb.co/6Rqf37ft/6039d4bbb15be328fc33b54d-IMG-6478.webp',title:'IMG-6478',caption:FAKE(18)},
+{src:'https://i.ibb.co/BKv7177j/603d6216612acc7c7e54bef2-IMG-1158.webp',title:'IMG-1158',caption:FAKE(19)},
+{src:'https://i.ibb.co/k2svMNFv/603d10120fba838e599b6b5e-IMG-1563.webp',title:'IMG-1563',caption:FAKE(20)},
+{src:'https://i.ibb.co/WNtnFQqP/603d1185cafcb2591f42b1ad-IMG-3932.webp',title:'IMG-3932',caption:FAKE(21)},
+{src:'https://i.ibb.co/pvFThr4K/603d1185b8ec32082f451ba9-IMG-3882.webp',title:'IMG-3882',caption:FAKE(22)},
+{src:'https://i.ibb.co/QFKMY1sH/603d138e1d5ed053b509992a-IMG-5199.webp',title:'IMG-5199',caption:FAKE(23)},
+{src:'https://i.ibb.co/N2cSNMf4/603d102d9f59a611886a6893-IMG-2151.webp',title:'IMG-2151',caption:FAKE(24)},
+{src:'https://i.ibb.co/KjzkkW68/603d102d0f02c70fdf7d84eb-IMG-4696.webp',title:'IMG-4696',caption:FAKE(25)},
+{src:'https://i.ibb.co/DPyhP1T7/603d100d889053cc334ee5fc-IMG-2083.webp',title:'IMG-2083',caption:FAKE(26)},
+{src:'https://i.ibb.co/Fbr1sSb6/603d8d7a3a6df470a4a661a1-DSC00726.webp',title:'DSC00726',caption:FAKE(27)},
+{src:'https://i.ibb.co/5gddKNw3/603d0bb2331da47ee88db089-DSC02085.webp',title:'DSC02085',caption:FAKE(28)},
+{src:'https://i.ibb.co/9HZMK0nw/603d0b8b038105ae6904872a-DSC08334.webp',title:'DSC08334',caption:FAKE(29)},
+{src:'https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp',title:'DSC08281',caption:FAKE(30)},
+{src:'https://i.ibb.co/QvHqKh2P/603afe37ba16f8f9174cf501-IMG-1878.webp',title:'IMG-1878',caption:FAKE(31)},
+{src:'https://i.ibb.co/m5sNTvYX/603a967916b10d5bef5a6dd8-ZAX02712-1.webp',title:'ZAX02712-1',caption:FAKE(32)},
+{src:'https://i.ibb.co/rR91Q0Z4/603a967ad03490104c2aaefe-ZAX01042-2.webp',title:'ZAX01042-2',caption:FAKE(33)},
+{src:'https://i.ibb.co/tpK7LjSv/603a967ac64cec73069e2454-ZAX09877.webp',title:'ZAX09877',caption:FAKE(34)},
+{src:'https://i.ibb.co/Kph6fp3M/603a967a6a41f4d56ca33b1a-ZAX00794.webp',title:'ZAX00794',caption:FAKE(35)},
+{src:'https://i.ibb.co/0yjJ4j8L/603a967a5dc3e982f571b744-ZAX00968.webp',title:'ZAX00968',caption:FAKE(36)},
+{src:'https://i.ibb.co/zWBgb5Sj/603a95ee83ba30ff4ac9bc6a-DSC00423-1.webp',title:'DSC00423-1',caption:FAKE(37)},
+{src:'https://i.ibb.co/fdT1YyzJ/603a95edd03490eb412aaedc-DSC08676.webp',title:'DSC08676',caption:FAKE(38)},
+{src:'https://i.ibb.co/FLS6ZdgN/603a95ed29478f4bc91875b5-DSC08933.webp',title:'DSC08933',caption:FAKE(39)},
+{src:'https://i.ibb.co/5Xr0MDSw/603a93f06a41f45766a3361a-DSC09212.webp',title:'DSC09212',caption:FAKE(40)},
+{src:'https://i.ibb.co/wNFR8hJR/603a93f1d03490ae9d2aa64a-IMG-3824.webp',title:'IMG-3824',caption:FAKE(41)},
+{src:'https://i.ibb.co/39wDDcbS/603a93f0e815e830d1783e07-IMG-2033.webp',title:'IMG-2033',caption:FAKE(42)},
+{src:'https://i.ibb.co/VcxChJB1/603a93eef8754819192222f7-DSC09720.webp',title:'DSC09720',caption:FAKE(43)},
+{src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp',title:'ZAX09767',caption:FAKE(44)}];
 
 /* ========= Config ========= */
-const STORAGE_KEY = "intoview_archive_cards_v6";
-const CONFIG = {
-  cols:10, rows:7, tile:0.32, gap:0.08,
-  ambient:0.20, dragEase:0.14, velEase:0.92,
-  zoomOut:1.85,
+const STORAGE_KEY="intoview_archive_cards_v6";
+const CONFIG={ cols:10, rows:7, tile:0.32, gap:0.08, ambient:0.20, dragEase:0.14, velEase:0.92, zoomOut:1.85,
   distortion:{ flat:0.0, curved:0.46 },
-
-  clickBounceDelta: 0.25,
-  longPressMsMouse: 380,
-  longPressMsTouch: 520,
-  clickMovePx: 6,
-  clickMovePxTouch: 12,
-  dragMultMouse: 6.0,
-  dragMultTouch: 4.0,
-  touchDragEase: 0.18,
-
-  zoomMin: 0.45,
-  zoomMax: 3.00,
-  wheelScale: 0.0015
-};
+  clickBounceDelta:0.25, longPressMsMouse:380, longPressMsTouch:520, clickMovePx:6, clickMovePxTouch:12,
+  dragMultMouse:6.0, dragMultTouch:4.0, touchDragEase:0.18,
+  zoomMin:0.45, zoomMax:3.00, wheelScale:0.0015 };
 
 /* ========= Utilities ========= */
 const TEX_SIZE=768, HAIR=1, BAR_H=28, PAD=12, CAP_SIZE=18, TITLE_SIZE=20;
 const MONO="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 const UI="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
-const isBlobOrData = u => /^blob:|^data:/i.test(u);
+const isBlobOrData=u=>/^blob:|^data:/i.test(u);
 function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"),
   day=String(d.getDate()).padStart(2,"0"), hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
   return `${y}-${m}-${day} • ${hh}:${mm}`; }
@@ -450,7 +411,7 @@ function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); 
 function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
 function coverImage(ctx,img,x,y,w,h){
   const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
-  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
+  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(0,0,s,s); return; }
   const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
   if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
   ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
@@ -475,14 +436,22 @@ function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=n
 }
 function makeCardTextureFromCanvas(cnv){ const tex=new THREE.CanvasTexture(cnv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; }
 function makeEmptyTexture(){ return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""})); }
+function makeFillerTexture(){ const c=document.createElement('canvas'); c.width=2; c.height=2; c.getContext('2d').fillRect(0,0,2,2);
+  const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; tex.needsUpdate=true; return tex; }
 async function textureForItem(item){
+  if(item?.placeholder){
+    const cnv = makeCardCanvas({ img:null, title:item.title || "new note", caption:item.caption || "tap to start", gps:"", ts:"" });
+    return makeCardTextureFromCanvas(cnv);
+  }
   if(!item||!item.src) return makeEmptyTexture();
   if(item.baked){ try{ const img=await loadImage(item.src); const tex=new THREE.Texture(img); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; } catch (e){ console.warn(e); return makeEmptyTexture(); } }
   const img=await loadImage(item.src).catch(e=>{ console.warn(e); return null; });
   return makeCardTextureFromCanvas(makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()}));
 }
 async function buildRowMajorTextures(items,totalTiles){
-  const empty=makeEmptyTexture(); const texs=new Array(totalTiles).fill(empty); const count=Math.min(items.length,totalTiles);
+  const filler=makeFillerTexture();
+  const texs=new Array(totalTiles).fill(filler);
+  const count=Math.min(items.length,totalTiles);
   for(let i=0;i<count;i++){ try{ texs[i]=await textureForItem(items[i]); }catch(e){ console.warn(e); } }
   return texs;
 }
@@ -502,7 +471,7 @@ class DistortionShader extends THREE.ShaderMaterial{
   setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
 }
 
-/* ========= Grid with hover bg + scroll/pinch zoom ========= */
+/* ========= Grid with hover bg + zoom ========= */
 class Grid extends THREE.Group{
   constructor(canvas,camera,opts){ super();
     this.canvas=canvas; this.camera=camera; this.opts=opts;
@@ -511,19 +480,16 @@ class Grid extends THREE.Group{
     this.velocity=new THREE.Vector2(); this.offset=new THREE.Vector2();
     this.viewW=1; this.viewH=1; this._lastPX=null; this._lastPY=null;
     this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[]; this.ray=new THREE.Raycaster();
-    this.manageMode=false; this.onTileSelect=null;
+    this.manageMode=false; this.onTileSelect=null; this.onTileClick=null;
     this.onZoomChange=null; this._lastZ=this.camera.position.z;
     this.tileGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
     this.bgGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
     this.currentDragEase = opts.dragEase;
     this.hoverIdx=-1;
 
-    /* click / long-press tracking */
     this.downTime=0; this.downX=0; this.downY=0; this.longPressTimer=null; this.longPressFired=false;
 
-    /* pinch support */
-    this.pointerMap=new Map();
-    this.pinchDist0=null; this.cameraZ0=null;
+    this.pointerMap=new Map(); this.pinchDist0=null; this.cameraZ0=null;
 
     this.layout();
 
@@ -745,7 +711,10 @@ class Grid extends THREE.Group{
 
     if(!this.longPressFired && dt < (this.isTouch ? CONFIG.longPressMsTouch : CONFIG.longPressMsMouse) && dist <= thresh){
       const { idx } = this._hitTileAt(e.clientX, e.clientY);
-      if(idx>=0) this.centerTileByIndex(idx, 0.6);
+      if(idx>=0){
+        this.centerTileByIndex(idx, 0.6);
+        this.onTileClick?.(idx, this.tileItems[idx] || null);
+      }
     }
   }
 
@@ -770,7 +739,7 @@ class Grid extends THREE.Group{
   resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); this._setHover(-1); }
 }
 
-/* ========= Postprocessing (distortion only) ========= */
+/* ========= Postprocessing ========= */
 function Postprocessing({ workgridState }){
   const { gl, scene, camera, size } = useThree();
   const { composer, shader } = useMemo(()=>{
@@ -800,7 +769,7 @@ function Postprocessing({ workgridState }){
 }
 
 /* ========= Primitive wrapper ========= */
-function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect, onZoomChange, controllerRef }){
+function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect, onTileClick, onZoomChange, controllerRef }){
   const { gl, camera, size } = useThree();
   const grid = useMemo(()=> new Grid(gl.domElement, camera, {
     cols:CONFIG.cols, rows:CONFIG.rows, tile:CONFIG.tile, gap:CONFIG.gap,
@@ -809,12 +778,12 @@ function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect,
   useFrame(()=>grid.update());
   useEffect(()=>{ grid.setViewport(size.width,size.height); },[size,grid]);
   useEffect(()=>{ grid.onTileSelect=onTileSelect; },[grid,onTileSelect]);
+  useEffect(()=>{ grid.onTileClick=onTileClick; },[grid,onTileClick]);
   useEffect(()=>{ grid.setManageMode(manageMode); },[manageMode,grid]);
   useEffect(()=>{ grid.setItems(items); },[items,grid]);
   useEffect(()=>{ grid.onZoomChange = (z)=> onZoomChange?.(z); return ()=>{ grid.onZoomChange=null; }; },[grid,onZoomChange]);
   useEffect(()=>{ if(workgridState==="RESET") grid.resetPosition(); },[workgridState,grid]);
 
-  // Expose setter for zoom scrubbing
   useEffect(()=>{
     if(!controllerRef) return;
     controllerRef.current = {
@@ -885,28 +854,22 @@ function useCamera(){
     if(!v){ setError("Video element missing."); return false; }
 
     try{
-      // iOS/Safari quirks
       v.setAttribute("playsinline",""); v.setAttribute("autoplay",""); v.setAttribute("muted","");
       v.playsInline = true; v.muted = true;
 
       const constraints = {
-        video: {
-          facingMode: { ideal:"environment" },
-          width:  { ideal:1920 },
-          height: { ideal:1080 }
-        },
+        video: { facingMode: { ideal:"environment" }, width:  { ideal:1920 }, height: { ideal:1080 } },
         audio: false
       };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       v.srcObject = stream;
 
-      // Wait for metadata then play (Safari)
       await new Promise(res=>{
         const onReady = () => { v.removeEventListener("loadedmetadata", onReady); res(); };
         v.addEventListener("loadedmetadata", onReady);
       });
-      await v.play().catch(()=>{ /* Safari may auto-play anyway */ });
+      await v.play().catch(()=>{});
 
       return true;
     }catch(e){
@@ -958,7 +921,7 @@ function Leveler(){
       }else{
         setEnabled(true);
       }
-    }catch{ /* ignore */ }
+    }catch{}
   };
 
   return (
@@ -972,7 +935,7 @@ function Leveler(){
   );
 }
 
-/* ========= Overlay flow (note capture) ========= */
+/* ========= Overlay flow ========= */
 function OverlayFlow({ open, onClose, onAddToArchive }){
   const [step,setStep]=useState(0), [title,setTitle]=useState(""), [caption,setCaption]=useState("A quick visual note");
   const [reviewCanvas,setReviewCanvas]=useState(null), [exportUrl,setExportUrl]=useState(""), [exporting,setExporting]=useState(false);
@@ -1077,8 +1040,8 @@ function ZoomRail({ zoom, onScrub }) {
   const toZoomFromClientY = (clientY) => {
     const el = trackRef.current; if(!el) return null;
     const r = el.getBoundingClientRect();
-    const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height)); // 0 at top, 1 at bottom
-    const frac = 1 - y; // top = 1 (max), bottom = 0 (min)
+    const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
+    const frac = 1 - y;
     return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
   };
   const onPointerDown = (e) => {
@@ -1105,16 +1068,11 @@ function ZoomRail({ zoom, onScrub }) {
 /* ========= Icons ========= */
 function MorphDistortionIcon({ isCurved, onToggle }){
   const rectRef = useRef(null);
-  useEffect(()=>{
-    const target = isCurved ? 9 : 2;
-    gsap.to(rectRef.current, { attr:{ rx: target, ry: target }, duration:0.25, ease:"power2.out" });
-  },[isCurved]);
-
+  useEffect(()=>{ const target = isCurved ? 9 : 2; gsap.to(rectRef.current, { attr:{ rx: target, ry: target }, duration:0.25, ease:"power2.out" }); },[isCurved]);
   return (
     React.createElement("button", { className:"icon-btn", title:isCurved?"Curved (click to go Flat)":"Flat (click to go Curved)", onClick:onToggle, "aria-label":"Toggle distortion" },
       React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
-        React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", rx:isCurved?9:2, ry:isCurved?9:2,
-          fill:"none", stroke:"currentColor", "stroke-width":"2", ref:rectRef })
+        React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", rx:isCurved?9:2, ry:isCurved?9:2, fill:"none", stroke:"currentColor", "stroke-width":"2", ref:rectRef })
       )
     )
   );
@@ -1154,7 +1112,12 @@ function App(){
   useEffect(()=>{ saveArchive(archive); },[archive]);
 
   const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
-  const combinedItems=useMemo(()=>[...sortedArchive, ...SEED], [sortedArchive]);
+
+  const PLACEHOLDER_START = useMemo(()=>({ id:"placeholder_new_start", placeholder:true, title:"new note", caption:"tap to start" }),[]);
+  const PLACEHOLDER_END   = useMemo(()=>({ id:"placeholder_new_end",   placeholder:true, title:"new note", caption:"tap to start" }),[]);
+
+  const contentItems=useMemo(()=>[...sortedArchive, ...SEED], [sortedArchive]);
+  const combinedItems=useMemo(()=>[PLACEHOLDER_START, ...contentItems, PLACEHOLDER_END], [PLACEHOLDER_START, PLACEHOLDER_END, contentItems]);
 
   useEffect(()=>{ document.documentElement.style.setProperty("--curve-k", String(wgState===WorkgridState.INTRO ? 0 : 1)); },[wgState]);
 
@@ -1178,17 +1141,14 @@ function App(){
 
   const isCurved = wgState === WorkgridState.DEFAULT;
 
-  /* ===== Cursor XY for FAB label ===== */
   const [cursorXY, setCursorXY] = useState({ x: 0, y: 0 });
-  useEffect(()=>{
-    const onMove = (e)=> setCursorXY({ x: Math.round(e.clientX), y: Math.round(e.clientY) });
-    window.addEventListener("pointermove", onMove, { passive:true });
-    return ()=> window.removeEventListener("pointermove", onMove);
-  },[]);
+  useEffect(()=>{ const onMove = (e)=> setCursorXY({ x: Math.round(e.clientX), y: Math.round(e.clientY) }); window.addEventListener("pointermove", onMove, { passive:true }); return ()=> window.removeEventListener("pointermove", onMove); },[]);
+
+  const handleTileClick = (idx, item) => { if (item?.placeholder) { setOverlayOpen(true); } };
 
   return (
     React.createElement(React.Fragment,null,
-      /* WebGL layer */
+      /* WebGL */
       React.createElement("div",{className:"canvas-wrap"},
         React.createElement("div",{className:"fallback-grid"}),
         React.createElement(Suspense,{fallback:null},
@@ -1197,13 +1157,14 @@ function App(){
             items:combinedItems,
             manageMode,
             onTileSelect:handleTileSelect,
+            onTileClick:handleTileClick,
             onZoomChange:setZoom,
             controllerRef:gridCtrl
           })
         )
       ),
 
-      /* Header */
+      /* Header (UI above effects) */
       React.createElement("header",{className:"header"},
         React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
           React.createElement("img",{
@@ -1231,14 +1192,14 @@ function App(){
       React.createElement(HelpOverlay,{ open:helpOpen, onClose:()=>setHelpOpen(false) }),
       React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive }),
 
-      /* Global effects */
+      /* Global effects (under UI) */
       React.createElement("div",{className:"edge-blur"}),
       React.createElement("div",{className:"vignette"}),
 
-      /* Vertical zoom rail */
+      /* Zoom rail (UI) */
       React.createElement(ZoomRail,{ zoom, onScrub:(z)=> gridCtrl.current?.setZoom?.(z) }),
 
-      /* FAB block (centered lower-third) */
+      /* FAB */
       React.createElement("div",{ className:"fab-wrap" },
         React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"intoview:note" },
           React.createElement("svg",{viewBox:"0 0 100 100","aria-hidden":"true"},
@@ -1296,13 +1257,12 @@ function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify
 const root = createRoot(document.getElementById("root"));
 root.render(React.createElement(App));
 
-/* ========= Gooey cursor init (HighFlyer pen, adapted) ========= */
+/* ========= Gooey cursor ========= */
 (function initGooeyCursor(){
   const TAIL_LENGTH = 20;
   const host = document.getElementById('cursor');
   if(!host) return;
 
-  // build tail
   for(let i=0;i<TAIL_LENGTH;i++){
     const d=document.createElement('div');
     d.className='cursor-circle';
@@ -1324,7 +1284,7 @@ root.render(React.createElement(App));
       const next = history[i+1] || history[TAIL_LENGTH-1];
       cur.x += (next.x - cur.x) * 0.35;
       cur.y += (next.y - cur.y) * 0.35;
-      const s = Math.max(0.22, i/TAIL_LENGTH); // keep smallest dot visible
+      const s = Math.max(0.22, i/TAIL_LENGTH);
       circles[i].style.transform = `translate(${cur.x}px, ${cur.y}px) scale(${s})`;
     }
     requestAnimationFrame(tick);
