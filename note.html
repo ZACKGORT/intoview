@@ -13,6 +13,7 @@
 /* ============================================================
    intoview:note — CSS
    v2.3: camera/upload flow => small centered chrome dialogs
+   FIX: overlay/scrim must fill full viewport (and not be shrunk by .curved)
    ============================================================ */
 
 :root{
@@ -186,15 +187,32 @@ body::after{
   .zoom-rail__tooltip{ left: -40px; }
 }
 
-/* overlay as centered dialog */
+/* overlay as centered dialog — full viewport, and ignore .curved transform */
 .overlay{
-  position:fixed; inset:0; z-index:var(--z-ui); display:none; pointer-events:auto;
-  background: radial-gradient(circle at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.85) 100%);
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  min-height:100vh;
+  min-height:100dvh;
+  z-index:1000;
+  display:none;
+  pointer-events:auto;
+  background: radial-gradient(circle at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.9) 100%);
   backdrop-filter: blur(4px);
-  align-items:center; justify-content:center;
+  -webkit-backdrop-filter: blur(4px);
+  align-items:center;
+  justify-content:center;
   padding: clamp(8px, 2vw, 18px);
 }
+/* override the 3D transform from .curved so the scrim stays flush */
+.overlay.curved{
+  transform:none !important;
+  transform-style:flat !important;
+  perspective:none !important;
+}
 .overlay.open{ display:flex; }
+
 .sheet{
   width:min(96vw, 580px);
   background: radial-gradient(circle at top, #0e0e10 0%, #040405 80%);
@@ -204,7 +222,7 @@ body::after{
   padding: clamp(12px, 2.2vw, 20px);
   box-shadow:0 13px 48px rgba(0,0,0,.25), 0 2px 14px rgba(0,0,0,.2);
   display:grid; grid-template-rows: auto 1fr auto; gap:10px;
-  max-height:90vh;
+  max-height:min(92vh, 92dvh);
 }
 .titlebar{
   display:flex; align-items:center; justify-content:space-between; gap:12px;
@@ -630,7 +648,7 @@ function BracketOverlay(){
         resolution:{ value:new THREE.Vector2(size.width, size.height) },
         thickness:{ value: 4.0 },
         length:{ value: 84.0 },
-        margin:{ value: 52.0 },   // was 22 — now just slightly inset
+        margin:{ value: 52.0 },
         opacity:{ value: 0.95 }
       },
       vertexShader: `varying vec2 vUv;
@@ -699,7 +717,7 @@ function BracketOverlay(){
     if(!matRef.current) return;
 
     matRef.current.uniforms.resolution.value.set(size.width, size.height);
-    matRef.current.uniforms.margin.value = 52.0;  // keep slight inset
+    matRef.current.uniforms.margin.value = 52.0;
     matRef.current.uniforms.opacity.value = 0.95;
 
     const W = size.width;
@@ -715,7 +733,7 @@ function BracketOverlay(){
 }
 
 
-/* ========= Grid (full, from original) ========= */
+/* ========= Grid / scene (unchanged logic) ========= */
 class Grid extends THREE.Group{
   constructor(canvas,camera,opts){ super();
     this.canvas=canvas; this.camera=camera; this.opts=opts;
@@ -771,7 +789,6 @@ class Grid extends THREE.Group{
     this.groups.forEach(g=>this.remove(g));
     this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[];
 
-    /* NEW: content half extents (include half-tile) */
     this.contentHalfW = sizeX/2 + tile/2;
     this.contentHalfH = sizeY/2 + tile/2;
 
@@ -1185,7 +1202,7 @@ function Leveler(){
   );
 }
 
-/* ========= Overlay Flow (new dialog style) ========= */
+/* ========= Overlay Flow ========= */
 function OverlayFlow({ open, onClose, onAddToArchive }){
   const [step,setStep]=useState(0), [title,setTitle]=useState(""), [caption,setCaption]=useState("A quick visual note");
   const [reviewCanvas,setReviewCanvas]=useState(null), [exportUrl,setExportUrl]=useState(""), [exporting,setExporting]=useState(false);
@@ -1322,7 +1339,7 @@ function ZoomRail({ zoom, onScrub }) {
     const el = trackRef.current; if(!el) return null;
     const r = el.getBoundingClientRect();
     const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
-    const frac = 1 - y; // top = max zoom
+    const frac = 1 - y;
     return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
   };
   const onPointerDown = (e) => {
