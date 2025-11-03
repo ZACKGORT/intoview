@@ -3,337 +3,359 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — (v1.2 prototype + hotfix tidy)</title>
+    <title>intoview • note — (v1.2 prototype + hotfix)</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
     <style>
-      /* ============================================================
-         intoview:note — CSS (tidy layout, mobile blur tighten, HUD pad)
-         ============================================================ */
-      
-      :root{
-        /* --------- THEME TOKENS --------- */
-        --paper:#000;             /* app canvas */
-        --ink:#FFFFFF;            /* primary text/lines */
-        --ink-2:#9F9F9F;          /* secondary lines */
-        --ink-3:#6C6C6C;          /* muted helpers */
-        --accent:#59D2C8;         /* brand accent */
-        --danger:#FF6363;         /* alerts/errors */
-        --curve-k:1;              /* 0=flat, 1=curved (DOM aesthetic scale) */
-      
-        /* ---------- EFFECT KNOBS ---------- */
-        --vig-opacity: 1;
-        --vig-inner:   20%;
-        --vig-mid:     52%;
-        --vig-outer:   100%;
-      
-        /* Radial EDGE blur (under vignette, above content) */
-        --edge-blur: 12px;
-        --edge-mask-i: 46%;
-        --edge-mask-o: 74%;
-      
-        /* ---------- LAYOUT / BEHAVIOR ---------- */
-        --cursor-size: 20px;      /* gooey cursor “head” size (desktop only) */
-        --fab-size: 120px;        /* main capture button diameter */
-        --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
-      
-        /* Zoom rail */
-        --rail-height-desktop: 20vh;
-        --rail-height-mobile:  12vh;
-        --rail-right: clamp(12px, 2vw, 20px);
-      
-        /* Corner padding (logo / HUD) */
-        --corner-pad: clamp(14px, 2.4vw, 24px);
-        --corner-top: calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
-      
-        /* HUD bottom pad (NEW) */
-        --hud-bottom-pad: 16px;
-      
-        /* ---------- Z-LAYERS ---------- */
-        --z-content: 0;
-        --z-grain: 149;
-        --z-blur: 150;
-        --z-vig:  151;
-        --z-ui:   220;
-        --z-cursor: 230;
-      }
-      
-      /* ========== BASE / RESET ========== */
-      *{ box-sizing:border-box }
-      html,body,#root{ height:100% }
-      body{
-        margin:0; background:#000; color:var(--ink);
-        font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
-        overflow:hidden;
-        -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-      }
-      
-      /* ========== CANVAS LAYER (WebGL) ========== */
-      .canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
-      .canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; }
-      .canvas-wrap canvas.dragging{ cursor:grabbing }
-      
-      /* Optional faint debug grid behind cards */
-      .fallback-grid{
-        position:absolute; inset:0; z-index:var(--z-content); pointer-events:none; opacity:.06;
-        background-image:
-          repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
-          repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
-      }
-      
-      /* ========== GLOBAL EDGE BLUR (radial) ========== */
-      .edge-blur{
-        position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
-        background: rgba(0,0,0,0.001);
-        backdrop-filter: blur(var(--edge-blur));
-        -webkit-backdrop-filter: blur(var(--edge-blur));
-        mask: radial-gradient(90% 70% at 50% 50%,
-          transparent var(--edge-mask-i),
-          white       var(--edge-mask-o));
-        -webkit-mask: radial-gradient(90% 70% at 50% 50%,
-          transparent var(--edge-mask-i),
-          white       var(--edge-mask-o));
-      }
-      
-      /* ========== VIGNETTE (above blur) ========== */
-      .vignette{
-        position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
-        background:
-          radial-gradient(120% 90% at 50% 50%,
-            rgba(0,0,0,0)         var(--vig-inner),
-            rgba(0,0,0,0.58)      var(--vig-mid),
-            rgba(0,0,0,0.98)      var(--vig-outer));
-        opacity:calc(var(--vig-opacity) * var(--curve-k));
-      }
-      
-      /* ========== SUBTLE GRAIN (over content, under effects) ========== */
-      body::after{
-        content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
-        background-size: 120px 120px;
-      }
-      
-      /* ========== CURVED DOM AESTHETIC ========== */
-      .curved{
-        transform-style:preserve-3d;
-        transform:
-          perspective(1000px)
-          translateZ(calc(-200px * var(--curve-k)))
-          scale(calc(1 + var(--curve-k) * 0.06));
-        will-change:transform;
-      }
-      
-      /* ========== HEADER / BRAND / CONTROLS (UI ABOVE EFFECTS) ========== */
-      .header{
-        position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
-        display:flex; align-items:center; justify-content:space-between;
-        gap:12px;
-        padding: var(--corner-top) var(--corner-pad) 12px var(--corner-pad);
-        pointer-events:none;
-      }
-      .brand{
-        display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
-        padding:2px 4px;
-      }
-      .brand img{ display:block; height:42px; width:auto; filter:none !important; mix-blend-mode:normal; }
-      .brand-text{
-        font-weight:700; letter-spacing:.02em; line-height:1;
-        font-size:16px;
-      }
-      @media (max-width:768px){
-        .brand img{ height:36px; }
-        .brand-text{ font-size:14px; }
-      }
-      
-      .controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
-      .icon-btn{
-        appearance:none; cursor:pointer; border:0px solid var(--ink-2);
-        background:rgba(0,0,0,.35); color:var(--ink);
-        padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
-        transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease;
-        position:relative; z-index:1;
-      }
-      .icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
-      .icon-btn svg{ display:block; width:18px; height:18px; }
-      
-      /* Trash: turn red when active */
-      .icon-btn.danger.active{
-        color:var(--danger);
-        background:rgba(255,99,99,.14);
-        box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
-      }
-      
-      /* ========== ZOOM RAIL (right side) ========== */
-      .zoom-rail{
-        position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
-        height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
-        pointer-events:auto; touch-action: none;
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      }
-      .zoom-rail__track{ position:relative; width:2px; height:100%; background:rgba(255,255,255,.18); border-radius:2px; }
-      .zoom-rail__progress{ position:absolute; left:0; bottom:0; width:100%; height:var(--zoom-pct,0%); background:rgba(255,255,255,.9); border-radius:2px; }
-      .zoom-rail__thumb{
-        position:absolute; left:50%; top: calc(100% - var(--zoom-pct, 0%)); transform: translate(-50%, -50%);
-        width:10px; height:10px; border-radius:50%; background:var(--ink);
-        box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
-      }
-      .zoom-rail__tooltip{
-        position:absolute; top:calc(100% - var(--zoom-pct,0%)); left:-44px; transform:translateY(-50%);
-        font-weight:700; font-size:12px; color:var(--ink-2); text-shadow:0 1px 2px rgba(0,0,0,.55); user-select:none;
-      }
-      @media (max-width:768px){
-        .zoom-rail{ height: var(--rail-height-mobile); }
-        .zoom-rail__tooltip{ left: -40px; }
-      }
-      
-      /* ========== MODALS / SHEETS ========== */
-      .overlay{ position:fixed; inset:72px 16px 16px 16px; z-index:var(--z-ui); display:none; pointer-events:auto; }
-      .overlay.open{ display:grid; place-items:center; }
-      .sheet{
-        width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
-        box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
-      }
-      .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
-      .grid{ display:grid; gap:12px }
-      .cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)) }
-      .label{ font-weight:600; opacity:.9 }
-      .input,.textarea{ width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit; }
-      .textarea{ min-height:96px; resize:vertical }
-      .btn{
-        appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600;
-        position:relative; z-index:1;
-      }
-      .btn.ghost{ background:transparent }
-      .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
-      .hint{ color:#c9c9cf; font-size:12px }
-      .vf{ position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; }
-      video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98) }
-      .preview{ position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block; }
-      .titlebar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px }
-      .titlebar h2{ margin:0; font-size:16px }
-      .tight{ gap:6px } .hidden{ display:none !important }
-      .sheet :focus{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px }
-      
-      /* ========== FILM STRIP CHROME ========== */
-      .vf::before,.vf::after{
-        content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
-        background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
-        border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
-      }
-      .vf::before{ top:0; } .vf::after{ bottom:0; }
-      .vf .perfs{
-        position:absolute; inset:0; pointer-events:none; z-index:1;
-        background:
-          radial-gradient(circle 3px at 8px 14px, #000 0 2.2px, transparent 2.2px) repeat-y left / 16px 28px,
-          radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
-        opacity:.85;
-      }
-      
-      /* ========== LEVELER ========== */
-      .leveler{
-        position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
-        width:min(260px, 72%); height:30px; border-radius:999px;
-        background:rgba(0,0,0,.45); border:1px solid #2a2a2e; box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
-        display:flex; align-items:center; justify-content:center; z-index:2; pointer-events:auto;
-      }
-      .leveler .vial{ position:absolute; inset:4px; border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06)); }
-      .leveler .bubble{
-        position:absolute; top:50%; transform:translate(-50%,-50%); left:var(--bubble-x, 50%);
-        width:22px; height:22px; border-radius:999px; background:#ffe066;
-        box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 2px 10px rgba(0,0,0,.35);
-      }
-      .leveler .deg{
-        position:absolute; right:8px; top:50%; transform:translateY(-50%);
-        font:600 12px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        color:#cfcfcf; text-shadow:0 1px 1px rgba(0,0,0,.5);
-      }
-      .leveler.good .vial{ outline:2px solid rgba(120,255,120,.35); outline-offset:-2px; }
-      .leveler .enable{
-        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-        background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.35));
-        backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
-        color:#fff; font-weight:600; font-size:12px; border-radius:inherit; cursor:pointer; border:1px solid #2a2a2e;
-      }
-      
-      /* ========== FAB (UI ABOVE EFFECTS) ========== */
-      .fab-wrap{
-        position:fixed; left:50%; bottom: var(--fab-bottom); transform: translateX(-50%);
-        z-index:var(--z-ui); display:flex; flex-direction:column; align-items:center;
-      }
-      .fab{
-        position:relative;
-        width:var(--fab-size); height:var(--fab-size); border-radius:999px;
-        background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
-        display:flex; align-items:center; justify-content:center; cursor:pointer;
-        box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
-        transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
-        padding:0;
-      }
-      .fab:focus-visible{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px; }
-      .fab:active{ transform:translateY(1px) }
-      .fab:hover{ background:rgba(255,255,255,.10); border-color:rgb(255 255 255 / .22); }
-      .fab svg{ width:58%; height:auto; display:block }
-      /* KEEP original look: both faces visible; no hover swapping */
-      .fab .cube--light,
-      .fab .cube--dark{ display:inline; }
-      .fab:hover .cube--light,
-      .fab:hover .cube--dark{ display:inline; }
-      
-      /* Label INSIDE the FAB */
-      .fab-text{
-        position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
-        font:600 11px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        color:#fff; opacity:.9; letter-spacing:.02em; text-shadow:0 1px 2px rgba(0,0,0,.55);
-      }
-      
-      /* Larger FAB on mobile */
-      @media (max-width:768px){
-        :root{
-          --fab-size: 128px;
-          --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
-        }
-      }
-      
-      /* ========== HUD CORNERS (coords & version) ========== */
-      .hud{
-        position:fixed; bottom:calc(env(safe-area-inset-bottom) + var(--hud-bottom-pad));
-        z-index:var(--z-ui); pointer-events:none;
-        font:600 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        color:#c9c9cf; opacity:.9; text-shadow:0 1px 2px rgba(0,0,0,.6);
-      }
-      .hud-left{ left: var(--corner-pad); }
-      .hud-right{ right: var(--corner-pad); }
-      
-      /* ========== REDUCED MOTION ========== */
-      @media (prefers-reduced-motion: reduce){
-        .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
-      }
-      
-      /* ========== GOOEY CURSOR (desktop only) ========== */
-      #cursor{
-        position:fixed; top: calc(var(--cursor-size) * -0.5); left: calc(var(--cursor-size) * -0.5);
-        pointer-events:none; filter:url(#goo); mix-blend-mode:difference; z-index:var(--z-cursor);
-      }
-      .cursor-circle{
-        position:absolute; top:0; left:0; width:var(--cursor-size); height:var(--cursor-size);
-        border-radius:999px; background:#fff; transform-origin:center center;
-      }
-      .goo{ display:none; }
-      @media (pointer: coarse){ #cursor{ display:none; } }
-      
-      /* -------- Mobile tweaks: tighter edge blur + raise HUD pad -------- */
-      @media (max-width:768px){
-        :root{
-          --edge-blur: 9px;     /* was 12px */
-          --edge-mask-i: 56%;   /* enlarge clear center */
-          --edge-mask-o: 78%;   /* thinner ring */
-          --hud-bottom-pad: 22px;
-        }
-      }
-          </style>
+/* ============================================================
+   intoview:note — CSS (commented & organized)
+   ============================================================ */
+
+:root{
+  /* --------- THEME TOKENS --------- */
+  --paper:#000;             /* app canvas */
+  --ink:#FFFFFF;            /* primary text/lines */
+  --ink-2:#9F9F9F;          /* secondary lines */
+  --ink-3:#6C6C6C;          /* muted helpers */
+  --accent:#59D2C8;         /* brand accent */
+  --danger:#FF6363;         /* alerts/errors */
+  --curve-k:1;              /* 0=flat, 1=curved (DOM aesthetic scale) */
+
+  /* ---------- EFFECT KNOBS ---------- */
+  --vig-opacity: 1;
+  --vig-inner:   20%;
+  --vig-mid:     52%;
+  --vig-outer:   100%;
+
+  /* Edge blur (under vignette, above content) */
+  --edge-blur: 12px;
+  --edge-mask-i: 44%;
+  --edge-mask-o: 76%;
+
+  /* ---------- LAYOUT / BEHAVIOR ---------- */
+  --cursor-size: 20px;      /* gooey cursor “head” size (desktop only) */
+  --fab-size: 120px;        /* main capture button diameter */
+  --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
+
+  /* Zoom rail */
+  --rail-height-desktop: 20vh;
+  --rail-height-mobile:  12vh;
+  --rail-right: clamp(12px, 2vw, 20px);
+
+  /* Corner padding (logo / HUD) */
+  --corner-pad: clamp(14px, 2.4vw, 24px);
+  --corner-top: calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
+
+  /* ---------- Z-LAYERS ---------- */
+  --z-content: 0;
+  --z-grain: 149;
+  --z-blur: 150;
+  --z-vig:  151;
+  --z-ui:   220;
+  --z-cursor: 230;
+}
+
+/* ========== BASE / RESET ========== */
+*{ box-sizing:border-box }
+html,body,#root{ height:100% }
+body{
+  margin:0; background:#000; color:var(--ink);
+  font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+
+/* ========== CANVAS LAYER (WebGL) ========== */
+.canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
+.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; }
+.canvas-wrap canvas.dragging{ cursor:grabbing }
+
+/* Optional faint debug grid behind cards */
+.fallback-grid{
+  position:absolute; inset:0; z-index:var(--z-content); pointer-events:none; opacity:.06;
+  background-image:
+    repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
+}
+
+/* ========== GLOBAL EDGE BLUR (radial + tilt-shift top/bottom) ========== */
+.edge-blur{
+  position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
+  background: rgba(0,0,0,0.001);
+  backdrop-filter: blur(var(--edge-blur));
+  -webkit-backdrop-filter: blur(var(--edge-blur));
+  /* Keep center clear, edges blurred (ellipse favors vertical squeeze) */
+  mask:
+    radial-gradient(100% 64% at 50% 50%,
+      transparent var(--edge-mask-i),
+      white       var(--edge-mask-o));
+  -webkit-mask:
+    radial-gradient(100% 64% at 50% 50%,
+      transparent var(--edge-mask-i),
+      white       var(--edge-mask-o));
+}
+/* Stronger top/bottom “tilt-shift” pass */
+.edge-blur::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background: rgba(0,0,0,0.001);
+  backdrop-filter: blur(calc(var(--edge-blur) * 1.8));
+  -webkit-backdrop-filter: blur(calc(var(--edge-blur) * 1.8));
+  mask:
+    linear-gradient(to bottom,
+      white 0%, white 12%,
+      transparent 44%, transparent 56%,
+      white 88%, white 100%);
+  -webkit-mask:
+    linear-gradient(to bottom,
+      white 0%, white 12%,
+      transparent 44%, transparent 56%,
+      white 88%, white 100%);
+}
+
+/* ========== VIGNETTE (above blur) ========== */
+.vignette{
+  position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
+  background:
+    radial-gradient(120% 90% at 50% 50%,
+      rgba(0,0,0,0)         var(--vig-inner),
+      rgba(0,0,0,0.58)      var(--vig-mid),
+      rgba(0,0,0,0.98)      var(--vig-outer));
+  opacity:calc(var(--vig-opacity) * var(--curve-k));
+}
+
+/* ========== SUBTLE GRAIN (over content, under effects) ========== */
+body::after{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+}
+
+/* ========== CURVED DOM AESTHETIC ========== */
+.curved{
+  transform-style:preserve-3d;
+  transform:
+    perspective(1000px)
+    translateZ(calc(-200px * var(--curve-k)))
+    scale(calc(1 + var(--curve-k) * 0.06));
+  will-change:transform;
+}
+
+/* ========== HEADER / BRAND / CONTROLS (UI ABOVE EFFECTS) ========== */
+.header{
+  position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px;
+  padding: var(--corner-top) var(--corner-pad) 12px var(--corner-pad);
+  pointer-events:none;
+}
+.brand{
+  display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
+  padding:2px 4px;
+}
+.brand img{ display:block; height:42px; width:auto; filter:none !important; mix-blend-mode:normal; }
+
+.controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
+.icon-btn{
+  appearance:none; cursor:pointer; border:0px solid var(--ink-2);
+  background:rgba(0,0,0,.35); color:var(--ink);
+  padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
+  transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease;
+  position:relative; z-index:1;
+}
+.icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
+.icon-btn svg{ display:block; width:18px; height:18px; }
+
+/* Trash: turn red when active */
+.icon-btn.danger.active{
+  color:var(--danger);
+  background:rgba(255,99,99,.14);
+  box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
+}
+
+/* ========== ZOOM RAIL (right side) ========== */
+.zoom-rail{
+  position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
+  height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
+  pointer-events:auto; touch-action: none;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+.zoom-rail__track{ position:relative; width:2px; height:100%; background:rgba(255,255,255,.18); border-radius:2px; }
+.zoom-rail__progress{ position:absolute; left:0; bottom:0; width:100%; height:var(--zoom-pct,0%); background:rgba(255,255,255,.9); border-radius:2px; }
+.zoom-rail__thumb{
+  position:absolute; left:50%; top: calc(100% - var(--zoom-pct, 0%)); transform: translate(-50%, -50%);
+  width:10px; height:10px; border-radius:50%; background:var(--ink);
+  box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
+}
+.zoom-rail__tooltip{
+  position:absolute; top:calc(100% - var(--zoom-pct,0%)); left:-44px; transform:translateY(-50%);
+  font-weight:700; font-size:12px; color:var(--ink-2); text-shadow:0 1px 2px rgba(0,0,0,.55); user-select:none;
+}
+@media (max-width:768px){
+  .zoom-rail{ height: var(--rail-height-mobile); }
+  .zoom-rail__tooltip{ left: -40px; }
+}
+
+/* ========== MODALS / SHEETS — FULL-SCREEN TAKEOVER ========== */
+.overlay{
+  position:fixed; inset:0; z-index:var(--z-ui); display:none; pointer-events:auto;
+}
+.overlay.open{ display:grid; place-items:stretch; }
+.sheet{
+  width:100%; height:100%;
+  background:#0b0b0d; color:#f3f3f5;
+  border:1px solid #2a2a2e; border-radius:0;
+  padding: clamp(12px, 2.2vw, 20px);
+  box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
+  display:grid; grid-template-rows: auto 1fr auto; gap:12px;
+}
+.titlebar{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  position:sticky; top:0; padding-bottom:8px;
+  background:linear-gradient(#0b0b0df2, #0b0b0dd6 70%, #0b0b0d00);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border-bottom:1px solid #2a2a2e;
+  margin:-2px; margin-bottom:0; padding:12px;
+}
+.titlebar h2{ margin:0; font-size:16px }
+.row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+.grid{ display:grid; gap:12px }
+.cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+.label{ font-weight:600; opacity:.9 }
+.input,.textarea{ width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit; }
+.textarea{ min-height:96px; resize:vertical }
+.btn{
+  appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600;
+  position:relative; z-index:1;
+}
+.btn.ghost{ background:transparent }
+.btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
+.hint{ color:#c9c9cf; font-size:12px }
+
+/* Viewfinder / preview panels fill available space */
+.vf,.preview{
+  position:relative; width:100%; height:100%; border:1px solid #2a2a2e; border-radius:12px; overflow:hidden; background:#000;
+}
+video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98) }
+
+/* Perfs + film top/bottom bars */
+.vf::before,.vf::after{
+  content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
+  background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
+  border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
+}
+.vf::before{ top:0; } .vf::after{ bottom:0; }
+.vf .perfs{
+  position:absolute; inset:0; pointer-events:none; z-index:1;
+  background:
+    radial-gradient(circle 3px at 8px 14px, #000 0 2.2px, transparent 2.2px) repeat-y left / 16px 28px,
+    radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
+  opacity:.85;
+}
+
+/* Details grid keeps the same inputs */
+.sheet :focus{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px }
+
+/* ========== LEVELER ========== */
+.leveler{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+  width:min(260px, 72%); height:30px; border-radius:999px;
+  background:rgba(0,0,0,.45); border:1px solid #2a2a2e; box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+  display:flex; align-items:center; justify-content:center; z-index:2; pointer-events:auto;
+}
+.leveler .vial{ position:absolute; inset:4px; border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06)); }
+.leveler .bubble{
+  position:absolute; top:50%; transform:translate(-50%,-50%); left:var(--bubble-x, 50%);
+  width:22px; height:22px; border-radius:999px; background:#ffe066;
+  box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 2px 10px rgba(0,0,0,.35);
+}
+.leveler .deg{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  font:600 12px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:#cfcfcf; text-shadow:0 1px 1px rgba(0,0,0,.5);
+}
+.leveler.good .vial{ outline:2px solid rgba(120,255,120,.35); outline-offset:-2px; }
+.leveler .enable{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.35));
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  color:#fff; font-weight:600; font-size:12px; border-radius:inherit; cursor:pointer; border:1px solid #2a2a2e;
+}
+
+/* ========== FAB (UI ABOVE EFFECTS) ========== */
+.fab-wrap{
+  position:fixed; left:50%; bottom: var(--fab-bottom); transform: translateX(-50%);
+  z-index:var(--z-ui); display:flex; flex-direction:column; align-items:center;
+}
+.fab{
+  position:relative;
+  width:var(--fab-size); height:var(--fab-size); border-radius:999px;
+  background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
+  transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
+  padding:0;
+}
+.fab:focus-visible{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px; }
+.fab:active{ transform:translateY(1px) }
+.fab:hover{ background:rgba(255,255,255,.10); border-color:rgb(255 255 255 / .22); }
+.fab svg{ width:58%; height:auto; display:block }
+/* Keep both faces visible, no hover swap */
+.fab .cube--light,
+.fab .cube--dark{ display:inline; }
+.fab:hover .cube--light,
+.fab:hover .cube--dark{ display:inline; }
+
+/* Label INSIDE the FAB */
+.fab-text{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+  font:600 11px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:#fff; opacity:.9; letter-spacing:.02em; text-shadow:0 1px 2px rgba(0,0,0,.55);
+}
+
+/* Larger FAB on mobile */
+@media (max-width:768px){
+  :root{
+    --fab-size: 128px;
+    --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
+  }
+}
+
+/* ========== HUD CORNERS (coords & version) ========== */
+.hud{
+  position:fixed; bottom:calc(env(safe-area-inset-bottom) + 12px);
+  z-index:var(--z-ui); pointer-events:none;
+  font:600 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color:#e9e9ee; opacity:.95; text-shadow:0 1px 2px rgba(0,0,0,.6);
+  /* Padding + pill per request */
+  padding:6px 8px; border-radius:8px;
+  background:rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.18);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.hud-left{ left: var(--corner-pad); }
+.hud-right{ right: var(--corner-pad); }
+
+/* ========== REDUCED MOTION ========== */
+@media (prefers-reduced-motion: reduce){
+  .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
+}
+
+/* ========== GOOEY CURSOR (desktop only) ========== */
+#cursor{
+  position:fixed; top: calc(var(--cursor-size) * -0.5); left: calc(var(--cursor-size) * -0.5);
+  pointer-events:none; filter:url(#goo); mix-blend-mode:difference; z-index:var(--z-cursor);
+}
+.cursor-circle{
+  position:absolute; top:0; left:0; width:var(--cursor-size); height:var(--cursor-size);
+  border-radius:999px; background:#fff; transform-origin:center center;
+}
+.goo{ display:none; }
+@media (pointer: coarse){ #cursor{ display:none; } }
+    </style>
   </head>
   <body>
     <!-- SVG filter for gooey blending -->
@@ -354,9 +376,9 @@
 
     <div id="root"></div>
 
-    <!-- HUD corners -->
-    <div class="hud hud-left">v2.1.2</div>
-    <div class="hud hud-right" id="coordsHud">x 0 • y 0</div>
+    <!-- HUD corners (left: version / right: coords) -->
+    <div class="hud hud-left" id="versionHud">v2.2</div>
+    <div class="hud hud-right" id="coordsMount">x 0 • y 0</div>
 
     <script type="module">
 /* React + Three deps */
@@ -438,30 +460,49 @@ function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1
 function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
   img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
 function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
-/* FIX: avoid undefined 's' — use provided w/h */
+/* Entire image framed + note bar framed */
 function coverImage(ctx,img,x,y,w,h){
   const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
   if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
   const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
   if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
   ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
+  /* Inner white frame around the image region */
+  ctx.save();
+  ctx.strokeStyle="#fff"; ctx.lineWidth=1;
+  ctx.strokeRect(0.5 + x, 0.5 + y, w-1, h-1);
+  ctx.restore();
 }
 function drawCameraIcon(ctx,cx,cy,s=44){ ctx.save(); ctx.translate(cx,cy); ctx.strokeStyle="#fff"; ctx.lineWidth=1.5; ctx.lineCap="round"; ctx.lineJoin="round";
   const w=s*1.6,h=s*1.0; ctx.beginPath(); ctx.rect(-w/2,-h/2,w,h); ctx.stroke(); ctx.beginPath(); ctx.arc(0,0,s*0.35,0,Math.PI*2); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(w*0.25,-h*0.45); ctx.lineTo(w*0.45,-h*0.45); ctx.stroke(); ctx.restore(); }
 function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=nowTS()}) {
   const s=TEX_SIZE, c=document.createElement("canvas"); c.width=s; c.height=s; const ctx=c.getContext("2d");
+  /* Outer frame */
   ctx.fillStyle="#000"; ctx.fillRect(0,0,s,s); ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.strokeRect(0.5,0.5,s-1,s-1);
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H); ctx.font=`600 ${TITLE_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
+
+  /* Title bar */
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H);
+  ctx.font=`600 ${TITLE_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
   ctx.fillText(title, PAD, Math.floor((BAR_H-TITLE_SIZE)/2));
   if(gps){ ctx.font=`500 12px ${MONO}`; ctx.textBaseline="middle"; ctx.textAlign="right"; ctx.fillStyle="#cfcfcf"; ctx.fillText(gps, s-PAD, BAR_H/2); ctx.textAlign="left"; }
   drawHair(ctx,0,BAR_H,s);
+
+  /* Image region */
   const imgTop=BAR_H+HAIR, imgH=s-imgTop-(BAR_H+HAIR);
   if(img){ coverImage(ctx,img,0,imgTop,s,imgH); ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(0, imgTop, s, imgH); }
   else{ ctx.fillStyle="#111"; ctx.fillRect(0,imgTop,s,imgH); drawCameraIcon(ctx,s/2,imgTop+imgH/2,40); }
+
+  /* Bottom hairline + note bar with inner frame */
   drawHair(ctx,0,s-BAR_H-HAIR,s);
-  ctx.fillStyle="#000"; ctx.fillRect(0,s-BAR_H,s,BAR_H); ctx.font=`500 ${CAP_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
-  ctx.fillText(caption, PAD, s-BAR_H/2); ctx.font=`500 12px ${MONO}`; ctx.fillStyle="#cfcfcf"; ctx.textAlign="right"; ctx.fillText(ts, s-PAD, s-BAR_H/2);
+  ctx.fillStyle="#000"; ctx.fillRect(0,s-BAR_H,s,BAR_H);
+  ctx.save();
+  ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.strokeRect(0.5, s-BAR_H+0.5, s-1, BAR_H-1);
+  ctx.restore();
+
+  ctx.font=`500 ${CAP_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
+  ctx.fillText(caption, PAD, s-BAR_H/2);
+  ctx.font=`500 12px ${MONO}`; ctx.fillStyle="#cfcfcf"; ctx.textAlign="right"; ctx.fillText(ts, s-PAD, s-BAR_H/2);
   return c;
 }
 function makeCardTextureFromCanvas(cnv){ const tex=new THREE.CanvasTexture(cnv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; }
@@ -501,7 +542,7 @@ class DistortionShader extends THREE.ShaderMaterial{
   setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
 }
 
-/* ========= Bracket overlay ========= */
+/* ========= Bracket overlay (stronger on desktop, semi-transparent) ========= */
 function BracketOverlay(){
   const { scene, size } = useThree();
   const matRef = useRef(null);
@@ -512,7 +553,7 @@ function BracketOverlay(){
       transparent:true, depthTest:false, depthWrite:false,
       uniforms:{
         resolution:{ value:new THREE.Vector2(size.width, size.height) },
-        thickness:{ value: 2.0 }, length:{ value: 54.0 }, margin:{ value: 22.0 }, opacity:{ value: 0.95 }
+        thickness:{ value: 2.0 }, length:{ value: 54.0 }, margin:{ value: 22.0 }, opacity:{ value: 0.48 }
       },
       vertexShader: `varying vec2 vUv; void main(){ vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
       fragmentShader: `
@@ -538,11 +579,26 @@ function BracketOverlay(){
     });
     mat.toneMapped = false;
     const mesh = new THREE.Mesh(geom, mat);
-    mesh.frustumCulled = false; mesh.renderOrder = 999;
+    mesh.frustumCulled = false; mesh.renderOrder = 9999; /* sit above */
     scene.add(mesh); matRef.current = mat;
     return ()=>{ scene.remove(mesh); geom.dispose(); mat.dispose(); matRef.current=null; };
   },[scene]);
-  useEffect(()=>{ if(matRef.current){ matRef.current.uniforms.resolution.value.set(size.width, size.height); } },[size.width, size.height]);
+
+  /* Responsive strength — more prominent on desktop */
+  useEffect(()=>{
+    if(!matRef.current) return;
+    const isDesktop = size.width >= 1024;
+    const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio||1));
+    const thickness = isDesktop ? 4.0 * (dpr>1?1.0:1.0) : 2.2;
+    const length    = isDesktop ? 84.0 : 56.0;
+    const margin    = isDesktop ? 30.0 : 22.0;
+    matRef.current.uniforms.resolution.value.set(size.width, size.height);
+    matRef.current.uniforms.thickness.value = thickness;
+    matRef.current.uniforms.length.value    = length;
+    matRef.current.uniforms.margin.value    = margin;
+    matRef.current.uniforms.opacity.value   = 0.48; /* semi */
+  },[size.width, size.height]);
+
   return null;
 }
 
@@ -810,7 +866,7 @@ class Grid extends THREE.Group{
   resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); this._setHover(-1); }
 }
 
-/* ========= Postprocessing (lazy/fail-safe imports) ========= */
+/* ========= Postprocessing ========= */
 function Postprocessing({ workgridState }){
   const { gl, scene, camera, size } = useThree();
   const [mods, setMods] = useState(null);
@@ -917,7 +973,7 @@ function HelpOverlay({ open, onClose }){
           React.createElement("h2",null,"Controls"),
           React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
         ),
-        React.createElement("div",{className:"grid"},
+        React.createElement("div",{style:{overflow:"auto", padding:"4px 2px"}},
           React.createElement("div",null,"• Drag to pan"),
           React.createElement("div",null,"• Wheel / pinch to zoom"),
           React.createElement("div",null,"• Click a tile to center it"),
@@ -947,9 +1003,7 @@ function useCamera(){
     if(!v){ setError("Video element missing."); return false; }
 
     try{
-      v.setAttribute("playsinline",""); v.setAttribute("autoplay",""); v.setAttribute("muted","");
-      v.playsInline = true; v.muted = true;
-
+      v.setAttribute("playsinline",""); v.setAttribute("autoplay",""); v.setAttribute("muted",""); v.playsInline = true; v.muted = true;
       const constraints = { video: { facingMode: { ideal:"environment" }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream; v.srcObject = stream;
@@ -1000,7 +1054,7 @@ function Leveler(){
   );
 }
 
-/* ========= Overlay flow ========= */
+/* ========= Overlay flow (FULL-SCREEN TAKEOVER) ========= */
 function OverlayFlow({ open, onClose, onAddToArchive }){
   const [step,setStep]=useState(0), [title,setTitle]=useState(""), [caption,setCaption]=useState("A quick visual note");
   const [reviewCanvas,setReviewCanvas]=useState(null), [exportUrl,setExportUrl]=useState(""), [exporting,setExporting]=useState(false);
@@ -1047,7 +1101,7 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
           React.createElement("h2",null, ["Start","Viewfinder","Review","Details","Export","Done"][step] || "Start"),
           React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
         ),
-        step===0 && React.createElement("div",{className:"grid"},
+        step===0 && React.createElement("div",{className:"grid", style:{alignContent:"center"}},
           camera.error ? React.createElement("div",{className:"hint", style:{color:"#ffb4b4"}}, camera.error) : null,
           React.createElement("div",{className:"grid cols-2"},
             React.createElement("button",{className:"btn primary",onClick:startCamera},"Open Camera"),
@@ -1060,29 +1114,29 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
             React.createElement("span",{className:"perfs","aria-hidden":"true"}),
             React.createElement(Leveler,null)
           ),
-          React.createElement("div",{className:"row",style:{marginTop:"12px"}},
+          React.createElement("div",{className:"row",style:{marginTop:"12px", justifyContent:"space-between"}},
             React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(0);}},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:captureShot,style:{marginLeft:"auto"}},"Capture"))
+            React.createElement("button",{className:"btn primary",onClick:captureShot},"Capture"))
         ),
         step===2 && React.createElement(React.Fragment,null,
           React.createElement("div",{className:"preview",ref:reviewMountRef}),
-          React.createElement("div",{className:"row",style:{marginTop:"12px"}},
+          React.createElement("div",{className:"row",style:{marginTop:"12px", justifyContent:"space-between"}},
             React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(1);}},"Retake"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(3),style:{marginLeft:"auto"}},"Keep"))
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(3)},"Keep"))
         ),
-        step===3 && React.createElement(React.Fragment,null,
+        step===3 && React.createElement("div",{className:"grid"},
           React.createElement("label",{className:"label",htmlFor:"t"},"Title (40 cap)"),
           React.createElement("input",{id:"t",maxLength:40,className:"input",value:title,onChange:e=>setTitle(e.target.value)}),
           React.createElement("label",{className:"label",htmlFor:"c"},"Note (100 cap)"),
           React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
-          React.createElement("div",{className:"row",style:{marginTop:"6px"}},
+          React.createElement("div",{className:"row",style:{marginTop:"6px", justifyContent:"space-between"}},
             React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}}, "Next"))),
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4)}, "Next"))),
         step===4 && React.createElement("div",{className:"grid"},
           React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
-          React.createElement("div",{className:"row"},
+          React.createElement("div",{className:"row",style:{justifyContent:"space-between"}},
             React.createElement("button",{className:"btn",onClick:()=>setStep(3)},"Back"),
-            React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport,style:{marginLeft:"auto"}},exporting?"Exporting…":"Export PNG & Save"))),
+            React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport},exporting?"Exporting…":"Export PNG & Save"))),
         step===5 && React.createElement("div",{className:"grid",style:{placeItems:"center",textAlign:"center"}},
           React.createElement("div",{className:"row",style:{justifyContent:"center"}},
             React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"intoview:note")),
@@ -1093,24 +1147,25 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
   );
 }
 
-/* ========= Vertical Zoom Rail ========= */
+/* ========= Vertical Zoom Rail (label 1–100%) ========= */
 function ZoomRail({ zoom, onScrub }) {
-  /* 0–100 based on normalized range, but DISPLAY is inverted (100 → 0) */
   const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
   const pct = clamped * 100;
-  const pctLabel = 100 - Math.round(pct); // ← inverted readout
+  // Inverted readout (top = max zoom), floor to 1..100
+  const raw = 100 - Math.round(pct);
+  const pctLabel = Math.max(1, Math.min(100, raw));
 
   const trackRef = React.useRef(null);
   const toZoomFromClientY = (clientY) => {
     const el = trackRef.current; if(!el) return null;
     const r = el.getBoundingClientRect();
     const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
-    const frac = 1 - y; // top = max zoom (unchanged behavior)
+    const frac = 1 - y; // top = max zoom
     return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
   };
   const onPointerDown = (e) => {
     if (!onScrub) return;
-    const z = toZoomFromClientY(e.clientY); if (z!=null) onScrub(z);
+    const z = toZoomFromClientY(e.clientY); if (z!=null) onScrub( z );
     const move = (ev)=>{ const zz = toZoomFromClientY(ev.clientY); if(zz!=null) onScrub(zz); };
     const up = ()=>{ window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up); };
     window.addEventListener("pointermove",move,{passive:true});
@@ -1120,7 +1175,7 @@ function ZoomRail({ zoom, onScrub }) {
   return React.createElement("div", { className:"zoom-rail", "aria-label":"Zoom" },
     React.createElement("div", { className:"zoom-rail__track", ref:trackRef, onPointerDown, role:"slider",
       "aria-orientation":"vertical",
-      "aria-valuemin":0, "aria-valuemax":100,
+      "aria-valuemin":1, "aria-valuemax":100,
       "aria-valuenow":pctLabel },
       React.createElement("div", { className:"zoom-rail__progress", style:{ "--zoom-pct": `${pct}%` } }),
       React.createElement("div", { className:"zoom-rail__thumb", style:{ "--zoom-pct": `${pct}%` } }),
@@ -1156,7 +1211,7 @@ function TrashToggle({ active, onToggle }){
     React.createElement("button",{ className:`icon-btn danger ${active?"active":""}`, onClick:onToggle,
       title: active?"Delete mode (tap a tile) — Click to exit":"Delete notes (enter delete mode)", "aria-pressed":active, "aria-label":"Toggle delete mode" },
       React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
-        React.createElement("path",{ d:"M3 6h18M9 6V4a1 1 0 0 1 1-1h4a 1 1 0 0 1 1 1v2M8 6h8m-8 0l1 14a2 2 0 0 0 2 2h2a 2 2 0 0 0 2-2L16 6M10 10v8M14 10v8",
+        React.createElement("path",{ d:"M3 6h18M9 6V4a1 1 0 0 1 1-1h4a 1 1 0  0 1 1 1v2M8 6h8m-8 0l1 14a2 2 0 0 0 2 2h2a 2 2 0 0 0 2-2L16 6M10 10v8M14 10v8",
           fill:"none", stroke:"currentColor", "stroke-width":"2", "stroke-linecap":"round", "stroke-linejoin":"round"})
       )
     )
@@ -1172,15 +1227,27 @@ function App(){
   const [helpOpen,setHelpOpen]=useState(false);
   const [archive,setArchive]=useState(loadArchive());
   const [zoom, setZoom] = useState(CONFIG.zoomOut);
+  const [seed,setSeed] = useState(SEED);
   const gridCtrl = useRef({ setZoom: (z)=>{} });
   useEffect(()=>{ saveArchive(archive); },[archive]);
+
+  // live coords HUD (padding fix + accurate)
+  const [cursorXY, setCursorXY] = useState({ x: 0, y: 0 });
+  useEffect(()=>{ const onMove = (e)=> setCursorXY({ x: Math.round(e.clientX), y: Math.round(e.clientY) }); window.addEventListener("pointermove", onMove, { passive:true }); return ()=> window.removeEventListener("pointermove", onMove); },[]);
+
+  // brightness-sorted seed updates
+  useEffect(()=>{
+    const onUpd = (e)=> setSeed(Array.isArray(e.detail)? e.detail : SEED);
+    window.addEventListener('seedUpdated', onUpd);
+    return ()=> window.removeEventListener('seedUpdated', onUpd);
+  },[]);
 
   const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
 
   const PLACEHOLDER_START = useMemo(()=>({ id:"placeholder_new_start", placeholder:true, title:"new note", caption:"tap to start" }),[]);
   const PLACEHOLDER_END   = useMemo(()=>({ id:"placeholder_new_end",   placeholder:true, title:"new note", caption:"tap to start" }),[]);
 
-  const contentItems=useMemo(()=>[...sortedArchive, ...SEED], [sortedArchive]);
+  const contentItems=useMemo(()=>[...sortedArchive, ...seed], [sortedArchive, seed]);
   const combinedItems=useMemo(()=>[PLACEHOLDER_START, ...contentItems, PLACEHOLDER_END], [PLACEHOLDER_START, PLACEHOLDER_END, contentItems]);
 
   useEffect(()=>{ document.documentElement.style.setProperty("--curve-k", String(wgState===WorkgridState.INTRO ? 0 : 1)); },[wgState]);
@@ -1204,16 +1271,18 @@ function App(){
 
   const isCurved = wgState === WorkgridState.DEFAULT;
 
-  const [cursorXY, setCursorXY] = useState({ x: 0, y: 0 });
-  useEffect(()=>{ const onMove = (e)=> setCursorXY({ x: Math.round(e.clientX), y: Math.round(e.clientY) }); window.addEventListener("pointermove", onMove, { passive:true }); return ()=> window.removeEventListener("pointermove", onMove); },[]);
-
   const handleTileClick = (idx, item) => { if (item?.placeholder) { setOverlayOpen(true); } };
 
-  /* Reset: also restore square:circle to page-load default (Curved) */
   const hardReset = () => {
     setWgState(WorkgridState.RESET);
     requestAnimationFrame(()=> setWgState(WorkgridState.DEFAULT));
   };
+
+  // write coords into HUD (padding corrected)
+  useEffect(()=>{
+    const el = document.getElementById('coordsMount');
+    if(el) el.textContent = `x ${cursorXY.x} • y ${cursorXY.y}`;
+  },[cursorXY.x, cursorXY.y]);
 
   return (
     React.createElement(React.Fragment,null,
@@ -1295,10 +1364,7 @@ function App(){
           ),
           React.createElement("span",{className:"fab-text"},"New Note")
         )
-      ),
-
-      /* HUD Coords (bottom-right) */
-      React.createElement("div",{ id:"coordsMount", className:"hud hud-right" }, `x ${cursorXY.x} • y ${cursorXY.y}`)
+      )
     )
   );
 }
@@ -1362,20 +1428,59 @@ root.render(React.createElement(App));
   tick();
 })();
     </script>
+
+    <!-- Safe globals for the trailing script -->
+    <script>
+      // Lightweight image brightness sorter; returns new sorted array (brightest first)
+      async function sortByBrightness(arr, { sample = 48 } = {}) {
+        const results = await Promise.all(arr.map(async (item) => {
+          try {
+            const img = await new Promise((res, rej) => {
+              const im = new Image();
+              im.crossOrigin = 'anonymous';
+              im.onload = () => res(im);
+              im.onerror = rej;
+              im.src = item.src;
+            });
+            const w = sample, h = sample;
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, w, h);
+            const { data } = ctx.getImageData(0, 0, w, h);
+            let sum = 0;
+            for (let i = 0; i < data.length; i += 4) {
+              // luma approximation
+              sum += 0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2];
+            }
+            const brightness = sum / (w * h);
+            return { item, brightness };
+          } catch {
+            return { item, brightness: 0 };
+          }
+        }));
+        return results.sort((a,b)=>b.brightness - a.brightness).map(x=>x.item);
+      }
+      // Notify app to swap seed
+      function rebuildGrid(sorted){ window.dispatchEvent(new CustomEvent('seedUpdated', { detail: sorted })); }
+    </script>
+
+    <!-- (Optional) brightness sort of SEED at boot; non-blocking -->
     <script>
       (async () => {
-        const cached = localStorage.getItem('seedSorted');
-        if (cached) {
-          window.SEED = JSON.parse(cached);
-          rebuildGrid?.(SEED);
-        } else {
-          const sorted = await sortByBrightness(SEED, { sample: 64, ignoreBorder: 0.06 });
-          window.SEED = sorted;
-          localStorage.setItem('seedSorted', JSON.stringify(sorted));
-          rebuildGrid?.(sorted);
-        }
+        try{
+          const cached = localStorage.getItem('seedSorted');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            rebuildGrid(parsed);
+          } else {
+            const sorted = await sortByBrightness(window.SEED ?? []);
+            localStorage.setItem('seedSorted', JSON.stringify(sorted));
+            rebuildGrid(sorted);
+          }
+        }catch(e){ /* ignore */ }
       })();
-      </script>
+    </script>
       
   </body>
 </html>
