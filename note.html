@@ -829,7 +829,7 @@ const CONFIG={
   distortion:{ flat:0.0, curved:0.46 },
   clickBounceDelta:0.25, longPressMsMouse:380, longPressMsTouch:520, clickMovePx:6, clickMovePxTouch:12,
   dragMultMouse:6.0, dragMultTouch:4.0, touchDragEase:0.18,
-  zoomMin:0.45, zoomMax:3.00, wheelScale:0.0015,
+  zoomMin:0.25, zoomMax:3.00, wheelScale:0.0015,
   boundSlack: 0.6,
   rubber:     0.33,
   magnet:     0.12
@@ -1752,7 +1752,11 @@ function App(){
   /* Removed manageMode state */
   const [helpOpen,setHelpOpen]=useState(false);
   const [archive,setArchive]=useState(loadArchive());
-  const [zoom, setZoom] = useState(CONFIG.zoomOut);
+  // set initial zoom to 25% of the configured zoom range
+  const initialZoom = React.useMemo(() => {
+    return CONFIG.zoomMin + 0.25 * (CONFIG.zoomMax - CONFIG.zoomMin);
+  }, []);
+  const [zoom, setZoom] = useState(initialZoom);
   const [seed,setSeed] = useState(SEED);
   const gridCtrl = useRef({ setZoom: (z)=>{} });
 
@@ -1771,9 +1775,7 @@ function App(){
   const combinedItems=useMemo(()=>[PLACEHOLDER_START, ...contentItems, PLACEHOLDER_END], [PLACEHOLDER_START, PLACEHOLDER_END, contentItems]);
 
   // BUGFIX: This effect syncs the combined content to the list view
-  useEffect(()=>{
-    window.dispatchEvent(new CustomEvent('contentUpdated', { detail: contentItems }));
-  },[contentItems]);
+  useEffect(()=>{ window.dispatchEvent(new CustomEvent('contentUpdated', { detail: contentItems })); },[contentItems]);
 
   // BUGFIX: This effect listens for delete requests from the list view
   useEffect(()=>{
@@ -1823,6 +1825,19 @@ function App(){
   const handleTileClick = (idx, item) => { if (item?.placeholder) { setOverlayOpen(true); } };
 
   useEffect(()=>{ window.SEED = SEED; },[]);
+
+  // on mount, ensure controller & CSS reflect the initial zoom
+  useEffect(() => {
+    // update controller if GridView exposed setZoom
+    if (gridCtrl.current?.setZoom) {
+      gridCtrl.current.setZoom(initialZoom);
+    }
+
+    // also set a CSS var for any legacy UI that reads it
+    const clamped = Math.max(0, Math.min(1, (initialZoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
+    const pct = Math.round(clamped * 100);
+    document.documentElement.style.setProperty('--zoom-pct', `${pct}%`);
+  }, [initialZoom]);
 
   return (
     React.createElement(React.Fragment,null,
@@ -1942,6 +1957,7 @@ root.render(React.createElement(App));
   }
   tick();
 })();
+
     </script>
 
     <script>
