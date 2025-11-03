@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — (v1.2 prototype + hotfix)</title>
+    <title>intoview • note — (v1.2 prototype + hotfix tidy)</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,7 +70,7 @@ body{
 
 /* ========== CANVAS LAYER (WebGL) ========== */
 .canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
-.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; }
+.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; outline:none }
 .canvas-wrap canvas.dragging{ cursor:grabbing }
 
 /* Optional faint debug grid behind cards */
@@ -334,7 +334,7 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
     <div id="root"></div>
 
     <!-- HUD corners -->
-    <div class="hud hud-left">v2.1.1</div>
+    <div class="hud hud-left">v2.1.2</div>
     <div class="hud hud-right" id="coordsHud">x 0 • y 0</div>
 
     <script type="module">
@@ -344,10 +344,6 @@ import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 import * as THREE from "https://esm.sh/three@0.160.1";
 import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
 import gsap from "https://esm.sh/gsap@3.12.5";
-import { EffectComposer } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js";
-import { ShaderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js";
-import { OutputPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js";
 
 /* ========= Seed images ========= */
 const FAKE=(i)=>[
@@ -420,10 +416,10 @@ function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1
 function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
   img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
 function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
-/* FIX: avoid undefined 's' usage */
+/* FIX: avoid undefined 's' — use provided w/h */
 function coverImage(ctx,img,x,y,w,h){
   const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
-  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(0,0,s,s); return; }
+  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
   const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
   if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
   ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
@@ -792,31 +788,53 @@ class Grid extends THREE.Group{
   resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); this._setHover(-1); }
 }
 
-/* ========= Postprocessing ========= */
+/* ========= Postprocessing (lazy/fail-safe imports) ========= */
 function Postprocessing({ workgridState }){
   const { gl, scene, camera, size } = useThree();
+  const [mods, setMods] = useState(null);
+
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      try{
+        const [{ EffectComposer }, { RenderPass }, { ShaderPass }, { OutputPass }] = await Promise.all([
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js"),
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js"),
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js"),
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js"),
+        ]);
+        if(!cancelled) setMods({ EffectComposer, RenderPass, ShaderPass, OutputPass });
+      }catch(e){ console.warn("Post FX unavailable", e); }
+    })();
+    return ()=>{ cancelled=true; };
+  },[]);
+
   const { composer, shader } = useMemo(()=>{
+    if(!mods) return { composer:null, shader:null };
     try{
-      const renderPass=new RenderPass(scene,camera);
+      const renderPass=new mods.RenderPass(scene,camera);
       const shader=new DistortionShader();
-      const shaderPass=new ShaderPass(shader);
-      const outputPass=new OutputPass();
-      const composer=new EffectComposer(gl);
+      const shaderPass=new mods.ShaderPass(shader);
+      const outputPass=new mods.OutputPass();
+      const composer=new mods.EffectComposer(gl);
       composer.addPass(renderPass); composer.addPass(shaderPass); composer.addPass(outputPass);
       return { composer, shader };
     }catch(e){ console.warn("Composer init failed",e); return { composer:null, shader:null }; }
-  },[gl,scene,camera]);
+  },[mods, gl, scene, camera]);
+
   useEffect(()=>{ if(!composer||!shader) return;
     const dpr=Math.min(2, gl.getPixelRatio?.()||1.5);
     composer.setPixelRatio?.(dpr);
     composer.setSize(size.width, size.height);
     shader.update();
   },[composer,shader,size,gl]);
+
   useEffect(()=>{ if(!shader) return;
     const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
     const scale = size.width < 800 ? 0.75 : 1.0;
     shader.setDistortion(base * scale);
   },[workgridState,shader,size.width]);
+
   useFrame(()=>{ composer?.render(); }, 1);
   return null;
 }
@@ -837,8 +855,7 @@ function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect,
   useEffect(()=>{ grid.onZoomChange = (z)=> onZoomChange?.(z); return ()=>{ grid.onZoomChange=null; }; },[grid,onZoomChange]);
   useEffect(()=>{ if(workgridState==="RESET") grid.resetPosition(); },[workgridState,grid]);
 
-  useEffect(()=>{
-    if(!controllerRef) return;
+  useEffect(()=>{ if(!controllerRef) return;
     controllerRef.current = {
       setZoom: (z) => {
         const clamped = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z));
