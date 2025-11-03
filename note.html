@@ -10,14 +10,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
     <style>
-    /* ============================================================
-       intoview:note — CSS
-       v2.3: camera/upload flow => small centered chrome dialogs
-       FIX: overlay/scrim must fill full viewport (and not be shrunk by .curved)
-       UPDATED: tighter vignette and edge blur, mobile-optimized
-       ============================================================ */
-    
-    :root{
+/* ============================================================
+   intoview:note — CSS
+   v2.3: camera/upload flow => small centered chrome dialogs
+   FIX: overlay/scrim must fill full viewport (and not be shrunk by .curved)
+   ============================================================ */
+
+   :root{
       --paper:#000;
       --ink:#FFFFFF;
       --ink-2:#9F9F9F;
@@ -119,135 +118,612 @@
       opacity:calc(var(--vig-opacity) * var(--curve-k));
     }
     
-    /* grain */
-    body::after{
-      content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
-      background-size: 120px 120px;
-    }
-    
-    /* curved dom aesthetic */
-    .curved{
-      transform-style:preserve-3d;
-      transform:
-        perspective(1000px)
-        translateZ(calc(-200px * var(--curve-k)))
-        scale(calc(1 + var(--curve-k) * 0.06));
-      will-change:transform;
-    }
-    
-    /* header */
-    .header{
-      position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
-      display:flex; align-items:center; justify-content:space-between;
-      gap:12px;
-      padding: var(--corner-top) var(--corner-pad) 12px var(--corner-pad);
-      pointer-events:none;
-    }
-    .brand{
-      display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
-      padding:4px 6px;
-    }
-    .brand img{ display:block; height:42px; width:auto; }
-    
-    .controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
-    .icon-btn{
-      appearance:none; cursor:pointer; border:0px solid var(--ink-2);
-      background:rgba(0,0,0,.35); color:var(--ink);
-      padding:8px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center;
-      transition:transform .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease;
-      position:relative; z-index:1;
-    }
-    .icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
-    .icon-btn svg{ display:block; width:18px; height:18px; }
-    .icon-btn.danger.active{
-      color:var(--danger);
-      background:rgba(255,99,99,.12);
-      box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
-    }
-    
-    /* zoom rail */
-    .zoom-rail{
-      position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
-      height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
-      pointer-events:auto; touch-action: none;
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    }
-    .zoom-rail__track{ position:relative; width:2px; height:100%; background:rgba(255,255,255,.18); border-radius:2px; }
-    .zoom-rail__progress{ position:absolute; left:0; bottom:0; width:100%; height:var(--zoom-pct,0%); background:rgba(255,255,255,.9); border-radius:2px; }
-    .zoom-rail__thumb{
-      position:absolute; left:50%; top: calc(100% - var(--zoom-pct, 0%)); transform: translate(-50%, -50%);
-      width:10px; height:10px; border-radius:50%; background:var(--ink);
-      box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
-    }
-    .zoom-rail__tooltip{
-      position:absolute; top:calc(100% - var(--zoom-pct,0%)); left:-44px; transform:translateY(-50%);
-      font-weight:700; font-size:12px; color:var(--ink-2); text-shadow:0 1px 2px rgba(0,0,0,.55); user-select:none;
-    }
-    @media (max-width:768px){
-      .zoom-rail{ height: var(--rail-height-mobile); }
-      .zoom-rail__tooltip{ left: -40px; }
-    
-      /* Tighter blur and vignette on mobile */
-      :root{
-        --edge-blur: 12px;
-        --edge-mask-i: 62%;
-        --edge-mask-o: 78%;
-        --vig-inner: 68%;
-        --vig-mid: 84%;
-      }
-    }
-    
-    /* overlay as centered dialog — full viewport, and ignore .curved transform */
-    .overlay{
-      position:fixed;
-      inset:0;
-      width:100%;
-      height:100%;
-      min-height:100vh;
-      min-height:100dvh;
-      z-index:1000;
-      display:none;
-      pointer-events:auto;
-      background: radial-gradient(circle at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.9) 100%);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      align-items:center;
-      justify-content:center;
-      padding: clamp(8px, 2vw, 18px);
-    }
-    .overlay.curved{
-      transform:none !important;
-      transform-style:flat !important;
-      perspective:none !important;
-    }
-    .overlay.open{ display:flex; }
-    
-    /* sheet, titlebar, inputs, buttons omitted for brevity (unchanged) */
-    
-    /* START: LIST VIEW INTEGRATION CSS */
-    /* ... full list view CSS as in your previous file ... */
-    /* omitted here to keep snippet readable, but would include everything from your previous :root overrides, .takeover, .left, .right, .note-item, etc. */
-    /* END: LIST VIEW INTEGRATION CSS */
-    
-    /* reduced motion */
-    @media (prefers-reduced-motion: reduce){
-      .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
-    }
-    
-    /* gooey cursor */
-    #cursor{
-      position:fixed; top: calc(var(--cursor-size) * -0.5); left: calc(var(--cursor-size) * -0.5);
-      pointer-events:none; filter:url(#goo); mix-blend-mode:difference; z-index:var(--z-cursor);
-    }
-    .cursor-circle{
-      position:absolute; top:0; left:0; width:var(--cursor-size); height:var(--cursor-size);
-      border-radius:999px; background:#fff;
-    }
-    .goo{ display:none; }
-    @media (pointer: coarse){ #cursor{ display:none; } }
-    
-        </style>
+
+/* canvas */
+.canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
+.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; }
+.canvas-wrap canvas.dragging{ cursor:grabbing }
+
+.fallback-grid{
+  position:absolute; inset:0; z-index:var(--z-content); pointer-events:none; opacity:.06;
+  background-image:
+    repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
+}
+
+/* edge blur — stronger but with a tighter mask so it doesn't spill into content */
+.edge-blur{
+  position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
+  background: rgba(0,0,0,0.001);
+  backdrop-filter: blur(var(--edge-blur));
+  -webkit-backdrop-filter: blur(var(--edge-blur));
+  /* tightened radial mask: more abrupt falloff near the edges */
+  mask:
+    radial-gradient(100% 64% at 50% 50%,
+      transparent var(--edge-mask-i),
+      rgba(255,255,255,0.98) var(--edge-mask-o));
+  -webkit-mask:
+    radial-gradient(100% 64% at 50% 50%,
+      transparent var(--edge-mask-i),
+      rgba(255,255,255,0.98) var(--edge-mask-o));
+}
+.edge-blur::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background: rgba(0,0,0,0.001);
+  /* reduce the double-blur intensity so it won't form a wide soft wash */
+  backdrop-filter: blur(calc(var(--edge-blur) * 1.2));
+  -webkit-backdrop-filter: blur(calc(var(--edge-blur) * 1.2));
+  /* make the vertical banding more conservative so it doesn't lighten content areas */
+  mask:
+    linear-gradient(to bottom,
+      white 0%, white 8%,
+      transparent 42%, transparent 58%,
+      white 92%, white 100%);
+  -webkit-mask:
+    linear-gradient(to bottom,
+      white 0%, white 8%,
+      transparent 42%, transparent 58%,
+      white 92%, white 100%);
+}
+
+/* vignette: slightly more concentrated */
+.vignette{
+  position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
+  background:
+    radial-gradient(120% 90% at 50% 50%,
+      rgba(0,0,0,0)         var(--vig-inner),
+      rgba(0,0,0,0.62)      var(--vig-mid),
+      rgba(0,0,0,0.98)      var(--vig-outer));
+  opacity:calc(var(--vig-opacity) * var(--curve-k));
+}
+
+
+/* grain */
+body::after{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+}
+
+/* curved dom aesthetic */
+.curved{
+  transform-style:preserve-3d;
+  transform:
+    perspective(1000px)
+    translateZ(calc(-200px * var(--curve-k)))
+    scale(calc(1 + var(--curve-k) * 0.06));
+  will-change:transform;
+}
+
+/* header */
+.header{
+  position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px;
+  padding: var(--corner-top) var(--corner-pad) 12px var(--corner-pad);
+  pointer-events:none;
+}
+.brand{
+  display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
+  padding:4px 6px;
+}
+.brand img{ display:block; height:42px; width:auto; }
+
+.controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
+.icon-btn{
+  appearance:none; cursor:pointer; border:0px solid var(--ink-2);
+  background:rgba(0,0,0,.35); color:var(--ink);
+  padding:8px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center;
+  transition:transform .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease;
+  position:relative; z-index:1;
+}
+.icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
+.icon-btn svg{ display:block; width:18px; height:18px; }
+.icon-btn.danger.active{
+  color:var(--danger);
+  background:rgba(255,99,99,.12);
+  box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
+}
+
+/* zoom rail */
+.zoom-rail{
+  position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
+  height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
+  pointer-events:auto; touch-action: none;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+.zoom-rail__track{ position:relative; width:2px; height:100%; background:rgba(255,255,255,.18); border-radius:2px; }
+.zoom-rail__progress{ position:absolute; left:0; bottom:0; width:100%; height:var(--zoom-pct,0%); background:rgba(255,255,255,.9); border-radius:2px; }
+.zoom-rail__thumb{
+  position:absolute; left:50%; top: calc(100% - var(--zoom-pct, 0%)); transform: translate(-50%, -50%);
+  width:10px; height:10px; border-radius:50%; background:var(--ink);
+  box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
+}
+.zoom-rail__tooltip{
+  position:absolute; top:calc(100% - var(--zoom-pct,0%)); left:-44px; transform:translateY(-50%);
+  font-weight:700; font-size:12px; color:var(--ink-2); text-shadow:0 1px 2px rgba(0,0,0,.55); user-select:none;
+}
+@media (max-width:768px){
+  .zoom-rail{ height: var(--rail-height-mobile); }
+  .zoom-rail__tooltip{ left: -40px; }
+}
+
+/* overlay as centered dialog — full viewport, and ignore .curved transform */
+.overlay{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  min-height:100vh;
+  min-height:100dvh;
+  z-index:1000;
+  display:none;
+  pointer-events:auto;
+  background: radial-gradient(circle at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.9) 100%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  align-items:center;
+  justify-content:center;
+  padding: clamp(8px, 2vw, 18px);
+}
+/* override the 3D transform from .curved so the scrim stays flush */
+.overlay.curved{
+  transform:none !important;
+  transform-style:flat !important;
+  perspective:none !important;
+}
+.overlay.open{ display:flex; }
+
+.sheet{
+  width:min(96vw, 580px);
+  background: radial-gradient(circle at top, #0e0e10 0%, #040405 80%);
+  color:#f3f3f5;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  padding: clamp(12px, 2.2vw, 20px);
+  box-shadow:0 13px 48px rgba(0,0,0,.25), 0 2px 14px rgba(0,0,0,.2);
+  display:grid; grid-template-rows: auto 1fr auto; gap:10px;
+  max-height:min(92vh, 92dvh);
+}
+.titlebar{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:10px 8px 10px;
+  border-bottom:1px solid rgba(255,255,255,.03);
+  background: linear-gradient(180deg, rgba(0,0,0,.3), rgba(0,0,0,0));
+  border-radius:12px 12px 0 0;
+  margin:-4px -2px 2px;
+}
+.titlebar h2{ margin:0; font-size:14px; letter-spacing:.01em }
+.row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+.grid{ display:grid; gap:10px }
+.cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+.label{ font-weight:600; opacity:.9 }
+.input,.textarea{ width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:10px; padding:8px 10px; font:inherit; }
+.textarea{ min-height:96px; resize:vertical }
+.btn{
+  appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:9px 14px; border-radius:10px; font-weight:600;
+  transition:background .12s ease, border-color .12s ease, transform .12s ease;
+}
+.btn:active{ transform:translateY(1px); }
+.btn.ghost{ background:transparent }
+.btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
+.hint{ color:#c9c9cf; font-size:12px }
+.sheet :focus{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px }
+
+/* chrome-style container */
+.chrome-frame{
+  position:relative;
+  background:#000;
+  border-radius:14px;
+  border:1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  overflow:hidden;
+}
+
+/* viewfinder / preview in dialog */
+.vf,
+.preview {
+  position:relative;
+  width:100%;
+  max-width:520px;
+  aspect-ratio:1 / 1;
+  height:auto;
+  margin:6px auto 0;
+  background: radial-gradient(circle at top, #000 0%, #000 65%, #050505 100%);
+}
+.vf.chrome-frame,
+.preview.chrome-frame {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.vf video {
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  filter:grayscale(1) contrast(1.04) brightness(.98);
+}
+.vf::before,.vf::after{
+  content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
+  background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
+  border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
+}
+.vf::before{ top:0; } .vf::after{ bottom:0; }
+.vf .perfs{
+  position:absolute; inset:0; pointer-events:none; z-index:1;
+  background:
+    radial-gradient(circle 3px at 8px 14px, #000 0 2.2px, transparent 2.2px) repeat-y left / 16px 28px,
+    radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
+  opacity:.85;
+}
+.preview canvas,
+.preview img {
+  width:100%;
+  height:auto;
+  display:block;
+}
+.preview::before {
+  content: "preview • intoview";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 26px;
+  background: linear-gradient(180deg, rgba(0,0,0,.8), rgba(0,0,0,0));
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  font: 600 11px/26px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  padding: 0 10px;
+  letter-spacing: .02em;
+  color: #f0f0f0;
+  z-index: 3;
+}
+
+/* leveler */
+.leveler{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+  width:min(260px, 72%); height:30px; border-radius:999px;
+  background:rgba(0,0,0,.45); border:1px solid #2a2a2e; box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+  display:flex; align-items:center; justify-content:center; z-index:2; pointer-events:auto;
+}
+.leveler .vial{ position:absolute; inset:4px; border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06)); }
+.leveler .bubble{
+  position:absolute; top:50%; transform:translate(-50%,-50%); left:var(--bubble-x, 50%);
+  width:22px; height:22px; border-radius:999px; background:#ffe066;
+  box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 2px 10px rgba(0,0,0,.35);
+}
+.leveler .deg{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  font:600 12px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:#cfcfcf;
+}
+.leveler.good .vial{ outline:2px solid rgba(120,255,120,.35); outline-offset:-2px; }
+.leveler .enable{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.35));
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  color:#fff; font-weight:600; font-size:12px; border-radius:inherit; cursor:pointer; border:1px solid #2a2a2e;
+}
+
+/* fab */
+.fab-wrap{
+  position:fixed; left:50%; bottom: var(--fab-bottom); transform: translateX(-50%);
+  z-index:var(--z-ui); display:flex; flex-direction:column; align-items:center;
+}
+.fab{
+  position:relative;
+  width:var(--fab-size); height:var(--fab-size); border-radius:999px;
+  background:none; color:#fff; border:0px solid rgba(255,255,255,.14);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
+  transition:background .15s ease, color .15s ease, transform .1s ease;
+}
+.fab:hover{ background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.22); }
+.fab svg{ width:58%; height:auto; display:block }
+.fab-text{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+  font:600 11px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:#fff; opacity:.9;
+}
+
+@media (max-width:768px){
+  :root{
+    --fab-size: 128px;
+    --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
+  }
+  .sheet{
+    width:min(98vw, 480px);
+  }
+}
+
+/* HUD */
+.hud{
+  position:fixed; bottom:calc(env(safe-area-inset-bottom) + 10px);
+  z-index:var(--z-ui); pointer-events:none;
+  font:600 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color:#c9c9cf; opacity:.9;
+}
+.hud-left{ left: var(--corner-pad); }
+.hud-right{ right: var(--corner-pad); }
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
+}
+
+/* gooey cursor */
+#cursor{
+  position:fixed; top: calc(var(--cursor-size) * -0.5); left: calc(var(--cursor-size) * -0.5);
+  pointer-events:none; filter:url(#goo); mix-blend-mode:difference; z-index:var(--z-cursor);
+}
+.cursor-circle{
+  position:absolute; top:0; left:0; width:var(--cursor-size); height:var(--cursor-size);
+  border-radius:999px; background:#fff;
+}
+.goo{ display:none; }
+@media (pointer: coarse){ #cursor{ display:none; } }
+
+
+/* ============================================================
+   START: LIST VIEW INTEGRATION CSS
+   ============================================================ */
+:root {
+  /*
+    Re-declaring these variables from the new file.
+    They are scoped within :root, so they won't conflict
+    with your existing variables unless names are identical
+    (in which case these will be overridden by your base file's vars,
+    which is fine, but we need them defined for the new components).
+  */
+  --bg: #050505;
+  --panel: #0b0b0b;
+  --muted: #9b9b9b;
+  --accent: #7ee787; /* Note: Your base file also defines --accent */
+  --glass: rgba(255,255,255,0.03);
+  --gap: 16px;
+  --radius: 12px;
+  /*
+    The list view CSS sets `font-family` and `color-scheme` on :root.
+    This is redundant as your `body` tag already sets the font.
+    The `color-scheme: dark` is also good.
+  */
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color-scheme: dark;
+}
+
+/* --- View Toggle (New) --- */
+.view-toggle {
+  position: fixed;
+  /*
+    Using --corner-pad from your base file for consistent spacing.
+    Using 60px to clear the brand logo.
+  */
+  left: var(--corner-pad, 24px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-ui, 220); /* Use z-index from base file */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(0,0,0,.35);
+  border-radius: 12px;
+  padding: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.toggle-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2, #9F9F9F);
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all .12s ease;
+}
+.toggle-btn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.toggle-btn:hover {
+  color: var(--ink, #FFFFFF);
+  background: rgba(255,255,255,.06);
+}
+.toggle-btn.active {
+  /* Use --accent from your base file for consistency */
+  color: var(--accent, #59D2C8);
+  background: color-mix(in oklab, var(--accent, #59D2C8) 20%, transparent);
+}
+
+
+/* --- list takeover overlay --- */
+/*
+  Using a higher z-index to ensure it's above *all* other UI,
+  including your .overlay (z-index 1000)
+*/
+.takeover {
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 9999;
+  /* Use base file font */
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color: #fff;
+}
+.takeover.open {
+  display: block;
+}
+.takeover .backdrop {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.7));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.takeover .panel {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 24px;
+  padding: 36px;
+}
+.left {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.left .cover {
+  flex: 0 0 260px;
+  border-radius: 12px;
+  background-size: cover;
+  background-position: center;
+}
+.left .info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.left .title {
+  font-size: 20px;
+  font-weight: 600;
+}
+.left .subtitle {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.right {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+  border-radius: 16px;
+  padding: 18px;
+  overflow: auto;
+  border: 1px solid rgba(255,255,255,0.04);
+  /* Ensure scrollbar is styled for dark mode */
+  scrollbar-color: #444 #111;
+}
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  margin-bottom: 12px;
+}
+.list-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.search-input {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.03);
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 14px;
+}
+.search-input:focus {
+  outline: 2px solid var(--accent, #59D2C8);
+  outline-offset: 2px;
+  border-color: transparent;
+}
+
+.note-item {
+  display: grid;
+  /* Updated grid to make space for delete button */
+  grid-template-columns: 1fr auto 40px;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  align-items: center;
+  cursor: pointer;
+}
+.note-item + .note-item {
+  margin-top: 8px;
+}
+.note-meta {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Ensure long text doesn't break layout */
+}
+.note-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-sub {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-thumb {
+  width: 88px;
+  height: 64px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0; /* Prevent thumb from shrinking */
+}
+/* New button style for delete in list */
+.note-delete-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink-3, #6C6C6C);
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all .12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.note-delete-btn:hover {
+  color: var(--danger, #FF6363);
+  background: rgba(255, 99, 99, .12);
+}
+.note-delete-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+
+/* hover / active styles */
+.note-item:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+/* responsive */
+@media (max-width:920px) {
+  .takeover .panel {
+    grid-template-columns: 1fr;
+    grid-auto-rows: min-content;
+    padding: 18px; /* Tighter padding on mobile */
+  }
+  .left {
+    order: 2;
+  }
+  .right {
+    order: 1;
+    max-height: 50vh; /* Don't let list take full screen */
+  }
+}
+/* ============================================================
+   END: LIST VIEW INTEGRATION CSS
+   ============================================================ */
+
+    </style>
   </head>
   <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="goo" width="0" height="0" aria-hidden="true">
@@ -1114,7 +1590,7 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
       React.createElement("div",{className:"sheet",ref:sheetRef,role:"dialog","aria-modal":"true"},
         React.createElement("div",{className:"titlebar"},
           React.createElement("h2",null, ["Start","Viewfinder","Review","Details","Export","Done"][step] || "Start"),
-          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
+          React.createElement("button",{className:"btn ghost",onClick:onClose},"ESC")
         ),
         step===0 && React.createElement("div",{className:"grid", style:{alignContent:"center"}},
           camera.error ? React.createElement("div",{className:"hint", style:{color:"#ffb4b4"}}, camera.error) : null,
@@ -1156,7 +1632,7 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
           React.createElement("div",{className:"row",style:{justifyContent:"center"}},
             React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"intoview:note")),
           React.createElement("div",{className:"row",style:{justifyContent:"center"}},
-            React.createElement("button",{className:"btn primary",onClick:onClose},"Close")))
+            React.createElement("button",{className:"btn primary",onClick:onClose},"ESC")))
       )
     )
   );
@@ -1170,7 +1646,7 @@ function HelpOverlay({ open, onClose }){
       React.createElement("div",{className:"sheet",role:"dialog","aria-modal":"true",style:{maxWidth:"460px"}},
         React.createElement("div",{className:"titlebar"},
           React.createElement("h2",null,"Controls"),
-          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
+          React.createElement("button",{className:"btn ghost",onClick:onClose},"ESC")
         ),
         React.createElement("div",{style:{overflow:"auto", padding:"4px 2px"}},
           React.createElement("div",null,"• Drag to pan"),
@@ -1293,6 +1769,32 @@ function App(){
   const PLACEHOLDER_END   = useMemo(()=>({ id:"placeholder_new_end",   placeholder:true, title:"new note", caption:"tap to start" }),[]);
   const contentItems=useMemo(()=>[...sortedArchive, ...seed], [sortedArchive, seed]);
   const combinedItems=useMemo(()=>[PLACEHOLDER_START, ...contentItems, PLACEHOLDER_END], [PLACEHOLDER_START, PLACEHOLDER_END, contentItems]);
+
+  // BUGFIX: This effect syncs the combined content to the list view
+  useEffect(()=>{
+    window.dispatchEvent(new CustomEvent('contentUpdated', { detail: contentItems }));
+  },[contentItems]);
+
+  // BUGFIX: This effect listens for delete requests from the list view
+  useEffect(()=>{
+    const handleDeleteRequest = (e) => {
+      const itemToDelete = e.detail;
+      if (!itemToDelete) return;
+
+      // Check if it's an archive note (user-created)
+      if (itemToDelete.id && String(itemToDelete.id).startsWith("note_")) {
+        setArchive(arr => arr.filter(x => x.id !== itemToDelete.id));
+      }
+      // Check if it's a seed note
+      else {
+        setSeed(arr => arr.filter(x => x.src !== itemToDelete.src)); // Assuming `src` is a unique key for seed items
+      }
+    };
+    
+    window.addEventListener('requestItemDelete', handleDeleteRequest);
+    return () => window.removeEventListener('requestItemDelete', handleDeleteRequest);
+  },[]); // Empty dependency array, so it only sets up the listener once
+
 
   useEffect(()=>{ document.documentElement.style.setProperty("--curve-k", String(wgState===WorkgridState.INTRO ? 0 : 1)); },[wgState]);
 
@@ -1504,7 +2006,7 @@ root.render(React.createElement(App));
               <div style="color:var(--muted);font-size:13px;">0 results</div>
             </div>
             <div>
-              <button id="close" class="btn ghost">Close</button>
+              <button id="close" class="btn ghost">ESC</button>
             </div>
           </div>
 
@@ -1517,8 +2019,10 @@ root.render(React.createElement(App));
       // Selectors for all base UI elements to hide during list view
       const baseUiSelectors = ['#root', '.header', '.zoom-rail', '.fab-wrap', '.hud-left', '.hud-right', '.edge-blur', '.vignette', '#cursor', '.view-toggle'];
 
-      // Use the global SEED from the React app
-      const SEED = window.SEED || [];
+      // BUGFIX: This array is the source of truth for the list view.
+      // It will be populated by the 'contentUpdated' event from React.
+      let allContent = window.SEED || []; 
+      let currentFilteredContent = allContent; // The content currently displayed (after filtering)
 
       const listEl = document.getElementById('list');
       const takeover = document.getElementById('takeover');
@@ -1528,6 +2032,8 @@ root.render(React.createElement(App));
       const searchCount = document.querySelector('.list-search div');
 
       function renderList(items) {
+        currentFilteredContent = items; // Update the currently displayed content
+
         listEl.innerHTML = '';
         if (!items.length) {
           listEl.innerHTML = '<div style="color:var(--muted);padding:18px">No results</div>';
@@ -1540,7 +2046,7 @@ root.render(React.createElement(App));
           const meta = document.createElement('div'); meta.className = 'note-meta';
           const t = document.createElement('div'); t.className = 'note-title'; t.textContent = it.title;
           const s = document.createElement('div'); s.className = 'note-sub';
-          s.textContent = it.caption; // Use caption only, 'date' is not in global SEED
+          s.textContent = it.caption;
           meta.appendChild(t); meta.appendChild(s);
           const thumb = document.createElement('div'); thumb.className = 'note-thumb'; thumb.style.backgroundImage = `url(${it.src})`;
           
@@ -1564,61 +2070,45 @@ root.render(React.createElement(App));
         })
       }
 
-      // New function to delete an item
+      // BUGFIX: Modified deleteItem to dispatch an event up to React
       function deleteItem(item) {
         if (!confirm(`Are you sure you want to delete "${item.title}"?`)) return;
         
-        const trueIndex = SEED.indexOf(item); // Find index in the global SEED
-        if (trueIndex > -1) {
-          SEED.splice(trueIndex, 1); // Mutate the shared window.SEED array
-        }
+        // Dispatch an event to React, asking it to delete this item
+        window.dispatchEvent(new CustomEvent('requestItemDelete', { detail: item }));
         
-        // Re-render the list, respecting any active search query
-        filter(searchInput.value);
-        
-        // Dispatch event to update the React app (3D grid)
-        window.dispatchEvent(new CustomEvent('seedUpdated', { detail: SEED }));
-        
-        // Update the preview panel
-        // If the deleted item was the one being previewed, show the first item or empty state
-        const currentPreviewTitle = document.querySelector('.left .title').textContent;
-        if (currentPreviewTitle === item.title) {
-          updateLeft(SEED[0]); // Update to show the first item
-        }
+        // The list will auto-update when React fires 'contentUpdated' back down.
       }
 
-      // open takeover at a specific index
+      // Modified openTakeover to use the 'allContent' array
       function openTakeover(index) {
-        currentIndex = index || 0;
+        let itemToShow = allContent[index || 0] || null;
+        
         takeover.classList.add('open');
         takeover.setAttribute('aria-hidden', 'false');
         
-        // Hide all base UI elements
         baseUiSelectors.forEach(sel => { const el = document.querySelector(sel); if (el) el.style.display = 'none'; });
 
-        updateLeft(SEED[currentIndex]);
-        renderList(SEED);
+        updateLeft(itemToShow); // Pass the item object
+        renderList(allContent); // Render the full list
         searchInput.value = ''; // Clear search
         
-        // Update toggle button active state
         document.getElementById('gridBtn').classList.remove('active');
         document.getElementById('listBtn').classList.add('active');
       }
+
       function closeTakeover() {
         takeover.classList.remove('open');
         takeover.setAttribute('aria-hidden', 'true');
         
-        // Show all base UI elements
         baseUiSelectors.forEach(sel => { const el = document.querySelector(sel); if (el) el.style.display = ''; });
 
-        // Update toggle button active state
         document.getElementById('gridBtn').classList.add('active');
         document.getElementById('listBtn').classList.remove('active');
       }
       
-      // Update left panel based on the *item object*
+      // Modified updateLeft to handle an empty state
       function updateLeft(it) {
-        // Handle empty list case
         if (!it) {
           it = { src: '', title: 'No Notes', caption: 'Add a new note to get started.' };
           leftCover.style.backgroundImage = 'none';
@@ -1626,15 +2116,13 @@ root.render(React.createElement(App));
           leftCover.style.backgroundImage = `url(${it.src})`;
         }
         document.querySelector('.left .title').textContent = it.title;
-        document.querySelector('.left .subtitle').textContent = it.caption; // Use caption only
+        document.querySelector('.left .subtitle').textContent = it.caption;
       }
       
-      // Select item based on the *item object* and its *visual index* in the filtered list
+      // Modified selectItem to be simpler
       function selectItem(it, visualIndex) {
-        currentIndex = SEED.indexOf(it); // Find the item's true index in the global SEED
         updateLeft(it);
         
-        // small flash animation to show selection
         const nodes = listEl.querySelectorAll('.note-item');
         nodes.forEach(n => n.style.opacity = 0.6);
         if (nodes[visualIndex]) {
@@ -1643,18 +2131,17 @@ root.render(React.createElement(App));
         setTimeout(() => nodes.forEach(n => n.style.opacity = ''), 300);
       }
 
-      // search/filter
+      // Modified filter to use 'allContent'
       function filter(q) {
         const ql = q.trim().toLowerCase();
-        if (!ql) return renderList(SEED);
-        // Filter based on title and caption
-        const out = SEED.filter(s => (s.title + s.caption).toLowerCase().includes(ql));
-        renderList(out);
+        let out = allContent; // Start with all content
+        if (ql) {
+          out = allContent.filter(s => (s.title + s.caption).toLowerCase().includes(ql));
+        }
+        renderList(out); // Render the filtered list
       }
 
       // init
-      // We don't render the grid, the React app does that.
-      // Set the initial active button state
       document.getElementById('gridBtn').classList.add('active');
 
       document.getElementById('listBtn').addEventListener('click', () => {
@@ -1670,8 +2157,24 @@ root.render(React.createElement(App));
 
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && takeover.classList.contains('open')) closeTakeover(); });
 
+      // BUGFIX: Listen for the 'contentUpdated' event from React
+      window.addEventListener('contentUpdated', (e) => {
+        allContent = Array.isArray(e.detail) ? e.detail : [];
+        // Re-render the list, respecting any active search query
+        filter(searchInput.value);
+        
+        // If the left panel is showing an item that no longer exists, update it
+        const currentTitle = document.querySelector('.left .title').textContent;
+        // Check if the currently previewed item is still in the list
+        const currentItemExists = allContent.some(item => item.title === currentTitle);
+        
+        // If it doesn't exist AND the list is not empty, show the first item
+        if (!currentItemExists) {
+          updateLeft(allContent[0]); // Shows first item or empty state
+        }
+      });
+
       // expose selection for integration with your app
-      let currentIndex = 0;
       window.intoview = { openTakeover, closeTakeover, selectItem };
     </script>
     </body>
