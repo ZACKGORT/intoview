@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — (v1.2 prototype + hotfix)</title>
+    <title>intoview • note — (v2.3 dialog chrome)</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,45 +11,38 @@
 
     <style>
 /* ============================================================
-   intoview:note — CSS (commented & organized)
+   intoview:note — CSS
+   v2.3: camera/upload flow => small centered chrome dialogs
    ============================================================ */
 
 :root{
-  /* --------- THEME TOKENS --------- */
-  --paper:#000;             /* app canvas */
-  --ink:#FFFFFF;            /* primary text/lines */
-  --ink-2:#9F9F9F;          /* secondary lines */
-  --ink-3:#6C6C6C;          /* muted helpers */
-  --accent:#59D2C8;         /* brand accent */
-  --danger:#FF6363;         /* alerts/errors */
-  --curve-k:1;              /* 0=flat, 1=curved (DOM aesthetic scale) */
+  --paper:#000;
+  --ink:#FFFFFF;
+  --ink-2:#9F9F9F;
+  --ink-3:#6C6C6C;
+  --accent:#59D2C8;
+  --danger:#FF6363;
+  --curve-k:1;
 
-  /* ---------- EFFECT KNOBS ---------- */
   --vig-opacity: 1;
   --vig-inner:   20%;
   --vig-mid:     52%;
   --vig-outer:   100%;
-
-  /* Radial EDGE blur (under vignette, above content) */
   --edge-blur: 12px;
-  --edge-mask-i: 46%;
-  --edge-mask-o: 74%;
+  --edge-mask-i: 44%;
+  --edge-mask-o: 76%;
 
-  /* ---------- LAYOUT / BEHAVIOR ---------- */
-  --cursor-size: 20px;      /* gooey cursor “head” size (desktop only) */
-  --fab-size: 120px;        /* main capture button diameter */
+  --cursor-size: 20px;
+  --fab-size: 120px;
   --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
 
-  /* Zoom rail */
   --rail-height-desktop: 20vh;
   --rail-height-mobile:  12vh;
   --rail-right: clamp(12px, 2vw, 20px);
 
-  /* Corner padding (logo / HUD) */
   --corner-pad: clamp(14px, 2.4vw, 24px);
   --corner-top: calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
 
-  /* ---------- Z-LAYERS ---------- */
   --z-content: 0;
   --z-grain: 149;
   --z-blur: 150;
@@ -58,7 +51,7 @@
   --z-cursor: 230;
 }
 
-/* ========== BASE / RESET ========== */
+/* base */
 *{ box-sizing:border-box }
 html,body,#root{ height:100% }
 body{
@@ -68,12 +61,11 @@ body{
   -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
 }
 
-/* ========== CANVAS LAYER (WebGL) ========== */
+/* canvas */
 .canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
 .canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; }
 .canvas-wrap canvas.dragging{ cursor:grabbing }
 
-/* Optional faint debug grid behind cards */
 .fallback-grid{
   position:absolute; inset:0; z-index:var(--z-content); pointer-events:none; opacity:.06;
   background-image:
@@ -81,21 +73,39 @@ body{
     repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
 }
 
-/* ========== GLOBAL EDGE BLUR (radial) ========== */
+/* edge blur */
 .edge-blur{
   position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
   background: rgba(0,0,0,0.001);
   backdrop-filter: blur(var(--edge-blur));
   -webkit-backdrop-filter: blur(var(--edge-blur));
-  mask: radial-gradient(90% 70% at 50% 50%,
-    transparent var(--edge-mask-i),
-    white       var(--edge-mask-o));
-  -webkit-mask: radial-gradient(90% 70% at 50% 50%,
-    transparent var(--edge-mask-i),
-    white       var(--edge-mask-o));
+  mask:
+    radial-gradient(100% 64% at 50% 50%,
+      transparent var(--edge-mask-i),
+      white       var(--edge-mask-o));
+  -webkit-mask:
+    radial-gradient(100% 64% at 50% 50%,
+      transparent var(--edge-mask-i),
+      white       var(--edge-mask-o));
+}
+.edge-blur::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background: rgba(0,0,0,0.001);
+  backdrop-filter: blur(calc(var(--edge-blur) * 1.8));
+  -webkit-backdrop-filter: blur(calc(var(--edge-blur) * 1.8));
+  mask:
+    linear-gradient(to bottom,
+      white 0%, white 12%,
+      transparent 44%, transparent 56%,
+      white 88%, white 100%);
+  -webkit-mask:
+    linear-gradient(to bottom,
+      white 0%, white 12%,
+      transparent 44%, transparent 56%,
+      white 88%, white 100%);
 }
 
-/* ========== VIGNETTE (above blur) ========== */
+/* vignette */
 .vignette{
   position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
   background:
@@ -106,14 +116,14 @@ body{
   opacity:calc(var(--vig-opacity) * var(--curve-k));
 }
 
-/* ========== SUBTLE GRAIN (over content, under effects) ========== */
+/* grain */
 body::after{
   content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
   background-size: 120px 120px;
 }
 
-/* ========== CURVED DOM AESTHETIC ========== */
+/* curved dom aesthetic */
 .curved{
   transform-style:preserve-3d;
   transform:
@@ -123,7 +133,7 @@ body::after{
   will-change:transform;
 }
 
-/* ========== HEADER / BRAND / CONTROLS (UI ABOVE EFFECTS) ========== */
+/* header */
 .header{
   position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
   display:flex; align-items:center; justify-content:space-between;
@@ -133,29 +143,27 @@ body::after{
 }
 .brand{
   display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
-  padding:2px 4px;
+  padding:4px 6px;
 }
-.brand img{ display:block; height:42px; width:auto; filter:none !important; mix-blend-mode:normal; }
+.brand img{ display:block; height:42px; width:auto; }
 
 .controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
 .icon-btn{
   appearance:none; cursor:pointer; border:0px solid var(--ink-2);
   background:rgba(0,0,0,.35); color:var(--ink);
-  padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
-  transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease;
+  padding:8px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center;
+  transition:transform .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease;
   position:relative; z-index:1;
 }
 .icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
 .icon-btn svg{ display:block; width:18px; height:18px; }
-
-/* Trash: turn red when active */
 .icon-btn.danger.active{
   color:var(--danger);
-  background:rgba(255,99,99,.14);
+  background:rgba(255,99,99,.12);
   box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
 }
 
-/* ========== ZOOM RAIL (right side) ========== */
+/* zoom rail */
 .zoom-rail{
   position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
   height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
@@ -178,35 +186,86 @@ body::after{
   .zoom-rail__tooltip{ left: -40px; }
 }
 
-/* ========== MODALS / SHEETS ========== */
-.overlay{ position:fixed; inset:72px 16px 16px 16px; z-index:var(--z-ui); display:none; pointer-events:auto; }
-.overlay.open{ display:grid; place-items:center; }
-.sheet{
-  width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
-  box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
+/* overlay as centered dialog */
+.overlay{
+  position:fixed; inset:0; z-index:var(--z-ui); display:none; pointer-events:auto;
+  background: radial-gradient(circle at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.85) 100%);
+  backdrop-filter: blur(4px);
+  align-items:center; justify-content:center;
+  padding: clamp(8px, 2vw, 18px);
 }
+.overlay.open{ display:flex; }
+.sheet{
+  width:min(96vw, 580px);
+  background: radial-gradient(circle at top, #0e0e10 0%, #040405 80%);
+  color:#f3f3f5;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  padding: clamp(12px, 2.2vw, 20px);
+  box-shadow:0 13px 48px rgba(0,0,0,.25), 0 2px 14px rgba(0,0,0,.2);
+  display:grid; grid-template-rows: auto 1fr auto; gap:10px;
+  max-height:90vh;
+}
+.titlebar{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:10px 8px 10px;
+  border-bottom:1px solid rgba(255,255,255,.03);
+  background: linear-gradient(180deg, rgba(0,0,0,.3), rgba(0,0,0,0));
+  border-radius:12px 12px 0 0;
+  margin:-4px -2px 2px;
+}
+.titlebar h2{ margin:0; font-size:14px; letter-spacing:.01em }
 .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
-.grid{ display:grid; gap:12px }
+.grid{ display:grid; gap:10px }
 .cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)) }
 .label{ font-weight:600; opacity:.9 }
-.input,.textarea{ width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit; }
+.input,.textarea{ width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:10px; padding:8px 10px; font:inherit; }
 .textarea{ min-height:96px; resize:vertical }
 .btn{
-  appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600;
-  position:relative; z-index:1;
+  appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:9px 14px; border-radius:10px; font-weight:600;
+  transition:background .12s ease, border-color .12s ease, transform .12s ease;
 }
+.btn:active{ transform:translateY(1px); }
 .btn.ghost{ background:transparent }
 .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
 .hint{ color:#c9c9cf; font-size:12px }
-.vf{ position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; }
-video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98) }
-.preview{ position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block; }
-.titlebar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px }
-.titlebar h2{ margin:0; font-size:16px }
-.tight{ gap:6px } .hidden{ display:none !important }
 .sheet :focus{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px }
 
-/* ========== FILM STRIP CHROME ========== */
+/* chrome-style container */
+.chrome-frame{
+  position:relative;
+  background:#000;
+  border-radius:14px;
+  border:1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  overflow:hidden;
+}
+
+/* viewfinder / preview in dialog */
+.vf,
+.preview {
+  position:relative;
+  width:100%;
+  max-width:520px;
+  aspect-ratio:1 / 1;
+  height:auto;
+  margin:6px auto 0;
+  background: radial-gradient(circle at top, #000 0%, #000 65%, #050505 100%);
+}
+.vf.chrome-frame,
+.preview.chrome-frame {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.vf video {
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  filter:grayscale(1) contrast(1.04) brightness(.98);
+}
 .vf::before,.vf::after{
   content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
   background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
@@ -220,8 +279,27 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
     radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
   opacity:.85;
 }
+.preview canvas,
+.preview img {
+  width:100%;
+  height:auto;
+  display:block;
+}
+.preview::before {
+  content: "preview • intoview";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 26px;
+  background: linear-gradient(180deg, rgba(0,0,0,.8), rgba(0,0,0,0));
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  font: 600 11px/26px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  padding: 0 10px;
+  letter-spacing: .02em;
+  color: #f0f0f0;
+  z-index: 3;
+}
 
-/* ========== LEVELER ========== */
+/* leveler */
 .leveler{
   position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
   width:min(260px, 72%); height:30px; border-radius:999px;
@@ -237,7 +315,7 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
 .leveler .deg{
   position:absolute; right:8px; top:50%; transform:translateY(-50%);
   font:600 12px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color:#cfcfcf; text-shadow:0 1px 1px rgba(0,0,0,.5);
+  color:#cfcfcf;
 }
 .leveler.good .vial{ outline:2px solid rgba(120,255,120,.35); outline-offset:-2px; }
 .leveler .enable{
@@ -247,7 +325,7 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
   color:#fff; font-weight:600; font-size:12px; border-radius:inherit; cursor:pointer; border:1px solid #2a2a2e;
 }
 
-/* ========== FAB (UI ABOVE EFFECTS) ========== */
+/* fab */
 .fab-wrap{
   position:fixed; left:50%; bottom: var(--fab-bottom); transform: translateX(-50%);
   z-index:var(--z-ui); display:flex; flex-direction:column; align-items:center;
@@ -255,60 +333,52 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
 .fab{
   position:relative;
   width:var(--fab-size); height:var(--fab-size); border-radius:999px;
-  background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
+  background:none; color:#fff; border:0px solid rgba(255,255,255,.14);
   display:flex; align-items:center; justify-content:center; cursor:pointer;
   box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
-  transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
-  padding:0;
+  transition:background .15s ease, color .15s ease, transform .1s ease;
 }
-.fab:focus-visible{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px; }
-.fab:active{ transform:translateY(1px) }
-.fab:hover{ background:rgba(255,255,255,.10); border-color:rgb(255 255 255 / .22); }
+.fab:hover{ background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.22); }
 .fab svg{ width:58%; height:auto; display:block }
-/* REVERT cube states: keep both faces visible, no hover swap */
-.fab .cube--light,
-.fab .cube--dark{ display:inline; }
-.fab:hover .cube--light,
-.fab:hover .cube--dark{ display:inline; }
-
-/* Label INSIDE the FAB */
 .fab-text{
   position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
   font:600 11px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color:#fff; opacity:.9; letter-spacing:.02em; text-shadow:0 1px 2px rgba(0,0,0,.55);
+  color:#fff; opacity:.9;
 }
 
-/* Larger FAB on mobile */
 @media (max-width:768px){
   :root{
     --fab-size: 128px;
     --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
   }
+  .sheet{
+    width:min(98vw, 480px);
+  }
 }
 
-/* ========== HUD CORNERS (coords & version) ========== */
+/* HUD */
 .hud{
-  position:fixed; bottom:calc(env(safe-area-inset-bottom) + 6px);
+  position:fixed; bottom:calc(env(safe-area-inset-bottom) + 10px);
   z-index:var(--z-ui); pointer-events:none;
   font:600 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color:#c9c9cf; opacity:.9; text-shadow:0 1px 2px rgba(0,0,0,.6);
+  color:#c9c9cf; opacity:.9;
 }
 .hud-left{ left: var(--corner-pad); }
 .hud-right{ right: var(--corner-pad); }
 
-/* ========== REDUCED MOTION ========== */
+/* reduced motion */
 @media (prefers-reduced-motion: reduce){
   .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
 }
 
-/* ========== GOOEY CURSOR (desktop only) ========== */
+/* gooey cursor */
 #cursor{
   position:fixed; top: calc(var(--cursor-size) * -0.5); left: calc(var(--cursor-size) * -0.5);
   pointer-events:none; filter:url(#goo); mix-blend-mode:difference; z-index:var(--z-cursor);
 }
 .cursor-circle{
   position:absolute; top:0; left:0; width:var(--cursor-size); height:var(--cursor-size);
-  border-radius:999px; background:#fff; transform-origin:center center;
+  border-radius:999px; background:#fff;
 }
 .goo{ display:none; }
 @media (pointer: coarse){ #cursor{ display:none; } }
@@ -328,26 +398,19 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
       </defs>
     </svg>
 
-    <!-- Gooey cursor host -->
     <div id="cursor" aria-hidden="true"></div>
 
     <div id="root"></div>
 
-    <!-- HUD corners -->
-    <div class="hud hud-left">v2.1.1</div>
-    <div class="hud hud-right" id="coordsHud">x 0 • y 0</div>
+    <div class="hud hud-left">v2.3.0</div>
+    <div class="hud hud-right" id="coordsMount">x 0 • y 0</div>
 
     <script type="module">
-/* React + Three deps */
 import React,{useEffect,useMemo,useRef,useState,Suspense} from "https://esm.sh/react@18.3.1";
 import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 import * as THREE from "https://esm.sh/three@0.160.1";
 import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
 import gsap from "https://esm.sh/gsap@3.12.5";
-import { EffectComposer } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js";
-import { ShaderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js";
-import { OutputPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js";
 
 /* ========= Seed images ========= */
 const FAKE=(i)=>[
@@ -355,59 +418,66 @@ const FAKE=(i)=>[
   "Quiet geometry.","Edge of focus.","A walk-by frame.","Study in contrast.","Moment, observed."
 ][i%10];
 
-const SEED=[{src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:FAKE(0)},
-{src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp',title:'wmzWGlaw',caption:FAKE(1)},
-{src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp',title:'IMG-8403',caption:FAKE(2)},
-{src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp',title:'DSC08656',caption:FAKE(3)},
-{src:'https://i.ibb.co/bMJNnQtg/DSC08604.webp',title:'DSC08604',caption:FAKE(4)},
-{src:'https://i.ibb.co/qLWQC0cN/DSC08358.webp',title:'DSC08358',caption:FAKE(5)},
-{src:'https://i.ibb.co/rRdNxC5g/DSC08300.webp',title:'DSC08300',caption:FAKE(6)},
-{src:'https://i.ibb.co/MD923R2f/DSC08254.webp',title:'DSC08254',caption:FAKE(7)},
-{src:'https://i.ibb.co/TBtrSYKc/DSC08233.webp',title:'DSC08233',caption:FAKE(8)},
-{src:'https://i.ibb.co/23QsQrCG/DSC05954.webp',title:'DSC05954',caption:FAKE(9)},
-{src:'https://i.ibb.co/ym1z1pyb/DSC05994.webp',title:'DSC05994',caption:FAKE(10)},
-{src:'https://i.ibb.co/bjMXB8HJ/2328964849369731672-5144774570.webp',title:'2328964849…4570',caption:FAKE(11)},
-{src:'https://i.ibb.co/fd1SDQQs/2399506735674938043-5144774570.webp',title:'2399506735…4570',caption:FAKE(12)},
-{src:'https://i.ibb.co/0pNWKFbk/2319420263505008414-5144774570.webp',title:'2319420263…4570',caption:FAKE(13)},
-{src:'https://i.ibb.co/WvW71PR3/2288089293770285108-5144774570.webp',title:'2288089293…4570',caption:FAKE(14)},
-{src:'https://i.ibb.co/1YyFqBj3/2278120764300123596-5144774570.webp',title:'2278120764…4570',caption:FAKE(15)},
-{src:'https://i.ibb.co/99B3hgp3/2274809041971350857-5144774570.webp',title:'2274809041…4570',caption:FAKE(16)},
-{src:'https://i.ibb.co/HpnrrYMR/2269419019461331921-5144774570.webp',title:'2269419019…4570',caption:FAKE(17)},
-{src:'https://i.ibb.co/6Rqf37ft/6039d4bbb15be328fc33b54d-IMG-6478.webp',title:'IMG-6478',caption:FAKE(18)},
-{src:'https://i.ibb.co/BKv7177j/603d6216612acc7c7e54bef2-IMG-1158.webp',title:'IMG-1158',caption:FAKE(19)},
-{src:'https://i.ibb.co/k2svMNFv/603d10120fba838e599b6b5e-IMG-1563.webp',title:'IMG-1563',caption:FAKE(20)},
-{src:'https://i.ibb.co/WNtnFQqP/603d1185cafcb2591f42b1ad-IMG-3932.webp',title:'IMG-3932',caption:FAKE(21)},
-{src:'https://i.ibb.co/pvFThr4K/603d1185b8ec32082f451ba9-IMG-3882.webp',title:'IMG-3882',caption:FAKE(22)},
-{src:'https://i.ibb.co/QFKMY1sH/603d138e1d5ed053b509992a-IMG-5199.webp',title:'IMG-5199',caption:FAKE(23)},
-{src:'https://i.ibb.co/N2cSNMf4/603d102d9f59a611886a6893-IMG-2151.webp',title:'IMG-2151',caption:FAKE(24)},
-{src:'https://i.ibb.co/KjzkkW68/603d102d0f02c70fdf7d84eb-IMG-4696.webp',title:'IMG-4696',caption:FAKE(25)},
-{src:'https://i.ibb.co/DPyhP1T7/603d100d889053cc334ee5fc-IMG-2083.webp',title:'IMG-2083',caption:FAKE(26)},
-{src:'https://i.ibb.co/Fbr1sSb6/603d8d7a3a6df470a4a661a1-DSC00726.webp',title:'DSC00726',caption:FAKE(27)},
-{src:'https://i.ibb.co/5gddKNw3/603d0bb2331da47ee88db089-DSC02085.webp',title:'DSC02085',caption:FAKE(28)},
-{src:'https://i.ibb.co/9HZMK0nw/603d0b8b038105ae6904872a-DSC08334.webp',title:'DSC08334',caption:FAKE(29)},
-{src:'https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp',title:'DSC08281',caption:FAKE(30)},
-{src:'https://i.ibb.co/QvHqKh2P/603afe37ba16f8f9174cf501-IMG-1878.webp',title:'IMG-1878',caption:FAKE(31)},
-{src:'https://i.ibb.co/m5sNTvYX/603a967916b10d5bef5a6dd8-ZAX02712-1.webp',title:'ZAX02712-1',caption:FAKE(32)},
-{src:'https://i.ibb.co/rR91Q0Z4/603a967ad03490104c2aaefe-ZAX01042-2.webp',title:'ZAX01042-2',caption:FAKE(33)},
-{src:'https://i.ibb.co/tpK7LjSv/603a967ac64cec73069e2454-ZAX09877.webp',title:'ZAX09877',caption:FAKE(34)},
-{src:'https://i.ibb.co/Kph6fp3M/603a967a6a41f4d56ca33b1a-ZAX00794.webp',title:'ZAX00794',caption:FAKE(35)},
-{src:'https://i.ibb.co/0yjJ4j8L/603a967a5dc3e982f571b744-ZAX00968.webp',title:'ZAX00968',caption:FAKE(36)},
-{src:'https://i.ibb.co/zWBgb5Sj/603a95ee83ba30ff4ac9bc6a-DSC00423-1.webp',title:'DSC00423-1',caption:FAKE(37)},
-{src:'https://i.ibb.co/fdT1YyzJ/603a95edd03490eb412aaedc-DSC08676.webp',title:'DSC08676',caption:FAKE(38)},
-{src:'https://i.ibb.co/FLS6ZdgN/603a95ed29478f4bc91875b5-DSC08933.webp',title:'DSC08933',caption:FAKE(39)},
-{src:'https://i.ibb.co/5Xr0MDSw/603a93f06a41f45766a3361a-DSC09212.webp',title:'DSC09212',caption:FAKE(40)},
-{src:'https://i.ibb.co/wNFR8hJR/603a93f1d03490ae9d2aa64a-IMG-3824.webp',title:'IMG-3824',caption:FAKE(41)},
-{src:'https://i.ibb.co/39wDDcbS/603a93f0e815e830d1783e07-IMG-2033.webp',title:'IMG-2033',caption:FAKE(42)},
-{src:'https://i.ibb.co/VcxChJB1/603a93eef8754819192222f7-DSC09720.webp',title:'DSC09720',caption:FAKE(43)},
-{src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp',title:'ZAX09767',caption:FAKE(44)}];
+const SEED=[
+  {src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:FAKE(0)},
+  {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp',title:'wmzWGlaw',caption:FAKE(1)},
+  {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp',title:'IMG-8403',caption:FAKE(2)},
+  {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp',title:'DSC08656',caption:FAKE(3)},
+  {src:'https://i.ibb.co/bMJNnQtg/DSC08604.webp',title:'DSC08604',caption:FAKE(4)},
+  {src:'https://i.ibb.co/qLWQC0cN/DSC08358.webp',title:'DSC08358',caption:FAKE(5)},
+  {src:'https://i.ibb.co/rRdNxC5g/DSC08300.webp',title:'DSC08300',caption:FAKE(6)},
+  {src:'https://i.ibb.co/MD923R2f/DSC08254.webp',title:'DSC08254',caption:FAKE(7)},
+  {src:'https://i.ibb.co/TBtrSYKc/DSC08233.webp',title:'DSC08233',caption:FAKE(8)},
+  {src:'https://i.ibb.co/23QsQrCG/DSC05954.webp',title:'DSC05954',caption:FAKE(9)},
+  {src:'https://i.ibb.co/ym1z1pyb/DSC05994.webp',title:'DSC05994',caption:FAKE(10)},
+  {src:'https://i.ibb.co/bjMXB8HJ/2328964849369731672-5144774570.webp',title:'2328964849…4570',caption:FAKE(11)},
+  {src:'https://i.ibb.co/fd1SDQQs/2399506735674938043-5144774570.webp',title:'2399506735…4570',caption:FAKE(12)},
+  {src:'https://i.ibb.co/0pNWKFbk/2319420263505008414-5144774570.webp',title:'2319420263…4570',caption:FAKE(13)},
+  {src:'https://i.ibb.co/WvW71PR3/2288089293770285108-5144774570.webp',title:'2288089293…4570',caption:FAKE(14)},
+  {src:'https://i.ibb.co/1YyFqBj3/2278120764300123596-5144774570.webp',title:'2278120764…4570',caption:FAKE(15)},
+  {src:'https://i.ibb.co/99B3hgp3/2274809041971350857-5144774570.webp',title:'2274809041…4570',caption:FAKE(16)},
+  {src:'https://i.ibb.co/HpnrrYMR/2269419019461331921-5144774570.webp',title:'2269419019…4570',caption:FAKE(17)},
+  {src:'https://i.ibb.co/6Rqf37ft/6039d4bbb15be328fc33b54d-IMG-6478.webp',title:'IMG-6478',caption:FAKE(18)},
+  {src:'https://i.ibb.co/BKv7177j/603d6216612acc7c7e54bef2-IMG-1158.webp',title:'IMG-1158',caption:FAKE(19)},
+  {src:'https://i.ibb.co/k2svMNFv/603d10120fba838e599b6b5e-IMG-1563.webp',title:'IMG-1563',caption:FAKE(20)},
+  {src:'https://i.ibb.co/WNtnFQqP/603d1185cafcb2591f42b1ad-IMG-3932.webp',title:'IMG-3932',caption:FAKE(21)},
+  {src:'https://i.ibb.co/pvFThr4K/603d1185b8ec32082f451ba9-IMG-3882.webp',title:'IMG-3882',caption:FAKE(22)},
+  {src:'https://i.ibb.co/QFKMY1sH/603d138e1d5ed053b509992a-IMG-5199.webp',title:'IMG-5199',caption:FAKE(23)},
+  {src:'https://i.ibb.co/N2cSNMf4/603d102d9f59a611886a6893-IMG-2151.webp',title:'IMG-2151',caption:FAKE(24)},
+  {src:'https://i.ibb.co/KjzkkW68/603d102d0f02c70fdf7d84eb-IMG-4696.webp',title:'IMG-4696',caption:FAKE(25)},
+  {src:'https://i.ibb.co/DPyhP1T7/603d100d889053cc334ee5fc-IMG-2083.webp',title:'IMG-2083',caption:FAKE(26)},
+  {src:'https://i.ibb.co/Fbr1sSb6/603d8d7a3a6df470a4a661a1-DSC00726.webp',title:'DSC00726',caption:FAKE(27)},
+  {src:'https://i.ibb.co/5gddKNw3/603d0bb2331da47ee88db089-DSC02085.webp',title:'DSC02085',caption:FAKE(28)},
+  {src:'https://i.ibb.co/9HZMK0nw/603d0b8b038105ae6904872a-DSC08334.webp',title:'DSC08334',caption:FAKE(29)},
+  {src:'https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp',title:'DSC08281',caption:FAKE(30)},
+  {src:'https://i.ibb.co/QvHqKh2P/603afe37ba16f8f9174cf501-IMG-1878.webp',title:'IMG-1878',caption:FAKE(31)},
+  {src:'https://i.ibb.co/m5sNTvYX/603a967916b10d5bef5a6dd8-ZAX02712-1.webp',title:'ZAX02712-1',caption:FAKE(32)},
+  {src:'https://i.ibb.co/rR91Q0Z4/603a967ad03490104c2aaefe-ZAX01042-2.webp',title:'ZAX01042-2',caption:FAKE(33)},
+  {src:'https://i.ibb.co/tpK7LjSv/603a967ac64cec73069e2454-ZAX09877.webp',title:'ZAX09877',caption:FAKE(34)},
+  {src:'https://i.ibb.co/Kph6fp3M/603a967a6a41f4d56ca33b1a-ZAX00794.webp',title:'ZAX00794',caption:FAKE(35)},
+  {src:'https://i.ibb.co/0yjJ4j8L/603a967a5dc3e982f571b744-ZAX00968.webp',title:'ZAX00968',caption:FAKE(36)},
+  {src:'https://i.ibb.co/zWBgb5Sj/603a95ee83ba30ff4ac9bc6a-DSC00423-1.webp',title:'DSC00423-1',caption:FAKE(37)},
+  {src:'https://i.ibb.co/fdT1YyzJ/603a95edd03490eb412aaedc-DSC08676.webp',title:'DSC08676',caption:FAKE(38)},
+  {src:'https://i.ibb.co/FLS6ZdgN/603a95ed29478f4bc91875b5-DSC08933.webp',title:'DSC08933',caption:FAKE(39)},
+  {src:'https://i.ibb.co/5Xr0MDSw/603a93f06a41f45766a3361a-DSC09212.webp',title:'DSC09212',caption:FAKE(40)},
+  {src:'https://i.ibb.co/wNFR8hJR/603a93f1d03490ae9d2aa64a-IMG-3824.webp',title:'IMG-3824',caption:FAKE(41)},
+  {src:'https://i.ibb.co/39wDDcbS/603a93f0e815e830d1783e07-IMG-2033.webp',title:'IMG-2033',caption:FAKE(42)},
+  {src:'https://i.ibb.co/VcxChJB1/603a93eef8754819192222f7-DSC09720.webp',title:'DSC09720',caption:FAKE(43)},
+  {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp',title:'ZAX09767',caption:FAKE(44)}
+];
 
 /* ========= Config ========= */
 const STORAGE_KEY="intoview_archive_cards_v6";
-const CONFIG={ cols:10, rows:7, tile:0.32, gap:0.08, ambient:0.20, dragEase:0.14, velEase:0.92, zoomOut:1.85,
+const CONFIG={
+  cols:10, rows:7, tile:0.32, gap:0.08, ambient:0.20, dragEase:0.14, velEase:0.92, zoomOut:1.85,
   distortion:{ flat:0.0, curved:0.46 },
   clickBounceDelta:0.25, longPressMsMouse:380, longPressMsTouch:520, clickMovePx:6, clickMovePxTouch:12,
   dragMultMouse:6.0, dragMultTouch:4.0, touchDragEase:0.18,
-  zoomMin:0.45, zoomMax:3.00, wheelScale:0.0015 };
+  zoomMin:0.45, zoomMax:3.00, wheelScale:0.0015,
+  boundSlack: 0.6,
+  rubber:     0.33,
+  magnet:     0.12
+};
 
 /* ========= Utilities ========= */
 const TEX_SIZE=768, HAIR=1, BAR_H=28, PAD=12, CAP_SIZE=18, TITLE_SIZE=20;
@@ -420,30 +490,91 @@ function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1
 function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
   img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
 function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
-/* FIX: avoid undefined 's' usage */
 function coverImage(ctx,img,x,y,w,h){
   const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
-  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(0,0,s,s); return; }
+  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
   const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
   if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
   ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
+  ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(x,y,w,h);
 }
-function drawCameraIcon(ctx,cx,cy,s=44){ ctx.save(); ctx.translate(cx,cy); ctx.strokeStyle="#fff"; ctx.lineWidth=1.5; ctx.lineCap="round"; ctx.lineJoin="round";
-  const w=s*1.6,h=s*1.0; ctx.beginPath(); ctx.rect(-w/2,-h/2,w,h); ctx.stroke(); ctx.beginPath(); ctx.arc(0,0,s*0.35,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(w*0.25,-h*0.45); ctx.lineTo(w*0.45,-h*0.45); ctx.stroke(); ctx.restore(); }
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, rr);
+  ctx.arcTo(x+w, y+h, x,   y+h, rr);
+  ctx.arcTo(x,   y+h, x,   y,   rr);
+  ctx.arcTo(x,   y,   x+w, y,   rr);
+  ctx.closePath();
+}
+function drawChromeBezel(ctx, s, opts={}) {
+  const w = Math.max(4, opts.width ?? 1);
+  const r = Math.min(12, opts.radius ?? 4);
+
+  ctx.save();
+  ctx.translate(0.5, 0.5);
+
+  const grad = ctx.createLinearGradient(0, 0, 0, s);
+  grad.addColorStop(0.00, "rgba(255,255,255,0.95)");
+  grad.addColorStop(0.15, "rgba(210,210,210,0.78)");
+  grad.addColorStop(0.50, "rgba(242,242,242,0.95)");
+  grad.addColorStop(0.85, "rgba(210,210,210,0.78)");
+  grad.addColorStop(1.00, "rgba(255,255,255,0.95)");
+
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = w;
+  ctx.lineJoin  = "round";
+  ctx.lineCap   = "round";
+  roundRect(ctx, w/2, w/2, s - w, s - w, r);
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+  ctx.lineWidth = 1;
+  roundRect(ctx, w + 0.5, w + 0.5, s - 2*w - 1, s - 2*w - 1, Math.max(2, r - 2));
+  ctx.stroke();
+
+  ctx.globalCompositeOperation = "lighter";
+  const specTL = ctx.createRadialGradient(w+9, w+9, 0, w+9, w+9, 32);
+  specTL.addColorStop(0,"rgba(255,255,255,0.35)");
+  specTL.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.fillStyle = specTL; ctx.beginPath(); ctx.arc(w+9, w+9, 32, 0, Math.PI*2); ctx.fill();
+
+  const specBR = ctx.createRadialGradient(s-w-12, s-w-12, 0, s-w-12, s-w-12, 38);
+  specBR.addColorStop(0,"rgba(255,255,255,0.28)");
+  specBR.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.fillStyle = specBR; ctx.beginPath(); ctx.arc(s-w-12, s-w-12, 38, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
 function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=nowTS()}) {
   const s=TEX_SIZE, c=document.createElement("canvas"); c.width=s; c.height=s; const ctx=c.getContext("2d");
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,s); ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.strokeRect(0.5,0.5,s-1,s-1);
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H); ctx.font=`600 ${TITLE_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,s);
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H);
+  ctx.font=`600 ${TITLE_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
   ctx.fillText(title, PAD, Math.floor((BAR_H-TITLE_SIZE)/2));
-  if(gps){ ctx.font=`500 12px ${MONO}`; ctx.textBaseline="middle"; ctx.textAlign="right"; ctx.fillStyle="#cfcfcf"; ctx.fillText(gps, s-PAD, BAR_H/2); ctx.textAlign="left"; }
+  if(gps){
+    ctx.font=`500 12px ${MONO}`; ctx.textBaseline="middle"; ctx.textAlign="right"; ctx.fillStyle="#cfcfcf";
+    ctx.fillText(gps, s-PAD, BAR_H/2); ctx.textAlign="left";
+  }
   drawHair(ctx,0,BAR_H,s);
   const imgTop=BAR_H+HAIR, imgH=s-imgTop-(BAR_H+HAIR);
-  if(img){ coverImage(ctx,img,0,imgTop,s,imgH); ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(0, imgTop, s, imgH); }
-  else{ ctx.fillStyle="#111"; ctx.fillRect(0,imgTop,s,imgH); drawCameraIcon(ctx,s/2,imgTop+imgH/2,40); }
+  if(img){ coverImage(ctx,img,0,imgTop,s,imgH); }
+  else{
+    ctx.fillStyle="#111"; ctx.fillRect(0,imgTop,s,imgH);
+    ctx.save(); ctx.strokeStyle="#fff"; ctx.lineWidth=1.5; ctx.lineCap="round"; ctx.lineJoin="round";
+    const cx=s/2, cy=imgTop+imgH/2, ss=44, w=ss*1.6, h=ss*1.0;
+    ctx.strokeRect(cx-w/2, cy-h/2, w, h);
+    ctx.beginPath(); ctx.arc(cx, cy, ss*0.35, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx+w*0.25, cy-h*0.45); ctx.lineTo(cx+w*0.45, cy-h*0.45); ctx.stroke();
+    ctx.restore();
+  }
   drawHair(ctx,0,s-BAR_H-HAIR,s);
-  ctx.fillStyle="#000"; ctx.fillRect(0,s-BAR_H,s,BAR_H); ctx.font=`500 ${CAP_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
-  ctx.fillText(caption, PAD, s-BAR_H/2); ctx.font=`500 12px ${MONO}`; ctx.fillStyle="#cfcfcf"; ctx.textAlign="right"; ctx.fillText(ts, s-PAD, s-BAR_H/2);
+  ctx.fillStyle="#000"; ctx.fillRect(0,s-BAR_H,s,BAR_H);
+  ctx.font=`500 ${CAP_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
+  ctx.fillText(caption, PAD, s-BAR_H/2);
+  ctx.font=`500 12px ${MONO}`; ctx.fillStyle="#cfcfcf"; ctx.textAlign="right"; ctx.fillText(ts, s-PAD, s-BAR_H/2);
+  drawChromeBezel(ctx, s, { width: 1, radius: 0 });
   return c;
 }
 function makeCardTextureFromCanvas(cnv){ const tex=new THREE.CanvasTexture(cnv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; }
@@ -468,7 +599,7 @@ async function buildRowMajorTextures(items,totalTiles){
   return texs;
 }
 
-/* ========= Post shader (distortion only) ========= */
+/* ========= Post shader ========= */
 class DistortionShader extends THREE.ShaderMaterial{
   constructor(){ super({
     name:"DistortionShader",
@@ -483,52 +614,108 @@ class DistortionShader extends THREE.ShaderMaterial{
   setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
 }
 
-/* ========= Bracket overlay ========= */
+/* ========= Bracket overlay (slightly inset) ========= */
 function BracketOverlay(){
   const { scene, size } = useThree();
   const matRef = useRef(null);
+
   useEffect(()=>{
     const geom = new THREE.PlaneGeometry(2,2);
     const mat = new THREE.ShaderMaterial({
       name:"BracketOverlay",
-      transparent:true, depthTest:false, depthWrite:false,
+      transparent:true,
+      depthTest:false,
+      depthWrite:false,
       uniforms:{
         resolution:{ value:new THREE.Vector2(size.width, size.height) },
-        thickness:{ value: 2.0 }, length:{ value: 54.0 }, margin:{ value: 22.0 }, opacity:{ value: 0.95 }
+        thickness:{ value: 4.0 },
+        length:{ value: 84.0 },
+        margin:{ value: 52.0 },   // was 22 — now just slightly inset
+        opacity:{ value: 0.95 }
       },
-      vertexShader: `varying vec2 vUv; void main(){ vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
-      fragmentShader: `
-        precision highp float; varying vec2 vUv; uniform vec2 resolution; uniform float thickness,length,margin,opacity;
-        float inRect(vec2 p, vec2 mn, vec2 mx){ vec2 s = step(mn, p) * step(p, mx); return s.x * s.y; }
+      vertexShader: `varying vec2 vUv;
         void main(){
-          vec2 p = vUv * resolution; float th = thickness, L = length, m = margin;
-          vec2 tl = vec2(m,            resolution.y - m);
+          vUv = position.xy * 0.5 + 0.5;
+          gl_Position = vec4(position.xy, 0.0, 1.0);
+        }`,
+      fragmentShader: `
+        precision highp float;
+        varying vec2 vUv;
+        uniform vec2 resolution;
+        uniform float thickness, length, margin, opacity;
+
+        float inRect(vec2 p, vec2 mn, vec2 mx){
+          vec2 s = step(mn, p) * step(p, mx);
+          return s.x * s.y;
+        }
+
+        void main(){
+          vec2 p = vUv * resolution;
+          float th = thickness;
+          float L  = length;
+          float m  = margin;
+
+          vec2 tl = vec2(m,             resolution.y - m);
           vec2 tr = vec2(resolution.x - m, resolution.y - m);
-          vec2 bl = vec2(m,                 m);
+          vec2 bl = vec2(m,             m);
           vec2 br = vec2(resolution.x - m,  m);
+
           float a = 0.0;
+          // top-left
           a = max(a, inRect(p, vec2(tl.x,          tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
           a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L),      vec2(tl.x + th*0.5, tl.y)));
+          // top-right
           a = max(a, inRect(p, vec2(tr.x - L,      tr.y - th*0.5), vec2(tr.x,        tr.y + th*0.5)));
           a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L),      vec2(tr.x + th*0.5, tr.y)));
+          // bottom-left
           a = max(a, inRect(p, vec2(bl.x,          bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
           a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y),          vec2(bl.x + th*0.5, bl.y + L)));
+          // bottom-right
           a = max(a, inRect(p, vec2(br.x - L,      br.y - th*0.5), vec2(br.x,        br.y + th*0.5)));
           a = max(a, inRect(p, vec2(br.x - th*0.5, br.y),          vec2(br.x + th*0.5, br.y + L)));
-          if(a <= 0.0) discard; gl_FragColor = vec4(vec3(1.0), a * opacity);
-        }`
+
+          if(a <= 0.0) discard;
+          gl_FragColor = vec4(vec3(1.0), a * opacity);
+        }
+      `
     });
     mat.toneMapped = false;
+
     const mesh = new THREE.Mesh(geom, mat);
-    mesh.frustumCulled = false; mesh.renderOrder = 999;
-    scene.add(mesh); matRef.current = mat;
-    return ()=>{ scene.remove(mesh); geom.dispose(); mat.dispose(); matRef.current=null; };
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 999;
+    scene.add(mesh);
+    matRef.current = mat;
+
+    return ()=>{
+      scene.remove(mesh);
+      geom.dispose();
+      mat.dispose();
+      matRef.current = null;
+    };
   },[scene]);
-  useEffect(()=>{ if(matRef.current){ matRef.current.uniforms.resolution.value.set(size.width, size.height); } },[size.width, size.height]);
+
+  useEffect(()=>{
+    if(!matRef.current) return;
+
+    matRef.current.uniforms.resolution.value.set(size.width, size.height);
+    matRef.current.uniforms.margin.value = 52.0;  // keep slight inset
+    matRef.current.uniforms.opacity.value = 0.95;
+
+    const W = size.width;
+    const desktop = W >= 1024;
+    const tablet  = W >= 768 && W < 1024;
+    const th = desktop ? 3.25 : (tablet ? 2.7 : 2.0);
+    const L  = desktop ? 72.0 : (tablet ? 62.0 : 54.0);
+    matRef.current.uniforms.thickness.value = th;
+    matRef.current.uniforms.length.value = L;
+  },[size.width, size.height]);
+
   return null;
 }
 
-/* ========= Grid with hover bg + zoom ========= */
+
+/* ========= Grid (full, from original) ========= */
 class Grid extends THREE.Group{
   constructor(canvas,camera,opts){ super();
     this.canvas=canvas; this.camera=camera; this.opts=opts;
@@ -584,6 +771,10 @@ class Grid extends THREE.Group{
     this.groups.forEach(g=>this.remove(g));
     this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[];
 
+    /* NEW: content half extents (include half-tile) */
+    this.contentHalfW = sizeX/2 + tile/2;
+    this.contentHalfH = sizeY/2 + tile/2;
+
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols;c++){
         const x = c*stepX - sizeX/2;
@@ -592,12 +783,11 @@ class Grid extends THREE.Group{
         const group=new THREE.Group();
         group.position.set(x,y,0);
 
-        // Hover background (semi-transparent, behind note)
         const bgMat=new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
         const bgMesh=new THREE.Mesh(this.bgGeom,bgMat);
         bgMesh.position.set(0,0,-0.0005);
 
-        const imgMat=new THREE.MeshBasicMaterial({ color:0xffffff }); // map set later
+        const imgMat=new THREE.MeshBasicMaterial({ color:0xffffff });
         const imgMesh=new THREE.Mesh(this.tileGeom,imgMat);
 
         group.add(bgMesh); group.add(imgMesh);
@@ -771,16 +961,59 @@ class Grid extends THREE.Group{
     }
   }
 
+  _rubberClamp(value, min, max, k = CONFIG.rubber){
+    if (value < min) return min + (value - min) * k;
+    if (value > max) return max + (value - max) * k;
+    return value;
+  }
+  _visibleWorldWH(){
+    const z   = this.camera.position.z;
+    const fov = this.camera.fov * Math.PI/180;
+    const visH = 2 * Math.tan(fov/2) * z;
+    const visW = visH * (this.viewW / this.viewH);
+    return { visW, visH };
+  }
+  _computeBounds(){
+    const { visW, visH } = this._visibleWorldWH();
+    const slack = CONFIG.boundSlack;
+
+    const tooWide  = visW >= this.contentHalfW * 2 + slack * 2;
+    const tooTall  = visH >= this.contentHalfH * 2 + slack * 2;
+
+    const minX = tooWide ? 0 : ( visW/2 - this.contentHalfW - slack );
+    const maxX = tooWide ? 0 : ( this.contentHalfW + slack - visW/2 );
+    const minY = tooTall ? 0 : ( visH/2 - this.contentHalfH - slack );
+    const maxY = tooTall ? 0 : ( this.contentHalfH + slack - visH/2 );
+
+    return { minX, maxX, minY, maxY };
+  }
+
   update(){
     const cursorOffset=this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
+
     if(!this.isPointerDown && !this.manageMode){
       this.offset.add(this.velocity.clone().multiplyScalar(5));
       this.velocity.multiplyScalar(this.opts.velEase);
     }
+
     const tx=this.offset.x+cursorOffset.x, ty=this.offset.y-cursorOffset.y;
+
+    const { minX, maxX, minY, maxY } = this._computeBounds();
+
     const ease = this.currentDragEase || this.opts.dragEase;
-    this.position.x += (tx-this.position.x) * ease;
-    this.position.y += (ty-this.position.y) * ease;
+    const txSoft = this._rubberClamp(tx, minX, maxX);
+    const tySoft = this._rubberClamp(ty, minY, maxY);
+
+    this.position.x += (txSoft - this.position.x) * ease;
+    this.position.y += (tySoft - this.position.y) * ease;
+
+    if (!this.isPointerDown) {
+      const clampX = Math.min(Math.max(this.offset.x, minX), maxX);
+      const clampY = Math.min(Math.max(this.offset.y, minY), maxY);
+      const k = CONFIG.magnet;
+      this.offset.x += (clampX - this.offset.x) * k;
+      this.offset.y += (clampY - this.offset.y) * k;
+    }
 
     const z = this.camera.position.z;
     if (Math.abs(z - (this._lastZ ?? z)) > 1e-3) {
@@ -795,33 +1028,55 @@ class Grid extends THREE.Group{
 /* ========= Postprocessing ========= */
 function Postprocessing({ workgridState }){
   const { gl, scene, camera, size } = useThree();
+  const [mods, setMods] = useState(null);
+
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      try{
+        const [{ EffectComposer }, { RenderPass }, { ShaderPass }, { OutputPass }] = await Promise.all([
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js"),
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js"),
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js"),
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js"),
+        ]);
+        if(!cancelled) setMods({ EffectComposer, RenderPass, ShaderPass, OutputPass });
+      }catch(e){ console.warn("Post FX unavailable", e); }
+    })();
+    return ()=>{ cancelled=true; };
+  },[]);
+
   const { composer, shader } = useMemo(()=>{
+    if(!mods) return { composer:null, shader:null };
     try{
-      const renderPass=new RenderPass(scene,camera);
+      const renderPass=new mods.RenderPass(scene,camera);
       const shader=new DistortionShader();
-      const shaderPass=new ShaderPass(shader);
-      const outputPass=new OutputPass();
-      const composer=new EffectComposer(gl);
+      const shaderPass=new mods.ShaderPass(shader);
+      const outputPass=new mods.OutputPass();
+      const composer=new mods.EffectComposer(gl);
       composer.addPass(renderPass); composer.addPass(shaderPass); composer.addPass(outputPass);
       return { composer, shader };
     }catch(e){ console.warn("Composer init failed",e); return { composer:null, shader:null }; }
-  },[gl,scene,camera]);
+  },[mods, gl, scene, camera]);
+
   useEffect(()=>{ if(!composer||!shader) return;
     const dpr=Math.min(2, gl.getPixelRatio?.()||1.5);
     composer.setPixelRatio?.(dpr);
     composer.setSize(size.width, size.height);
     shader.update();
   },[composer,shader,size,gl]);
+
   useEffect(()=>{ if(!shader) return;
     const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
     const scale = size.width < 800 ? 0.75 : 1.0;
     shader.setDistortion(base * scale);
   },[workgridState,shader,size.width]);
+
   useFrame(()=>{ composer?.render(); }, 1);
   return null;
 }
 
-/* ========= Primitive wrapper ========= */
+/* ========= Primitive ========= */
 function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect, onTileClick, onZoomChange, controllerRef }){
   const { gl, camera, size } = useThree();
   const grid = useMemo(()=> new Grid(gl.domElement, camera, {
@@ -837,8 +1092,7 @@ function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect,
   useEffect(()=>{ grid.onZoomChange = (z)=> onZoomChange?.(z); return ()=>{ grid.onZoomChange=null; }; },[grid,onZoomChange]);
   useEffect(()=>{ if(workgridState==="RESET") grid.resetPosition(); },[workgridState,grid]);
 
-  useEffect(()=>{
-    if(!controllerRef) return;
+  useEffect(()=>{ if(!controllerRef) return;
     controllerRef.current = {
       setZoom: (z) => {
         const clamped = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z));
@@ -868,39 +1122,11 @@ function GridView(props){
   );
 }
 
-/* ========= Help overlay ========= */
-function HelpOverlay({ open, onClose }){
-  if(!open) return null;
-  return (
-    React.createElement("div",{className:"overlay open curved"},
-      React.createElement("div",{className:"sheet",role:"dialog","aria-modal":"true"},
-        React.createElement("div",{className:"titlebar"},
-          React.createElement("h2",null,"Controls"),
-          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
-        ),
-        React.createElement("div",{className:"grid"},
-          React.createElement("div",null,"• Drag to pan"),
-          React.createElement("div",null,"• Wheel / pinch to zoom"),
-          React.createElement("div",null,"• Click a tile to center it"),
-          React.createElement("div",null,"• Long-press a tile to fit view"),
-          React.createElement("div",null,"• Right-click to reset view"),
-          React.createElement("div",null,"• Toggle: square↔circle for distortion"),
-          React.createElement("div",null,"• Trash: tap any tile to delete (while active)"),
-          React.createElement("div",null,"• FAB block: new note"),
-          React.createElement("div",null,"• Leveler: tap “Enable leveler” on the Viewfinder step"),
-          React.createElement("div",null,"• Shortcuts: 1/2 = Flat/Curved, 0 = Reset, N = New, M = Manage, ? = Help")
-        )
-      )
-    )
-  );
-}
-
-/* ========= Camera + export ========= */
+/* ========= Camera hook ========= */
 function useCamera(){
   const videoRef=useRef(null), streamRef=useRef(null), [error,setError]=useState("");
   const isHttps = () => location.protocol==="https:" || location.hostname==="localhost";
   const stop=()=>{ streamRef.current?.getTracks?.().forEach(t=>t.stop()); streamRef.current=null; if(videoRef.current) videoRef.current.srcObject=null; };
-
   const start=async()=>{
     setError("");
     if(!isHttps()){ setError("Camera requires HTTPS (or localhost). Use Import instead."); return false; }
@@ -908,15 +1134,13 @@ function useCamera(){
     if(!v){ setError("Video element missing."); return false; }
 
     try{
-      v.setAttribute("playsinline",""); v.setAttribute("autoplay",""); v.setAttribute("muted","");
-      v.playsInline = true; v.muted = true;
-
+      v.setAttribute("playsinline",""); v.setAttribute("autoplay",""); v.setAttribute("muted",""); v.playsInline = true; v.muted = true;
       const constraints = { video: { facingMode: { ideal:"environment" }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream; v.srcObject = stream;
 
       await new Promise(res=>{ const onReady = () => { v.removeEventListener("loadedmetadata", onReady); res(); }; v.addEventListener("loadedmetadata", onReady); });
-      await v.play().catch(()=>{});
+      await v.play().catch(()=>{ });
 
       return true;
     }catch(e){
@@ -928,10 +1152,10 @@ function useCamera(){
       setError(msg); stop(); return false;
     }
   };
-
   return { videoRef, start, stop, error };
 }
 
+/* ========= Export ========= */
 async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
   const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=sourceCanvas.toDataURL("image/png"); });
   const cnv = makeCardCanvas({ img, title, caption, gps, ts:nowTS() });
@@ -961,14 +1185,19 @@ function Leveler(){
   );
 }
 
-/* ========= Overlay flow ========= */
+/* ========= Overlay Flow (new dialog style) ========= */
 function OverlayFlow({ open, onClose, onAddToArchive }){
   const [step,setStep]=useState(0), [title,setTitle]=useState(""), [caption,setCaption]=useState("A quick visual note");
   const [reviewCanvas,setReviewCanvas]=useState(null), [exportUrl,setExportUrl]=useState(""), [exporting,setExporting]=useState(false);
   const camera=useCamera(); const filePickRef=useRef(null); const sheetRef=useRef(null); const reviewMountRef=useRef(null);
 
   useEffect(()=>{ const mount=reviewMountRef.current; if(!mount) return; while(mount.firstChild) mount.removeChild(mount.firstChild);
-    if(reviewCanvas && step===2){ reviewCanvas.style.width="100%"; reviewCanvas.style.height="100%"; mount.appendChild(reviewCanvas); } },[reviewCanvas,step]);
+    if(reviewCanvas && step===2){
+      reviewCanvas.style.width="100%";
+      reviewCanvas.style.height="auto";
+      reviewCanvas.style.display="block";
+      mount.appendChild(reviewCanvas);
+    } },[reviewCanvas,step]);
 
   useEffect(()=>{ if(!open) return; const root=sheetRef.current; if(!root) return;
     const focusables=()=>[...root.querySelectorAll("button,[href],input,textarea")].filter(el=>!el.disabled&&el.offsetParent!==null);
@@ -1008,42 +1237,42 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
           React.createElement("h2",null, ["Start","Viewfinder","Review","Details","Export","Done"][step] || "Start"),
           React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
         ),
-        step===0 && React.createElement("div",{className:"grid"},
+        step===0 && React.createElement("div",{className:"grid", style:{alignContent:"center"}},
           camera.error ? React.createElement("div",{className:"hint", style:{color:"#ffb4b4"}}, camera.error) : null,
           React.createElement("div",{className:"grid cols-2"},
             React.createElement("button",{className:"btn primary",onClick:startCamera},"Open Camera"),
             React.createElement("button",{className:"btn",onClick:pickFile},"Import Photo")),
-          React.createElement("input",{ref:filePickRef,type:"file",accept:"image/*",className:"hidden",onChange:onFileChange})
+          React.createElement("input",{ref:filePickRef,type:"file",accept:"image/*",style:{display:"none"},onChange:onFileChange})
         ),
         step===1 && React.createElement(React.Fragment,null,
-          React.createElement("div",{className:"vf"},
+          React.createElement("div",{className:"vf chrome-frame"},
             React.createElement("video",{ref:camera.videoRef,playsInline:true,autoPlay:true,muted:true}),
             React.createElement("span",{className:"perfs","aria-hidden":"true"}),
             React.createElement(Leveler,null)
           ),
-          React.createElement("div",{className:"row",style:{marginTop:"12px"}},
+          React.createElement("div",{className:"row",style:{marginTop:"12px", justifyContent:"space-between"}},
             React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(0);}},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:captureShot,style:{marginLeft:"auto"}},"Capture"))
+            React.createElement("button",{className:"btn primary",onClick:captureShot},"Capture"))
         ),
         step===2 && React.createElement(React.Fragment,null,
-          React.createElement("div",{className:"preview",ref:reviewMountRef}),
-          React.createElement("div",{className:"row",style:{marginTop:"12px"}},
+          React.createElement("div",{className:"preview chrome-frame",ref:reviewMountRef}),
+          React.createElement("div",{className:"row",style:{marginTop:"12px", justifyContent:"space-between"}},
             React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(1);}},"Retake"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(3),style:{marginLeft:"auto"}},"Keep"))
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(3)},"Keep"))
         ),
-        step===3 && React.createElement(React.Fragment,null,
+        step===3 && React.createElement("div",{className:"grid"},
           React.createElement("label",{className:"label",htmlFor:"t"},"Title (40 cap)"),
           React.createElement("input",{id:"t",maxLength:40,className:"input",value:title,onChange:e=>setTitle(e.target.value)}),
           React.createElement("label",{className:"label",htmlFor:"c"},"Note (100 cap)"),
           React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
-          React.createElement("div",{className:"row",style:{marginTop:"6px"}},
+          React.createElement("div",{className:"row",style:{marginTop:"6px", justifyContent:"space-between"}},
             React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}}, "Next"))),
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4)}, "Next"))),
         step===4 && React.createElement("div",{className:"grid"},
           React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
-          React.createElement("div",{className:"row"},
+          React.createElement("div",{className:"row",style:{justifyContent:"space-between"}},
             React.createElement("button",{className:"btn",onClick:()=>setStep(3)},"Back"),
-            React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport,style:{marginLeft:"auto"}},exporting?"Exporting…":"Export PNG & Save"))),
+            React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport},exporting?"Exporting…":"Export PNG & Save"))),
         step===5 && React.createElement("div",{className:"grid",style:{placeItems:"center",textAlign:"center"}},
           React.createElement("div",{className:"row",style:{justifyContent:"center"}},
             React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"intoview:note")),
@@ -1054,24 +1283,51 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
   );
 }
 
-/* ========= Vertical Zoom Rail ========= */
+/* ========= Help overlay ========= */
+function HelpOverlay({ open, onClose }){
+  if(!open) return null;
+  return (
+    React.createElement("div",{className:"overlay open curved"},
+      React.createElement("div",{className:"sheet",role:"dialog","aria-modal":"true",style:{maxWidth:"460px"}},
+        React.createElement("div",{className:"titlebar"},
+          React.createElement("h2",null,"Controls"),
+          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
+        ),
+        React.createElement("div",{style:{overflow:"auto", padding:"4px 2px"}},
+          React.createElement("div",null,"• Drag to pan"),
+          React.createElement("div",null,"• Wheel / pinch to zoom"),
+          React.createElement("div",null,"• Click a tile to center it"),
+          React.createElement("div",null,"• Long-press a tile to fit view"),
+          React.createElement("div",null,"• Right-click to reset view"),
+          React.createElement("div",null,"• Toggle: square↔circle for distortion"),
+          React.createElement("div",null,"• Trash: tap any tile to delete (while active)"),
+          React.createElement("div",null,"• FAB block: new note"),
+          React.createElement("div",null,"• Leveler: tap “Enable leveler” on the Viewfinder step"),
+          React.createElement("div",null,"• Shortcuts: 1/2 = Flat/Curved, 0 = Reset, N = New, M = Manage, ? = Help")
+        )
+      )
+    )
+  );
+}
+
+/* ========= Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
-  /* 0–100 based on normalized range, but DISPLAY is inverted (100 → 0) */
   const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
   const pct = clamped * 100;
-  const pctLabel = 100 - Math.round(pct); // ← inverted readout
+  const raw = 100 - Math.round(pct);
+  const pctLabel = Math.max(1, Math.min(100, raw));
 
   const trackRef = React.useRef(null);
   const toZoomFromClientY = (clientY) => {
     const el = trackRef.current; if(!el) return null;
     const r = el.getBoundingClientRect();
     const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
-    const frac = 1 - y; // top = max zoom (unchanged behavior)
+    const frac = 1 - y; // top = max zoom
     return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
   };
   const onPointerDown = (e) => {
     if (!onScrub) return;
-    const z = toZoomFromClientY(e.clientY); if (z!=null) onScrub(z);
+    const z = toZoomFromClientY(e.clientY); if (z!=null) onScrub( z );
     const move = (ev)=>{ const zz = toZoomFromClientY(ev.clientY); if(zz!=null) onScrub(zz); };
     const up = ()=>{ window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up); };
     window.addEventListener("pointermove",move,{passive:true});
@@ -1081,7 +1337,7 @@ function ZoomRail({ zoom, onScrub }) {
   return React.createElement("div", { className:"zoom-rail", "aria-label":"Zoom" },
     React.createElement("div", { className:"zoom-rail__track", ref:trackRef, onPointerDown, role:"slider",
       "aria-orientation":"vertical",
-      "aria-valuemin":0, "aria-valuemax":100,
+      "aria-valuemin":1, "aria-valuemax":100,
       "aria-valuenow":pctLabel },
       React.createElement("div", { className:"zoom-rail__progress", style:{ "--zoom-pct": `${pct}%` } }),
       React.createElement("div", { className:"zoom-rail__thumb", style:{ "--zoom-pct": `${pct}%` } }),
@@ -1124,27 +1380,58 @@ function TrashToggle({ active, onToggle }){
   );
 }
 
+/* ========= Persistence ========= */
+function getCreatedMs(item, idx=0){
+  if (typeof item?.createdMs==="number") return item.createdMs;
+  if (item?.id){ const m=String(item.id).match(/^note_(\d+)$/); if(m){ const n=+m[1]; if(!Number.isNaN(n)) return n; } }
+  if (item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
+    const t=Date.parse(item.ts.replace(" • ","T")+":00"); if(!Number.isNaN(t)) return t;
+  }
+  return idx;
+}
+function loadArchive(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw) return [];
+    const parsed=JSON.parse(raw);
+    if(!Array.isArray(parsed)) return [];
+    return parsed.map((it,i)=>({ ...it, createdMs:getCreatedMs(it,i) }));
+  }catch{ return []; }
+}
+function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
+
 /* ========= App ========= */
 function App(){
   const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
-  const [wgState,setWgState]=useState(WorkgridState.DEFAULT); // page-load default = Curved
+  const [wgState,setWgState]=useState(WorkgridState.DEFAULT);
   const [overlayOpen,setOverlayOpen]=useState(false);
   const [manageMode,setManageMode]=useState(false);
   const [helpOpen,setHelpOpen]=useState(false);
   const [archive,setArchive]=useState(loadArchive());
   const [zoom, setZoom] = useState(CONFIG.zoomOut);
+  const [seed,setSeed] = useState(SEED);
   const gridCtrl = useRef({ setZoom: (z)=>{} });
+
   useEffect(()=>{ saveArchive(archive); },[archive]);
+
+  useEffect(()=>{ const onUpd = (e)=> setSeed(Array.isArray(e.detail)? e.detail : SEED);
+    window.addEventListener('seedUpdated', onUpd);
+    return ()=> window.removeEventListener('seedUpdated', onUpd);
+  },[]);
 
   const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
 
   const PLACEHOLDER_START = useMemo(()=>({ id:"placeholder_new_start", placeholder:true, title:"new note", caption:"tap to start" }),[]);
   const PLACEHOLDER_END   = useMemo(()=>({ id:"placeholder_new_end",   placeholder:true, title:"new note", caption:"tap to start" }),[]);
-
-  const contentItems=useMemo(()=>[...sortedArchive, ...SEED], [sortedArchive]);
+  const contentItems=useMemo(()=>[...sortedArchive, ...seed], [sortedArchive, seed]);
   const combinedItems=useMemo(()=>[PLACEHOLDER_START, ...contentItems, PLACEHOLDER_END], [PLACEHOLDER_START, PLACEHOLDER_END, contentItems]);
 
   useEffect(()=>{ document.documentElement.style.setProperty("--curve-k", String(wgState===WorkgridState.INTRO ? 0 : 1)); },[wgState]);
+
+  const hardReset = () => {
+    setWgState(WorkgridState.RESET);
+    requestAnimationFrame(()=> setWgState(WorkgridState.DEFAULT));
+  };
 
   useEffect(()=>{ const onKey=e=>{ if(overlayOpen||helpOpen) return;
       if(e.key==="1") setWgState(WorkgridState.INTRO);
@@ -1162,7 +1449,6 @@ function App(){
       setArchive(arr=>arr.filter(x=>x.id!==item.id));
     }
   };
-
   const isCurved = wgState === WorkgridState.DEFAULT;
 
   const [cursorXY, setCursorXY] = useState({ x: 0, y: 0 });
@@ -1170,15 +1456,10 @@ function App(){
 
   const handleTileClick = (idx, item) => { if (item?.placeholder) { setOverlayOpen(true); } };
 
-  /* Reset: also restore square:circle to page-load default (Curved) */
-  const hardReset = () => {
-    setWgState(WorkgridState.RESET);
-    requestAnimationFrame(()=> setWgState(WorkgridState.DEFAULT));
-  };
+  useEffect(()=>{ window.SEED = SEED; },[]);
 
   return (
     React.createElement(React.Fragment,null,
-      /* WebGL */
       React.createElement("div",{className:"canvas-wrap"},
         React.createElement("div",{className:"fallback-grid"}),
         React.createElement(Suspense,{fallback:null},
@@ -1194,7 +1475,6 @@ function App(){
         )
       ),
 
-      /* Header (UI above effects) */
       React.createElement("header",{className:"header"},
         React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
           React.createElement("img",{
@@ -1216,18 +1496,14 @@ function App(){
         )
       ),
 
-      /* Modals */
       React.createElement(HelpOverlay,{ open:helpOpen, onClose:()=>setHelpOpen(false) }),
       React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive }),
 
-      /* Global effects (under UI) */
       React.createElement("div",{className:"edge-blur"}),
       React.createElement("div",{className:"vignette"}),
 
-      /* Zoom rail (UI) */
       React.createElement(ZoomRail,{ zoom, onScrub:(z)=> gridCtrl.current?.setZoom?.(z) }),
 
-      /* FAB */
       React.createElement("div",{ className:"fab-wrap" },
         React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"intoview:note" },
           React.createElement("svg",{viewBox:"0 0 100 100","aria-hidden":"true"},
@@ -1249,40 +1525,19 @@ function App(){
               )
             ),
             React.createElement("g",{filter:"url(#cubeGlow)"},
-              React.createElement("polygon",{className:"cube--light",fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
-              React.createElement("polygon",{className:"cube--light",fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
-              React.createElement("polygon",{className:"cube--dark",fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
+              React.createElement("polygon",{fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
+              React.createElement("polygon",{fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
+              React.createElement("polygon",{fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
             )
           ),
           React.createElement("span",{className:"fab-text"},"New Note")
         )
       ),
 
-      /* HUD Coords (bottom-right) */
-      React.createElement("div",{ id:"coordsMount", className:"hud hud-right" }, `x ${cursorXY.x} • y ${cursorXY.y}`)
+      (()=>{ const mount=document.getElementById("coordsMount"); if(mount) mount.textContent=`x ${cursorXY.x} • y ${cursorXY.y}`; })()
     )
   );
 }
-
-/* ========= Persistence ========= */
-function getCreatedMs(item, idx=0){
-  if (typeof item?.createdMs==="number") return item.createdMs;
-  if (item?.id){ const m=String(item.id).match(/^note_(\d+)$/); if(m){ const n=+m[1]; if(!Number.isNaN(n)) return n; } }
-  if (item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
-    const t=Date.parse(item.ts.replace(" • ","T")+":00"); if(!Number.isNaN(t)) return t;
-  }
-  return idx;
-}
-function loadArchive(){
-  try{
-    const raw=localStorage.getItem(STORAGE_KEY);
-    if(!raw) return [];
-    const parsed=JSON.parse(raw);
-    if(!Array.isArray(parsed)) return [];
-    return parsed.map((it,i)=>({ ...it, createdMs:getCreatedMs(it,i) }));
-  }catch{ return []; }
-}
-function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
 
 /* ========= Mount ========= */
 const root = createRoot(document.getElementById("root"));
@@ -1323,5 +1578,52 @@ root.render(React.createElement(App));
   tick();
 })();
     </script>
+
+    <!-- Safe globals for the trailing script -->
+    <script>
+      async function sortByBrightness(arr, { sample = 48 } = {}) {
+        const results = await Promise.all(arr.map(async (item) => {
+          try {
+            const img = await new Promise((res, rej) => {
+              const im = new Image();
+              im.crossOrigin = 'anonymous';
+              im.onload = () => res(im);
+              im.onerror = rej;
+              im.src = item.src;
+            });
+            const w = sample, h = sample;
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, w, h);
+            const { data } = ctx.getImageData(0, 0, w, h);
+            let sum = 0;
+            for (let i = 0; i < data.length; i += 4) {
+              sum += 0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2];
+            }
+            const brightness = sum / (w * h);
+            return { item, brightness };
+          } catch {
+            return { item, brightness: 0 };
+          }
+        }));
+        return results.sort((a,b)=>b.brightness - a.brightness).map(x=>x.item);
+      }
+      function rebuildGrid(sorted){ window.dispatchEvent(new CustomEvent('seedUpdated', { detail: sorted })); }
+      (async () => {
+        try{
+          const cached = localStorage.getItem('seedSorted');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            rebuildGrid(parsed);
+          } else if (Array.isArray(window.SEED)) {
+            const sorted = await sortByBrightness(window.SEED);
+            localStorage.setItem('seedSorted', JSON.stringify(sorted));
+            rebuildGrid(sorted);
+          }
+        }catch(e){ /* ignore */ }
+      })();
+    </script>
+      
   </body>
 </html>
