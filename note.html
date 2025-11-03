@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — (v1.2 prototype + hotfix tidy)</title>
+    <title>intoview • note — (v1.2 prototype + hotfix v2.2.1)</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,7 +11,7 @@
 
     <style>
 /* ============================================================
-   intoview:note — CSS (commented & organized)
+   intoview:note — CSS (tidy layout, mobile blur tighten, HUD pad)
    ============================================================ */
 
 :root{
@@ -23,7 +23,6 @@
   --accent:#59D2C8;         /* brand accent */
   --danger:#FF6363;         /* alerts/errors */
   --curve-k:1;              /* 0=flat, 1=curved (DOM aesthetic scale) */
-  --hud-bottom-pad: 16px; /* default desktop */
 
   /* ---------- EFFECT KNOBS ---------- */
   --vig-opacity: 1;
@@ -50,6 +49,9 @@
   --corner-pad: clamp(14px, 2.4vw, 24px);
   --corner-top: calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
 
+  /* HUD bottom pad (NEW) */
+  --hud-bottom-pad: 16px;
+
   /* ---------- Z-LAYERS ---------- */
   --z-content: 0;
   --z-grain: 149;
@@ -71,7 +73,7 @@ body{
 
 /* ========== CANVAS LAYER (WebGL) ========== */
 .canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
-.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; outline:none }
+.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; }
 .canvas-wrap canvas.dragging{ cursor:grabbing }
 
 /* Optional faint debug grid behind cards */
@@ -137,6 +139,14 @@ body::after{
   padding:2px 4px;
 }
 .brand img{ display:block; height:42px; width:auto; filter:none !important; mix-blend-mode:normal; }
+.brand-text{
+  font-weight:700; letter-spacing:.02em; line-height:1;
+  font-size:16px;
+}
+@media (max-width:768px){
+  .brand img{ height:36px; }
+  .brand-text{ font-size:14px; }
+}
 
 .controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
 .icon-btn{
@@ -266,7 +276,7 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
 .fab:active{ transform:translateY(1px) }
 .fab:hover{ background:rgba(255,255,255,.10); border-color:rgb(255 255 255 / .22); }
 .fab svg{ width:58%; height:auto; display:block }
-/* REVERT cube states: keep both faces visible, no hover swap */
+/* KEEP original look: both faces visible; no hover swapping */
 .fab .cube--light,
 .fab .cube--dark{ display:inline; }
 .fab:hover .cube--light,
@@ -289,28 +299,13 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
 
 /* ========== HUD CORNERS (coords & version) ========== */
 .hud{
-  position:fixed; bottom:calc(env(safe-area-inset-bottom) + 6px);
-  bottom: calc(env(safe-area-inset-bottom) + var(--hud-bottom-pad));
+  position:fixed; bottom:calc(env(safe-area-inset-bottom) + var(--hud-bottom-pad));
   z-index:var(--z-ui); pointer-events:none;
   font:600 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color:#c9c9cf; opacity:.9; text-shadow:0 1px 2px rgba(0,0,0,.6);
 }
 .hud-left{ left: var(--corner-pad); }
 .hud-right{ right: var(--corner-pad); }
-
-/* Mobile: slightly smaller/cleaner edge blur ring and a bit more HUD lift */
-@media (max-width:768px){
-  :root{
-    /* smaller blur kernel + narrower masked ring = “tighter” look */
-    --edge-blur: 9px;      /* was 12px */
-    --edge-mask-i: 56%;    /* was 46% (grows clear center) */
-    --edge-mask-o: 78%;    /* was 74% (slightly thinner ring) */
-
-    /* lift version + XY a touch more above the bottom */
-    --hud-bottom-pad: 22px;
-  }
-}
-The mask v
 
 /* ========== REDUCED MOTION ========== */
 @media (prefers-reduced-motion: reduce){
@@ -328,6 +323,16 @@ The mask v
 }
 .goo{ display:none; }
 @media (pointer: coarse){ #cursor{ display:none; } }
+
+/* -------- Mobile tweaks: tighter edge blur + raise HUD pad -------- */
+@media (max-width:768px){
+  :root{
+    --edge-blur: 9px;     /* was 12px */
+    --edge-mask-i: 56%;   /* enlarge clear center */
+    --edge-mask-o: 78%;   /* thinner ring */
+    --hud-bottom-pad: 22px;
+  }
+}
     </style>
   </head>
   <body>
@@ -350,7 +355,7 @@ The mask v
     <div id="root"></div>
 
     <!-- HUD corners -->
-    <div class="hud hud-left">v2.1.2</div>
+    <div class="hud hud-left">v2.2.1</div>
     <div class="hud hud-right" id="coordsHud">x 0 • y 0</div>
 
     <script type="module">
@@ -360,6 +365,10 @@ import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 import * as THREE from "https://esm.sh/three@0.160.1";
 import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
 import gsap from "https://esm.sh/gsap@3.12.5";
+import { EffectComposer } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js";
+import { ShaderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js";
+import { OutputPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js";
 
 /* ========= Seed images ========= */
 const FAKE=(i)=>[
@@ -367,8 +376,7 @@ const FAKE=(i)=>[
   "Quiet geometry.","Edge of focus.","A walk-by frame.","Study in contrast.","Moment, observed."
 ][i%10];
 
-const SEED=[
-  {src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:FAKE(0)},
+const SEED=[{src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:FAKE(0)},
 {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp',title:'wmzWGlaw',caption:FAKE(1)},
 {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp',title:'IMG-8403',caption:FAKE(2)},
 {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp',title:'DSC08656',caption:FAKE(3)},
@@ -433,10 +441,10 @@ function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1
 function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
   img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
 function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
-/* FIX: avoid undefined 's' — use provided w/h */
+/* FIX: remove bad 's' reference to prevent blank screen */
 function coverImage(ctx,img,x,y,w,h){
   const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
-  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
+  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(0,0,w,h); return; }
   const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
   if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
   ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
@@ -805,53 +813,31 @@ class Grid extends THREE.Group{
   resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); this._setHover(-1); }
 }
 
-/* ========= Postprocessing (lazy/fail-safe imports) ========= */
+/* ========= Postprocessing ========= */
 function Postprocessing({ workgridState }){
   const { gl, scene, camera, size } = useThree();
-  const [mods, setMods] = useState(null);
-
-  useEffect(()=>{
-    let cancelled=false;
-    (async()=>{
-      try{
-        const [{ EffectComposer }, { RenderPass }, { ShaderPass }, { OutputPass }] = await Promise.all([
-          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js"),
-          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js"),
-          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js"),
-          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js"),
-        ]);
-        if(!cancelled) setMods({ EffectComposer, RenderPass, ShaderPass, OutputPass });
-      }catch(e){ console.warn("Post FX unavailable", e); }
-    })();
-    return ()=>{ cancelled=true; };
-  },[]);
-
   const { composer, shader } = useMemo(()=>{
-    if(!mods) return { composer:null, shader:null };
     try{
-      const renderPass=new mods.RenderPass(scene,camera);
+      const renderPass=new RenderPass(scene,camera);
       const shader=new DistortionShader();
-      const shaderPass=new mods.ShaderPass(shader);
-      const outputPass=new mods.OutputPass();
-      const composer=new mods.EffectComposer(gl);
+      const shaderPass=new ShaderPass(shader);
+      const outputPass=new OutputPass();
+      const composer=new EffectComposer(gl);
       composer.addPass(renderPass); composer.addPass(shaderPass); composer.addPass(outputPass);
       return { composer, shader };
     }catch(e){ console.warn("Composer init failed",e); return { composer:null, shader:null }; }
-  },[mods, gl, scene, camera]);
-
+  },[gl,scene,camera]);
   useEffect(()=>{ if(!composer||!shader) return;
     const dpr=Math.min(2, gl.getPixelRatio?.()||1.5);
     composer.setPixelRatio?.(dpr);
     composer.setSize(size.width, size.height);
     shader.update();
   },[composer,shader,size,gl]);
-
   useEffect(()=>{ if(!shader) return;
     const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
     const scale = size.width < 800 ? 0.75 : 1.0;
     shader.setDistortion(base * scale);
   },[workgridState,shader,size.width]);
-
   useFrame(()=>{ composer?.render(); }, 1);
   return null;
 }
@@ -872,7 +858,8 @@ function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect,
   useEffect(()=>{ grid.onZoomChange = (z)=> onZoomChange?.(z); return ()=>{ grid.onZoomChange=null; }; },[grid,onZoomChange]);
   useEffect(()=>{ if(workgridState==="RESET") grid.resetPosition(); },[workgridState,grid]);
 
-  useEffect(()=>{ if(!controllerRef) return;
+  useEffect(()=>{
+    if(!controllerRef) return;
     controllerRef.current = {
       setZoom: (z) => {
         const clamped = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z));
@@ -1090,17 +1077,17 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
 
 /* ========= Vertical Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
-  /* 0–100 based on normalized range, but DISPLAY is inverted (100 → 0) */
+  /* 0–100 based on normalized range, DISPLAY inverted (top = 100) and clamped to 1–100 */
   const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
   const pct = clamped * 100;
-  const pctLabel = 100 - Math.round(pct); // ← inverted readout
+  const pctLabel = Math.max(1, 100 - Math.round(pct)); // ← 1–100%
 
   const trackRef = React.useRef(null);
   const toZoomFromClientY = (clientY) => {
     const el = trackRef.current; if(!el) return null;
     const r = el.getBoundingClientRect();
     const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
-    const frac = 1 - y; // top = max zoom (unchanged behavior)
+    const frac = 1 - y; // top = max zoom
     return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
   };
   const onPointerDown = (e) => {
@@ -1115,7 +1102,7 @@ function ZoomRail({ zoom, onScrub }) {
   return React.createElement("div", { className:"zoom-rail", "aria-label":"Zoom" },
     React.createElement("div", { className:"zoom-rail__track", ref:trackRef, onPointerDown, role:"slider",
       "aria-orientation":"vertical",
-      "aria-valuemin":0, "aria-valuemax":100,
+      "aria-valuemin":1, "aria-valuemax":100,
       "aria-valuenow":pctLabel },
       React.createElement("div", { className:"zoom-rail__progress", style:{ "--zoom-pct": `${pct}%` } }),
       React.createElement("div", { className:"zoom-rail__thumb", style:{ "--zoom-pct": `${pct}%` } }),
@@ -1230,11 +1217,12 @@ function App(){
 
       /* Header (UI above effects) */
       React.createElement("header",{className:"header"},
-        React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
+        React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview—note home"},
           React.createElement("img",{
-            id:"brandLogo", alt:"intoview", decoding:"async",
+            id:"brandLogo", alt:"", "aria-hidden":"true", decoding:"async",
             src:"https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg"
-          })
+          }),
+          React.createElement("span",{className:"brand-text"},"intoview—note")
         ),
         React.createElement("div",{className:"controls"},
           React.createElement(MorphDistortionIcon,{ isCurved, onToggle:()=>setWgState(isCurved?WorkgridState.INTRO:WorkgridState.DEFAULT) }),
