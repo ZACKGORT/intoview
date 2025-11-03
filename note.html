@@ -3,337 +3,337 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — (v1.2 prototype + hotfix v2.2.1)</title>
+    <title>intoview • note — (v1.2 prototype + hotfix tidy)</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
     <style>
-/* ============================================================
-   intoview:note — CSS (tidy layout, mobile blur tighten, HUD pad)
-   ============================================================ */
-
-:root{
-  /* --------- THEME TOKENS --------- */
-  --paper:#000;             /* app canvas */
-  --ink:#FFFFFF;            /* primary text/lines */
-  --ink-2:#9F9F9F;          /* secondary lines */
-  --ink-3:#6C6C6C;          /* muted helpers */
-  --accent:#59D2C8;         /* brand accent */
-  --danger:#FF6363;         /* alerts/errors */
-  --curve-k:1;              /* 0=flat, 1=curved (DOM aesthetic scale) */
-
-  /* ---------- EFFECT KNOBS ---------- */
-  --vig-opacity: 1;
-  --vig-inner:   20%;
-  --vig-mid:     52%;
-  --vig-outer:   100%;
-
-  /* Radial EDGE blur (under vignette, above content) */
-  --edge-blur: 12px;
-  --edge-mask-i: 46%;
-  --edge-mask-o: 74%;
-
-  /* ---------- LAYOUT / BEHAVIOR ---------- */
-  --cursor-size: 20px;      /* gooey cursor “head” size (desktop only) */
-  --fab-size: 120px;        /* main capture button diameter */
-  --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
-
-  /* Zoom rail */
-  --rail-height-desktop: 20vh;
-  --rail-height-mobile:  12vh;
-  --rail-right: clamp(12px, 2vw, 20px);
-
-  /* Corner padding (logo / HUD) */
-  --corner-pad: clamp(14px, 2.4vw, 24px);
-  --corner-top: calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
-
-  /* HUD bottom pad (NEW) */
-  --hud-bottom-pad: 16px;
-
-  /* ---------- Z-LAYERS ---------- */
-  --z-content: 0;
-  --z-grain: 149;
-  --z-blur: 150;
-  --z-vig:  151;
-  --z-ui:   220;
-  --z-cursor: 230;
-}
-
-/* ========== BASE / RESET ========== */
-*{ box-sizing:border-box }
-html,body,#root{ height:100% }
-body{
-  margin:0; background:#000; color:var(--ink);
-  font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
-  overflow:hidden;
-  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-}
-
-/* ========== CANVAS LAYER (WebGL) ========== */
-.canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
-.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; }
-.canvas-wrap canvas.dragging{ cursor:grabbing }
-
-/* Optional faint debug grid behind cards */
-.fallback-grid{
-  position:absolute; inset:0; z-index:var(--z-content); pointer-events:none; opacity:.06;
-  background-image:
-    repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
-    repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
-}
-
-/* ========== GLOBAL EDGE BLUR (radial) ========== */
-.edge-blur{
-  position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
-  background: rgba(0,0,0,0.001);
-  backdrop-filter: blur(var(--edge-blur));
-  -webkit-backdrop-filter: blur(var(--edge-blur));
-  mask: radial-gradient(90% 70% at 50% 50%,
-    transparent var(--edge-mask-i),
-    white       var(--edge-mask-o));
-  -webkit-mask: radial-gradient(90% 70% at 50% 50%,
-    transparent var(--edge-mask-i),
-    white       var(--edge-mask-o));
-}
-
-/* ========== VIGNETTE (above blur) ========== */
-.vignette{
-  position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
-  background:
-    radial-gradient(120% 90% at 50% 50%,
-      rgba(0,0,0,0)         var(--vig-inner),
-      rgba(0,0,0,0.58)      var(--vig-mid),
-      rgba(0,0,0,0.98)      var(--vig-outer));
-  opacity:calc(var(--vig-opacity) * var(--curve-k));
-}
-
-/* ========== SUBTLE GRAIN (over content, under effects) ========== */
-body::after{
-  content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
-  background-size: 120px 120px;
-}
-
-/* ========== CURVED DOM AESTHETIC ========== */
-.curved{
-  transform-style:preserve-3d;
-  transform:
-    perspective(1000px)
-    translateZ(calc(-200px * var(--curve-k)))
-    scale(calc(1 + var(--curve-k) * 0.06));
-  will-change:transform;
-}
-
-/* ========== HEADER / BRAND / CONTROLS (UI ABOVE EFFECTS) ========== */
-.header{
-  position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
-  display:flex; align-items:center; justify-content:space-between;
-  gap:12px;
-  padding: var(--corner-top) var(--corner-pad) 12px var(--corner-pad);
-  pointer-events:none;
-}
-.brand{
-  display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
-  padding:2px 4px;
-}
-.brand img{ display:block; height:42px; width:auto; filter:none !important; mix-blend-mode:normal; }
-.brand-text{
-  font-weight:700; letter-spacing:.02em; line-height:1;
-  font-size:16px;
-}
-@media (max-width:768px){
-  .brand img{ height:36px; }
-  .brand-text{ font-size:14px; }
-}
-
-.controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
-.icon-btn{
-  appearance:none; cursor:pointer; border:0px solid var(--ink-2);
-  background:rgba(0,0,0,.35); color:var(--ink);
-  padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
-  transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease;
-  position:relative; z-index:1;
-}
-.icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
-.icon-btn svg{ display:block; width:18px; height:18px; }
-
-/* Trash: turn red when active */
-.icon-btn.danger.active{
-  color:var(--danger);
-  background:rgba(255,99,99,.14);
-  box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
-}
-
-/* ========== ZOOM RAIL (right side) ========== */
-.zoom-rail{
-  position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
-  height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
-  pointer-events:auto; touch-action: none;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-}
-.zoom-rail__track{ position:relative; width:2px; height:100%; background:rgba(255,255,255,.18); border-radius:2px; }
-.zoom-rail__progress{ position:absolute; left:0; bottom:0; width:100%; height:var(--zoom-pct,0%); background:rgba(255,255,255,.9); border-radius:2px; }
-.zoom-rail__thumb{
-  position:absolute; left:50%; top: calc(100% - var(--zoom-pct, 0%)); transform: translate(-50%, -50%);
-  width:10px; height:10px; border-radius:50%; background:var(--ink);
-  box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
-}
-.zoom-rail__tooltip{
-  position:absolute; top:calc(100% - var(--zoom-pct,0%)); left:-44px; transform:translateY(-50%);
-  font-weight:700; font-size:12px; color:var(--ink-2); text-shadow:0 1px 2px rgba(0,0,0,.55); user-select:none;
-}
-@media (max-width:768px){
-  .zoom-rail{ height: var(--rail-height-mobile); }
-  .zoom-rail__tooltip{ left: -40px; }
-}
-
-/* ========== MODALS / SHEETS ========== */
-.overlay{ position:fixed; inset:72px 16px 16px 16px; z-index:var(--z-ui); display:none; pointer-events:auto; }
-.overlay.open{ display:grid; place-items:center; }
-.sheet{
-  width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
-  box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
-}
-.row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
-.grid{ display:grid; gap:12px }
-.cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)) }
-.label{ font-weight:600; opacity:.9 }
-.input,.textarea{ width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit; }
-.textarea{ min-height:96px; resize:vertical }
-.btn{
-  appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600;
-  position:relative; z-index:1;
-}
-.btn.ghost{ background:transparent }
-.btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
-.hint{ color:#c9c9cf; font-size:12px }
-.vf{ position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; }
-video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98) }
-.preview{ position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block; }
-.titlebar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px }
-.titlebar h2{ margin:0; font-size:16px }
-.tight{ gap:6px } .hidden{ display:none !important }
-.sheet :focus{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px }
-
-/* ========== FILM STRIP CHROME ========== */
-.vf::before,.vf::after{
-  content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
-  background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
-  border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
-}
-.vf::before{ top:0; } .vf::after{ bottom:0; }
-.vf .perfs{
-  position:absolute; inset:0; pointer-events:none; z-index:1;
-  background:
-    radial-gradient(circle 3px at 8px 14px, #000 0 2.2px, transparent 2.2px) repeat-y left / 16px 28px,
-    radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
-  opacity:.85;
-}
-
-/* ========== LEVELER ========== */
-.leveler{
-  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
-  width:min(260px, 72%); height:30px; border-radius:999px;
-  background:rgba(0,0,0,.45); border:1px solid #2a2a2e; box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
-  display:flex; align-items:center; justify-content:center; z-index:2; pointer-events:auto;
-}
-.leveler .vial{ position:absolute; inset:4px; border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06)); }
-.leveler .bubble{
-  position:absolute; top:50%; transform:translate(-50%,-50%); left:var(--bubble-x, 50%);
-  width:22px; height:22px; border-radius:999px; background:#ffe066;
-  box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 2px 10px rgba(0,0,0,.35);
-}
-.leveler .deg{
-  position:absolute; right:8px; top:50%; transform:translateY(-50%);
-  font:600 12px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color:#cfcfcf; text-shadow:0 1px 1px rgba(0,0,0,.5);
-}
-.leveler.good .vial{ outline:2px solid rgba(120,255,120,.35); outline-offset:-2px; }
-.leveler .enable{
-  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.35));
-  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
-  color:#fff; font-weight:600; font-size:12px; border-radius:inherit; cursor:pointer; border:1px solid #2a2a2e;
-}
-
-/* ========== FAB (UI ABOVE EFFECTS) ========== */
-.fab-wrap{
-  position:fixed; left:50%; bottom: var(--fab-bottom); transform: translateX(-50%);
-  z-index:var(--z-ui); display:flex; flex-direction:column; align-items:center;
-}
-.fab{
-  position:relative;
-  width:var(--fab-size); height:var(--fab-size); border-radius:999px;
-  background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
-  display:flex; align-items:center; justify-content:center; cursor:pointer;
-  box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
-  transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
-  padding:0;
-}
-.fab:focus-visible{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px; }
-.fab:active{ transform:translateY(1px) }
-.fab:hover{ background:rgba(255,255,255,.10); border-color:rgb(255 255 255 / .22); }
-.fab svg{ width:58%; height:auto; display:block }
-/* KEEP original look: both faces visible; no hover swapping */
-.fab .cube--light,
-.fab .cube--dark{ display:inline; }
-.fab:hover .cube--light,
-.fab:hover .cube--dark{ display:inline; }
-
-/* Label INSIDE the FAB */
-.fab-text{
-  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
-  font:600 11px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color:#fff; opacity:.9; letter-spacing:.02em; text-shadow:0 1px 2px rgba(0,0,0,.55);
-}
-
-/* Larger FAB on mobile */
-@media (max-width:768px){
-  :root{
-    --fab-size: 128px;
-    --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
-  }
-}
-
-/* ========== HUD CORNERS (coords & version) ========== */
-.hud{
-  position:fixed; bottom:calc(env(safe-area-inset-bottom) + var(--hud-bottom-pad));
-  z-index:var(--z-ui); pointer-events:none;
-  font:600 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color:#c9c9cf; opacity:.9; text-shadow:0 1px 2px rgba(0,0,0,.6);
-}
-.hud-left{ left: var(--corner-pad); }
-.hud-right{ right: var(--corner-pad); }
-
-/* ========== REDUCED MOTION ========== */
-@media (prefers-reduced-motion: reduce){
-  .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
-}
-
-/* ========== GOOEY CURSOR (desktop only) ========== */
-#cursor{
-  position:fixed; top: calc(var(--cursor-size) * -0.5); left: calc(var(--cursor-size) * -0.5);
-  pointer-events:none; filter:url(#goo); mix-blend-mode:difference; z-index:var(--z-cursor);
-}
-.cursor-circle{
-  position:absolute; top:0; left:0; width:var(--cursor-size); height:var(--cursor-size);
-  border-radius:999px; background:#fff; transform-origin:center center;
-}
-.goo{ display:none; }
-@media (pointer: coarse){ #cursor{ display:none; } }
-
-/* -------- Mobile tweaks: tighter edge blur + raise HUD pad -------- */
-@media (max-width:768px){
-  :root{
-    --edge-blur: 9px;     /* was 12px */
-    --edge-mask-i: 56%;   /* enlarge clear center */
-    --edge-mask-o: 78%;   /* thinner ring */
-    --hud-bottom-pad: 22px;
-  }
-}
-    </style>
+      /* ============================================================
+         intoview:note — CSS (tidy layout, mobile blur tighten, HUD pad)
+         ============================================================ */
+      
+      :root{
+        /* --------- THEME TOKENS --------- */
+        --paper:#000;             /* app canvas */
+        --ink:#FFFFFF;            /* primary text/lines */
+        --ink-2:#9F9F9F;          /* secondary lines */
+        --ink-3:#6C6C6C;          /* muted helpers */
+        --accent:#59D2C8;         /* brand accent */
+        --danger:#FF6363;         /* alerts/errors */
+        --curve-k:1;              /* 0=flat, 1=curved (DOM aesthetic scale) */
+      
+        /* ---------- EFFECT KNOBS ---------- */
+        --vig-opacity: 1;
+        --vig-inner:   20%;
+        --vig-mid:     52%;
+        --vig-outer:   100%;
+      
+        /* Radial EDGE blur (under vignette, above content) */
+        --edge-blur: 12px;
+        --edge-mask-i: 46%;
+        --edge-mask-o: 74%;
+      
+        /* ---------- LAYOUT / BEHAVIOR ---------- */
+        --cursor-size: 20px;      /* gooey cursor “head” size (desktop only) */
+        --fab-size: 120px;        /* main capture button diameter */
+        --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
+      
+        /* Zoom rail */
+        --rail-height-desktop: 20vh;
+        --rail-height-mobile:  12vh;
+        --rail-right: clamp(12px, 2vw, 20px);
+      
+        /* Corner padding (logo / HUD) */
+        --corner-pad: clamp(14px, 2.4vw, 24px);
+        --corner-top: calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
+      
+        /* HUD bottom pad (NEW) */
+        --hud-bottom-pad: 16px;
+      
+        /* ---------- Z-LAYERS ---------- */
+        --z-content: 0;
+        --z-grain: 149;
+        --z-blur: 150;
+        --z-vig:  151;
+        --z-ui:   220;
+        --z-cursor: 230;
+      }
+      
+      /* ========== BASE / RESET ========== */
+      *{ box-sizing:border-box }
+      html,body,#root{ height:100% }
+      body{
+        margin:0; background:#000; color:var(--ink);
+        font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+        overflow:hidden;
+        -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      }
+      
+      /* ========== CANVAS LAYER (WebGL) ========== */
+      .canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
+      .canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; }
+      .canvas-wrap canvas.dragging{ cursor:grabbing }
+      
+      /* Optional faint debug grid behind cards */
+      .fallback-grid{
+        position:absolute; inset:0; z-index:var(--z-content); pointer-events:none; opacity:.06;
+        background-image:
+          repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
+          repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
+      }
+      
+      /* ========== GLOBAL EDGE BLUR (radial) ========== */
+      .edge-blur{
+        position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
+        background: rgba(0,0,0,0.001);
+        backdrop-filter: blur(var(--edge-blur));
+        -webkit-backdrop-filter: blur(var(--edge-blur));
+        mask: radial-gradient(90% 70% at 50% 50%,
+          transparent var(--edge-mask-i),
+          white       var(--edge-mask-o));
+        -webkit-mask: radial-gradient(90% 70% at 50% 50%,
+          transparent var(--edge-mask-i),
+          white       var(--edge-mask-o));
+      }
+      
+      /* ========== VIGNETTE (above blur) ========== */
+      .vignette{
+        position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
+        background:
+          radial-gradient(120% 90% at 50% 50%,
+            rgba(0,0,0,0)         var(--vig-inner),
+            rgba(0,0,0,0.58)      var(--vig-mid),
+            rgba(0,0,0,0.98)      var(--vig-outer));
+        opacity:calc(var(--vig-opacity) * var(--curve-k));
+      }
+      
+      /* ========== SUBTLE GRAIN (over content, under effects) ========== */
+      body::after{
+        content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+        background-size: 120px 120px;
+      }
+      
+      /* ========== CURVED DOM AESTHETIC ========== */
+      .curved{
+        transform-style:preserve-3d;
+        transform:
+          perspective(1000px)
+          translateZ(calc(-200px * var(--curve-k)))
+          scale(calc(1 + var(--curve-k) * 0.06));
+        will-change:transform;
+      }
+      
+      /* ========== HEADER / BRAND / CONTROLS (UI ABOVE EFFECTS) ========== */
+      .header{
+        position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
+        display:flex; align-items:center; justify-content:space-between;
+        gap:12px;
+        padding: var(--corner-top) var(--corner-pad) 12px var(--corner-pad);
+        pointer-events:none;
+      }
+      .brand{
+        display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
+        padding:2px 4px;
+      }
+      .brand img{ display:block; height:42px; width:auto; filter:none !important; mix-blend-mode:normal; }
+      .brand-text{
+        font-weight:700; letter-spacing:.02em; line-height:1;
+        font-size:16px;
+      }
+      @media (max-width:768px){
+        .brand img{ height:36px; }
+        .brand-text{ font-size:14px; }
+      }
+      
+      .controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
+      .icon-btn{
+        appearance:none; cursor:pointer; border:0px solid var(--ink-2);
+        background:rgba(0,0,0,.35); color:var(--ink);
+        padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
+        transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease;
+        position:relative; z-index:1;
+      }
+      .icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
+      .icon-btn svg{ display:block; width:18px; height:18px; }
+      
+      /* Trash: turn red when active */
+      .icon-btn.danger.active{
+        color:var(--danger);
+        background:rgba(255,99,99,.14);
+        box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
+      }
+      
+      /* ========== ZOOM RAIL (right side) ========== */
+      .zoom-rail{
+        position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
+        height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
+        pointer-events:auto; touch-action: none;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      }
+      .zoom-rail__track{ position:relative; width:2px; height:100%; background:rgba(255,255,255,.18); border-radius:2px; }
+      .zoom-rail__progress{ position:absolute; left:0; bottom:0; width:100%; height:var(--zoom-pct,0%); background:rgba(255,255,255,.9); border-radius:2px; }
+      .zoom-rail__thumb{
+        position:absolute; left:50%; top: calc(100% - var(--zoom-pct, 0%)); transform: translate(-50%, -50%);
+        width:10px; height:10px; border-radius:50%; background:var(--ink);
+        box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
+      }
+      .zoom-rail__tooltip{
+        position:absolute; top:calc(100% - var(--zoom-pct,0%)); left:-44px; transform:translateY(-50%);
+        font-weight:700; font-size:12px; color:var(--ink-2); text-shadow:0 1px 2px rgba(0,0,0,.55); user-select:none;
+      }
+      @media (max-width:768px){
+        .zoom-rail{ height: var(--rail-height-mobile); }
+        .zoom-rail__tooltip{ left: -40px; }
+      }
+      
+      /* ========== MODALS / SHEETS ========== */
+      .overlay{ position:fixed; inset:72px 16px 16px 16px; z-index:var(--z-ui); display:none; pointer-events:auto; }
+      .overlay.open{ display:grid; place-items:center; }
+      .sheet{
+        width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
+        box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
+      }
+      .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+      .grid{ display:grid; gap:12px }
+      .cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+      .label{ font-weight:600; opacity:.9 }
+      .input,.textarea{ width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit; }
+      .textarea{ min-height:96px; resize:vertical }
+      .btn{
+        appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600;
+        position:relative; z-index:1;
+      }
+      .btn.ghost{ background:transparent }
+      .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
+      .hint{ color:#c9c9cf; font-size:12px }
+      .vf{ position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; }
+      video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98) }
+      .preview{ position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block; }
+      .titlebar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px }
+      .titlebar h2{ margin:0; font-size:16px }
+      .tight{ gap:6px } .hidden{ display:none !important }
+      .sheet :focus{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px }
+      
+      /* ========== FILM STRIP CHROME ========== */
+      .vf::before,.vf::after{
+        content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
+        background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
+        border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
+      }
+      .vf::before{ top:0; } .vf::after{ bottom:0; }
+      .vf .perfs{
+        position:absolute; inset:0; pointer-events:none; z-index:1;
+        background:
+          radial-gradient(circle 3px at 8px 14px, #000 0 2.2px, transparent 2.2px) repeat-y left / 16px 28px,
+          radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
+        opacity:.85;
+      }
+      
+      /* ========== LEVELER ========== */
+      .leveler{
+        position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+        width:min(260px, 72%); height:30px; border-radius:999px;
+        background:rgba(0,0,0,.45); border:1px solid #2a2a2e; box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+        display:flex; align-items:center; justify-content:center; z-index:2; pointer-events:auto;
+      }
+      .leveler .vial{ position:absolute; inset:4px; border-radius:999px; background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06)); }
+      .leveler .bubble{
+        position:absolute; top:50%; transform:translate(-50%,-50%); left:var(--bubble-x, 50%);
+        width:22px; height:22px; border-radius:999px; background:#ffe066;
+        box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 2px 10px rgba(0,0,0,.35);
+      }
+      .leveler .deg{
+        position:absolute; right:8px; top:50%; transform:translateY(-50%);
+        font:600 12px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        color:#cfcfcf; text-shadow:0 1px 1px rgba(0,0,0,.5);
+      }
+      .leveler.good .vial{ outline:2px solid rgba(120,255,120,.35); outline-offset:-2px; }
+      .leveler .enable{
+        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+        background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.35));
+        backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+        color:#fff; font-weight:600; font-size:12px; border-radius:inherit; cursor:pointer; border:1px solid #2a2a2e;
+      }
+      
+      /* ========== FAB (UI ABOVE EFFECTS) ========== */
+      .fab-wrap{
+        position:fixed; left:50%; bottom: var(--fab-bottom); transform: translateX(-50%);
+        z-index:var(--z-ui); display:flex; flex-direction:column; align-items:center;
+      }
+      .fab{
+        position:relative;
+        width:var(--fab-size); height:var(--fab-size); border-radius:999px;
+        background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
+        display:flex; align-items:center; justify-content:center; cursor:pointer;
+        box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
+        transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
+        padding:0;
+      }
+      .fab:focus-visible{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px; }
+      .fab:active{ transform:translateY(1px) }
+      .fab:hover{ background:rgba(255,255,255,.10); border-color:rgb(255 255 255 / .22); }
+      .fab svg{ width:58%; height:auto; display:block }
+      /* KEEP original look: both faces visible; no hover swapping */
+      .fab .cube--light,
+      .fab .cube--dark{ display:inline; }
+      .fab:hover .cube--light,
+      .fab:hover .cube--dark{ display:inline; }
+      
+      /* Label INSIDE the FAB */
+      .fab-text{
+        position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+        font:600 11px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        color:#fff; opacity:.9; letter-spacing:.02em; text-shadow:0 1px 2px rgba(0,0,0,.55);
+      }
+      
+      /* Larger FAB on mobile */
+      @media (max-width:768px){
+        :root{
+          --fab-size: 128px;
+          --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
+        }
+      }
+      
+      /* ========== HUD CORNERS (coords & version) ========== */
+      .hud{
+        position:fixed; bottom:calc(env(safe-area-inset-bottom) + var(--hud-bottom-pad));
+        z-index:var(--z-ui); pointer-events:none;
+        font:600 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color:#c9c9cf; opacity:.9; text-shadow:0 1px 2px rgba(0,0,0,.6);
+      }
+      .hud-left{ left: var(--corner-pad); }
+      .hud-right{ right: var(--corner-pad); }
+      
+      /* ========== REDUCED MOTION ========== */
+      @media (prefers-reduced-motion: reduce){
+        .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
+      }
+      
+      /* ========== GOOEY CURSOR (desktop only) ========== */
+      #cursor{
+        position:fixed; top: calc(var(--cursor-size) * -0.5); left: calc(var(--cursor-size) * -0.5);
+        pointer-events:none; filter:url(#goo); mix-blend-mode:difference; z-index:var(--z-cursor);
+      }
+      .cursor-circle{
+        position:absolute; top:0; left:0; width:var(--cursor-size); height:var(--cursor-size);
+        border-radius:999px; background:#fff; transform-origin:center center;
+      }
+      .goo{ display:none; }
+      @media (pointer: coarse){ #cursor{ display:none; } }
+      
+      /* -------- Mobile tweaks: tighter edge blur + raise HUD pad -------- */
+      @media (max-width:768px){
+        :root{
+          --edge-blur: 9px;     /* was 12px */
+          --edge-mask-i: 56%;   /* enlarge clear center */
+          --edge-mask-o: 78%;   /* thinner ring */
+          --hud-bottom-pad: 22px;
+        }
+      }
+          </style>
   </head>
   <body>
     <!-- SVG filter for gooey blending -->
@@ -355,7 +355,7 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
     <div id="root"></div>
 
     <!-- HUD corners -->
-    <div class="hud hud-left">v2.2.1</div>
+    <div class="hud hud-left">v2.1.2</div>
     <div class="hud hud-right" id="coordsHud">x 0 • y 0</div>
 
     <script type="module">
@@ -365,10 +365,6 @@ import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 import * as THREE from "https://esm.sh/three@0.160.1";
 import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
 import gsap from "https://esm.sh/gsap@3.12.5";
-import { EffectComposer } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js";
-import { ShaderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js";
-import { OutputPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js";
 
 /* ========= Seed images ========= */
 const FAKE=(i)=>[
@@ -376,7 +372,8 @@ const FAKE=(i)=>[
   "Quiet geometry.","Edge of focus.","A walk-by frame.","Study in contrast.","Moment, observed."
 ][i%10];
 
-const SEED=[{src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:FAKE(0)},
+const SEED=[
+  {src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:FAKE(0)},
 {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp',title:'wmzWGlaw',caption:FAKE(1)},
 {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp',title:'IMG-8403',caption:FAKE(2)},
 {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp',title:'DSC08656',caption:FAKE(3)},
@@ -441,10 +438,10 @@ function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1
 function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
   img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
 function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
-/* FIX: remove bad 's' reference to prevent blank screen */
+/* FIX: avoid undefined 's' — use provided w/h */
 function coverImage(ctx,img,x,y,w,h){
   const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
-  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(0,0,w,h); return; }
+  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
   const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
   if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
   ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
@@ -813,31 +810,53 @@ class Grid extends THREE.Group{
   resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); this._setHover(-1); }
 }
 
-/* ========= Postprocessing ========= */
+/* ========= Postprocessing (lazy/fail-safe imports) ========= */
 function Postprocessing({ workgridState }){
   const { gl, scene, camera, size } = useThree();
+  const [mods, setMods] = useState(null);
+
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      try{
+        const [{ EffectComposer }, { RenderPass }, { ShaderPass }, { OutputPass }] = await Promise.all([
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js"),
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js"),
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js"),
+          import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js"),
+        ]);
+        if(!cancelled) setMods({ EffectComposer, RenderPass, ShaderPass, OutputPass });
+      }catch(e){ console.warn("Post FX unavailable", e); }
+    })();
+    return ()=>{ cancelled=true; };
+  },[]);
+
   const { composer, shader } = useMemo(()=>{
+    if(!mods) return { composer:null, shader:null };
     try{
-      const renderPass=new RenderPass(scene,camera);
+      const renderPass=new mods.RenderPass(scene,camera);
       const shader=new DistortionShader();
-      const shaderPass=new ShaderPass(shader);
-      const outputPass=new OutputPass();
-      const composer=new EffectComposer(gl);
+      const shaderPass=new mods.ShaderPass(shader);
+      const outputPass=new mods.OutputPass();
+      const composer=new mods.EffectComposer(gl);
       composer.addPass(renderPass); composer.addPass(shaderPass); composer.addPass(outputPass);
       return { composer, shader };
     }catch(e){ console.warn("Composer init failed",e); return { composer:null, shader:null }; }
-  },[gl,scene,camera]);
+  },[mods, gl, scene, camera]);
+
   useEffect(()=>{ if(!composer||!shader) return;
     const dpr=Math.min(2, gl.getPixelRatio?.()||1.5);
     composer.setPixelRatio?.(dpr);
     composer.setSize(size.width, size.height);
     shader.update();
   },[composer,shader,size,gl]);
+
   useEffect(()=>{ if(!shader) return;
     const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
     const scale = size.width < 800 ? 0.75 : 1.0;
     shader.setDistortion(base * scale);
   },[workgridState,shader,size.width]);
+
   useFrame(()=>{ composer?.render(); }, 1);
   return null;
 }
@@ -858,8 +877,7 @@ function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect,
   useEffect(()=>{ grid.onZoomChange = (z)=> onZoomChange?.(z); return ()=>{ grid.onZoomChange=null; }; },[grid,onZoomChange]);
   useEffect(()=>{ if(workgridState==="RESET") grid.resetPosition(); },[workgridState,grid]);
 
-  useEffect(()=>{
-    if(!controllerRef) return;
+  useEffect(()=>{ if(!controllerRef) return;
     controllerRef.current = {
       setZoom: (z) => {
         const clamped = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z));
@@ -1077,17 +1095,17 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
 
 /* ========= Vertical Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
-  /* 0–100 based on normalized range, DISPLAY inverted (top = 100) and clamped to 1–100 */
+  /* 0–100 based on normalized range, but DISPLAY is inverted (100 → 0) */
   const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
   const pct = clamped * 100;
-  const pctLabel = Math.max(1, 100 - Math.round(pct)); // ← 1–100%
+  const pctLabel = 100 - Math.round(pct); // ← inverted readout
 
   const trackRef = React.useRef(null);
   const toZoomFromClientY = (clientY) => {
     const el = trackRef.current; if(!el) return null;
     const r = el.getBoundingClientRect();
     const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
-    const frac = 1 - y; // top = max zoom
+    const frac = 1 - y; // top = max zoom (unchanged behavior)
     return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
   };
   const onPointerDown = (e) => {
@@ -1102,7 +1120,7 @@ function ZoomRail({ zoom, onScrub }) {
   return React.createElement("div", { className:"zoom-rail", "aria-label":"Zoom" },
     React.createElement("div", { className:"zoom-rail__track", ref:trackRef, onPointerDown, role:"slider",
       "aria-orientation":"vertical",
-      "aria-valuemin":1, "aria-valuemax":100,
+      "aria-valuemin":0, "aria-valuemax":100,
       "aria-valuenow":pctLabel },
       React.createElement("div", { className:"zoom-rail__progress", style:{ "--zoom-pct": `${pct}%` } }),
       React.createElement("div", { className:"zoom-rail__thumb", style:{ "--zoom-pct": `${pct}%` } }),
@@ -1217,12 +1235,11 @@ function App(){
 
       /* Header (UI above effects) */
       React.createElement("header",{className:"header"},
-        React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview—note home"},
+        React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
           React.createElement("img",{
-            id:"brandLogo", alt:"", "aria-hidden":"true", decoding:"async",
+            id:"brandLogo", alt:"intoview", decoding:"async",
             src:"https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg"
-          }),
-          React.createElement("span",{className:"brand-text"},"intoview—note")
+          })
         ),
         React.createElement("div",{className:"controls"},
           React.createElement(MorphDistortionIcon,{ isCurved, onToggle:()=>setWgState(isCurved?WorkgridState.INTRO:WorkgridState.DEFAULT) }),
@@ -1345,5 +1362,20 @@ root.render(React.createElement(App));
   tick();
 })();
     </script>
+    <script>
+      (async () => {
+        const cached = localStorage.getItem('seedSorted');
+        if (cached) {
+          window.SEED = JSON.parse(cached);
+          rebuildGrid?.(SEED);
+        } else {
+          const sorted = await sortByBrightness(SEED, { sample: 64, ignoreBorder: 0.06 });
+          window.SEED = sorted;
+          localStorage.setItem('seedSorted', JSON.stringify(sorted));
+          rebuildGrid?.(sorted);
+        }
+      })();
+      </script>
+      
   </body>
 </html>
