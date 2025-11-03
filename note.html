@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — (v2.2 chrome)</title>
+    <title>intoview • note — (v2.2 chrome bezel, bracket boost)</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -440,11 +440,17 @@ const SEED=[
 
 /* ========= Config ========= */
 const STORAGE_KEY="intoview_archive_cards_v6";
-const CONFIG={ cols:10, rows:7, tile:0.32, gap:0.08, ambient:0.20, dragEase:0.14, velEase:0.92, zoomOut:1.85,
+const CONFIG={
+  cols:10, rows:7, tile:0.32, gap:0.08, ambient:0.20, dragEase:0.14, velEase:0.92, zoomOut:1.85,
   distortion:{ flat:0.0, curved:0.46 },
   clickBounceDelta:0.25, longPressMsMouse:380, longPressMsTouch:520, clickMovePx:6, clickMovePxTouch:12,
   dragMultMouse:6.0, dragMultTouch:4.0, touchDragEase:0.18,
-  zoomMin:0.45, zoomMax:3.00, wheelScale:0.0015 };
+  zoomMin:0.45, zoomMax:3.00, wheelScale:0.0015,
+  /* NEW: soft-bounds controls */
+  boundSlack: 0.6,   // how far past edges you can drag (world units)
+  rubber:     0.33,  // how squishy overscroll feels (0–1)
+  magnet:     0.12   // snap-back strength when released (0–1)
+};
 
 /* ========= Utilities ========= */
 const TEX_SIZE=768, HAIR=1, BAR_H=28, PAD=12, CAP_SIZE=18, TITLE_SIZE=20;
@@ -668,7 +674,7 @@ function BracketOverlay(){
   return null;
 }
 
-/* ========= Grid with hover bg + zoom ========= */
+/* ========= Grid with hover bg + zoom (now with soft bounds) ========= */
 class Grid extends THREE.Group{
   constructor(canvas,camera,opts){ super();
     this.canvas=canvas; this.camera=camera; this.opts=opts;
@@ -723,6 +729,10 @@ class Grid extends THREE.Group{
     const sizeX=stepX*(cols-1), sizeY=stepY*(rows-1);
     this.groups.forEach(g=>this.remove(g));
     this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[];
+
+    /* NEW: content half extents (include half-tile) */
+    this.contentHalfW = sizeX/2 + tile/2;
+    this.contentHalfH = sizeY/2 + tile/2;
 
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols;c++){
@@ -911,17 +921,67 @@ class Grid extends THREE.Group{
     }
   }
 
+  /* ===== Soft-bounds helpers ===== */
+  _rubberClamp(value, min, max, k = CONFIG.rubber){
+    if (value < min) return min + (value - min) * k;
+    if (value > max) return max + (value - max) * k;
+    return value;
+  }
+  _visibleWorldWH(){
+    const z   = this.camera.position.z;
+    const fov = this.camera.fov * Math.PI/180;
+    const visH = 2 * Math.tan(fov/2) * z;
+    const visW = visH * (this.viewW / this.viewH);
+    return { visW, visH };
+  }
+  _computeBounds(){
+    const { visW, visH } = this._visibleWorldWH();
+    const slack = CONFIG.boundSlack;
+
+    const tooWide  = visW >= this.contentHalfW * 2 + slack * 2;
+    const tooTall  = visH >= this.contentHalfH * 2 + slack * 2;
+
+    const minX = tooWide ? 0 : ( visW/2 - this.contentHalfW - slack );
+    const maxX = tooWide ? 0 : ( this.contentHalfW + slack - visW/2 );
+    const minY = tooTall ? 0 : ( visH/2 - this.contentHalfH - slack );
+    const maxY = tooTall ? 0 : ( this.contentHalfH + slack - visH/2 );
+
+    return { minX, maxX, minY, maxY };
+  }
+
   update(){
     const cursorOffset=this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
+
+    // inertia while not dragging
     if(!this.isPointerDown && !this.manageMode){
       this.offset.add(this.velocity.clone().multiplyScalar(5));
       this.velocity.multiplyScalar(this.opts.velEase);
     }
-    const tx=this.offset.x+cursorOffset.x, ty=this.offset.y-cursorOffset.y;
-    const ease = this.currentDragEase || this.opts.dragEase;
-    this.position.x += (tx-this.position.x) * ease;
-    this.position.y += (ty-this.position.y) * ease;
 
+    // target (pre-constraint)
+    const tx=this.offset.x+cursorOffset.x, ty=this.offset.y-cursorOffset.y;
+
+    // bounds in world space
+    const { minX, maxX, minY, maxY } = this._computeBounds();
+
+    // rubber-banded view position
+    const ease = this.currentDragEase || this.opts.dragEase;
+    const txSoft = this._rubberClamp(tx, minX, maxX);
+    const tySoft = this._rubberClamp(ty, minY, maxY);
+
+    this.position.x += (txSoft - this.position.x) * ease;
+    this.position.y += (tySoft - this.position.y) * ease;
+
+    // magnetic snap-back for offsets when released
+    if (!this.isPointerDown) {
+      const clampX = Math.min(Math.max(this.offset.x, minX), maxX);
+      const clampY = Math.min(Math.max(this.offset.y, minY), maxY);
+      const k = CONFIG.magnet;
+      this.offset.x += (clampX - this.offset.x) * k;
+      this.offset.y += (clampY - this.offset.y) * k;
+    }
+
+    // zoom HUD callback
     const z = this.camera.position.z;
     if (Math.abs(z - (this._lastZ ?? z)) > 1e-3) {
       this._lastZ = z;
@@ -960,7 +1020,7 @@ function Postprocessing({ workgridState }){
       const shader=new DistortionShader();
       const shaderPass=new mods.ShaderPass(shader);
       const outputPass=new mods.OutputPass();
-      const composer=new mods.EffectComposer(gl);
+      const composer=new mods. EffectComposer(gl);
       composer.addPass(renderPass); composer.addPass(shaderPass); composer.addPass(outputPass);
       return { composer, shader };
     }catch(e){ console.warn("Composer init failed",e); return { composer:null, shader:null }; }
@@ -1430,7 +1490,7 @@ function App(){
       ),
 
       /* HUD Coords (bottom-right; single source) */
-      React.createElement("div", null) /* placeholder */,
+      React.createElement("div", null),
       React.createElement("div", { dangerouslySetInnerHTML:{ __html: `<!-- xy is painted into #coordsMount by outer DOM -->` } }),
       (()=>{ const mount=document.getElementById("coordsMount"); if(mount) mount.textContent=`x ${cursorXY.x} • y ${cursorXY.y}`; })()
     )
