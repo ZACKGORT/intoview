@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — (v1.2 prototype)</title>
+    <title>intoview • note — (v1.2 prototype + hotfix)</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,11 +12,6 @@
     <style>
 /* ============================================================
    intoview:note — CSS (commented & organized)
-   PASTE this whole block into your <style> tag.
-   Where to tweak quickly:
-   1) EFFECT KNOBS (vignette/blur strength & masks)
-   2) Z-LAYERS (keep UI above global effects)
-   3) COMPONENT THEME TOKENS (colors, sizes)
    ============================================================ */
 
 :root{
@@ -30,37 +25,33 @@
   --curve-k:1;              /* 0=flat, 1=curved (DOM aesthetic scale) */
 
   /* ---------- EFFECT KNOBS ---------- */
-  /* Vignette stops: inner → mid → outer */
-  --vig-opacity: 1;         /* master opacity multiplier */
-  --vig-inner:   20%;       /* where darkness begins */
-  --vig-mid:     52%;       /* mid falloff */
-  --vig-outer:   100%;      /* outer edge */
+  --vig-opacity: 1;
+  --vig-inner:   20%;
+  --vig-mid:     52%;
+  --vig-outer:   100%;
 
   /* Radial EDGE blur (under vignette, above content) */
-  --edge-blur: 12px;        /* increase for stronger edge softness */
-  --edge-mask-i: 46%;       /* inner clear radius */
-  --edge-mask-o: 74%;       /* where blur fully takes over */
+  --edge-blur: 12px;
+  --edge-mask-i: 46%;
+  --edge-mask-o: 74%;
 
   /* ---------- LAYOUT / BEHAVIOR ---------- */
   --cursor-size: 20px;      /* gooey cursor “head” size (desktop only) */
   --fab-size: 120px;        /* main capture button diameter */
   --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
 
-  /* Zoom rail (vertical slider at right) */
+  /* Zoom rail */
   --rail-height-desktop: 20vh;
   --rail-height-mobile:  12vh;
   --rail-right: clamp(12px, 2vw, 20px);
 
-  /* ---------- Z-LAYERS (IMPORTANT) ---------- 
-     content   < blur < vignette < UI < cursor
-     Keep UI above effects (as requested).
-     ----------------------------------------- */
+  /* ---------- Z-LAYERS ---------- */
   --z-content: 0;
   --z-grain: 149;
-  --z-blur: 150;            /* edge-blur lives here */
-  --z-vig:  151;            /* vignette sits above blur */
-  --z-ui:   220;            /* header, controls, modals, rail, FAB */
-  --z-cursor: 230;          /* gooey cursor on top */
+  --z-blur: 150;
+  --z-vig:  151;
+  --z-ui:   220;
+  --z-cursor: 230;
 }
 
 /* ========== BASE / RESET ========== */
@@ -75,9 +66,7 @@ body{
 
 /* ========== CANVAS LAYER (WebGL) ========== */
 .canvas-wrap{ position:absolute; inset:0; z-index:var(--z-content) }
-.canvas-wrap canvas{
-  touch-action:none; cursor:grab; background:#000;
-}
+.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000; }
 .canvas-wrap canvas.dragging{ cursor:grabbing }
 
 /* Optional faint debug grid behind cards */
@@ -88,16 +77,12 @@ body{
     repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
 }
 
-/* ========== GLOBAL EDGE BLUR (radial) ========== 
-   A soft radial backdrop blur from the edges inward.
-   Tweak: --edge-blur, --edge-mask-i, --edge-mask-o
-   ---------------------------------------------- */
+/* ========== GLOBAL EDGE BLUR (radial) ========== */
 .edge-blur{
   position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
-  background: rgba(0,0,0,0.001); /* required to trigger backdrop-filter on some browsers */
+  background: rgba(0,0,0,0.001);
   backdrop-filter: blur(var(--edge-blur));
   -webkit-backdrop-filter: blur(var(--edge-blur));
-  /* elliptical radial mask: clear center → blurred edges */
   mask: radial-gradient(90% 70% at 50% 50%,
     transparent var(--edge-mask-i),
     white       var(--edge-mask-o));
@@ -106,9 +91,7 @@ body{
     white       var(--edge-mask-o));
 }
 
-/* ========== VIGNETTE (above blur) ========== 
-   Tweak: --vig-opacity, --vig-inner, --vig-mid, --vig-outer
-   ------------------------------------------ */
+/* ========== VIGNETTE (above blur) ========== */
 .vignette{
   position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
   background:
@@ -117,7 +100,6 @@ body{
       rgba(0,0,0,0.58)      var(--vig-mid),
       rgba(0,0,0,0.98)      var(--vig-outer));
   opacity:calc(var(--vig-opacity) * var(--curve-k));
-  mix-blend-mode: normal;   /* keep it clean over UI */
 }
 
 /* ========== SUBTLE GRAIN (over content, under effects) ========== */
@@ -127,7 +109,7 @@ body::after{
   background-size: 120px 120px;
 }
 
-/* ========== CURVED DOM AESTHETIC (scale with --curve-k) ========== */
+/* ========== CURVED DOM AESTHETIC ========== */
 .curved{
   transform-style:preserve-3d;
   transform:
@@ -141,25 +123,34 @@ body::after{
 .header{
   position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
   display:flex; align-items:center; justify-content:space-between;
-  gap:12px; padding:12px 14px;
-  pointer-events:none;      /* let clicks pass EXCEPT for children explicitly turned on */
+  gap:12px;
+  /* increased corner padding */
+  padding:26px 26px;
+  pointer-events:none;
 }
 .brand{
   display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
+  padding:4px 6px;
 }
-.brand img{ display:block; height:40px; width:auto; filter:none !important; mix-blend-mode:normal; }
+.brand img{ display:block; height:42px; width:auto; filter:none !important; mix-blend-mode:normal; }
 
 .controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
 .icon-btn{
   appearance:none; cursor:pointer; border:0px solid var(--ink-2);
   background:rgba(0,0,0,.35); color:var(--ink);
   padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
-  transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease;
+  transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease;
   position:relative; z-index:1;
 }
 .icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
-.icon-btn.active{ outline:0px solid color-mix(in oklab, var(--danger), white 10%); outline-offset:1px; }
 .icon-btn svg{ display:block; width:18px; height:18px; }
+
+/* Trash: turn red when active */
+.icon-btn.danger.active{
+  color:var(--danger);
+  background:rgba(255,99,99,.14);
+  box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
+}
 
 /* ========== ZOOM RAIL (right side) ========== */
 .zoom-rail{
@@ -184,7 +175,7 @@ body::after{
   .zoom-rail__tooltip{ left: -40px; }
 }
 
-/* ========== MODALS / SHEETS (UI ABOVE EFFECTS) ========== */
+/* ========== MODALS / SHEETS ========== */
 .overlay{ position:fixed; inset:72px 16px 16px 16px; z-index:var(--z-ui); display:none; pointer-events:auto; }
 .overlay.open{ display:grid; place-items:center; }
 .sheet{
@@ -212,14 +203,13 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
 .tight{ gap:6px } .hidden{ display:none !important }
 .sheet :focus{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px }
 
-/* ========== FILM STRIP CHROME (viewfinder top/bottom) ========== */
+/* ========== FILM STRIP CHROME ========== */
 .vf::before,.vf::after{
   content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
   background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
   border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
 }
-.vf::before{ top:0; }
-.vf::after{ bottom:0; }
+.vf::before{ top:0; } .vf::after{ bottom:0; }
 .vf .perfs{
   position:absolute; inset:0; pointer-events:none; z-index:1;
   background:
@@ -228,7 +218,7 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
   opacity:.85;
 }
 
-/* ========== LEVELER (bubble vial) ========== */
+/* ========== LEVELER ========== */
 .leveler{
   position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
   width:min(260px, 72%); height:30px; border-radius:999px;
@@ -260,9 +250,10 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
   z-index:var(--z-ui); display:flex; flex-direction:column; align-items:center;
 }
 .fab{
+  position:relative;
   width:var(--fab-size); height:var(--fab-size); border-radius:999px;
   background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
   box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
   transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
   padding:0;
@@ -271,14 +262,17 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
 .fab:active{ transform:translateY(1px) }
 .fab:hover{ background:rgba(255,255,255,.10); border-color:rgb(255 255 255 / .22); }
 .fab svg{ width:58%; height:auto; display:block }
-.fab .cube--dark{ display:none }
-.fab:hover .cube--light{ display:none }
-.fab:hover .cube--dark{ display:inline }
-.fab-label{
-  margin-top:6px;
-  font:500 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color:#fff; opacity:.8; user-select:none; pointer-events:none;
-  text-shadow:0 1px 2px rgba(0,0,0,.55);
+/* REVERT cube states: keep both faces visible, no hover swap */
+.fab .cube--light,
+.fab .cube--dark{ display:inline; }
+.fab:hover .cube--light,
+.fab:hover .cube--dark{ display:inline; }
+
+/* Label INSIDE the FAB */
+.fab-text{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+  font:600 11px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color:#fff; opacity:.9; letter-spacing:.02em; text-shadow:0 1px 2px rgba(0,0,0,.55);
 }
 
 /* Larger FAB on mobile */
@@ -288,6 +282,17 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
     --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
   }
 }
+
+/* ========== HUD CORNERS (coords & version) ========== */
+.hud{
+  /* increased corner + bottom padding */
+  position:fixed; bottom:calc(env(safe-area-inset-bottom) + 16px);
+  z-index:var(--z-ui); pointer-events:none;
+  font:600 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color:#c9c9cf; opacity:.9; text-shadow:0 1px 2px rgba(0,0,0,.6);
+}
+.hud-left{ left:16px; }
+.hud-right{ right:16px; }
 
 /* ========== REDUCED MOTION ========== */
 @media (prefers-reduced-motion: reduce){
@@ -303,8 +308,8 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
   position:absolute; top:0; left:0; width:var(--cursor-size); height:var(--cursor-size);
   border-radius:999px; background:#fff; transform-origin:center center;
 }
-.goo{ display:none; }         /* SVG filter host */
-@media (pointer: coarse){ #cursor{ display:none; } }  /* hide on touch devices */
+.goo{ display:none; }
+@media (pointer: coarse){ #cursor{ display:none; } }
     </style>
   </head>
   <body>
@@ -326,6 +331,10 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
 
     <div id="root"></div>
 
+    <!-- HUD corners -->
+    <div class="hud hud-left">v2.1.1</div>
+    <div class="hud hud-right" id="coordsHud">x 0 • y 0</div>
+
     <script type="module">
 /* React + Three deps */
 import React,{useEffect,useMemo,useRef,useState,Suspense} from "https://esm.sh/react@18.3.1";
@@ -333,10 +342,10 @@ import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 import * as THREE from "https://esm.sh/three@0.160.1";
 import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
 import gsap from "https://esm.sh/gsap@3.12.5";
-import { EffectComposer } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js?deps=three@0.160.1";
-import { RenderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js?deps=three@0.160.1";
-import { ShaderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js?deps=three@0.160.1";
-import { OutputPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js?deps=three@0.160.1";
+import { EffectComposer } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js";
+import { ShaderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js";
+import { OutputPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js";
 
 /* ========= Seed images ========= */
 const FAKE=(i)=>[
@@ -409,6 +418,7 @@ function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1
 function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
   img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
 function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
+/* FIX: avoid undefined 's' usage */
 function coverImage(ctx,img,x,y,w,h){
   const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
   if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(0,0,s,s); return; }
@@ -440,7 +450,7 @@ function makeFillerTexture(){ const c=document.createElement('canvas'); c.width=
   const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; tex.needsUpdate=true; return tex; }
 async function textureForItem(item){
   if(item?.placeholder){
-    const cnv = makeCardCanvas({ img:null, title:item.title || "new note", caption:item.caption || "tap to start", gps:"", ts:"" });
+    const cnv = makeCardCanvas({ img:null, title:item.title || "Create", caption:item.caption || "tap to start", gps:"", ts:"" });
     return makeCardTextureFromCanvas(cnv);
   }
   if(!item||!item.src) return makeEmptyTexture();
@@ -471,7 +481,7 @@ class DistortionShader extends THREE.ShaderMaterial{
   setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
 }
 
-/* ========= Bracket overlay (screen-space, post-processed) ========= */
+/* ========= Bracket overlay ========= */
 function BracketOverlay(){
   const { scene, size } = useThree();
   const matRef = useRef(null);
@@ -479,86 +489,40 @@ function BracketOverlay(){
     const geom = new THREE.PlaneGeometry(2,2);
     const mat = new THREE.ShaderMaterial({
       name:"BracketOverlay",
-      transparent:true,
-      depthTest:false,
-      depthWrite:false,
+      transparent:true, depthTest:false, depthWrite:false,
       uniforms:{
         resolution:{ value:new THREE.Vector2(size.width, size.height) },
-        thickness:{ value: 2.0 },   // px stroke
-        length:{ value: 54.0 },     // px arm length
-        margin:{ value: 22.0 },     // px inset from edges
-        opacity:{ value: 0.95 }
+        thickness:{ value: 2.0 }, length:{ value: 54.0 }, margin:{ value: 22.0 }, opacity:{ value: 0.95 }
       },
-      vertexShader: `
-        varying vec2 vUv;
-        void main(){
-          vUv = position.xy * 0.5 + 0.5;        // map clipspace to 0..1
-          gl_Position = vec4(position.xy, 0.0, 1.0); // fullscreen quad in clipspace
-        }`,
+      vertexShader: `varying vec2 vUv; void main(){ vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
       fragmentShader: `
-        precision highp float;
-        varying vec2 vUv;
-        uniform vec2 resolution;
-        uniform float thickness;
-        uniform float length;
-        uniform float margin;
-        uniform float opacity;
-
-        float inRect(vec2 p, vec2 mn, vec2 mx){
-          vec2 s = step(mn, p) * step(p, mx);
-          return s.x * s.y;
-        }
-
+        precision highp float; varying vec2 vUv; uniform vec2 resolution; uniform float thickness,length,margin,opacity;
+        float inRect(vec2 p, vec2 mn, vec2 mx){ vec2 s = step(mn, p) * step(p, mx); return s.x * s.y; }
         void main(){
-          vec2 p = vUv * resolution;  // pixel coords, (0,0)=bottom-left
-          float th = thickness;
-          float L  = length;
-          float m  = margin;
-
-          // Corner anchors (remember: y increases upward)
+          vec2 p = vUv * resolution; float th = thickness, L = length, m = margin;
           vec2 tl = vec2(m,            resolution.y - m);
           vec2 tr = vec2(resolution.x - m, resolution.y - m);
           vec2 bl = vec2(m,                 m);
           vec2 br = vec2(resolution.x - m,  m);
-
           float a = 0.0;
-
-          // Top-left
           a = max(a, inRect(p, vec2(tl.x,          tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
           a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L),      vec2(tl.x + th*0.5, tl.y)));
-
-          // Top-right
           a = max(a, inRect(p, vec2(tr.x - L,      tr.y - th*0.5), vec2(tr.x,        tr.y + th*0.5)));
           a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L),      vec2(tr.x + th*0.5, tr.y)));
-
-          // Bottom-left
           a = max(a, inRect(p, vec2(bl.x,          bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
           a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y),          vec2(bl.x + th*0.5, bl.y + L)));
-
-          // Bottom-right
           a = max(a, inRect(p, vec2(br.x - L,      br.y - th*0.5), vec2(br.x,        br.y + th*0.5)));
           a = max(a, inRect(p, vec2(br.x - th*0.5, br.y),          vec2(br.x + th*0.5, br.y + L)));
-
-          if(a <= 0.0) discard;
-          gl_FragColor = vec4(vec3(1.0), a * opacity);
+          if(a <= 0.0) discard; gl_FragColor = vec4(vec3(1.0), a * opacity);
         }`
     });
     mat.toneMapped = false;
     const mesh = new THREE.Mesh(geom, mat);
-    mesh.frustumCulled = false;
-    mesh.renderOrder = 999; // draw over grid within scene
-    scene.add(mesh);
-    matRef.current = mat;
-
+    mesh.frustumCulled = false; mesh.renderOrder = 999;
+    scene.add(mesh); matRef.current = mat;
     return ()=>{ scene.remove(mesh); geom.dispose(); mat.dispose(); matRef.current=null; };
   },[scene]);
-
-  useEffect(()=>{
-    if(matRef.current){
-      matRef.current.uniforms.resolution.value.set(size.width, size.height);
-    }
-  },[size.width, size.height]);
-
+  useEffect(()=>{ if(matRef.current){ matRef.current.uniforms.resolution.value.set(size.width, size.height); } },[size.width, size.height]);
   return null;
 }
 
@@ -709,11 +673,7 @@ class Grid extends THREE.Group{
     e.preventDefault();
     if(this.manageMode) return;
     this.resetPosition();
-    gsap.to(this.camera.position, {
-      z: CONFIG.zoomOut,
-      duration: 0.40,
-      ease: "power2.out"
-    });
+    gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration: 0.40, ease: "power2.out" });
   }
 
   _updatePointer(e){ if(e.pointerType==="touch") this.pointerMap.set(e.pointerId, { x:e.clientX, y:e.clientY }); }
@@ -901,7 +861,6 @@ function GridView(props){
     React.createElement("ambientLight",{intensity:1}),
     React.createElement("directionalLight",{intensity:.7, position:[2,3,4]}),
     React.createElement(ProjectsGridPrimitive,props),
-    /* Screen-space brackets (in-scene, so they get post-processed) */
     React.createElement(BracketOverlay,null),
     React.createElement(Postprocessing,{workgridState:props.workgridState})
   );
@@ -925,7 +884,7 @@ function HelpOverlay({ open, onClose }){
           React.createElement("div",null,"• Right-click to reset view"),
           React.createElement("div",null,"• Toggle: square↔circle for distortion"),
           React.createElement("div",null,"• Trash: tap any tile to delete (while active)"),
-          React.createElement("div",null,"• FAB block: new note"),
+          React.createElement("div",null,"• FAB block: Create"),
           React.createElement("div",null,"• Leveler: tap “Enable leveler” on the Viewfinder step"),
           React.createElement("div",null,"• Shortcuts: 1/2 = Flat/Curved, 0 = Reset, N = New, M = Manage, ? = Help")
         )
@@ -950,18 +909,11 @@ function useCamera(){
       v.setAttribute("playsinline",""); v.setAttribute("autoplay",""); v.setAttribute("muted","");
       v.playsInline = true; v.muted = true;
 
-      const constraints = {
-        video: { facingMode: { ideal:"environment" }, width:  { ideal:1920 }, height: { ideal:1080 } },
-        audio: false
-      };
+      const constraints = { video: { facingMode: { ideal:"environment" }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-      v.srcObject = stream;
+      streamRef.current = stream; v.srcObject = stream;
 
-      await new Promise(res=>{
-        const onReady = () => { v.removeEventListener("loadedmetadata", onReady); res(); };
-        v.addEventListener("loadedmetadata", onReady);
-      });
+      await new Promise(res=>{ const onReady = () => { v.removeEventListener("loadedmetadata", onReady); res(); }; v.addEventListener("loadedmetadata", onReady); });
       await v.play().catch(()=>{});
 
       return true;
@@ -971,9 +923,7 @@ function useCamera(){
       if(e?.name==="NotAllowedError"){ msg = "Camera permission denied. Check browser permissions."; }
       if(e?.name==="NotFoundError"){ msg = "No suitable camera found."; }
       if(e?.name==="OverconstrainedError"){ msg = "Camera constraints not supported on this device."; }
-      setError(msg);
-      stop();
-      return false;
+      setError(msg); stop(); return false;
     }
   };
 
@@ -990,40 +940,21 @@ async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
 function Leveler(){
   const [enabled,setEnabled]=useState(false);
   const [deg,setDeg]=useState(0);
-
-  useEffect(()=>{
-    if(!enabled) return;
-    const onOrient = (e)=>{
-      const g = (typeof e.gamma === "number") ? e.gamma : 0;
-      const clamped = Math.max(-45, Math.min(45, g));
-      setDeg(clamped);
-    };
+  useEffect(()=>{ if(!enabled) return;
+    const onOrient = (e)=>{ const g = (typeof e.gamma === "number") ? e.gamma : 0; const clamped = Math.max(-45, Math.min(45, g)); setDeg(clamped); };
     window.addEventListener("deviceorientation", onOrient, true);
     return ()=>window.removeEventListener("deviceorientation", onOrient, true);
   },[enabled]);
-
   const good = Math.abs(deg) <= 2;
   const xPct = ((deg + 45) / 90) * 100;
   const needPermission = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
-
-  const askPermission = async ()=>{
-    try{
-      if(needPermission){
-        const st = await DeviceOrientationEvent.requestPermission();
-        if(st === "granted") setEnabled(true);
-      }else{
-        setEnabled(true);
-      }
-    }catch{}
-  };
-
+  const askPermission = async ()=>{ try{ if(needPermission){ const st = await DeviceOrientationEvent.requestPermission(); if(st === "granted") setEnabled(true); }else{ setEnabled(true); } }catch{} };
   return (
     React.createElement("div",{ className:`leveler ${good?"good":""}` },
       React.createElement("div",{ className:"vial" }),
       React.createElement("div",{ className:"bubble", style:{ "--bubble-x": `${xPct}%` } }),
       React.createElement("div",{ className:"deg" }, `${deg.toFixed(1)}°`),
-      !enabled && React.createElement("button",{ className:"enable", onClick:askPermission },
-        "Enable leveler")
+      !enabled && React.createElement("button",{ className:"enable", onClick:askPermission },"Enable leveler")
     )
   );
 }
@@ -1105,8 +1036,7 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
           React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
           React.createElement("div",{className:"row",style:{marginTop:"6px"}},
             React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}}, "Next")))
-        ,
+            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}}, "Next"))),
         step===4 && React.createElement("div",{className:"grid"},
           React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
           React.createElement("div",{className:"row"},
@@ -1114,9 +1044,8 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
             React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport,style:{marginLeft:"auto"}},exporting?"Exporting…":"Export PNG & Save"))),
         step===5 && React.createElement("div",{className:"grid",style:{placeItems:"center",textAlign:"center"}},
           React.createElement("div",{className:"row",style:{justifyContent:"center"}},
-            exportUrl ? React.createElement("a",{href:exportUrl,download:`intoview-note_${Date.now()}.png`,className:"btn"},"Download again") : null),
+            React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"intoview:note")),
           React.createElement("div",{className:"row",style:{justifyContent:"center"}},
-            React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"intoview:note"),
             React.createElement("button",{className:"btn primary",onClick:onClose},"Close")))
       )
     )
@@ -1125,16 +1054,18 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
 
 /* ========= Vertical Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
-  const pctLabel = Math.round(zoom * 100);
+  // Normalize to 0..1
   const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
-  const pct = clamped * 100;
+  // Invert for indicator: 100% at zoomMin (zoomed out), 0% at zoomMax
+  const pct = (1 - clamped) * 100;
+  const pctLabel = Math.round(pct);
 
   const trackRef = React.useRef(null);
   const toZoomFromClientY = (clientY) => {
     const el = trackRef.current; if(!el) return null;
     const r = el.getBoundingClientRect();
     const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
-    const frac = 1 - y;
+    const frac = 1 - y; // keep physical scrub the same (top=in)
     return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
   };
   const onPointerDown = (e) => {
@@ -1149,8 +1080,8 @@ function ZoomRail({ zoom, onScrub }) {
   return React.createElement("div", { className:"zoom-rail", "aria-label":"Zoom" },
     React.createElement("div", { className:"zoom-rail__track", ref:trackRef, onPointerDown, role:"slider",
       "aria-orientation":"vertical",
-      "aria-valuemin":Math.round(CONFIG.zoomMin*100), "aria-valuemax":Math.round(CONFIG.zoomMax*100),
-      "aria-valuenow":Math.round(zoom*100) },
+      "aria-valuemin":0, "aria-valuemax":100,
+      "aria-valuenow":pctLabel },
       React.createElement("div", { className:"zoom-rail__progress", style:{ "--zoom-pct": `${pct}%` } }),
       React.createElement("div", { className:"zoom-rail__thumb", style:{ "--zoom-pct": `${pct}%` } }),
       React.createElement("div", { className:"zoom-rail__tooltip", style:{ "--zoom-pct": `${pct}%` } }, `${pctLabel}%`)
@@ -1172,7 +1103,7 @@ function MorphDistortionIcon({ isCurved, onToggle }){
 }
 function ResetIcon({ onClick }){
   return (
-    React.createElement("button",{ className:"icon-btn", onClick, title:"Reset view", "aria-label":"Reset view" },
+    React.createElement("button",{ className:"icon-btn", onClick:onClick, title:"Reset view", "aria-label":"Reset view" },
       React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
         React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", fill:"none", stroke:"currentColor", "stroke-width":"2" }),
         React.createElement("circle",{ cx:"12", cy:"12", r:"5.5", fill:"none", stroke:"currentColor", "stroke-width":"2" })
@@ -1182,7 +1113,7 @@ function ResetIcon({ onClick }){
 }
 function TrashToggle({ active, onToggle }){
   return (
-    React.createElement("button",{ className:`icon-btn ${active?"active":""}`, onClick:onToggle,
+    React.createElement("button",{ className:`icon-btn danger ${active?"active":""}`, onClick:onToggle,
       title: active?"Delete mode (tap a tile) — Click to exit":"Delete notes (enter delete mode)", "aria-pressed":active, "aria-label":"Toggle delete mode" },
       React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
         React.createElement("path",{ d:"M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M8 6h8m-8 0l1 14a2 2 0 0 0 2 2h2a 2 2 0 0 0 2-2L16 6M10 10v8M14 10v8",
@@ -1195,7 +1126,7 @@ function TrashToggle({ active, onToggle }){
 /* ========= App ========= */
 function App(){
   const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
-  const [wgState,setWgState]=useState(WorkgridState.DEFAULT);
+  const [wgState,setWgState]=useState(WorkgridState.DEFAULT); // page-load default = Curved
   const [overlayOpen,setOverlayOpen]=useState(false);
   const [manageMode,setManageMode]=useState(false);
   const [helpOpen,setHelpOpen]=useState(false);
@@ -1207,7 +1138,7 @@ function App(){
   const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
 
   const PLACEHOLDER_START = useMemo(()=>({ id:"placeholder_new_start", placeholder:true, title:"new note", caption:"tap to start" }),[]);
-  const PLACEHOLDER_END   = useMemo(()=>({ id:"placeholder_new_end",   placeholder:true, title:"new note", caption:"tap to start" }),[]);
+  const PLACEHOLDER_END   = useMemo(()=>({ id:"placeholder_new_end",   placeholder:true, title:"Create", caption:"tap to start" }),[]);
 
   const contentItems=useMemo(()=>[...sortedArchive, ...SEED], [sortedArchive]);
   const combinedItems=useMemo(()=>[PLACEHOLDER_START, ...contentItems, PLACEHOLDER_END], [PLACEHOLDER_START, PLACEHOLDER_END, contentItems]);
@@ -1217,15 +1148,14 @@ function App(){
   useEffect(()=>{ const onKey=e=>{ if(overlayOpen||helpOpen) return;
       if(e.key==="1") setWgState(WorkgridState.INTRO);
       if(e.key==="2") setWgState(WorkgridState.DEFAULT);
-      if(e.key==="0") setWgState(WorkgridState.RESET);
+      if(e.key==="0") hardReset();
       if(e.key==="n"||e.key==="N") setOverlayOpen(true);
       if(e.key==="m"||e.key==="M") setManageMode(v=>!v);
       if(e.key==="?"||e.key==="h"||e.key==="H") setHelpOpen(true);
     }; window.addEventListener("keydown",onKey); return ()=>window.removeEventListener("keydown",onKey); },[overlayOpen,helpOpen]);
 
   const addNoteToArchive=note=> setArchive(arr=>[...arr, note]);
-  const handleTileSelect=(tileIndex,item)=>{
-    if(!manageMode||!item) return;
+  const handleTileSelect=(tileIndex,item)=>{ if(!manageMode||!item) return;
     if(item.id && String(item.id).startsWith("note_")){
       if(!confirm("Delete this note from the archive?")) return;
       setArchive(arr=>arr.filter(x=>x.id!==item.id));
@@ -1238,6 +1168,12 @@ function App(){
   useEffect(()=>{ const onMove = (e)=> setCursorXY({ x: Math.round(e.clientX), y: Math.round(e.clientY) }); window.addEventListener("pointermove", onMove, { passive:true }); return ()=> window.removeEventListener("pointermove", onMove); },[]);
 
   const handleTileClick = (idx, item) => { if (item?.placeholder) { setOverlayOpen(true); } };
+
+  /* Reset: also restore square:circle to page-load default (Curved) */
+  const hardReset = () => {
+    setWgState(WorkgridState.RESET);
+    requestAnimationFrame(()=> setWgState(WorkgridState.DEFAULT));
+  };
 
   return (
     React.createElement(React.Fragment,null,
@@ -1261,15 +1197,13 @@ function App(){
       React.createElement("header",{className:"header"},
         React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
           React.createElement("img",{
-            id:"brandLogo",
-            alt:"intoview",
-            decoding:"async",
+            id:"brandLogo", alt:"intoview", decoding:"async",
             src:"https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg"
           })
         ),
         React.createElement("div",{className:"controls"},
           React.createElement(MorphDistortionIcon,{ isCurved, onToggle:()=>setWgState(isCurved?WorkgridState.INTRO:WorkgridState.DEFAULT) }),
-          React.createElement(ResetIcon,{ onClick:()=>setWgState(WorkgridState.RESET) }),
+          React.createElement(ResetIcon,{ onClick:hardReset }),
           React.createElement(TrashToggle,{ active:manageMode, onToggle:()=>setManageMode(v=>!v) }),
           React.createElement("button",{className:"icon-btn","aria-label":"Info / Controls", onClick:()=>setHelpOpen(true), title:"Help / Controls"},
             React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
@@ -1294,7 +1228,7 @@ function App(){
 
       /* FAB */
       React.createElement("div",{ className:"fab-wrap" },
-        React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"intoview:note" },
+        React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"Create", "aria-label":"intoview:note" },
           React.createElement("svg",{viewBox:"0 0 100 100","aria-hidden":"true"},
             React.createElement("defs",null,
               React.createElement("linearGradient",{id:"cubeTop",x1:"0",x2:"1",y1:"0",y2:"1"},
@@ -1314,14 +1248,17 @@ function App(){
               )
             ),
             React.createElement("g",{filter:"url(#cubeGlow)"},
-              React.createElement("polygon",{fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
-              React.createElement("polygon",{fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
-              React.createElement("polygon",{fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
+              React.createElement("polygon",{className:"cube--light",fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
+              React.createElement("polygon",{className:"cube--light",fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
+              React.createElement("polygon",{className:"cube--dark",fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
             )
-          )
-        ),
-        React.createElement("div",{ className:"fab-label" }, `x ${cursorXY.x} • y ${cursorXY.y}`)
-      )
+          ),
+          React.createElement("span",{className:"fab-text"},"Create")
+        )
+      ),
+
+      /* HUD Coords (bottom-right) */
+      React.createElement("div",{ id:"coordsMount", className:"hud hud-right" }, `x ${cursorXY.x} • y ${cursorXY.y}`)
     )
   );
 }
