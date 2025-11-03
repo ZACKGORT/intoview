@@ -45,6 +45,10 @@
   --rail-height-mobile:  12vh;
   --rail-right: clamp(12px, 2vw, 20px);
 
+  /* Corner padding (logo / HUD) */
+  --corner-pad: clamp(14px, 2.4vw, 24px);
+  --corner-top: calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
+
   /* ---------- Z-LAYERS ---------- */
   --z-content: 0;
   --z-grain: 149;
@@ -124,13 +128,12 @@ body::after{
   position:fixed; inset:0 0 auto 0; z-index:var(--z-ui);
   display:flex; align-items:center; justify-content:space-between;
   gap:12px;
-  /* increased corner padding */
-  padding:26px 26px;
+  padding: var(--corner-top) var(--corner-pad) 12px var(--corner-pad);
   pointer-events:none;
 }
 .brand{
   display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
-  padding:4px 6px;
+  padding:2px 4px;
 }
 .brand img{ display:block; height:42px; width:auto; filter:none !important; mix-blend-mode:normal; }
 
@@ -285,14 +288,13 @@ video{ display:block; width:100%; height:100%; object-fit:cover; filter:grayscal
 
 /* ========== HUD CORNERS (coords & version) ========== */
 .hud{
-  /* increased corner + bottom padding */
-  position:fixed; bottom:calc(env(safe-area-inset-bottom) + 16px);
+  position:fixed; bottom:calc(env(safe-area-inset-bottom) + 6px);
   z-index:var(--z-ui); pointer-events:none;
   font:600 10px/1 JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color:#c9c9cf; opacity:.9; text-shadow:0 1px 2px rgba(0,0,0,.6);
 }
-.hud-left{ left:16px; }
-.hud-right{ right:16px; }
+.hud-left{ left: var(--corner-pad); }
+.hud-right{ right: var(--corner-pad); }
 
 /* ========== REDUCED MOTION ========== */
 @media (prefers-reduced-motion: reduce){
@@ -1054,18 +1056,17 @@ function OverlayFlow({ open, onClose, onAddToArchive }){
 
 /* ========= Vertical Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
-  // Normalize to 0..1
+  /* 0–100 based on normalized range, but DISPLAY is inverted (100 → 0) */
   const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
-  // Invert for indicator: 100% at zoomMin (zoomed out), 0% at zoomMax
-  const pct = (1 - clamped) * 100;
-  const pctLabel = Math.round(pct);
+  const pct = clamped * 100;
+  const pctLabel = 100 - Math.round(pct); // ← inverted readout
 
   const trackRef = React.useRef(null);
   const toZoomFromClientY = (clientY) => {
     const el = trackRef.current; if(!el) return null;
     const r = el.getBoundingClientRect();
     const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
-    const frac = 1 - y; // keep physical scrub the same (top=in)
+    const frac = 1 - y; // top = max zoom (unchanged behavior)
     return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
   };
   const onPointerDown = (e) => {
@@ -1116,7 +1117,7 @@ function TrashToggle({ active, onToggle }){
     React.createElement("button",{ className:`icon-btn danger ${active?"active":""}`, onClick:onToggle,
       title: active?"Delete mode (tap a tile) — Click to exit":"Delete notes (enter delete mode)", "aria-pressed":active, "aria-label":"Toggle delete mode" },
       React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
-        React.createElement("path",{ d:"M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M8 6h8m-8 0l1 14a2 2 0 0 0 2 2h2a 2 2 0 0 0 2-2L16 6M10 10v8M14 10v8",
+        React.createElement("path",{ d:"M3 6h18M9 6V4a1 1 0 0 1 1-1h4a 1 1 0 0 1 1 1v2M8 6h8m-8 0l1 14a2 2 0 0 0 2 2h2a 2 2 0 0 0 2-2L16 6M10 10v8M14 10v8",
           fill:"none", stroke:"currentColor", "stroke-width":"2", "stroke-linecap":"round", "stroke-linejoin":"round"})
       )
     )
