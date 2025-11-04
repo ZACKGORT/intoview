@@ -894,9 +894,31 @@ function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=n
   drawChromeBezel(ctx, s, { width: 1, radius: 0 });
   return c;
 }
-function makeCardTextureFromCanvas(cnv){ const tex=new THREE.CanvasTexture(cnv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; }
+function makeCardTextureFromCanvas(cnv){
+    const tex = new THREE.CanvasTexture(cnv);
+    
+    // FINAL FIX: Ensure the texture wraps correctly and color space is explicit.
+    tex.format = THREE.RGBAFormat; 
+    tex.colorSpace = THREE.SRGBColorSpace; 
+    
+    // These properties are often the culprit when material color overrides texture
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    
+    tex.anisotropy = 8;
+    tex.needsUpdate = true;
+    return tex;
+}
 function makeEmptyTexture(){ return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""})); }
-function makeFillerTexture(){ const c=document.createElement('canvas'); c.width=2; c.height=2; c.getContext('2d').fillStyle='#000'; c.getContext('2d').fillRect(0,0,2,2); const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; tex.needsUpdate=true; return tex; }
+// Replace the existing makeFillerTexture function with this:
+function makeFillerTexture(){
+  // Revert to a basic, uninitialized THREE.Texture.
+  // This often forces the material to use its default color (which should be black).
+  const tex = new THREE.Texture();
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
 async function textureForItem(item){
   if(item?.placeholder){
     const cnv = makeCardCanvas({ img:null, title:item.title || "new note", caption:item.caption || "tap to start", gps:"", ts:"" });
@@ -1605,8 +1627,8 @@ function HelpOverlay({ open, onClose }){
     React.createElement("div",{className:"overlay open curved"},
       React.createElement("div",{className:"sheet",role:"dialog","aria-modal":"true",style:{maxWidth:"460px"}},
         React.createElement("div",{className:"titlebar"},
-          React.createElement("h2",null,"Controls"),
-          React.createElement("button",{className:"btn ghost",onClick:onClose},"ESC")
+          React.createElement("h2",null,"intoview.pro is a space to make; a creative playground through which I further my craft."),
+          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
         ),
         React.createElement("div",{style:{overflow:"auto", padding:"4px 2px"}},
           React.createElement("div",null,"• Drag to pan"),
