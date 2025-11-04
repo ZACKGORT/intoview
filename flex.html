@@ -1,1108 +1,1559 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>intoview • note — Phantom Card Archive (Interactive)</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
-
-    <style>
-:root{
-  --paper:#000; --ink:#FFFFFF; --ink-2:#9F9F9F; --ink-3:#6C6C6C;
-  --accent:#59D2C8; --danger:#FF6363;
-  --curve-k:1;
-
-  /* Phantom-esque global effects */
-  --vig-opacity: 1;
-  --vig-inner:   20%;
-  --vig-mid:     52%;
-  --vig-outer:   100%;
-
-  /* Heavier edge blur (dramatic but tasteful) */
-  --edge-blur:   120px;     /* ↑ from 96 */
-  --edge-mask-i: 30%;       /* tighter clear center */
-  --edge-mask-o: 99.5%;
-
-  /* Layering */
-  --z-content: 0;
-  --z-grain: 149;
-  --z-blur: 150;
-  --z-vig: 151;
-  --z-ui: 220;
-
-  /* FAB sizing + bottom-anchored placement */
-  --fab-size: 120px;
-  --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
-
-  /* Vertical zoom rail sizing/placement */
-  --rail-height-desktop: 60vh;
-  --rail-height-mobile:  52vh;
-  --rail-right: clamp(12px, 2vw, 20px);
-}
-
-*{box-sizing:border-box}
-html,body,#root{height:100%}
-body{
-  margin:0; background:#000; color:var(--ink);
-  font:14px/1.4 Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
-  overflow:hidden; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-}
-
-/* ===== Layers ===== */
-.canvas-wrap{position:absolute; inset:0; z-index:var(--z-content)}
-.canvas-wrap canvas{ touch-action:none; cursor:grab; background:#000 }
-.canvas-wrap canvas.dragging{ cursor:grabbing }
-.fallback-grid{
-  position:absolute; inset:0; z-index:var(--z-content); pointer-events:none; opacity:.06;
-  background-image:
-    repeating-linear-gradient(to right, #fff 0 1px, transparent 1px 48px),
-    repeating-linear-gradient(to bottom, #fff 0 1px, transparent 1px 48px);
-}
-
-/* Global effects above content, below UI */
-.edge-blur{
-  position:fixed; inset:0; pointer-events:none; z-index:var(--z-blur);
-  background: rgba(0,0,0,0.001);
-  backdrop-filter: blur(var(--edge-blur));
-  -webkit-backdrop-filter: blur(var(--edge-blur));
-  mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
-  -webkit-mask: radial-gradient(90% 70% at 50% 50%, transparent var(--edge-mask-i), white var(--edge-mask-o));
-}
-.vignette{
-  position:fixed; inset:0; pointer-events:none; z-index:var(--z-vig);
-  background:
-    radial-gradient(120% 90% at 50% 50%,
-      rgba(0,0,0,0) var(--vig-inner),
-      rgba(0,0,0,0.58) var(--vig-mid),
-      rgba(0,0,0,0.98) var(--vig-outer));
-  opacity:calc(var(--vig-opacity) * var(--curve-k));
-  mix-blend-mode: normal;
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .vignette{ opacity:calc((var(--vig-opacity) + .10) * var(--curve-k)); }
-}
-
-/* Subtle grain */
-body::after{
-  content:""; position:fixed; inset:0; pointer-events:none; z-index:var(--z-grain); opacity:.06;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
-  background-size: 120px 120px;
-}
-
-/* Curved DOM aesthetic */
-.curved{
-  transform-style:preserve-3d;
-  transform:
-    perspective(1000px)
-    translateZ(calc(-200px * var(--curve-k)))
-    scale(calc(1 + var(--curve-k) * 0.06));
-  will-change:transform;
-}
-
-/* Header (UI above effects) */
-.header{
-  position:fixed; inset:0 0 auto 0;
-  z-index:var(--z-ui);
-  display:flex; align-items:center; justify-content:space-between;
-  gap:12px; padding:12px 14px;
-  pointer-events:none;
-}
-.brand{
-  display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; user-select:none; pointer-events:auto;
-}
-.brand img{ display:block; height:40px; width:auto; filter:none !important; mix-blend-mode:normal; }
-
-.controls{ display:flex; gap:8px; align-items:center; pointer-events:auto; }
-.icon-btn{
-  appearance:none; cursor:pointer; border:0px solid var(--ink-2);
-  background:rgba(0,0,0,.35); color:var(--ink);
-  padding:8px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
-  transition:transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease;
-  position:relative; z-index:1;
-}
-.icon-btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.06); }
-.icon-btn.active{ outline:0px solid color-mix(in oklab, var(--danger), white 10%); outline-offset:1px; }
-.icon-btn svg{ display:block; width:18px; height:18px; }
-
-/* ===== Vertical Zoom rail — hugs right edge ===== */
-.zoom-rail{
-  position:fixed;
-  right: var(--rail-right);
-  top: 50%;
-  transform: translateY(-50%);
-  height: var(--rail-height-desktop);
-  width: 2px;
-  z-index: var(--z-ui);
-  pointer-events:auto;
-  touch-action: none;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-}
-.zoom-rail__track{
-  position:relative;
-  width: 2px;
-  height: 100%;
-  background: rgba(255,255,255,.18);
-  border-radius: 2px;
-}
-.zoom-rail__progress{
-  position:absolute; left:0; bottom:0; width:100%;
-  height: var(--zoom-pct, 0%);
-  background: rgba(255,255,255,.9);
-  border-radius: 2px;
-}
-.zoom-rail__thumb{
-  position:absolute; left:50%;
-  top: calc(100% - var(--zoom-pct, 0%));
-  transform: translate(-50%, -50%);
-  width:10px; height:10px; border-radius:50%;
-  background:var(--ink);
-  box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
-}
-.zoom-rail__tooltip{
-  position:absolute;
-  top: calc(100% - var(--zoom-pct, 0%));
-  left: -44px;                 /* to the left of the rail */
-  transform: translateY(-50%);
-  font-weight:700; font-size:12px; color:var(--ink-2);
-  text-shadow:0 1px 2px rgba(0,0,0,.55);
-  user-select:none;
-}
-
-@media (max-width:768px){
-  .zoom-rail{ height: var(--rail-height-mobile); }
-  .zoom-rail__tooltip{ left: -40px; }
-}
-
-/* Overlays (UI above effects) */
-.overlay{
-  position:fixed; inset:72px 16px 16px 16px; z-index:var(--z-ui);
-  display:none; pointer-events:auto;
-}
-.overlay.open{ display:grid; place-items:center; }
-.sheet{
-  width:min(860px, 100%); background:#0b0b0d; color:#f3f3f5; border:1px solid #2a2a2e; border-radius:12px; padding:16px;
-  box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25);
-}
-.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-.grid{display:grid; gap:12px}
-.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.label{font-weight:600; opacity:.9}
-.input,.textarea{width:100%; border:1px solid #3b3b40; background:#101015; color:#fff; border-radius:8px; padding:10px 12px; font:inherit;}
-.textarea{min-height:96px; resize:vertical}
-.btn{appearance:none; cursor:pointer; border:1px solid #3b3b40; background:#141419; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600; position:relative; z-index:1;}
-.btn.ghost{ background:transparent } .btn.primary{ border-color:var(--accent); background:var(--accent); color:#0b0b0d }
-.hint{color:#c9c9cf; font-size:12px}
-.vf{position:relative; aspect-ratio:4/3; width:100%; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000;}
-video{display:block; width:100%; height:100%; object-fit:cover; filter:grayscale(1) contrast(1.04) brightness(.98)}
-.preview{position:relative; width:100%; aspect-ratio:1/1; border:1px solid #2a2a2e; border-radius:10px; overflow:hidden; background:#000; display:block;}
-.titlebar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
-.titlebar h2{margin:0; font-size:16px}
-.tight{gap:6px} .hidden{display:none !important} .sheet :focus{outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px}
-
-/* Film strip chrome */
-.vf::before, .vf::after{
-  content:""; position:absolute; left:0; right:0; height:22px; pointer-events:none; z-index:1;
-  background:linear-gradient(#000,#000) padding-box, linear-gradient(to bottom, #ffffff26, #ffffff10) border-box;
-  border-top:1px solid #2a2a2e; border-bottom:1px solid #2a2a2e;
-}
-.vf::before{ top:0; }
-.vf::after{ bottom:0; }
-.vf .perfs{
-  position:absolute; inset:0; pointer-events:none; z-index:1;
-  background:
-    radial-gradient(circle 3px at 8px 14px, #000 0 2.2px, transparent 2.2px) repeat-y left / 16px 28px,
-    radial-gradient(circle 3px at calc(100% - 8px) 14px, #000 0 2.2px, transparent 2.2px) repeat-y right / 16px 28px;
-  opacity:.85;
-}
-
-/* ===== FAB (button + inline label) — centered, bottom-anchored ===== */
-.fab-wrap{
-  position:fixed;
-  left:50%;
-  bottom: var(--fab-bottom);
-  transform: translateX(-50%);
-  z-index:var(--z-ui);
-  display:flex; flex-direction:column; align-items:center;
-}
-
-.fab{
-  width:var(--fab-size); height:var(--fab-size); border-radius:999px;
-  background:none; color:#fff; border:0px solid rgb(255 255 255 / .14);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
-  cursor:pointer;
-  box-shadow:0 16px 36px rgba(0,0,0,.05), 0 0 0 1px rgba(255,255,255,.06) inset;
-  transition:background .15s ease, color .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
-  padding:0; /* keeps it perfectly circular */
-}
-.fab:focus-visible{ outline:2px solid color-mix(in oklab, var(--accent), white 10%); outline-offset:2px; }
-.fab:active{ transform:translateY(1px) }
-
-/* Hover: transparent white + swap to dark cube */
-.fab:hover{
-  background:rgba(255,255,255,.10);
-  border-color:rgb(255 255 255 / .22);
-}
-
-/* SVG sizing */
-.fab svg{ width:58%; height:auto; display:block }
-.fab .cube--dark{ display:none }
-.fab:hover .cube--light{ display:none }
-.fab:hover .cube--dark{ display:inline }
-
-/* Inline label inside the button */
-.fab .fab-label{
-  font:600 11px/1.1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color:#fff; opacity:.92; letter-spacing:.06em; user-select:none; pointer-events:none;
-  text-shadow:0 1px 2px rgba(0,0,0,.55);
-}
-
-
-/* Mobile tweaks */
-@media (max-width:768px){
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>intoview.pro</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<style>
   :root{
-    --fab-size: 128px;
-    --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
+    /* cube + lattice sizing (JS scales to fit viewport) */
+    --cube-size-base: 64;
+    --iso-cell-base:  48;
+    --iso-cell:  calc(var(--iso-cell-base) * 1px);
+    --cube-size: calc(var(--cube-size-base) * 1px);
+
+    /* label nudges (labels sit two iso-cells below each cube in JS) */
+    --lbl-note-dx:-10px;  --lbl-note-dy:-6px;
+
+    /* background grid */
+    --bg:#000;
+    --grid-gap: 4px;
+    --grid-alpha:.10;
+    --grid-thin: rgb(255 255 255 / calc(var(--grid-alpha) * .10));
+    --grid-bold: rgb(255 255 255 / calc(var(--grid-alpha) * .24));
+
+    /* highlight pulses (canvas) */
+    --iso-highlight-fill: 255 255 255;
+    --iso-highlight-alpha:.22;
+    --iso-stroke-alpha:.55;
+    --iso-fade-ms: 900;
+    --iso-blur-min: 0px;
+    --iso-blur-max: 72px;
+    --iso-blur-curve: 1.35;
+
+    /* facets + transitions */
+    --facet-ease:.18s ease;
+    --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
+
+    /* logo */
+    --logo-w: 280px;
+    --logo-pad-x: 1.8rem;
+    --logo-pad-y: 1.8rem;
+
+    /* recorder bar */
+    --rec-h: 48px;
+    --rec-bg: transparent;
+    --rec-fg: #d6d6d6;
+    --rec-muted: #a8a8a8;
+    --rec-danger: #ff4d4d;
+    --rec-gap: 1px; /* default; JS will override as n grows */
   }
+
+  html,body{height:100%}
+  body{
+    margin:0; color:#e8e8e8; background:var(--bg);
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    overflow:hidden;
+    background-image:
+      repeating-linear-gradient(30deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(90deg,  var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(150deg, var(--grid-thin) 0 1px, transparent 1px var(--grid-gap)),
+      repeating-linear-gradient(30deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
+      repeating-linear-gradient(90deg,  transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4)),
+      repeating-linear-gradient(150deg, transparent 0 calc(var(--grid-gap)*4 - 1px), var(--grid-bold) calc(var(--grid-gap)*4 - 1px) calc(var(--grid-gap)*4));
+    background-attachment:fixed,fixed,fixed,fixed,fixed,fixed;
+    font:14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  }
+
+  /* ===== Logo (top-left) ===== */
+  .logo-lockup{
+    position:fixed; left:var(--logo-pad-x); top:var(--logo-pad-y); z-index:3;
+    line-height:0; user-select:none; pointer-events:none;
+    mix-blend-mode:normal;
+  }
+  .logo-lockup img{ width:var(--logo-w); height:auto; display:block; }
+
+  /* ===== Info badge (top-right) ===== */
+  .info-wrap{
+    position:fixed; right:var(--logo-pad-x); top:var(--logo-pad-y); z-index:3;
+    display:inline-block; line-height:0;
+  }
+  .info-btn{
+    width:28px; height:28px; border-radius:999px;
+    display:grid; place-items:center;
+    background:rgb(255 255 255 / .06);
+    border:1px solid rgb(255 255 255 / .18);
+    color:#e8e8e8; font:700 14px/1 ui-monospace, Menlo, monospace;
+    cursor:pointer; user-select:none;
+    transition:background .2s ease, border-color .2s ease, transform .06s ease;
+  }
+  .info-btn:hover{ background:rgb(255 255 255 / .12); }
+  .info-btn:active{ transform:translateY(1px); }
+  .info-btn:focus-visible{ outline:2px solid #bbb; outline-offset:3px; }
+  .info-tooltip{
+    position:absolute; right:0; top:calc(100% + 10px);
+    width:min(64ch, 44vw); max-width:460px;
+    background:rgb(12 12 12 / .94); color:#e8e8e8;
+    border:1px solid rgb(255 255 255 / .14);
+    border-radius:12px; padding:12px 14px;
+    box-shadow:0 8px 24px rgb(0 0 0 / .45);
+    font:13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    pointer-events:none; opacity:0; transform:translateY(-6px);
+    transition:opacity .16s ease, transform .16s ease;
+  }
+  .info-tooltip::after{
+    content:""; position:absolute; top:-6px; right:14px; width:10px; height:10px;
+    background:inherit; border-left:1px solid rgb(255 255 255 / .14); border-top:1px solid rgb(255 255 255 / .14);
+    transform:rotate(45deg);
+  }
+  .info-wrap[data-open="true"] .info-tooltip,
+  .info-wrap:hover .info-tooltip{ opacity:1; transform:translateY(0); pointer-events:auto; }
+  @media (max-width:520px){
+    .info-tooltip{ width:min(68vw, 56ch); right:-2px; }
+  }
+
+  /* ===== Stage ===== */
+  #isoCanvas{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+  #stage{ position:fixed; inset:0; z-index:1; overflow:visible; }
+
+  /* Cubes (white default) */
+  .cube{
+  cursor:pointer; outline:none;
+  --facet-top-fill:#ffffff; --facet-side-fill:#ededed; --facet-dark-fill:#767676;
+  /* was: filter: blur(var(--depth-blur, 0px)); */
+  filter: blur(calc(var(--depth-blur, 0px) + var(--focus-blur, 0px)));
+  transition: filter .25s ease;
 }
 
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce){
-  .edge-blur{ backdrop-filter:none; -webkit-backdrop-filter:none; }
-}
+  .cube:where(:hover, :focus-visible, .brighten){ filter: blur(0px); }
+  .cube *{ transition:fill var(--facet-ease); }
+  .facet-top  { fill: var(--facet-top-fill); }
+  .facet-side { fill: var(--facet-side-fill); }
+  .facet-dark { fill: var(--facet-dark-fill); }
+  .cube.brighten{
+    --facet-top-fill:#ffffff; --facet-side-fill:#f5f5f5; --facet-dark-fill:#8c8c8c;
+  }
 
-    </style>
-  </head>
-  <body>
-    <div id="root"></div>
+  /* Labels */
+  .note{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Overpass Mono", monospace;
+    font-size:12px; font-weight:600;
+    fill:#fff; opacity:.78; user-select:none;
+  }
+  .note.lit{ opacity:1; }
 
-    <script type="module">
-import React,{useEffect,useMemo,useRef,useState,Suspense} from "https://esm.sh/react@18.3.1";
-import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
-import * as THREE from "https://esm.sh/three@0.160.1";
-import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
-import gsap from "https://esm.sh/gsap@3.12.5";
-import { EffectComposer } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js?deps=three@0.160.1";
-import { RenderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js?deps=three@0.160.1";
-import { ShaderPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js?deps=three@0.160.1";
-import { OutputPass } from "https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js?deps=three@0.160.1";
+  /* MOBILE: hide labels for compact packed grid */
+  @media (max-width:520px){
+    .note{ display:none; }
+  }
 
-/* ========= Seed images ========= */
-const SEED = [
-  {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp', title:'wmzWGlaw', caption:'—'},
-  {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp', title:'IMG-8403', caption:'—'},
-  {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp', title:'DSC08656', caption:'—'},
-  {src:'https://i.ibb.co/bMJNnQtg/DSC08604.webp', title:'DSC08604', caption:'—'},
-  {src:'https://i.ibb.co/qLWQC0cN/DSC08358.webp', title:'DSC08358', caption:'—'},
-  {src:'https://i.ibb.co/rRdNxC5g/DSC08300.webp', title:'DSC08300', caption:'—'},
-  {src:'https://i.ibb.co/MD923R2f/DSC08254.webp', title:'DSC08254', caption:'—'},
-  {src:'https://i.ibb.co/TBtrSYKc/DSC08233.webp', title:'DSC08233', caption:'—'},
-  {src:'https://i.ibb.co/23QsQrCG/DSC05954.webp', title:'DSC05954', caption:'—'},
-  {src:'https://i.ibb.co/ym1z1pyb/DSC05994.webp', title:'DSC05994', caption:'—'},
-  {src:'https://i.ibb.co/bjMXB8HJ/2328964849369731672-5144774570.webp', title:'2328964849…4570', caption:'—'},
-  {src:'https://i.ibb.co/fd1SDQQs/2399506735674938043-5144774570.webp', title:'2399506735…4570', caption:'—'},
-  {src:'https://i.ibb.co/0pNWKFbk/2319420263505008414-5144774570.webp', title:'2319420263…4570', caption:'—'},
-  {src:'https://i.ibb.co/WvW71PR3/2288089293770285108-5144774570.webp', title:'2288089293…4570', caption:'—'},
-  {src:'https://i.ibb.co/1YyFqBj3/2278120764300123596-5144774570.webp', title:'2278120764…4570', caption:'—'},
-  {src:'https://i.ibb.co/99B3hgp3/2274809041971350857-5144774570.webp', title:'2274809041…4570', caption:'—'},
-  {src:'https://i.ibb.co/HpnrrYMR/2269419019461331921-5144774570.webp', title:'2269419019…4570', caption:'—'},
-  {src:'https://i.ibb.co/6Rqf37ft/6039d4bbb15be328fc33b54d-IMG-6478.webp', title:'IMG-6478', caption:'—'},
-  {src:'https://i.ibb.co/k2svMNFv/603d10120fba838e599b6b5e-IMG-1563.webp', title:'IMG-1563', caption:'—'},
-  {src:'https://i.ibb.co/WNtnFQqP/603d1185cafcb2591f42b1ad-IMG-3932.webp', title:'IMG-3932', caption:'—'},
-  {src:'https://i.ibb.co/pvFThr4K/603d1185b8ec32082f451ba9-IMG-3882.webp', title:'IMG-3882', caption:'—'},
-  {src:'https://i.ibb.co/N2cSNMf4/603d102d9f59a611886a6893-IMG-2151.webp', title:'IMG-2151', caption:'—'},
-  {src:'https://i.ibb.co/KjzkkW68/603d102d0f02c70fdf7d84eb-IMG-4696.webp', title:'IMG-4696', caption:'—'},
-  {src:'https://i.ibb.co/DPyhP1T7/603d100d889053cc334ee5fc-IMG-2083.webp', title:'IMG-2083', caption:'—'},
-  {src:'https://i.ibb.co/Fbr1sSb6/603d8d7a3a6df470a4a661a1-DSC00726.webp', title:'DSC00726', caption:'—'},
-  {src:'https://i.ibb.co/5gddKNw3/603d0bb2331da47ee88db089-DSC02085.webp', title:'DSC02085', caption:'—'},
-  {src:'https://i.ibb.co/9HZMK0nw/603d0b8b038105ae6904872a-DSC08334.webp', title:'DSC08334', caption:'—'},
-  {src:'https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp', title:'DSC08281', caption:'—'},
-  {src:'https://i.ibb.co/QvHqKh2P/603afe37ba16f8f9174cf501-IMG-1878.webp', title:'IMG-1878', caption:'—'},
-  {src:'https://i.ibb.co/tpK7LjSv/603a967ac64cec73069e2454-ZAX09877.webp', title:'ZAX09877', caption:'—'},
-  {src:'https://i.ibb.co/0yjJ4j8L/603a967a5dc3e982f571b744-ZAX00968.webp', title:'ZAX00968', caption:'—'},
-  {src:'https://i.ibb.co/zWBgb5Sj/603a95ee83ba30ff4ac9bc6a-DSC00423-1.webp', title:'DSC00423-1', caption:'—'},
-  {src:'https://i.ibb.co/FLS6ZdgN/603a95ed29478f4bc91875b5-DSC08933.webp', title:'DSC08933', caption:'—'},
-  {src:'https://i.ibb.co/5Xr0MDSw/603a93f06a41f45766a3361a-DSC09212.webp', title:'DSC09212', caption:'—'},
-  {src:'https://i.ibb.co/wNFR8hJR/603a93f1d03490ae9d2aa64a-IMG-3824.webp', title:'IMG-3824', caption:'—'},
-  {src:'https://i.ibb.co/39wDDcbS/603a93f0e815e830d1783e07-IMG-2033.webp', title:'IMG-2033', caption:'—'},
-  {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp', title:'ZAX09767', caption:'—'},
+  /* ===== Recorder bar (centered controls + centered histogram) ===== */
+  .rec{
+    position:fixed; left:0; right:0; bottom:0; z-index:2;
+    --rec-max-h: 40vh;
+    height: clamp(var(--rec-h), 22vh, var(--rec-max-h));
+    max-height: var(--rec-max-h);
+    background:var(--rec-bg);
+    backdrop-filter: blur(4px);
+
+    /* stacked layout on ALL sizes: controls below, histogram above */
+    display:flex;
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 14px 12px;
+    overflow:hidden;
+  }
+
+  /* Center the controls row */
+  .rec .controls{
+    margin-bottom: calc(clamp(3rem, 2.5vh, 20px) + env(safe-area-inset-bottom));
+    display:flex;
+    justify-content:center;          /* centered controls */
+    align-items:center;
+    gap:10px;
+    flex:0 0 auto;
+    color:var(--rec-fg);
+  }
+
+  .btn{
+    display:inline-grid; place-items:center;
+    width:28px; height:28px; border-radius:8px;
+    background:rgb(255 255 255 / .06);
+    border:1px solid rgb(255 255 255 / .12);
+    cursor:pointer; user-select:none;
+    transition:transform .05s ease, background .2s ease, border-color .2s ease;
+  }
+  .btn:hover{ background:rgb(255 255 255 / .12); }
+  .btn:active{ transform:translateY(1px); }
+  .ico{ width:14px; height:14px; display:block; }
+  .ico rect, .ico path{ fill:var(--rec-fg); }
+  .vol-wrap{ display:flex; align-items:center; gap:8px; padding-left:6px; font:600 11px/1 ui-monospace, Menlo, monospace; color:var(--rec-fg); user-select:none; }
+  .vol-wrap input[type="range"]{ width:120px; height:18px; accent-color:#d6d6d6; cursor:pointer; }
+
+  /* loop toggle state */
+  .btn.toggle[data-on="true"]{
+    background:rgb(0 204 136 / .18);
+    border-color:rgb(0 204 136 / .45);
+    box-shadow:0 6px 18px rgb(0 0 0 / .35), inset 0 0 0 1px rgb(0 204 136 / .35);
+  }
+  .btn.toggle[data-on="true"] .ico path{ fill:#dff7ef; }
+
+  /* ===== Histogram ===== */
+  .rec .track{
+    min-width:0;
+    height:100%;
+    display:flex;
+    justify-content:center;          /* center the histogram row */
+    overflow:hidden;                 /* never overflow the viewport */
+  }
+
+  .rec .row{
+    display:flex;
+    align-items:flex-end;            /* bars grow up from bottom */
+    gap: var(--rec-gap);
+    height: 100%;                    /* take all available recorder height */
+    margin: 0 auto;                  /* centered within .track */
+    max-width: 100%;                 /* clamp to viewport width */
+    --n: 1;                          /* set dynamically from JS */
+  }
+
+  .rec .row .bar{
+    box-sizing: border-box;          /* include borders in width calc */
+    flex: 0 0 calc((100% - (var(--rec-gap) * (var(--n) - 1))) / var(--n));
+    height: 8%;                      /* JS will set actual pixel height */
+    background: rgb(255 255 255 / .14);
+    border: 1px solid rgb(255 255 255 / .22);
+    border-bottom-color: rgb(255 255 255 / .28);
+    border-radius: 6px 6px 0 0;
+    box-shadow: inset 0 -6px 12px rgb(0 0 0 / .35);
+    transition:
+      height .12s ease,
+      background .15s ease,
+      border-color .15s ease,
+      box-shadow .15s ease,
+      transform .05s ease;
+    cursor: pointer;
+  }
+
+  .rec .row{ --min-bar-px: 6; --min-gap-px: 1; }
+
+  .rec .row .bar:hover{
+    background: rgb(255 255 255 / .22);
+    border-color: rgb(255 255 255 / .45);
+  }
+  .rec .row .bar.hit{
+    background:#fff;
+    border-color:#fff;
+    box-shadow: 0 0 12px 2px rgb(255 255 255 / .65);
+  }
+
+  /* Smaller cubes on mobile */
+  @media (max-width:520px){
+    :root{
+      --iso-cell-base: 56;  /* spacing scale */
+      --cube-size-base: 48; /* face size */
+    }
+  }
+</style>
+
+</head>
+<body>
+
+<!-- Logo -->
+<div class="logo-lockup" aria-label="intoview">
+  <img src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-horizontal-lockup-small.svg" alt="intoview" />
+</div>
+
+<!-- Info badge -->
+<div class="info-wrap" id="infoWrap" data-open="false">
+  <button class="info-btn" id="infoBtn" aria-expanded="false" aria-controls="infoTip" aria-label="About this">i</button>
+  <div class="info-tooltip" id="infoTip" role="dialog" aria-modal="false">
+    <strong>intoview.pro</strong> is a concept being crafted from 0-1, to showcase, you know, your craft. Simply, picture a platform & place that puts your best into view.
+    <br><br>
+    <small>Meanwhile, I was working on a design system using my shiny new logo, when I got distracted... anyway, <strong>enjoy!</strong><br><br>ps. this is an original composition. Look at the source code for the meta data ;)</small>
+  </div>
+</div>
+
+<!-- highlight pulses -->
+<canvas id="isoCanvas" aria-hidden="true"></canvas>
+
+<!-- Stage for rows -->
+<svg id="stage" role="group" aria-label="Isometric note cubes">
+  <defs>
+    <symbol id="cubeSym" viewBox="182 0 86 96">
+      <path class="facet-dark" d="M262.74 65.9205L224.305 87.8222V43.5893L262.74 21.9023V65.9205Z" />
+      <path class="facet-top"  d="M224.088 0L185.867 22.1164L224.303 44.0182L262.738 21.9017L224.088 0Z" />
+      <path class="facet-side" d="M186.082 65.9206L224.303 87.8223V44.0189L185.867 22.1172L186.082 65.9206Z" />
+    </symbol>
+  </defs>
+  <!-- Five rows (naturals only) -->
+  <g id="row0"></g>
+  <g id="row1"></g>
+  <g id="row2"></g>
+  <g id="row3"></g>
+  <g id="row4"></g>
+</svg>
+
+<!-- Recorder bar -->
+<div class="rec" role="region" aria-label="Recorded notes">
+  <div class="controls">
+    <button class="btn" id="btnPlay" title="Play">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M4 2v12l10-6-10-6z"/></svg>
+    </button>
+    <button class="btn" id="btnPause" title="Pause">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M3 2h4v12H3zM9 2h4v12H9z"/></svg>
+    </button>
+    <button class="btn" id="btnClear" title="Clear">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M2 3h12v2H2zM4 6h8l-1 8H5L4 6z"/></svg>
+    </button>
+
+    <!-- Loop button -->
+    <button class="btn toggle" id="btnLoop" title="Loop sequence (L)" aria-pressed="false">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M17 1l4 4-4 4V6H7a3 3 0 000 6h2v2H7a5 5 0 010-10h10V1zm-10 22l-4-4 4-4v3h10a3 3 0 000-6h-2v-2h2a5 5 0 010 10H7v3z" fill="currentColor"/>
+      </svg>
+    </button>
+
+    <!-- Volume -->
+    <div class="vol-wrap" title="Volume">
+      <label for="volSlider">Vol</label>
+      <input id="volSlider" type="range" min="0" max="100" value="50" step="1" aria-label="Volume (0 to 100)">
+    </div>
+  </div>
+  <div class="track">
+    <div id="seqRow" class="row" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- a11y live region (off-screen) -->
+<div id="live" style="position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;left:0;bottom:0;" aria-live="polite"></div>
+
+<script>
+/* ================================
+   intoview.pro — FULL JavaScript (single file)
+   (isometric cubes + padded, mobile-safe histogram + tilt-shift pulses)
+   Updates:
+   • New bottom row on punctuation: F4 G4 A4 B4 C5
+   • Rows ascend left→right; hover NEVER logs
+   • Pulses canvas uses tilt-shift blur band (CSS-tunable), with radial fallback
+   ================================ */
+
+/* ---------- Info tooltip ---------- */
+(() => {
+  const infoWrap = document.getElementById('infoWrap');
+  const infoBtn  = document.getElementById('infoBtn');
+  if (!infoWrap || !infoBtn) return;
+  const setOpen = (open) => { infoWrap.dataset.open = String(open); infoBtn.setAttribute('aria-expanded', String(open)); };
+  infoBtn.addEventListener('click', (e) => { e.stopPropagation(); setOpen(infoWrap.dataset.open !== 'true'); });
+  document.addEventListener('click', (e) => { if (!infoWrap.contains(e.target)) setOpen(false); }, { passive: true });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); }, { passive: true });
+})();
+
+/* ---------- Layout + mapping ---------- */
+const row0Notes = [
+  ['f4','-'], ['g4','='], ['a4','['], ['b4',']'], ['c5','\\']   // punctuation row, ascending
 ];
+const row1Notes = [
+  ['a4','q'], ['b4','w'], ['c5','e'], ['d5','r'], ['e5','t']
+];
+const row2Notes = [
+  ['f5','y'], ['g5','u'], ['a5','i'], ['b5','o'], ['c6','p']
+];
+const row3Notes = [
+  ['a5','1'], ['b5','2'], ['c6','3'], ['d6','4'], ['e6','5']
+];
+const row4Notes = [
+  ['f6','6'], ['g6','7'], ['a6','8'], ['b6','9'], ['c7','0']
+];
+const allNotes = [...row0Notes, ...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes];
 
-/* ========= Config ========= */
-const STORAGE_KEY = "intoview_archive_cards_v6";
-const CONFIG = {
-  cols:10, rows:7, tile:0.32, gap:0.08,
-  ambient:0.20, dragEase:0.14, velEase:0.92,
-  zoomOut:1.85,
-  distortion:{ flat:0.0, curved:0.46 },
-
-  clickBounceDelta: 0.25,
-  longPressMsMouse: 380,
-  longPressMsTouch: 520,
-  clickMovePx: 6,
-  clickMovePxTouch: 12,
-  dragMultMouse: 6.0,
-  dragMultTouch: 4.0,
-  touchDragEase: 0.18,
-
-  zoomMin: 0.45,
-  zoomMax: 3.00,
-  wheelScale: 0.0015
-};
-
-/* ========= Utilities ========= */
-const TEX_SIZE=768, HAIR=1, BAR_H=28, PAD=12, CAP_SIZE=18, TITLE_SIZE=20;
-const MONO="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-const UI="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
-const isBlobOrData = u => /^blob:|^data:/i.test(u);
-function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"),
-  day=String(d.getDate()).padStart(2,"0"), hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
-  return `${y}-${m}-${day} • ${hh}:${mm}`; }
-function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
-  img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
-function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
-function coverImage(ctx,img,x,y,w,h){
-  const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
-  if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
-  const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
-  if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
-  ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
+const cos30 = Math.sqrt(3)/2, sin30=0.5;
+function css(){ return getComputedStyle(document.documentElement); }
+function num(v,fb){ const n=parseFloat(v); return Number.isFinite(n)?n:fb; }
+function readCell(){ return num(css().getPropertyValue('--iso-cell'), 32); }
+function basis(){
+  const CELL=readCell();
+  const v1={x:cos30*CELL, y:sin30*CELL};
+  const v2={x:-cos30*CELL, y:sin30*CELL};
+  const det=v1.x*v2.y - v2.x*v1.y;
+  const inv={a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
+  return {CELL,v1,v2,inv};
 }
-function drawCameraIcon(ctx,cx,cy,s=44){ ctx.save(); ctx.translate(cx,cy); ctx.strokeStyle="#fff"; ctx.lineWidth=1.5; ctx.lineCap="round"; ctx.lineJoin="round";
-  const w=s*1.6,h=s*1.0; ctx.beginPath(); ctx.rect(-w/2,-h/2,w,h); ctx.stroke(); ctx.beginPath(); ctx.arc(0,0,s*0.35,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(w*0.25,-h*0.45); ctx.lineTo(w*0.45,-h*0.45); ctx.stroke(); ctx.restore(); }
-function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=nowTS()}) {
-  const s=TEX_SIZE, c=document.createElement("canvas"); c.width=s; c.height=s; const ctx=c.getContext("2d");
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,s); ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.strokeRect(0.5,0.5,s-1,s-1);
-  ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H); ctx.font=`600 ${TITLE_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
-  ctx.fillText(title, PAD, Math.floor((BAR_H-TITLE_SIZE)/2));
-  if(gps){ ctx.font=`500 12px ${MONO}`; ctx.textBaseline="middle"; ctx.textAlign="right"; ctx.fillStyle="#cfcfcf"; ctx.fillText(gps, s-PAD, BAR_H/2); ctx.textAlign="left"; }
-  drawHair(ctx,0,BAR_H,s);
-  const imgTop=BAR_H+HAIR, imgH=s-imgTop-(BAR_H+HAIR);
-  if(img){ coverImage(ctx,img,0,imgTop,s,imgH); ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(0, imgTop, s, imgH); }
-  else{ ctx.fillStyle="#111"; ctx.fillRect(0,imgTop,s,imgH); drawCameraIcon(ctx,s/2,imgTop+imgH/2,40); }
-  drawHair(ctx,0,s-BAR_H-HAIR,s);
-  ctx.fillStyle="#000"; ctx.fillRect(0,s-BAR_H,s,BAR_H); ctx.font=`500 ${CAP_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
-  ctx.fillText(caption, PAD, s-BAR_H/2); ctx.font=`500 12px ${MONO}`; ctx.fillStyle="#cfcfcf"; ctx.textAlign="right"; ctx.fillText(ts, s-PAD, s-BAR_H/2);
-  return c;
-}
-function makeCardTextureFromCanvas(cnv){ const tex=new THREE.CanvasTexture(cnv); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; }
-function makeEmptyTexture(){ return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""})); }
-async function textureForItem(item){
-  if(!item||!item.src) return makeEmptyTexture();
-  if(item.baked){ try{ const img=await loadImage(item.src); const tex=new THREE.Texture(img); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; } catch (e){ console.warn(e); return makeEmptyTexture(); } }
-  const img=await loadImage(item.src).catch(e=>{ console.warn(e); return null; });
-  return makeCardTextureFromCanvas(makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()}));
-}
-async function buildRowMajorTextures(items,totalTiles){
-  const empty=makeEmptyTexture(); const texs=new Array(totalTiles).fill(empty); const count=Math.min(items.length,totalTiles);
-  for(let i=0;i<count;i++){ try{ texs[i]=await textureForItem(items[i]); }catch(e){ console.warn(e); } }
-  return texs;
-}
+let B=basis();
+function toXY(I,J){ return { x:I*B.v1.x + J*B.v2.x, y:I*B.v1.y + J*B.v2.y }; }
+function snap(x,y){ const i=B.inv.a*x+B.inv.b*y, j=B.inv.c*x+B.inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
 
-/* ========= Post shader (distortion only) ========= */
-class DistortionShader extends THREE.ShaderMaterial{
-  constructor(){ super({
-    name:"DistortionShader",
-    uniforms:{ tDiffuse:{value:null}, distortion:{value:new THREE.Vector2(0,0)} },
-    vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position,1.0); }`,
-    fragmentShader:`precision highp float; uniform sampler2D tDiffuse; uniform vec2 distortion; varying vec2 vUv;
-    vec2 s(vec2 uv){ return 2.0*(uv-0.5);} vec2 u(vec2 suv){ return suv*0.5+0.5;}
-    void main(){ vec2 suv=s(vUv); suv*=(0.88 + distortion*dot(suv,suv)); vec2 uv2=u(suv);
-      vec3 col=texture2D(tDiffuse, uv2).rgb; gl_FragColor=vec4(col,1.0); }`
-  }); this._dist=0; this.update(); }
-  update(){ const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h); this.uniforms.distortion.value.set(this._dist*r,this._dist*r); }
-  setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
+const stage=document.getElementById('stage');
+const row0 = document.getElementById('row0');
+const row1 = document.getElementById('row1');
+const row2 = document.getElementById('row2');
+const row3 = document.getElementById('row3');
+const row4 = document.getElementById('row4');
+
+/* Place a single horizontal row (desktop) */
+function placeRow(container, startIJ, notes, blurMaxPx){
+  container.innerHTML='';
+  const w=num(css().getPropertyValue('--cube-size'), 36);
+  const h=w*(96/86);
+  const {I:ai, J:aj}=startIJ;
+  const N=notes.length;
+  notes.forEach(([note,key],idx)=>{
+    const I=ai+idx, J=aj;
+    const pC=toXY(I,J), pL=toXY(I,J+2);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','cube');
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
+    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
+
+    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
+    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
+
+    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttribute('href', '#cubeSym');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#cubeSym');
+    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
+    u.setAttribute('width', w); u.setAttribute('height', h);
+    g.appendChild(u);
+
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('class','note');
+    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lbl.textContent=`${note.toUpperCase()}/${key}`;
+    lbl.dataset.noteFor=note;
+
+    container.appendChild(g);
+    container.appendChild(lbl);
+  });
 }
 
-/* ========= Grid with hover bg + scroll/pinch zoom ========= */
-class Grid extends THREE.Group{
-  constructor(canvas,camera,opts){ super();
-    this.canvas=canvas; this.camera=camera; this.opts=opts;
-    this.pointerUv=new THREE.Vector2(0.5,0.5);
-    this.isPointerDown=false; this.isTouch=false;
-    this.velocity=new THREE.Vector2(); this.offset=new THREE.Vector2();
-    this.viewW=1; this.viewH=1; this._lastPX=null; this._lastPY=null;
-    this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[]; this.ray=new THREE.Raycaster();
-    this.manageMode=false; this.onTileSelect=null;
-    this.onZoomChange=null; this._lastZ=this.camera.position.z;
-    this.tileGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
-    this.bgGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
-    this.currentDragEase = opts.dragEase;
-    this.hoverIdx=-1;
+/* Compact block for mobile */
+function placeBlock(container, startIJ, notes, cols, blurMaxPx){
+  container.innerHTML='';
+  const w=num(css().getPropertyValue('--cube-size'), 36);
+  const h=w*(96/86);
+  const {I:ai, J:aj}=startIJ;
+  const N=notes.length;
+  notes.forEach(([note,key],idx)=>{
+    const c = idx % cols;
+    const r = Math.floor(idx / cols);
+    const I=ai + c;
+    const J=aj + r;
+    const pC=toXY(I,J), pL=toXY(I,J+2);
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','cube');
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','button'); g.setAttribute('aria-label',`note ${note}`);
+    g.dataset.note=note; g.dataset.key=key; g.dataset.I=I; g.dataset.J=J;
 
-    /* click / long-press tracking */
-    this.downTime=0; this.downX=0; this.downY=0; this.longPressTimer=null; this.longPressFired=false;
+    const amt=blurMaxPx*((N-1-idx)/(N-1 || 1));
+    g.style.setProperty('--depth-blur', `${amt.toFixed(2)}px`);
 
-    /* pinch support */
-    this.pointerMap=new Map();
-    this.pinchDist0=null; this.cameraZ0=null;
+    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttribute('href', '#cubeSym');
+    u.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#cubeSym');
+    u.setAttribute('x', pC.x - w/2); u.setAttribute('y', pC.y - h/2);
+    u.setAttribute('width', w); u.setAttribute('height', h);
+    g.appendChild(u);
 
-    this.layout();
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('class','note');
+    lbl.setAttribute('x', pL.x + parseFloat(css().getPropertyValue('--lbl-note-dx')));
+    lbl.setAttribute('y', pL.y + parseFloat(css().getPropertyValue('--lbl-note-dy')));
+    lbl.textContent=`${note.toUpperCase()}/${key}`;
+    lbl.dataset.noteFor=note;
 
-    this.onPointerMove=this.onPointerMove.bind(this);
-    this.onPointerDown=this.onPointerDown.bind(this);
-    this.onPointerUp=this.onPointerUp.bind(this);
-    this.onWheel=this.onWheel.bind(this);
-
-    canvas.addEventListener("pointermove",this.onPointerMove,{passive:true});
-    canvas.addEventListener("pointerdown",this.onPointerDown,{passive:true});
-    window.addEventListener("pointerup",this.onPointerUp,{passive:true});
-    window.addEventListener("pointercancel",this.onPointerUp,{passive:true});
-    canvas.addEventListener("wheel",this.onWheel,{passive:false});
-  }
-  dispose(){
-    this.canvas.removeEventListener("pointermove",this.onPointerMove);
-    this.canvas.removeEventListener("pointerdown",this.onPointerDown);
-    window.removeEventListener("pointerup",this.onPointerUp);
-    window.removeEventListener("pointercancel",this.onPointerUp);
-    this.canvas.removeEventListener("wheel",this.onWheel);
-    this.tileGeom.dispose(); this.bgGeom.dispose();
-    this.tiles.forEach(m=>m.material&&m.material.dispose());
-    this.bgTiles.forEach(m=>m.material&&m.material.dispose());
-  }
-  setViewport(w,h){ this.viewW=w; this.viewH=h; }
-  setManageMode(f){ this.manageMode=!!f; }
-
-  layout(){
-    const {cols,rows,tile,gap}=this.opts;
-    const stepX=tile+gap, stepY=tile+gap;
-    const sizeX=stepX*(cols-1), sizeY=stepY*(rows-1);
-    this.groups.forEach(g=>this.remove(g));
-    this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[];
-
-    for(let r=0;r<rows;r++){
-      for(let c=0;c<cols;c++){
-        const x = c*stepX - sizeX/2;
-        const y = sizeY/2 - r*stepY;
-
-        const group=new THREE.Group();
-        group.position.set(x,y,0);
-
-        // Hover background (semi-transparent, behind note)
-        const bgMat=new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
-        const bgMesh=new THREE.Mesh(this.bgGeom,bgMat);
-        bgMesh.position.set(0,0,-0.0005);
-
-        const imgMat=new THREE.MeshBasicMaterial({ color:0xffffff }); // map set later
-        const imgMesh=new THREE.Mesh(this.tileGeom,imgMat);
-
-        group.add(bgMesh); group.add(imgMesh);
-        this.add(group);
-
-        this.groups.push(group);
-        this.bgTiles.push(bgMesh);
-        this.tiles.push(imgMesh);
-        this.tileItems.push(null);
-      }
-    }
-  }
-
-  async setItems(items){
-    const total=this.tiles.length;
-    const texs=await buildRowMajorTextures(items,total);
-    for(let i=0;i<total;i++){
-      const old=this.tiles[i].material; old?.dispose?.();
-      this.tiles[i].material=new THREE.MeshBasicMaterial({ map:texs[i] });
-      this.tileItems[i]= i<items.length ? items[i] : null;
-    }
-  }
-
-  _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
-  _ndcFromClient(clientX, clientY){
-    const rect=this.canvas.getBoundingClientRect();
-    return { x: ((clientX-rect.left)/rect.width)*2-1, y: -((clientY-rect.top)/rect.height)*2+1 };
-  }
-  _hitTileAt(clientX, clientY){
-    const ndc=this._ndcFromClient(clientX, clientY);
-    this.ray.setFromCamera(ndc,this.camera);
-    const hit=this.ray.intersectObjects(this.tiles,false)[0];
-    if(!hit) return { idx:-1, mesh:null };
-    const idx=this.tiles.indexOf(hit.object);
-    return { idx, mesh:this.tiles[idx] };
-  }
-  _setHover(idx){
-    if(this.hoverIdx===idx) return;
-    if(this.hoverIdx>=0 && this.bgTiles[this.hoverIdx]){
-      gsap.to(this.bgTiles[this.hoverIdx].material,{ opacity:0.0, duration:0.15, ease:"power2.out" });
-    }
-    this.hoverIdx=idx;
-    if(idx>=0 && this.bgTiles[idx]){
-      this.bgTiles[idx].material.color.set(0xffffff);
-      gsap.to(this.bgTiles[idx].material,{ opacity:0.2, duration:0.12, ease:"power2.out" });
-    }
-  }
-  centerTileByIndex(idx, dur=0.7){
-    if(idx<0||idx>=this.tiles.length) return;
-    const p=this.groups[idx].position;
-    gsap.to(this.offset, { x:-p.x, y:-p.y, duration:dur, ease:"power2.out" });
-  }
-  zoomToFitTile(idx, margin=1.25, dur=0.7){
-    if(idx<0||idx>=this.tiles.length) return;
-    this.centerTileByIndex(idx, dur*0.8);
-    const tileSize = this.opts.tile * margin;
-    const aspect = this.viewW / this.viewH;
-    const fov = this.camera.fov * Math.PI/180;
-    const neededHeight = tileSize * (aspect < 1 ? (1/aspect) : 1);
-    const z = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, neededHeight / (2 * Math.tan(fov/2))));
-    gsap.to(this.camera.position, { z, duration:dur, ease:"power2.out" });
-  }
-  _clampZ(z){ return Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z)); }
-
-  onWheel(e){
-    if(this.manageMode) return;
-    e.preventDefault();
-    const cur = this.camera.position.z;
-    const dz = e.deltaY * CONFIG.wheelScale * Math.max(0.6, cur);
-    const target = this._clampZ(cur + dz);
-    gsap.to(this.camera.position, { z: target, duration: 0.16, ease:"power2.out" });
-  }
-
-  _updatePointer(e){ if(e.pointerType==="touch") this.pointerMap.set(e.pointerId, { x:e.clientX, y:e.clientY }); }
-  _removePointer(e){ if(e.pointerType==="touch"){ this.pointerMap.delete(e.pointerId); if(this.pointerMap.size<2){ this.pinchDist0=null; this.cameraZ0=null; } } }
-  _twoTouchDistance(){ const v=[...this.pointerMap.values()]; if(v.length<2) return null; const a=v[0],b=v[1]; return Math.hypot(b.x-a.x, b.y-a.y); }
-
-  onPointerMove(e){
-    const rect=this.canvas.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
-    this.pointerUv.set(x,y);
-    const hit = this._hitTileAt(e.clientX, e.clientY);
-    this._setHover(hit.idx);
-
-    if(this.manageMode) return;
-
-    this._updatePointer(e);
-    if(this.pointerMap.size>=2){
-      const d=this._twoTouchDistance();
-      if(d && !this.pinchDist0){ this.pinchDist0=d; this.cameraZ0=this.camera.position.z; }
-      if(d && this.pinchDist0 && this.cameraZ0!=null){
-        let factor = d / this.pinchDist0;
-        const target = this._clampZ(this.cameraZ0 / Math.max(0.3, Math.min(3, factor)));
-        gsap.to(this.camera.position, { z: target, duration: 0.08, ease:"power2.out" });
-      }
-      return;
-    }
-
-    if(this.isPointerDown){
-      const dx=(this._lastPX===null?0:(e.clientX-this._lastPX)), dy=(this._lastPY===null?0:(e.clientY-this._lastPY));
-      this._lastPX=e.clientX; this._lastPY=e.clientY;
-      const d=this._pxToNorm(dx,dy);
-      const mult = this.isTouch ? CONFIG.dragMultTouch : CONFIG.dragMultMouse;
-      this.offset.x += d.x * mult;
-      this.offset.y += -d.y * mult;
-      const lerpAmt = 1 - (this.opts.velEase);
-      this.velocity.lerp(new THREE.Vector2(d.x,-d.y), lerpAmt);
-    }
-  }
-
-  onPointerDown(e){
-    if(this.manageMode){
-      const { idx, mesh } = this._hitTileAt(e.clientX, e.clientY);
-      if(mesh){ const item=this.tileItems[idx]; this.onTileSelect?.(idx,item); }
-      return;
-    }
-    this.isPointerDown=true;
-    this.isTouch = (e.pointerType === "touch");
-    this.canvas.classList.add("dragging");
-    this._lastPX=e.clientX; this._lastPY=e.clientY;
-
-    this.downTime = performance.now();
-    this.downX = e.clientX; this.downY = e.clientY;
-    this.longPressFired = false;
-
-    this.currentDragEase = this.isTouch ? CONFIG.touchDragEase : this.opts.dragEase;
-
-    this._updatePointer(e);
-    if(this.pointerMap.size>=2){
-      this.longPressFired = true;
-      if(this.longPressTimer){ window.clearTimeout(this.longPressTimer); this.longPressTimer=null; }
-      return;
-    }
-
-    const holdMs = this.isTouch ? CONFIG.longPressMsTouch : CONFIG.longPressMsMouse;
-    this.longPressTimer = window.setTimeout(()=>{
-      const dist = Math.hypot((this._lastPX - this.downX)||0, (this._lastPY - this.downY)||0);
-      const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
-      if(this.isPointerDown && dist <= thresh){
-        const { idx } = this._hitTileAt(this._lastPX ?? this.downX, this._lastPY ?? this.downY);
-        if(idx>=0){ this.longPressFired = true; this.zoomToFitTile(idx, 1.25, 0.7); }
-      }
-    }, holdMs);
-  }
-
-  onPointerUp(e){
-    if(this.manageMode) return;
-    this._removePointer(e);
-
-    this.isPointerDown=false; this.canvas.classList.remove("dragging");
-    const upTime = performance.now();
-    const dt = upTime - this.downTime;
-    const dist = Math.hypot((e.clientX - this.downX)||0, (e.clientY - this.downY)||0);
-    const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
-
-    window.clearTimeout(this.longPressTimer);
-    this.longPressTimer = null;
-
-    if(!this.longPressFired && dt < (this.isTouch ? CONFIG.longPressMsTouch : CONFIG.longPressMsMouse) && dist <= thresh){
-      const { idx } = this._hitTileAt(e.clientX, e.clientY);
-      if(idx>=0) this.centerTileByIndex(idx, 0.6);
-    }
-  }
-
-  update(){
-    const cursorOffset=this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
-    if(!this.isPointerDown && !this.manageMode){
-      this.offset.add(this.velocity.clone().multiplyScalar(5));
-      this.velocity.multiplyScalar(this.opts.velEase);
-    }
-    const tx=this.offset.x+cursorOffset.x, ty=this.offset.y-cursorOffset.y;
-    const ease = this.currentDragEase || this.opts.dragEase;
-    this.position.x += (tx-this.position.x) * ease;
-    this.position.y += (ty-this.position.y) * ease;
-
-    const z = this.camera.position.z;
-    if (Math.abs(z - (this._lastZ ?? z)) > 1e-3) {
-      this._lastZ = z;
-      this.onZoomChange?.(z, { min: CONFIG.zoomMin, max: CONFIG.zoomMax });
-    }
-  }
-
-  resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); this._setHover(-1); }
+    container.appendChild(g);
+    container.appendChild(lbl);
+  });
 }
 
-/* ========= Postprocessing (distortion only) ========= */
-function Postprocessing({ workgridState }){
-  const { gl, scene, camera, size } = useThree();
-  const { composer, shader } = useMemo(()=>{
-    try{
-      const renderPass=new RenderPass(scene,camera);
-      const shader=new DistortionShader();
-      const shaderPass=new ShaderPass(shader);
-      const outputPass=new OutputPass();
-      const composer=new EffectComposer(gl);
-      composer.addPass(renderPass); composer.addPass(shaderPass); composer.addPass(outputPass);
-      return { composer, shader };
-    }catch(e){ console.warn("Composer init failed",e); return { composer:null, shader:null }; }
-  },[gl,scene,camera]);
-  useEffect(()=>{ if(!composer||!shader) return;
-    const dpr=Math.min(2, gl.getPixelRatio?.()||1.5);
-    composer.setPixelRatio?.(dpr);
-    composer.setSize(size.width, size.height);
-    shader.update();
-  },[composer,shader,size,gl]);
-  useEffect(()=>{ if(!shader) return;
-    const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
-    const scale = size.width < 800 ? 0.75 : 1.0;
-    shader.setDistortion(base * scale);
-  },[workgridState,shader,size.width]);
-  useFrame(()=>{ composer?.render(); }, 1);
-  return null;
+function measureBounds(){
+  const uses=stage.querySelectorAll('use');
+  if(!uses.length) return {minX:0,minY:0,maxX:0,maxY:0,width:0,height:0,cx:0,cy:0};
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  uses.forEach(u=>{
+    const x=+u.getAttribute('x'), y=+u.getAttribute('y');
+    const w=+u.getAttribute('width'), h=+u.getAttribute('height');
+    minX=Math.min(minX,x); minY=Math.min(minY,y);
+    maxX=Math.max(maxX,x+w); maxY=Math.max(maxY,y+h);
+  });
+  return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,cx:(minX+maxX)/2,cy:(minY+maxY)/2};
 }
 
-/* ========= Primitive wrapper ========= */
-function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect, onZoomChange, controllerRef }){
-  const { gl, camera, size } = useThree();
-  const grid = useMemo(()=> new Grid(gl.domElement, camera, {
-    cols:CONFIG.cols, rows:CONFIG.rows, tile:CONFIG.tile, gap:CONFIG.gap,
-    ambient:CONFIG.ambient, dragEase:CONFIG.dragEase, velEase:CONFIG.velEase
-  }),[gl,camera]);
-  useFrame(()=>grid.update());
-  useEffect(()=>{ grid.setViewport(size.width,size.height); },[size,grid]);
-  useEffect(()=>{ grid.onTileSelect=onTileSelect; },[grid,onTileSelect]);
-  useEffect(()=>{ grid.setManageMode(manageMode); },[manageMode,grid]);
-  useEffect(()=>{ grid.setItems(items); },[items,grid]);
-  useEffect(()=>{ grid.onZoomChange = (z)=> onZoomChange?.(z); return ()=>{ grid.onZoomChange=null; }; },[grid,onZoomChange]);
-  useEffect(()=>{ if(workgridState==="RESET") grid.resetPosition(); },[workgridState,grid]);
+/* ---------- Adaptive bar scaling (updated in layoutAll) ---------- */
+let BAR_SCALE = 0.08;   // global vertical compression
+let BAR_MIN   = 6;      // % floor so nothing disappears
+let BAR_MAX   = 42;     // % ceiling to keep them short
 
-  // Expose setter for zoom scrubbing
-  useEffect(()=>{
-    if(!controllerRef) return;
-    controllerRef.current = {
-      setZoom: (z) => {
-        const clamped = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z));
-        gsap.to(camera.position, { z: clamped, duration: 0.12, ease: "power2.out" });
-      }
-    };
-  },[controllerRef, camera]);
+/* recorder-bar-aware layout (+ histogram bottom padding + mobile fit) */
+function layoutAll(){
+  const vw = innerWidth, vh = innerHeight;
+  const margin = Math.max(16, Math.min(48, Math.round(Math.min(vw,vh)*0.04)));
+  const baseCell = num(css().getPropertyValue('--iso-cell-base'), 32);
+  const baseCube = num(css().getPropertyValue('--cube-size-base'), 36);
+  const MOBILE = vw < 520;
 
-  return React.createElement("primitive",{object:grid});
+  /* ——— Histogram: add bottom padding inside the track ——— */
+  const track = document.querySelector('.rec .track');
+  if (track) track.style.paddingBottom = '14px';
+
+  /* ——— Mobile-safe vertical scaling for bars ——— */
+  if (vw <= 360)      { BAR_SCALE = 0.34; BAR_MAX = 32; BAR_MIN = 6; }
+  else if (vw <= 420) { BAR_SCALE = 0.36; BAR_MAX = 36; BAR_MIN = 6; }
+  else if (vw <= 520) { BAR_SCALE = 0.37; BAR_MAX = 40; BAR_MIN = 6; }
+  else                { BAR_SCALE = 0.38; BAR_MAX = 42; BAR_MIN = 6; }
+
+  // initialize at base scale
+  document.documentElement.style.setProperty('--iso-cell', `${baseCell}px`);
+  document.documentElement.style.setProperty('--cube-size', `${baseCube}px`);
+  B = basis();
+
+  const recH = parseInt(getComputedStyle(document.querySelector('.rec')).height) || 0;
+
+  // clear rows
+  row0.innerHTML = row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
+
+  if (MOBILE){
+    // mobile: 5 columns x 5 rows block (all 25 keys)
+    const N = allNotes.length; // 25
+    const cols = 5;
+    const rows = Math.ceil(N / cols);
+    const center = snap(vw/2, (vh - recH)/2 - 6);
+    const startI = center.I - Math.floor(cols/2);
+    const startJ = center.J - Math.floor(rows/2);
+
+    placeBlock(row0, {I:startI, J:startJ}, allNotes, cols, 1.6);
+
+    const b = measureBounds();
+    const needW = vw - margin*2;
+    const needH = vh - margin*2 - recH;
+    const sW = needW / b.width;
+    const sH = needH / b.height;
+    const scale = Math.min(1, sW, sH);
+
+    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
+    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
+    B = basis();
+
+    const center2 = snap(vw/2, (vh - recH)/2 - 6);
+    const startI2 = center2.I - Math.floor(cols/2);
+    const startJ2 = center2.J - Math.floor(rows/2);
+
+    row0.innerHTML='';
+    placeBlock(row0, {I:startI2, J:startJ2}, allNotes, cols, 1.6);
+
+  } else {
+    // desktop: five rows with tightened gap
+    const rowLen = 5;
+    const rowGap = (vw < 560 ? 7 : 5);
+    const centerIJ = snap(vw/2, (vh - recH)/2 - 10);
+    const startI = centerIJ.I - Math.floor(rowLen/2);
+    const totalJSpan = rowGap * (5 - 1);
+    const startJTop = centerIJ.J - totalJSpan/2;
+
+    const start1 = { I: startI, J: startJTop + rowGap * 0 };
+    const start2 = { I: startI, J: startJTop + rowGap * 1 };
+    const start3 = { I: startI, J: startJTop + rowGap * 2 };
+    const start4 = { I: startI, J: startJTop + rowGap * 3 };
+    const start5 = { I: startI, J: startJTop + rowGap * 4 };
+
+    placeRow(row0, start1, row0Notes, 2.0);
+    placeRow(row1, start2, row1Notes, 2.2);
+    placeRow(row2, start3, row2Notes, 2.4);
+    placeRow(row3, start4, row3Notes, 2.6);
+    placeRow(row4, start5, row4Notes, 2.8);
+
+    const b = measureBounds();
+    const needW = vw - margin*2;
+    const needH = vh - margin*2 - recH;
+    const sW = needW / b.width;
+    const sH = needH / b.height;
+    const scale = Math.min(1, sW, sH);
+
+    document.documentElement.style.setProperty('--iso-cell', `${baseCell*scale}px`);
+    document.documentElement.style.setProperty('--cube-size', `${baseCube*scale}px`);
+    B = basis();
+
+    const center2 = snap(vw/2, (vh - recH)/2 - 10);
+    const startI2 = center2.I - Math.floor(rowLen/2);
+    const startJTop2 = center2.J - totalJSpan/2;
+
+    const start1b = { I: startI2, J: startJTop2 + rowGap * 0 };
+    const start2b = { I: startI2, J: startJTop2 + rowGap * 1 };
+    const start3b = { I: startI2, J: startJTop2 + rowGap * 2 };
+    const start4b = { I: startI2, J: startJTop2 + rowGap * 3 };
+    const start5b = { I: startI2, J: startJTop2 + rowGap * 4 };
+
+    row0.innerHTML = row1.innerHTML = row2.innerHTML = row3.innerHTML = row4.innerHTML = '';
+    placeRow(row0, start1b, row0Notes, 2.0);
+    placeRow(row1, start2b, row1Notes, 2.2);
+    placeRow(row2, start3b, row2Notes, 2.4);
+    placeRow(row3, start4b, row3Notes, 2.6);
+    placeRow(row4, start5b, row4Notes, 2.8);
+  }
+
+  window.dispatchEvent(new Event('resize'));
+  window.dispatchEvent(new Event('iso:refresh'));
 }
-function GridView(props){
-  return React.createElement(Canvas,{
-      gl:{ antialias:true, powerPreference:"high-performance" },
-      camera:{ fov:35, position:[0,0,CONFIG.zoomOut] },
-      dpr:[1, 2],
-      onCreated:({ gl })=>{
-        gl.setClearColor(0x000000, 1);
-        gl.outputColorSpace = THREE.SRGBColorSpace;
-        gl.toneMapping = THREE.NoToneMapping;
-      }
-    },
-    React.createElement("ambientLight",{intensity:1}),
-    React.createElement("directionalLight",{intensity:.7, position:[2,3,4]}),
-    React.createElement(ProjectsGridPrimitive,props),
-    React.createElement(Postprocessing,{workgridState:props.workgridState})
-  );
-}
+layoutAll();
 
-/* ========= Help overlay ========= */
-function HelpOverlay({ open, onClose }){
-  if(!open) return null;
-  return (
-    React.createElement("div",{className:"overlay open curved"},
-      React.createElement("div",{className:"sheet",role:"dialog","aria-modal":"true"},
-        React.createElement("div",{className:"titlebar"},
-          React.createElement("h2",null,"Controls"),
-          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
-        ),
-        React.createElement("div",{className:"grid"},
-          React.createElement("div",null,"• Drag to pan"),
-          React.createElement("div",null,"• Wheel / pinch to zoom"),
-          React.createElement("div",null,"• Click a tile to center it"),
-          React.createElement("div",null,"• Long-press a tile to fit view"),
-          React.createElement("div",null,"• Toggle: square↔circle for distortion"),
-          React.createElement("div",null,"• Trash: tap any tile to delete (while active)"),
-          React.createElement("div",null,"• FAB block: new note"),
-          React.createElement("div",null,"• Shortcuts: 1/2 = Flat/Curved, 0 = Reset, N = New, M = Manage, ? = Help")
-        )
-      )
-    )
-  );
-}
-
-/* ========= Camera + export ========= */
-function useCamera(){
-  const videoRef=useRef(null), streamRef=useRef(null);
-  const start=async()=>{
-    if(location.protocol!=="https:" && location.hostname!=="localhost"){ alert("Camera requires HTTPS. Use Import instead."); return false; }
-    try{ const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
-      streamRef.current=stream; if(videoRef.current){ videoRef.current.srcObject=stream; await videoRef.current.play(); } return true;
-    }catch(e){ console.warn("Camera error",e); alert("Camera unavailable. Use Import instead."); return false; }
-  };
-  const stop=()=>{ streamRef.current?.getTracks?.().forEach(t=>t.stop()); streamRef.current=null; if(videoRef.current) videoRef.current.srcObject=null; };
-  const captureSquareCanvas=()=>{ const v=videoRef.current; if(!v||!v.videoWidth) return null;
-    const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(vw,vh),sx=Math.floor((vw-s)/2),sy=Math.floor((vh-s)/2);
-    const c=document.createElement("canvas"); c.width=s; c.height=s; c.getContext("2d").drawImage(v,sx,sy,s,s,0,0,s,s); return c; };
-  return { videoRef, start, stop, captureSquareCanvas };
-}
-async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
-  const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=sourceCanvas.toDataURL("image/png"); });
-  const cnv = makeCardCanvas({ img, title, caption, gps, ts:nowTS() });
-  return new Promise(resolve=>{ cnv.toBlob(b=>{ const url=URL.createObjectURL(b); resolve({url,blob:b}); },"image/png",0.96); });
-}
-
-/* ========= Overlay flow (note capture) ========= */
-function OverlayFlow({ open, onClose, onAddToArchive }){
-  const [step,setStep]=useState(0), [title,setTitle]=useState(""), [caption,setCaption]=useState("A quick visual note");
-  const [reviewCanvas,setReviewCanvas]=useState(null), [exportUrl,setExportUrl]=useState(""), [exporting,setExporting]=useState(false);
-  const camera=useCamera(); const filePickRef=useRef(null); const sheetRef=useRef(null); const reviewMountRef=useRef(null);
-
-  useEffect(()=>{ const mount=reviewMountRef.current; if(!mount) return; while(mount.firstChild) mount.removeChild(mount.firstChild);
-    if(reviewCanvas && step===2){ reviewCanvas.style.width="100%"; reviewCanvas.style.height="100%"; mount.appendChild(reviewCanvas); } },[reviewCanvas,step]);
-
-  useEffect(()=>{ if(!open) return; const root=sheetRef.current; if(!root) return;
-    const focusables=()=>[...root.querySelectorAll("button,[href],input,textarea")].filter(el=>!el.disabled&&el.offsetParent!==null);
-    const onKey=e=>{ if(e.key==="Escape"){ e.preventDefault(); onClose?.(); }
-      if(e.key==="Tab"){ const fs=focusables(); if(!fs.length) return; const f=document.activeElement;
-        if(e.shiftKey && f===fs[0]){ e.preventDefault(); fs[fs.length-1].focus(); }
-        else if(!e.shiftKey && f===fs[fs.length-1]){ e.preventDefault(); fs[0].focus(); } } };
-    root.addEventListener("keydown",onKey); return ()=>root.removeEventListener("keydown",onKey);
-  },[open,onClose]);
-
-  useEffect(()=>{ if(!open){ camera.stop(); setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); setExportUrl(""); setExporting(false);} },[open]);
-
-  const startCamera=async()=>{ const ok=await camera.start(); setStep(ok?1:0); };
-  const captureShot=()=>{ const c=camera.captureSquareCanvas(); if(c){ setReviewCanvas(c); setStep(2);} };
-  const pickFile=()=>filePickRef.current?.click();
-  const onFileChange=e=>{
-    const f=e.target.files?.[0]; if(!f) return; const img=new Image(); const url=URL.createObjectURL(f);
-    img.onload=()=>{ const s=Math.min(img.width,img.height), sx=Math.floor((img.width-s)/2), sy=Math.floor((img.height-s)/2);
-      const c=document.createElement("canvas"); c.width=s; c.height=s; c.getContext("2d").drawImage(img,sx,sy,s,s,0,0,s,s);
-      URL.revokeObjectURL(url); setReviewCanvas(c); setStep(2); }; img.src=url;
-  };
-  const doExport=async()=>{ if(!reviewCanvas) return; setExporting(true);
-    const { url } = await exportCardPNGFromCanvas(reviewCanvas, title||"[ title ]", caption||"—");
-    setExportUrl(url); setExporting(false); setStep(5);
-    onAddToArchive?.({ id:"note_"+Date.now(), src:url, title:title||"[ title ]", caption:caption||"—", baked:true, ts:nowTS(), createdMs:Date.now() });
+/* ---------- Pulses canvas (tilt-shift blur) ---------- */
+(function(){
+  const canvas=document.getElementById('isoCanvas'); const ctx=canvas.getContext('2d');
+  const easeOut = u=>1-(1-u)*(1-u);
+  const clamp01 = x => x<0?0:x>1?1:x;
+  const toPx = (len) => {
+    const m = String(len).trim().match(/^([0-9.]+)\s*px$/i);
+    return m ? parseFloat(m[1]) : 0;
   };
 
-  if(!open) return null;
-  return (
-    React.createElement("div",{className:"overlay open curved"},
-      React.createElement("div",{className:"sheet",ref:sheetRef,role:"dialog","aria-modal":"true"},
-        React.createElement("div",{className:"titlebar"},
-          React.createElement("h2",null, ["Start","Viewfinder","Review","Details","Export","Done"][step] || "Start"),
-          React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
-        ),
-        step===0 && React.createElement("div",{className:"grid"},
-          React.createElement("div",{className:"hint"},"Camera opens instantly (HTTPS only) or import an image."),
-          React.createElement("div",{className:"grid cols-2"},
-            React.createElement("button",{className:"btn primary",onClick:startCamera},"Open Camera"),
-            React.createElement("button",{className:"btn",onClick:pickFile},"Import Photo")),
-          React.createElement("input",{ref:filePickRef,type:"file",accept:"image/*",className:"hidden",onChange:onFileChange})
-        ),
-        step===1 && React.createElement(React.Fragment,null,
-          React.createElement("div",{className:"vf"},
-            React.createElement("video",{ref:camera.videoRef,playsInline:true,muted:true}),
-            React.createElement("span",{className:"perfs","aria-hidden":"true"})
-          ),
-          React.createElement("div",{className:"row",style:{marginTop:"12px"}},
-            React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(0);}},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:captureShot,style:{marginLeft:"auto"}},"Capture"))
-        ),
-        step===2 && React.createElement(React.Fragment,null,
-          React.createElement("div",{className:"preview",ref:reviewMountRef}),
-          React.createElement("div",{className:"row",style:{marginTop:"12px"}},
-            React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(1);}},"Retake"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(3),style:{marginLeft:"auto"}},"Keep"))
-        ),
-        step===3 && React.createElement(React.Fragment,null,
-          React.createElement("label",{className:"label",htmlFor:"t"},"Title (40 cap)"),
-          React.createElement("input",{id:"t",maxLength:40,className:"input",value:title,onChange:e=>setTitle(e.target.value)}),
-          React.createElement("label",{className:"label",htmlFor:"c"},"Note (100 cap)"),
-          React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
-          React.createElement("div",{className:"row",style:{marginTop:"6px"}},
-            React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
-            React.createElement("button",{className:"btn primary",onClick:()=>setStep(4),style:{marginLeft:"auto"}}, "Next")))
-        ,
-        step===4 && React.createElement("div",{className:"grid"},
-          React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
-          React.createElement("div",{className:"row"},
-            React.createElement("button",{className:"btn",onClick:()=>setStep(3)},"Back"),
-            React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport,style:{marginLeft:"auto"}},exporting?"Exporting…":"Export PNG & Save"))),
-        step===5 && React.createElement("div",{className:"grid",style:{placeItems:"center",textAlign:"center"}},
-          React.createElement("div",{className:"row",style:{justifyContent:"center"}},
-            exportUrl ? React.createElement("a",{href:exportUrl,download:`intoview-note_${Date.now()}.png`,className:"btn"},"Download again") : null),
-          React.createElement("div",{className:"row",style:{justifyContent:"center"}},
-            React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"intoview:note"),
-            React.createElement("button",{className:"btn primary",onClick:onClose},"Close")))
-      )
-    )
-  );
-}
+  // CSS-driven params (refreshed on resize / iso:refresh)
+  let CELL=56, v1={x:0,y:0}, v2={x:0,y:0}, det=1, inv={a:1,b:0,c:0,d:1};
+  let FILL_RGB='255 255 255', FILL_ALPHA=.22, STROKE_ALPHA=.55, FADE_MS=900;
+  let BLUR_MIN='0px', BLUR_MAX='12px', BLUR_CURVE=1.35;
 
-/* ========= Vertical Zoom Rail ========= */
-function ZoomRail({ zoom, onScrub }) {
-  const pctLabel = Math.round(zoom * 100);
-  const norm = (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin);
-  const clamped = Math.max(0, Math.min(1, norm));
-  const pct = clamped * 100;
+  // Tilt-shift controls
+  let TILT_ENABLE=1, TILT_ANGLE=Math.PI/15, TILT_WIDTH=140, TILT_OFFSET=0, TILT_FALLOFF=1.5, SIN_T=0, COS_T=1;
 
-  const trackRef = React.useRef(null);
-  const toZoomFromClientY = (clientY) => {
-    const el = trackRef.current; if(!el) return null;
-    const r = el.getBoundingClientRect();
-    const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height)); // 0 at top, 1 at bottom
-    const frac = 1 - y; // top = 1 (max), bottom = 0 (min)
-    return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
-  };
-  const onPointerDown = (e) => {
-    if (!onScrub) return;
-    const z = toZoomFromClientY(e.clientY); if (z!=null) onScrub(z);
-    const move = (ev)=>{ const zz = toZoomFromClientY(ev.clientY); if(zz!=null) onScrub(zz); };
-    const up = ()=>{ window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up); };
-    window.addEventListener("pointermove",move,{passive:true});
-    window.addEventListener("pointerup",up,{once:true});
-  };
+  let view = { w: innerWidth, h: innerHeight, cx: innerWidth/2, cy: innerHeight/2, R: Math.hypot(innerWidth, innerHeight)/2 };
 
-  return React.createElement("div", { className:"zoom-rail", "aria-label":"Zoom" },
-    React.createElement("div", { className:"zoom-rail__track", ref:trackRef, onPointerDown, role:"slider",
-      "aria-orientation":"vertical",
-      "aria-valuemin":Math.round(CONFIG.zoomMin*100), "aria-valuemax":Math.round(CONFIG.zoomMax*100),
-      "aria-valuenow":Math.round(zoom*100) },
-      React.createElement("div", { className:"zoom-rail__progress", style:{ "--zoom-pct": `${pct}%` } }),
-      React.createElement("div", { className:"zoom-rail__thumb", style:{ "--zoom-pct": `${pct}%` } }),
-      React.createElement("div", { className:"zoom-rail__tooltip", style:{ "--zoom-pct": `${pct}%` } }, `${pctLabel}%`)
-    )
-  );
-}
+  function read(){
+    const s = css();
+    CELL = num(s.getPropertyValue('--iso-cell'), 56);
+    v1 = {x: cos30*CELL, y: sin30*CELL};
+    v2 = {x:-cos30*CELL, y: sin30*CELL};
+    det = v1.x*v2.y - v2.x*v1.y;
+    inv = {a:v2.y/det, b:-v2.x/det, c:-v1.y/det, d:v1.x/det};
 
-/* ========= Icons ========= */
-function MorphDistortionIcon({ isCurved, onToggle }){
-  const rectRef = useRef(null);
-  useEffect(()=>{
-    const target = isCurved ? 9 : 2;
-    gsap.to(rectRef.current, { attr:{ rx: target, ry: target }, duration:0.25, ease:"power2.out" });
-  },[isCurved]);
+    FILL_RGB     = (s.getPropertyValue('--iso-highlight-fill').trim() || '255 255 255');
+    FILL_ALPHA   = num(s.getPropertyValue('--iso-highlight-alpha'), .22);
+    STROKE_ALPHA = num(s.getPropertyValue('--iso-stroke-alpha'), .55);
+    FADE_MS      = num(s.getPropertyValue('--iso-fade-ms'), 900);
 
-  return (
-    React.createElement("button", { className:"icon-btn", title:isCurved?"Curved (click to go Flat)":"Flat (click to go Curved)", onClick:onToggle, "aria-label":"Toggle distortion" },
-      React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
-        React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", rx:isCurved?9:2, ry:isCurved?9:2,
-          fill:"none", stroke:"currentColor", "stroke-width":"2", ref:rectRef })
-      )
-    )
-  );
-}
-function ResetIcon({ onClick }){
-  return (
-    React.createElement("button",{ className:"icon-btn", onClick, title:"Reset view", "aria-label":"Reset view" },
-      React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
-        React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", fill:"none", stroke:"currentColor", "stroke-width":"2" }),
-        React.createElement("circle",{ cx:"12", cy:"12", r:"5.5", fill:"none", stroke:"currentColor", "stroke-width":"2" })
-      )
-    )
-  );
-}
-function TrashToggle({ active, onToggle }){
-  return (
-    React.createElement("button",{ className:`icon-btn ${active?"active":""}`, onClick:onToggle,
-      title: active?"Delete mode (tap a tile) — Click to exit":"Delete notes (enter delete mode)", "aria-pressed":active, "aria-label":"Toggle delete mode" },
-      React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
-        React.createElement("path",{ d:"M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M8 6h8m-8 0l1 14a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2L16 6M10 10v8M14 10v8",
-          fill:"none", stroke:"currentColor", "stroke-width":"2", "stroke-linecap":"round", "stroke-linejoin":"round"})
-      )
-    )
-  );
-}
+    BLUR_MIN     = (s.getPropertyValue('--iso-blur-min').trim() || '0px');
+    BLUR_MAX     = (s.getPropertyValue('--iso-blur-max').trim() || '12px');
+    BLUR_CURVE   = num(s.getPropertyValue('--iso-blur-curve'), 1.35);
 
-/* ========= App ========= */
-function App(){
-  const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
-  const [wgState,setWgState]=useState(WorkgridState.DEFAULT);
-  const [overlayOpen,setOverlayOpen]=useState(false);
-  const [manageMode,setManageMode]=useState(false);
-  const [helpOpen,setHelpOpen]=useState(false);
-  const [archive,setArchive]=useState(loadArchive());
-  const [zoom, setZoom] = useState(CONFIG.zoomOut);
-  const gridCtrl = useRef({ setZoom: (z)=>{} });
-  useEffect(()=>{ saveArchive(archive); },[archive]);
-
-  const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
-  const combinedItems=useMemo(()=>[...sortedArchive, ...SEED], [sortedArchive]);
-
-  useEffect(()=>{ document.documentElement.style.setProperty("--curve-k", String(wgState===WorkgridState.INTRO ? 0 : 1)); },[wgState]);
-
-  useEffect(()=>{ const onKey=e=>{ if(overlayOpen||helpOpen) return;
-      if(e.key==="1") setWgState(WorkgridState.INTRO);
-      if(e.key==="2") setWgState(WorkgridState.DEFAULT);
-      if(e.key==="0") setWgState(WorkgridState.RESET);
-      if(e.key==="n"||e.key==="N") setOverlayOpen(true);
-      if(e.key==="m"||e.key==="M") setManageMode(v=>!v);
-      if(e.key==="?"||e.key==="h"||e.key==="H") setHelpOpen(true);
-    }; window.addEventListener("keydown",onKey); return ()=>window.removeEventListener("keydown",onKey); },[overlayOpen,helpOpen]);
-
-  const addNoteToArchive=note=> setArchive(arr=>[...arr, note]);
-  const handleTileSelect=(tileIndex,item)=>{
-    if(!manageMode||!item) return;
-    if(item.id && String(item.id).startsWith("note_")){
-      if(!confirm("Delete this note from the archive?")) return;
-      setArchive(arr=>arr.filter(x=>x.id!==item.id));
-    }
-  };
-
-  const isCurved = wgState === WorkgridState.DEFAULT;
-
-  return (
-    React.createElement(React.Fragment,null,
-      /* WebGL layer */
-      React.createElement("div",{className:"canvas-wrap"},
-        React.createElement("div",{className:"fallback-grid"}),
-        React.createElement(Suspense,{fallback:null},
-          React.createElement(GridView,{
-            workgridState:wgState,
-            items:combinedItems,
-            manageMode,
-            onTileSelect:handleTileSelect,
-            onZoomChange:setZoom,
-            controllerRef:gridCtrl
-          })
-        )
-      ),
-
-      /* Header */
-      React.createElement("header",{className:"header"},
-        React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
-          React.createElement("img",{
-            id:"brandLogo",
-            alt:"intoview",
-            decoding:"async",
-            src:"https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg"
-          })
-        ),
-        React.createElement("div",{className:"controls"},
-          React.createElement(MorphDistortionIcon,{ isCurved, onToggle:()=>setWgState(isCurved?WorkgridState.INTRO:WorkgridState.DEFAULT) }),
-          React.createElement(ResetIcon,{ onClick:()=>setWgState(WorkgridState.RESET) }),
-          React.createElement(TrashToggle,{ active:manageMode, onToggle:()=>setManageMode(v=>!v) }),
-          React.createElement("button",{className:"icon-btn","aria-label":"Info / Controls", onClick:()=>setHelpOpen(true), title:"Help / Controls"},
-            React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
-              React.createElement("circle",{cx:"12",cy:"12",r:"10", fill:"none", stroke:"currentColor","stroke-width":"2"}),
-              React.createElement("line",{x1:"12",y1:"16",x2:"12",y2:"12", stroke:"currentColor","stroke-width":"2","stroke-linecap":"round"}),
-              React.createElement("circle",{cx:"12", cy:"8", r:"1.2", fill:"currentColor"})
-            )
-          )
-        )
-      ),
-
-      /* Modals */
-      React.createElement(HelpOverlay,{ open:helpOpen, onClose:()=>setHelpOpen(false) }),
-      React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive }),
-
-      /* Global effects */
-      React.createElement("div",{className:"edge-blur"}),
-      React.createElement("div",{className:"vignette"}),
-
-      /* Vertical zoom rail */
-      React.createElement(ZoomRail,{ zoom, onScrub:(z)=> gridCtrl.current?.setZoom?.(z) }),
-
-      /* FAB block (centered lower-third) */
-      React.createElement("div",{ className:"fab-wrap" },
-        React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"intoview:note" },
-          React.createElement("svg",{viewBox:"0 0 100 100","aria-hidden":"true"},
-            React.createElement("defs",null,
-              React.createElement("linearGradient",{id:"cubeTop",x1:"0",x2:"1",y1:"0",y2:"1"},
-                React.createElement("stop",{offset:"0","stop-color":"#fff","stop-opacity":"1"}),
-                React.createElement("stop",{offset:"1","stop-color":"#dcdcdc","stop-opacity":"1"})
-              ),
-              React.createElement("linearGradient",{id:"cubeSide",x1:"0",x2:"1",y1:"0",y2:"1"},
-                React.createElement("stop",{offset:"0","stop-color":"#e8e8e8"}),
-                React.createElement("stop",{offset:"1","stop-color":"#bdbdbd"})
-              ),
-              React.createElement("linearGradient",{id:"cubeDark",x1:"0",x2:"1",y1:"0",y2:"1"},
-                React.createElement("stop",{offset:"0","stop-color":"#8a8a8a"}),
-                React.createElement("stop",{offset:"1","stop-color":"#4b4b4b"})
-              ),
-              React.createElement("filter",{id:"cubeGlow",x:"-50%",y:"-50%",width:"200%",height:"200%"},
-                React.createElement("feDropShadow",{dx:"0",dy:"6","stdDeviation":"6","flood-color":"#000","flood-opacity":".45"})
-              )
-            ),
-            React.createElement("g",{filter:"url(#cubeGlow)"},
-              React.createElement("polygon",{fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
-              React.createElement("polygon",{fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
-              React.createElement("polygon",{fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
-            )
-          )
-        ),
-        React.createElement("div",{ className:"fab-label" },"NEW")
-      )
-    )
-  );
-}
-
-/* ========= Persistence ========= */
-function getCreatedMs(item, idx=0){
-  if (typeof item?.createdMs==="number") return item.createdMs;
-  if (item?.id){ const m=String(item.id).match(/^note_(\d+)$/); if(m){ const n=+m[1]; if(!Number.isNaN(n)) return n; } }
-  if (item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
-    const t=Date.parse(item.ts.replace(" • ","T")+":00"); if(!Number.isNaN(t)) return t;
+    // tilt-shift
+    TILT_ENABLE  = (num(s.getPropertyValue('--tilt-enable'), 1) > 0) ? 1 : 0;
+    TILT_ANGLE   = (Math.PI/180) * num(s.getPropertyValue('--tilt-angle-deg'), 12);
+    TILT_WIDTH   = num(s.getPropertyValue('--tilt-width'), 140);
+    TILT_OFFSET  = num(s.getPropertyValue('--tilt-offset'), 0);
+    TILT_FALLOFF = num(s.getPropertyValue('--tilt-falloff'), 1.5);
+    SIN_T = Math.sin(TILT_ANGLE); COS_T = Math.cos(TILT_ANGLE);
   }
-  return idx;
-}
-function loadArchive(){
-  try{
-    const raw=localStorage.getItem(STORAGE_KEY);
-    if(!raw) return [];
-    const parsed=JSON.parse(raw);
-    if(!Array.isArray(parsed)) return [];
-    return parsed.map((it,i)=>({ ...it, createdMs:getCreatedMs(it,i) }));
-  }catch{ return []; }
-}
-function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
+  function resize(){
+    const dpr=Math.max(1,devicePixelRatio||1);
+    canvas.width=Math.floor(innerWidth*dpr);
+    canvas.height=Math.floor(innerHeight*dpr);
+    canvas.style.width=innerWidth+'px';
+    canvas.style.height=innerHeight+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    read();
+    view = { w: innerWidth, h: innerHeight, cx: innerWidth/2, cy: innerHeight/2, R: Math.hypot(innerWidth, innerHeight)/2 };
+  }
+  addEventListener('resize', resize, {passive:true});
+  addEventListener('iso:refresh', read, {passive:true});
+  resize();
 
-/* ========= Mount ========= */
-const root = createRoot(document.getElementById("root"));
-root.render(React.createElement(App));
-    </script>
-  </body>
+  function toXY(I,J){ return { x:I*v1.x + J*v2.x, y:I*v1.y + J*v2.y }; }
+  function snapLocal(x,y){ const i=inv.a*x+inv.b*y, j=inv.c*x+inv.d*y; return {I:Math.round(i),J:Math.round(j)}; }
+  function cell(I,J){
+    const a=toXY(I,J), b=toXY(I+1,J), c=toXY(I+1,J+1), d=toXY(I,J+1);
+    return {pts:[a,b,c,d], cx:(a.x+b.x+c.x+d.x)/4, cy:(a.y+b.y+c.y+d.y)/4};
+  }
+  function draw(pts){ ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y); ctx.closePath(); }
+
+  const pulses=[]; let anim=false;
+  function push(I,J){ pulses.push({I,J,t:performance.now()}); if(!anim){ anim=true; requestAnimationFrame(tick); } }
+  window.isoPulse = push;
+
+  let last=null;
+  function handleMove(e){
+    const {I,J}=snapLocal(e.clientX, e.clientY);
+    const k=I+','+J;
+    if(k!==last){ last=k; push(I,J); }
+  }
+  document.addEventListener('pointermove', handleMove, {passive:true});
+  const stageEl=document.getElementById('stage');
+  if(stageEl) stageEl.addEventListener('pointermove', handleMove, {passive:true});
+  addEventListener('pointerleave', ()=>{ last=null; }, {passive:true});
+
+  function tiltShiftBlurPx(cx, cy){
+    if (!TILT_ENABLE){
+      // Radial fallback
+      const dist = Math.hypot(cx - view.cx, cy - view.cy);
+      const dNorm = clamp01(dist / view.R);
+      const t = Math.pow(dNorm, BLUR_CURVE > 0 ? BLUR_CURVE : 1);
+      return toPx(BLUR_MIN) + (toPx(BLUR_MAX) - toPx(BLUR_MIN)) * t;
+    }
+    // Translate about screen center
+    const dx = cx - view.cx;
+    const dy = cy - view.cy;
+    // Rotate so band is horizontal
+    const xr = dx * COS_T + dy * SIN_T;
+    const yr = -dx * SIN_T + dy * COS_T;
+    // Distance from band centerline (yr == TILT_OFFSET)
+    const d = Math.abs(yr - TILT_OFFSET);
+    const over = Math.max(0, d - TILT_WIDTH);
+    const denom = Math.max(1, 0.5 * view.h);
+    const t = clamp01(Math.pow(over / denom, TILT_FALLOFF));
+    return toPx(BLUR_MIN) + (toPx(BLUR_MAX) - toPx(BLUR_MIN)) * t;
+  }
+
+  function tick(now){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let alive=0;
+    for(const p of pulses){
+      const age=now-p.t; if(age>=FADE_MS) continue; alive++;
+      const u=age/FADE_MS, invU=1-u;
+      const {pts, cx, cy}=cell(p.I,p.J);
+
+      const fillA = easeOut(1-u)*FILL_ALPHA;
+      const strokeA = invU*STROKE_ALPHA;
+
+      const blurPx = tiltShiftBlurPx(cx, cy);
+      ctx.filter = `blur(${blurPx}px)`;
+
+      ctx.fillStyle=`rgb(${FILL_RGB} / ${fillA})`;
+      draw(pts); ctx.fill();
+
+      ctx.lineWidth=1; ctx.strokeStyle=`rgb(${FILL_RGB} / ${strokeA})`;
+      ctx.stroke();
+
+      ctx.filter = 'none';
+    }
+    if(alive!==pulses.length){
+      const cut=now-FADE_MS; for(let i=pulses.length-1;i>=0;i--) if(pulses[i].t<=cut) pulses.splice(i,1);
+    }
+    if(alive>0) requestAnimationFrame(tick); else anim=false;
+  }
+})();
+
+/* ---------- Synth ---------- */
+const POLY_MAX = 10;
+const NOTE_COOLDOWN_MS = 90;
+const lastTrigByNote = new Map();
+
+let AC=null, master=null; let pianoGroup=null; const activeVoices=new Set(); let synthReady=false;
+function ensureAudio(){
+  if(!AC){
+    const C = window.AudioContext || window.webkitAudioContext;
+    AC = new C();
+
+    master = AC.createGain();
+    master.gain.value = 0.5;
+
+    const comp = AC.createDynamicsCompressor();
+    comp.threshold.setValueAtTime(-22, AC.currentTime);
+    comp.knee.setValueAtTime(24, AC.currentTime);
+    comp.ratio.setValueAtTime(4, AC.currentTime);
+    comp.attack.setValueAtTime(0.003, AC.currentTime);
+    comp.release.setValueAtTime(0.25, AC.currentTime);
+
+    master.connect(comp);
+    comp.connect(AC.destination);
+
+    pianoGroup = AC.createGain();
+    pianoGroup.gain.value = 1.0;
+    pianoGroup.connect(master);
+
+    buildReverb();
+    const vs = document.getElementById('volSlider');
+    if (vs) vs.value = Math.round(master.gain.value * 100);
+  }
+  if (AC.state === 'suspended') AC.resume();
+}
+function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+function parseNote(n){
+  const p=String(n).toLowerCase().match(/^([a-g])(#|b)?(\d)$/); if(!p) return 60;
+  const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[p[1]];
+  const alt=p[2]==='#'?1:p[2]==='b'?-1:0; const oct=+p[3];
+  return 12*(oct+1)+base+alt;
+}
+function midiToName(m){
+  const pcs = ['c','c#','d','d#','e','f','f#','g','g#','a','a#','b'];
+  const pc  = pcs[((m % 12) + 12) % 12];
+  const oct = Math.floor(m / 12) - 1;
+  return (pc + oct);
+}
+let convolver=null, dry=null, wet=null;
+function buildReverb(){
+  convolver=AC.createConvolver();
+  const rate=AC.sampleRate, length=Math.floor(rate*0.9);
+  const impulse=AC.createBuffer(2,length,rate);
+  for(let ch=0; ch<2; ch++){
+    const d=impulse.getChannelData(ch);
+    for(let i=0;i<length;i++){
+      const t=i/length;
+      d[i]=(Math.random()*2-1)*Math.pow(1-t, 2.6)*0.4;
+    }
+  }
+  convolver.buffer=impulse;
+  dry=AC.createGain(); dry.gain.value=0.84;
+  wet=AC.createGain(); wet.gain.value=0.26;
+  pianoGroup.disconnect();
+  pianoGroup.connect(dry).connect(master);
+  pianoGroup.connect(wet).connect(convolver).connect(master);
+}
+function makeShaper(k=1.35){
+  const n=1024, curve=new Float32Array(n);
+  for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; curve[i]=Math.tanh(k*x); }
+  const sh=AC.createWaveShaper(); sh.curve=curve; sh.oversample='2x';
+  return sh;
+}
+function createPianoVoice(freq, vel){
+  const now=AC.currentTime;
+  const voiceGain=AC.createGain(); voiceGain.gain.value=0.0001;
+  const shaper=makeShaper(1.35);
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=Math.min(12000, freq*12); lp.Q.value=0.6;
+  const ap=AC.createBiquadFilter(); ap.type='allpass'; ap.frequency.value=freq*2; ap.Q.value=0.6;
+
+  const nbuf=AC.createBuffer(1, Math.floor(AC.sampleRate*0.02), AC.sampleRate);
+  const nd=nbuf.getChannelData(0);
+  for(let i=0;i<nd.length;i++){ nd[i]=(Math.random()*2-1)*Math.pow(1-i/nd.length,2.0); }
+  const nsrc=AC.createBufferSource(); nsrc.buffer=nbuf;
+  const ng=AC.createGain(); ng.gain.value=0.0;
+
+  const partials=[
+    {ratio:1.0,  amp:0.95, decay:1.0},
+    {ratio:2.01, amp:0.38, decay:0.75},
+    {ratio:3.02, amp:0.18, decay:0.55},
+    {ratio:4.05, amp:0.10, decay:0.42},
+    {ratio:5.07, amp:0.06, decay:0.36},
+  ];
+  const oscNodes=[];
+  for(const p of partials){
+    const o=AC.createOscillator(); o.type='sine'; o.frequency.value=freq*p.ratio;
+    const g=AC.createGain(); g.gain.value=0.0;
+    const a=0.003 + 0.002*(1/p.ratio);
+    const d=0.04 + 0.03*(1/p.ratio);
+    const peak=p.amp*vel;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.linearRampToValueAtTime(peak, now+a);
+    g.gain.linearRampToValueAtTime(peak*0.55, now+a+d);
+    g.gain.setTargetAtTime(0.0001, now+a+d, p.decay);
+    o.connect(g).connect(voiceGain);
+    o.start(now);
+    oscNodes.push({o,g});
+  }
+  ng.gain.setValueAtTime(0.0001, now);
+  ng.gain.linearRampToValueAtTime(0.25*vel, now+0.002);
+  ng.gain.linearRampToValueAtTime(0.0001, now+0.025);
+  nsrc.connect(ng).connect(voiceGain);
+  nsrc.start(now);
+
+  const atk=0.002, peak=0.85*vel;
+  voiceGain.gain.setValueAtTime(0.0001, now);
+  voiceGain.gain.linearRampToValueAtTime(peak, now+atk);
+
+  voiceGain.connect(ap).connect(lp).connect(shaper).connect(pianoGroup);
+
+  const stop=(releaseTime=0.8)=>{
+    const t=AC.currentTime;
+    voiceGain.gain.cancelScheduledValues(t);
+    voiceGain.gain.setTargetAtTime(0.0001, t, Math.max(0.08, releaseTime/4));
+    setTimeout(()=>{ try{ oscNodes.forEach(({o})=>o.stop()); nsrc.stop(); }catch{} }, Math.ceil(releaseTime*1000)+100);
+  };
+  return { stop };
+}
+function playPiano(noteOrMidi, {hold=false, vel=.95} = {}){
+  ensureAudio();
+
+  const key = typeof noteOrMidi === 'number' ? noteOrMidi : String(noteOrMidi).toLowerCase();
+  const nowMs = performance.now();
+  const last = lastTrigByNote.get(key) || 0;
+  if (nowMs - last < NOTE_COOLDOWN_MS) return () => {};
+  lastTrigByNote.set(key, nowMs);
+
+  if (activeVoices.size >= POLY_MAX) {
+    const oldest = activeVoices.values().next().value;
+    try { oldest?.stop(0.2); } catch {}
+    activeVoices.delete(oldest);
+  }
+
+  const midi = (typeof noteOrMidi === 'number') ? noteOrMidi : parseNote(noteOrMidi);
+  const f = midiToFreq(midi);
+  const v = createPianoVoice(f, vel);
+  activeVoices.add(v);
+  return () => { v.stop(hold ? 1.2 : 0.8); activeVoices.delete(v); };
+}
+
+document.addEventListener('pointerdown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true, passive:true});
+document.addEventListener('keydown',()=>{ if(!synthReady){ ensureAudio(); synthReady=true; } },{once:true});
+
+/* ---------- Transport ---------- */
+let stepMs = 120;
+
+/* Loop toggle (in controls) */
+let isLooping = false;
+const loopBtn = document.getElementById('btnLoop');
+function setLoop(on){
+  isLooping = !!on;
+  loopBtn?.dataset && (loopBtn.dataset.on = String(isLooping));
+  loopBtn?.setAttribute?.('aria-pressed', String(isLooping));
+  if (loopBtn) loopBtn.title = isLooping ? 'Looping: On (L)' : 'Loop sequence (L)';
+}
+loopBtn?.addEventListener('click', () => setLoop(!isLooping));
+document.addEventListener('keydown', (e)=>{
+  if (e.key.toLowerCase() === 'l' && !e.repeat) setLoop(!isLooping);
+});
+
+/* Volume */
+const volSlider = document.getElementById('volSlider');
+function setMasterFromSlider(){
+  const v = (parseInt(volSlider.value,10) || 0) / 100;
+  if(AC && master){ master.gain.setTargetAtTime(v, AC.currentTime, 0.01); }
+}
+volSlider?.addEventListener('input', ()=>{ if(!AC) ensureAudio(); setMasterFromSlider(); });
+setTimeout(()=>{ if(AC && master && volSlider) setMasterFromSlider(); }, 0);
+
+/* ---------- Recorder / player — histogram ---------- */
+const live=document.getElementById('live');
+const seqRow=document.getElementById('seqRow');
+if (seqRow) { seqRow.style.height = '10%'; seqRow.style.width = '100%'; }
+
+const sequence=[]; // [{note: number|string, li:HTMLElement, midi:number}]
+let playing=false, playIdx=0, playTimer=null;
+
+function flashLabel(note){
+  const lbl=[...stage.querySelectorAll('.note')].find(n=>n.dataset.noteFor===note);
+  if(!lbl) return; lbl.classList.add('lit'); setTimeout(()=>lbl.classList.remove('lit'), 220);
+}
+function getCubeByNote(note){ return [...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note); }
+function flashCube(note){
+  const g=getCubeByNote(note); if(!g) return;
+  g.classList.add('brighten');
+  const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
+  setTimeout(()=>g.classList.remove('brighten'),240);
+}
+
+/* HEIGHT = C-major scale degree (C=lowest … B=highest), tiny octave nudge */
+function degreeHeightFromMidi(midi){
+  const pc = ((midi % 12) + 12) % 12;                     // 0..11
+  const degreeIndex = ({0:0,2:1,4:2,5:3,7:4,9:5,11:6})[pc] ?? 0; // C,D,E,F,G,A,B -> 0..6
+  const base = 18, span = 70;                              // % range -> 18..88
+  let h = base + span * (degreeIndex / 6);
+  const octave = Math.floor(midi / 12) - 1;
+  h += (octave - 4) * 2.5;                                 // subtle octave accent
+  return Math.max(12, Math.min(92, h));
+}
+
+function addMidiToSequence(m){
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  bar.dataset.note = String(m); // store midi for reference
+  bar.title = `${midiToName(m).toUpperCase()} — click to delete`;
+  bar.addEventListener('click', () => removeEvent(bar));
+  bar.addEventListener('mouseenter', () => bar.classList.add('hit'));
+  bar.addEventListener('mouseleave', () => bar.classList.remove('hit'));
+  seqRow.appendChild(bar);
+  sequence.push({ note: m, li: bar, midi: m });
+  fitHistogramToViewport();           // keep bars fitting width
+}
+
+function removeEvent(el){
+  const idx = sequence.findIndex(x => x.li === el);
+  if (idx >= 0){
+    sequence.splice(idx, 1);
+    el.remove();
+    updateHistogramBars();
+    fitHistogramToViewport();
+  }
+}
+function clearAll(){
+  sequence.splice(0, sequence.length);
+  seqRow.innerHTML = '';
+  seqRow.style.setProperty('--n', 1);
+  stopPlay();
+  fitHistogramToViewport();
+}
+function updateHistogramBars(){
+  const n = sequence.length;
+  seqRow.style.setProperty('--n', Math.max(1, n));
+  if (n === 0) return;
+
+  const raws = sequence.map(s => {
+    const m = (typeof s.midi === 'number') ? s.midi : parseNote(s.note);
+    s.midi = m;
+    return degreeHeightFromMidi(m);
+  });
+
+  const MIN_PX = 4;
+  const TOP_PAD_PX = 6;
+  const rowH = seqRow.clientHeight || 1;
+  const minRaw = Math.min(...raws);
+  const maxRaw = Math.max(...raws);
+  const avail = Math.max(8, rowH - (MIN_PX + TOP_PAD_PX));
+  const denom = Math.max(1e-6, (maxRaw - minRaw));
+  const slope = avail / denom;
+
+  sequence.forEach((s, i) => {
+    const hPx = MIN_PX + (raws[i] - minRaw) * slope;
+    s.li.style.height = hPx.toFixed(1) + 'px';
+  });
+}
+
+function stepPlay(){
+  if(sequence.length===0){ stopPlay(); return; }
+  if(playIdx>=sequence.length){
+    if(isLooping && sequence.length>0){
+      playIdx = 0;
+      stepPlay();
+    }else{
+      stopPlay(true);
+    }
+    return;
+  }
+  const cur = sequence[playIdx++];
+  const midi = (typeof cur.midi === 'number') ? cur.midi : parseNote(cur.note);
+  const labelName = midiToName(midi);
+  cur.li.classList.add('hit'); setTimeout(()=>cur.li.classList.remove('hit'), 180);
+  ensureAudio(); playPiano(midi);
+  flashLabel(labelName); flashCube(labelName);
+  if (live) live.textContent=`Played ${labelName.toUpperCase()} (${midi})`;
+  playTimer=setTimeout(stepPlay, stepMs);
+}
+function startPlay(){ if(playing||sequence.length===0) return; playing=true; playIdx=0; stepPlay(); }
+function pausePlay(){ if(!playing) return; clearTimeout(playTimer); playing=false; }
+function stopPlay(end=false){ clearTimeout(playTimer); playing=false; if(end) playIdx=0; }
+document.getElementById('btnPlay')?.addEventListener('click', startPlay);
+document.getElementById('btnPause')?.addEventListener('click', pausePlay);
+document.getElementById('btnClear')?.addEventListener('click', clearAll);
+
+/* ---------- Interactions ---------- */
+let sustain=false;
+const pressed=new Map();
+function playCube(g, {viaHover=false, record=false} = {}){
+  const note=g.dataset.note;
+  const midi = parseNote(note);
+  const release=playPiano(midi,{hold:sustain});
+  pressed.set(g, release);
+  g.classList.add('brighten');
+  const I=+g.dataset.I, J=+g.dataset.J; window.isoPulse?.(I,J);
+  flashLabel(note);
+  if(record) addMidiToSequence(midi);
+  if(record) updateHistogramBars();
+  if(!sustain && !viaHover){ setTimeout(()=>releaseCube(g), 240); }
+}
+function releaseCube(g){
+  g.classList.remove('brighten');
+  const stop=pressed.get(g); if(stop){ stop(); pressed.delete(g); }
+}
+stage.addEventListener('pointerdown', e=>{
+  const g=e.target.closest('.cube'); if(!g) return;
+  e.preventDefault(); ensureAudio(); playCube(g,{record:true});
+},{passive:false});
+addEventListener('pointerup', ()=>{ document.querySelectorAll('.cube.brighten').forEach(g=>{ if(!sustain) releaseCube(g); }); });
+
+/* Hover — plays; NEVER logs */
+let lastHover = null;
+stage.addEventListener('pointerover', (e) => {
+  const g = e.target.closest('.cube');
+  if (!g || lastHover === g) return;
+  lastHover = g;
+  ensureAudio();
+  playCube(g, { viaHover: true, record: false });
+}, true);
+stage.addEventListener('pointerout', (e) => {
+  const g = e.target.closest('.cube'); if (!g) return;
+  const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('.cube') : null;
+  if (to === g) return;
+  if (lastHover === g) lastHover = null;
+  if (!sustain) releaseCube(g);
+}, true);
+
+/* ---------- Keyboard mapping (five rows) ---------- */
+const keyMap=new Map(
+  [...row0Notes, ...row1Notes, ...row2Notes, ...row3Notes, ...row4Notes].map(([n,k])=>[k, n])
+);
+document.addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  if(e.code==='Space'){ sustain=true; e.preventDefault(); return; }
+
+  // normalize special keys to their character form
+  let key=e.key;
+  if(e.code==='Minus')          key='-';
+  if(e.code==='Equal')          key='=';
+  if(e.code==='BracketRight')   key=']';
+  if(e.code==='Backslash')      key='\\';
+  if(e.code==='BracketLeft')    key='[';
+  if(e.code==='Backquote')      key='[';
+
+  if(!keyMap.has(key)) return;
+  const note=keyMap.get(key);
+  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(!g) return;
+  ensureAudio(); playCube(g,{record:true});
+});
+document.addEventListener('keyup', e=>{
+  if(e.code==='Space'){
+    sustain=false;
+    document.querySelectorAll('.cube.brighten').forEach(releaseCube);
+    return;
+  }
+  let key=e.key;
+  if(e.code==='Minus')          key='-';
+  if(e.code==='Equal')          key='=';
+  if(e.code==='BracketRight')   key=']';
+  if(e.code==='Backslash')      key='\\';
+  if(e.code==='BracketLeft')    key='[';
+  if(e.code==='Backquote')      key='[';
+
+  const note=keyMap.get(key); if(!note) return;
+  const g=[...stage.querySelectorAll('.cube')].find(el=>el.dataset.note===note);
+  if(g) releaseCube(g);
+});
+
+/* ---------- Load EXACT composition from your CSV (optional demo) ---------- */
+function loadFromCSV(csvText){
+  clearAll();
+  const lines = csvText.trim().split(/\r?\n/);
+  for(let i=1;i<lines.length;i++){
+    const parts = lines[i].split(',');
+    if (parts.length < 3) continue;
+    const midi = parseInt(parts[1], 10);
+    if (!Number.isFinite(midi)) continue;
+    addMidiToSequence(midi);
+  }
+  updateHistogramBars();
+  fitHistogramToViewport();
+}
+
+// (You can swap in your own CSV or remove this block.)
+const CSV_COMPOSITION = `
+time,midi,name
+2025-10-20T19:06:19.372Z,96,C7
+2025-10-20T19:06:19.659Z,91,G6
+2025-10-20T19:06:19.825Z,84,C6
+2025-10-20T19:06:20.034Z,96,C7
+2025-10-20T19:06:20.215Z,91,G6
+2025-10-20T19:06:20.409Z,84,C6
+2025-10-20T19:06:20.603Z,96,C7
+2025-10-20T19:06:20.793Z,91,G6
+2025-10-20T19:06:20.980Z,84,C6
+2025-10-20T19:06:21.182Z,96,C7
+2025-10-20T19:06:21.324Z,91,G6
+2025-10-20T19:06:21.539Z,84,C6
+2025-10-20T19:06:22.070Z,96,C7
+2025-10-20T19:06:22.301Z,91,G6
+2025-10-20T19:06:22.470Z,84,C6
+2025-10-20T19:06:22.669Z,96,C7
+2025-10-20T19:06:22.881Z,91,G6
+2025-10-20T19:06:23.041Z,84,C6
+2025-10-20T19:06:23.222Z,96,C7
+2025-10-20T19:06:23.383Z,91,G6
+2025-10-20T19:06:23.577Z,84,C6
+2025-10-20T19:06:23.765Z,96,C7
+2025-10-20T19:06:23.913Z,91,G6
+2025-10-20T19:06:24.101Z,84,C6
+2025-10-20T19:06:24.587Z,95,B6
+2025-10-20T19:06:24.819Z,91,G6
+2025-10-20T19:06:24.958Z,84,C6
+2025-10-20T19:06:25.138Z,95,B6
+2025-10-20T19:06:25.328Z,91,G6
+2025-10-20T19:06:25.509Z,84,C6
+2025-10-20T19:06:25.703Z,95,B6
+2025-10-20T19:06:25.858Z,91,G6
+2025-10-20T19:06:26.043Z,84,C6
+2025-10-20T19:06:26.244Z,95,B6
+2025-10-20T19:06:26.383Z,91,G6
+2025-10-20T19:06:26.560Z,84,C6
+2025-10-20T19:06:26.972Z,95,B6
+2025-10-20T19:06:27.134Z,91,G6
+2025-10-20T19:06:27.308Z,84,C6
+2025-10-20T19:06:27.497Z,95,B6
+2025-10-20T19:06:27.657Z,91,G6
+2025-10-20T19:06:27.829Z,84,C6
+2025-10-20T19:06:28.026Z,95,B6
+2025-10-20T19:06:28.191Z,91,G6
+2025-10-20T19:06:28.372Z,84,C6
+2025-10-20T19:06:28.561Z,95,B6
+2025-10-20T19:06:28.707Z,91,G6
+2025-10-20T19:06:28.872Z,84,C6
+2025-10-20T19:06:29.301Z,93,A6
+2025-10-20T19:06:29.483Z,89,F6
+2025-10-20T19:06:29.656Z,84,C6
+2025-10-20T19:06:29.822Z,93,A6
+2025-10-20T19:06:29.983Z,89,F6
+2025-10-20T19:06:30.157Z,84,C6
+2025-10-20T19:06:30.365Z,93,A6
+2025-10-20T19:06:30.505Z,89,F6
+2025-10-20T19:06:30.692Z,84,C6
+2025-10-20T19:06:30.880Z,93,A6
+2025-10-20T19:06:31.019Z,89,F6
+2025-10-20T19:06:31.199Z,84,C6
+2025-10-20T19:06:31.601Z,93,A6
+2025-10-20T19:06:31.741Z,89,F6
+2025-10-20T19:06:31.928Z,84,C6
+2025-10-20T19:06:32.130Z,93,A6
+2025-10-20T19:06:32.290Z,89,F6
+2025-10-20T19:06:32.457Z,84,C6
+2025-10-20T19:06:32.660Z,93,A6
+2025-10-20T19:06:32.800Z,89,F6
+2025-10-20T19:06:32.982Z,84,C6
+2025-10-20T19:06:33.167Z,93,A6
+2025-10-20T19:06:33.315Z,89,F6
+2025-10-20T19:06:33.517Z,84,C6
+2025-10-20T19:06:34.063Z,91,G6
+2025-10-20T19:06:34.261Z,88,E6
+2025-10-20T19:06:34.449Z,84,C6
+2025-10-20T19:06:34.650Z,91,G6
+2025-10-20T19:06:34.781Z,88,E6
+2025-10-20T19:06:34.989Z,84,C6
+2025-10-20T19:06:35.192Z,91,G6
+2025-10-20T19:06:35.343Z,88,E6
+2025-10-20T19:06:35.530Z,84,C6
+2025-10-20T19:06:35.724Z,91,G6
+2025-10-20T19:06:35.864Z,88,E6
+2025-10-20T19:06:36.039Z,84,C6
+2025-10-20T19:06:36.765Z,89,F6
+2025-10-20T19:06:36.927Z,86,D6
+2025-10-20T19:06:37.085Z,83,B5
+2025-10-20T19:06:37.288Z,89,F6
+2025-10-20T19:06:37.414Z,86,D6
+2025-10-20T19:06:37.602Z,83,B5
+2025-10-20T19:06:37.821Z,89,F6
+2025-10-20T19:06:37.965Z,86,D6
+2025-10-20T19:06:38.172Z,83,B5
+2025-10-20T19:06:38.362Z,89,F6
+2025-10-20T19:06:38.500Z,86,D6
+2025-10-20T19:06:38.673Z,83,B5
+2025-10-20T19:06:39.061Z,88,E6
+2025-10-20T19:06:39.278Z,84,C6
+2025-10-20T19:06:39.444Z,81,A5
+2025-10-20T19:06:39.638Z,88,E6
+2025-10-20T19:06:39.778Z,84,C6
+2025-10-20T19:06:39.959Z,81,A5
+2025-10-20T19:06:40.160Z,88,E6
+2025-10-20T19:06:40.299Z,84,C6
+2025-10-20T19:06:40.472Z,81,A5
+2025-10-20T19:06:40.674Z,88,E6
+2025-10-20T19:06:40.800Z,84,C6
+2025-10-20T19:06:40.994Z,81,A5
+2025-10-20T19:06:41.784Z,89,F6
+2025-10-20T19:06:41.966Z,86,D6
+2025-10-20T19:06:42.140Z,83,B5
+2025-10-20T19:06:42.341Z,89,F6
+2025-10-20T19:06:42.500Z,86,D6
+2025-10-20T19:06:42.716Z,83,B5
+2025-10-20T19:06:42.920Z,89,F6
+2025-10-20T19:06:43.093Z,86,D6
+2025-10-20T19:06:43.271Z,83,B5
+2025-10-20T19:06:43.494Z,89,F6
+2025-10-20T19:06:43.809Z,86,D6
+2025-10-20T19:06:44.189Z,83,B5
+2025-10-20T19:06:45.519Z,86,D6
+2025-10-20T19:06:46.039Z,83,B5
+2025-10-20T19:06:46.228Z,79,G5
+2025-10-20T19:06:46.409Z,86,D6
+2025-10-20T19:06:46.548Z,83,B5
+2025-10-20T19:06:46.722Z,79,G5
+2025-10-20T19:06:46.930Z,86,D6
+2025-10-20T19:06:47.049Z,83,B5
+2025-10-20T19:06:47.252Z,79,G5
+2025-10-20T19:06:47.451Z,86,D6
+2025-10-20T19:06:47.571Z,83,B5
+2025-10-20T19:06:47.743Z,79,G5
+2025-10-20T19:06:47.924Z,88,E6
+2025-10-20T19:06:48.057Z,84,C6
+2025-10-20T19:06:48.231Z,81,A5
+2025-10-20T19:06:48.439Z,88,E6
+2025-10-20T19:06:48.563Z,84,C6
+2025-10-20T19:06:48.751Z,81,A5
+2025-10-20T19:06:48.939Z,88,E6
+2025-10-20T19:06:49.072Z,84,C6
+2025-10-20T19:06:49.245Z,81,A5
+2025-10-20T19:06:49.432Z,88,E6
+2025-10-20T19:06:49.559Z,84,C6
+2025-10-20T19:06:49.745Z,81,A5
+2025-10-20T19:06:50.245Z,84,C6
+2025-10-20T19:06:50.384Z,81,A5
+2025-10-20T19:06:50.572Z,77,F5
+2025-10-20T19:06:50.786Z,84,C6
+2025-10-20T19:06:50.932Z,81,A5
+2025-10-20T19:06:51.100Z,77,F5
+2025-10-20T19:06:51.288Z,84,C6
+2025-10-20T19:06:51.414Z,81,A5
+2025-10-20T19:06:51.593Z,77,F5
+2025-10-20T19:06:51.794Z,84,C6
+2025-10-20T19:06:51.920Z,81,A5
+2025-10-20T19:06:52.074Z,77,F5
+2025-10-20T19:06:52.719Z,86,D6
+2025-10-20T19:06:52.892Z,83,B5
+2025-10-20T19:06:53.065Z,79,G5
+2025-10-20T19:06:53.239Z,86,D6
+2025-10-20T19:06:53.379Z,83,B5
+2025-10-20T19:06:53.573Z,79,G5
+2025-10-20T19:06:53.767Z,86,D6
+2025-10-20T19:06:53.908Z,83,B5
+2025-10-20T19:06:54.094Z,79,G5
+2025-10-20T19:06:54.289Z,86,D6
+2025-10-20T19:06:54.415Z,83,B5
+2025-10-20T19:06:54.608Z,79,G5
+2025-10-20T19:06:55.114Z,83,B5
+2025-10-20T19:06:55.330Z,79,G5
+2025-10-20T19:06:55.504Z,76,E5
+2025-10-20T19:06:55.685Z,83,B5
+2025-10-20T19:06:55.810Z,79,G5
+2025-10-20T19:06:55.977Z,76,E5
+2025-10-20T19:06:56.179Z,83,B5
+2025-10-20T19:06:56.298Z,79,G5
+2025-10-20T19:06:56.471Z,76,E5
+2025-10-20T19:06:56.701Z,83,B5
+2025-10-20T19:06:56.819Z,79,G5
+2025-10-20T19:06:56.999Z,76,E5
+2025-10-20T19:06:57.165Z,84,C6
+2025-10-20T19:06:57.285Z,81,A5
+2025-10-20T19:06:57.472Z,77,F5
+2025-10-20T19:06:57.674Z,84,C6
+2025-10-20T19:06:57.806Z,81,A5
+2025-10-20T19:06:58.000Z,77,F5
+2025-10-20T19:06:58.191Z,84,C6
+2025-10-20T19:06:58.327Z,81,A5
+2025-10-20T19:06:58.522Z,77,F5
+2025-10-20T19:06:58.729Z,84,C6
+2025-10-20T19:06:58.856Z,81,A5
+2025-10-20T19:06:59.039Z,77,F5
+2025-10-20T19:07:00.228Z,60,C4
+2025-10-20T19:07:00.430Z,64,E4
+2025-10-20T19:07:00.630Z,67,G4
+2025-10-20T19:07:00.810Z,60,C4
+2025-10-20T19:07:01.019Z,64,E4
+2025-10-20T19:07:01.200Z,67,G4
+2025-10-20T19:07:01.396Z,60,C4
+2025-10-20T19:07:01.595Z,64,E4
+2025-10-20T19:07:01.791Z,67,G4
+2025-10-20T19:07:01.971Z,60,C4
+2025-10-20T19:07:02.173Z,64,E4
+2025-10-20T19:07:02.364Z,67,G4
+2025-10-20T19:07:02.644Z,62,D4
+2025-10-20T19:07:02.839Z,65,F4
+2025-10-20T19:07:03.029Z,69,A4
+2025-10-20T19:07:03.213Z,62,D4
+2025-10-20T19:07:03.400Z,65,F4
+2025-10-20T19:07:03.588Z,69,A4
+2025-10-20T19:07:03.770Z,62,D4
+2025-10-20T19:07:03.951Z,65,F4
+2025-10-20T19:07:04.138Z,69,A4
+2025-10-20T19:07:04.333Z,62,D4
+2025-10-20T19:07:04.529Z,65,F4
+2025-10-20T19:07:04.703Z,69,A4
+2025-10-20T19:07:05.214Z,59,B3
+2025-10-20T19:07:05.409Z,62,D4
+2025-10-20T19:07:05.603Z,65,F4
+2025-10-20T19:07:05.784Z,59,B3
+2025-10-20T19:07:05.971Z,62,D4
+2025-10-20T19:07:06.172Z,65,F4
+2025-10-20T19:07:06.360Z,59,B3
+2025-10-20T19:07:06.551Z,62,D4
+2025-10-20T19:07:06.729Z,65,F4
+2025-10-20T19:07:06.922Z,59,B3
+2025-10-20T19:07:07.123Z,62,D4
+2025-10-20T19:07:07.325Z,65,F4
+2025-10-20T19:07:07.520Z,60,C4
+2025-10-20T19:07:07.715Z,64,E4
+2025-10-20T19:07:07.916Z,67,G4
+2025-10-20T19:07:08.120Z,60,C4
+2025-10-20T19:07:08.320Z,64,E4
+2025-10-20T19:07:08.521Z,67,G4
+2025-10-20T19:07:08.723Z,60,C4
+2025-10-20T19:07:08.912Z,64,E4
+2025-10-20T19:07:09.111Z,67,G4
+2025-10-20T19:07:09.305Z,60,C4
+2025-10-20T19:07:09.514Z,64,E4
+2025-10-20T19:07:09.701Z,67,G4
+2025-10-20T19:07:12.683Z,64,E4
+2025-10-20T19:07:12.842Z,67,G4
+2025-10-20T19:07:13.024Z,71,B4
+2025-10-20T19:07:13.219Z,64,E4
+2025-10-20T19:07:13.426Z,67,G4
+2025-10-20T19:07:13.624Z,71,B4
+2025-10-20T19:07:13.824Z,64,E4
+2025-10-20T19:07:14.022Z,67,G4
+2025-10-20T19:07:14.214Z,71,B4
+2025-10-20T19:07:14.409Z,64,E4
+2025-10-20T19:07:14.612Z,67,G4
+2025-10-20T19:07:14.800Z,71,B4
+2025-10-20T19:07:15.436Z,62,D4
+2025-10-20T19:07:15.644Z,65,F4
+2025-10-20T19:07:15.825Z,69,A4
+2025-10-20T19:07:16.020Z,62,D4
+2025-10-20T19:07:16.213Z,65,F4
+2025-10-20T19:07:16.409Z,69,A4
+2025-10-20T19:07:16.602Z,62,D4
+2025-10-20T19:07:16.792Z,65,F4
+2025-10-20T19:07:16.992Z,69,A4
+2025-10-20T19:07:17.193Z,62,D4
+2025-10-20T19:07:17.386Z,65,F4
+2025-10-20T19:07:17.568Z,69,A4
+2025-10-20T19:07:18.135Z,65,F4
+2025-10-20T19:07:18.331Z,69,A4
+2025-10-20T19:07:18.525Z,72,C5
+2025-10-20T19:07:18.704Z,65,F4
+2025-10-20T19:07:18.915Z,69,A4
+2025-10-20T19:07:19.116Z,72,C5
+2025-10-20T19:07:19.304Z,65,F4
+2025-10-20T19:07:19.511Z,69,A4
+2025-10-20T19:07:19.699Z,72,C5
+2025-10-20T19:07:19.894Z,65,F4
+2025-10-20T19:07:20.088Z,69,A4
+2025-10-20T19:07:20.292Z,72,C5
+2025-10-20T19:07:21.719Z,67,G4
+2025-10-20T19:07:21.923Z,71,B4
+2025-10-20T19:07:22.138Z,74,D5
+2025-10-20T19:07:22.348Z,67,G4
+2025-10-20T19:07:22.561Z,71,B4
+2025-10-20T19:07:22.757Z,74,D5
+2025-10-20T19:07:22.944Z,67,G4
+2025-10-20T19:07:23.130Z,71,B4
+2025-10-20T19:07:23.335Z,74,D5
+2025-10-20T19:07:23.495Z,67,G4
+2025-10-20T19:07:23.689Z,71,B4
+2025-10-20T19:07:23.884Z,74,D5
+2025-10-20T19:07:25.732Z,79,G5
+2025-10-20T19:07:25.982Z,76,E5
+2025-10-20T19:07:26.176Z,72,C5
+2025-10-20T19:07:26.385Z,79,G5
+2025-10-20T19:07:26.592Z,76,E5
+2025-10-20T19:07:26.810Z,72,C5
+2025-10-20T19:07:27.023Z,79,G5
+2025-10-20T19:07:27.213Z,76,E5
+2025-10-20T19:07:27.428Z,72,C5
+2025-10-20T19:07:27.653Z,79,G5
+2025-10-20T19:07:27.880Z,76,E5
+2025-10-20T19:07:28.074Z,72,C5
+2025-10-20T19:07:28.338Z,77,F5
+2025-10-20T19:07:28.540Z,74,D5
+2025-10-20T19:07:28.762Z,71,B4
+2025-10-20T19:07:28.993Z,77,F5
+2025-10-20T19:07:29.223Z,74,D5
+2025-10-20T19:07:29.415Z,71,B4
+2025-10-20T19:07:29.637Z,77,F5
+2025-10-20T19:07:29.855Z,74,D5
+2025-10-20T19:07:30.111Z,71,B4
+2025-10-20T19:07:30.332Z,77,F5
+2025-10-20T19:07:30.582Z,74,D5
+2025-10-20T19:07:30.787Z,71,B4
+2025-10-20T19:07:31.022Z,76,E5
+2025-10-20T19:07:31.236Z,72,C5
+2025-10-20T19:07:31.425Z,69,A4
+2025-10-20T19:07:31.654Z,76,E5
+2025-10-20T19:07:31.870Z,72,C5
+2025-10-20T19:07:32.104Z,69,A4
+2025-10-20T19:07:32.322Z,76,E5
+2025-10-20T19:07:32.556Z,72,C5
+2025-10-20T19:07:32.770Z,69,A4
+2025-10-20T19:07:33.000Z,76,E5
+2025-10-20T19:07:33.242Z,72,C5
+2025-10-20T19:07:33.450Z,69,A4
+2025-10-20T19:07:33.695Z,74,D5
+2025-10-20T19:07:33.915Z,71,B4
+2025-10-20T19:07:34.116Z,67,G4
+2025-10-20T19:07:34.352Z,74,D5
+2025-10-20T19:07:34.547Z,71,B4
+2025-10-20T19:07:34.775Z,67,G4
+2025-10-20T19:07:34.984Z,74,D5
+2025-10-20T19:07:35.202Z,71,B4
+2025-10-20T19:07:35.394Z,67,G4
+2025-10-20T19:07:35.644Z,74,D5
+2025-10-20T19:07:35.867Z,71,B4
+2025-10-20T19:07:36.062Z,67,G4
+2025-10-20T19:07:36.587Z,79,G5
+2025-10-20T19:07:36.832Z,76,E5
+2025-10-20T19:07:37.073Z,72,C5
+2025-10-20T19:07:37.323Z,79,G5
+2025-10-20T19:07:37.561Z,76,E5
+2025-10-20T19:07:37.763Z,72,C5
+2025-10-20T19:07:38.003Z,79,G5
+2025-10-20T19:07:38.227Z,76,E5
+2025-10-20T19:07:38.430Z,72,C5
+2025-10-20T19:07:38.671Z,79,G5
+2025-10-20T19:07:38.909Z,76,E5
+2025-10-20T19:07:39.152Z,72,C5
+2025-10-20T19:07:39.408Z,81,A5
+2025-10-20T19:07:39.654Z,77,F5
+2025-10-20T19:07:39.859Z,72,C5
+2025-10-20T19:07:40.104Z,81,A5
+2025-10-20T19:07:40.314Z,77,F5
+2025-10-20T19:07:40.540Z,72,C5
+2025-10-20T19:07:40.770Z,81,A5
+2025-10-20T19:07:41.018Z,77,F5
+2025-10-20T19:07:41.289Z,72,C5
+2025-10-20T19:07:41.554Z,81,A5
+2025-10-20T19:07:41.799Z,77,F5
+2025-10-20T19:07:42.054Z,72,C5
+2025-10-20T19:07:42.485Z,83,B5
+2025-10-20T19:07:42.820Z,79,G5
+2025-10-20T19:07:43.095Z,72,C5
+2025-10-20T19:07:43.411Z,83,B5
+2025-10-20T19:07:43.724Z,79,G5
+2025-10-20T19:07:44.022Z,72,C5
+2025-10-20T19:07:44.335Z,83,B5
+2025-10-20T19:07:44.614Z,79,G5
+2025-10-20T19:07:44.911Z,72,C5
+2025-10-20T19:07:45.232Z,83,B5
+2025-10-20T19:07:45.524Z,79,G5
+2025-10-20T19:07:45.852Z,72,C5
+2025-10-20T19:07:46.185Z,84,C6
+2025-10-20T19:07:46.629Z,79,G5
+2025-10-20T19:07:46.976Z,72,C5
+2025-10-20T19:07:47.281Z,84,C6
+2025-10-20T19:07:47.590Z,79,G5
+2025-10-20T19:07:47.900Z,72,C5
+2025-10-20T19:07:48.198Z,84,C6
+2025-10-20T19:07:48.496Z,79,G5
+2025-10-20T19:07:48.795Z,72,C5
+2025-10-20T19:07:49.079Z,84,C6
+2025-10-20T19:07:49.407Z,79,G5
+2025-10-20T19:07:49.717Z,72,C5
+2025-10-20T19:07:50.044Z,84,C6
+2025-10-20T19:07:50.336Z,79,G5
+2025-10-20T19:07:50.703Z,72,C5
+2025-10-20T19:07:52.657Z,84,C6
+2025-10-20T19:07:53.093Z,79,G5
+2025-10-20T19:07:56.534Z,72,C5
+2025-10-20T19:07:58.356Z,84,C6
+2025-10-20T19:07:58.889Z,79,G5
+2025-10-20T19:07:59.436Z,72,C5
+2025-10-20T19:08:01.736Z,84,C6
+2025-10-20T19:08:02.255Z,79,G5
+2025-10-20T19:08:03.002Z,72,C5
+`;
+
+loadFromCSV(CSV_COMPOSITION);
+
+/* ---------- Fit histogram to viewport (min bar width, adaptive gaps) ---------- */
+function trackWidthPx(){
+  const track = document.querySelector('.rec .track');
+  return track ? track.clientWidth : innerWidth;
+}
+function fitHistogramToViewport(){
+  const row = document.getElementById('seqRow');
+  if(!row) return;
+
+  const n = Math.max(1, sequence.length);
+  const trackW = trackWidthPx();
+
+  const minBar = parseFloat(getComputedStyle(row).getPropertyValue('--min-bar-px')) || 6;
+  const minGap = parseFloat(getComputedStyle(row).getPropertyValue('--min-gap-px')) || 1;
+  const niceGap =  Math.max(1, Math.min(10, Math.round(trackW / 680)));
+
+  const maxBarsAtMin = Math.floor((trackW + minGap) / (minBar + minGap));
+  const gapPx = (n <= maxBarsAtMin) ? niceGap : minGap;
+
+  row.style.setProperty('--n', String(n));
+  row.style.setProperty('--rec-gap', `${gapPx}px`);
+  row.style.width = '100%';
+}
+addEventListener('resize', fitHistogramToViewport, { passive: true });
+fitHistogramToViewport();
+
+  </script>
+  
+</body>
 </html>
