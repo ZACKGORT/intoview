@@ -171,27 +171,43 @@ body::after{
   box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
 }
 
-/* zoom rail */
-.zoom-rail{
-  position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
-  height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
-  pointer-events:auto; touch-action: none;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+/* ADDED: Zoom Presets container, mirrors view-toggle */
+.zoom-presets {
+  position: fixed;
+  right: var(--corner-pad); /* Mirroring the left position */
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-ui);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(0,0,0,.35);
+  border-radius: 12px;
+  padding: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
 }
-.zoom-rail__track{ position:relative; width:2px; height:100%; background:rgba(255,255,255,.18); border-radius:2px; }
-.zoom-rail__progress{ position:absolute; left:0; bottom:0; width:100%; height:var(--zoom-pct,0%); background:rgba(255,255,255,.9); border-radius:2px; }
-.zoom-rail__thumb{
-  position:absolute; left:50%; top: calc(100% - var(--zoom-pct, 0%)); transform: translate(-50%, -50%);
-  width:10px; height:10px; border-radius:50%; background:var(--ink);
-  box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
+.zoom-presets-btn {
+  /* Style based on .toggle-btn but optimized for text labels */
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2, #9F9F9F);
+  padding: 8px 8px; /* Wider padding for text */
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all .12s ease;
+  font-weight: 600;
+  font-size: 12px;
+  min-width: 40px; /* Consistent width */
+  text-align: center;
 }
-.zoom-rail__tooltip{
-  position:absolute; top:calc(100% - var(--zoom-pct,0%)); left:-44px; transform:translateY(-50%);
-  font-weight:700; font-size:12px; color:var(--ink-2); text-shadow:0 1px 2px rgba(0,0,0,.55); user-select:none;
+.zoom-presets-btn:hover {
+  color: var(--ink, #FFFFFF);
+  background: rgba(255,255,255,.06);
 }
-@media (max-width:768px){
-  .zoom-rail{ height: var(--rail-height-mobile); }
-  .zoom-rail__tooltip{ left: -40px; }
+.zoom-presets-btn.active {
+  color: var(--accent, #59D2C8);
+  background: color-mix(in oklab, var(--accent, #59D2C8) 20%, transparent);
 }
 
 /* overlay as centered dialog — full viewport, and ignore .curved transform */
@@ -380,9 +396,27 @@ body::after{
   :root{
     --fab-size: 128px;
     --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));
+
+    /* MODIFIED: Tighter edge blur for mobile */
+    --edge-blur: 10px;
+    --edge-mask-i: 65%;
+    --edge-mask-o: 80%;
   }
   .sheet{
     width:min(98vw, 480px);
+  }
+  /* MODIFIED: Widen the clear area of the vertical blur mask */
+  .edge-blur::before{
+    mask:
+      linear-gradient(to bottom,
+        white 0%, white 8%,
+        transparent 35%, transparent 65%,
+        white 92%, white 100%);
+    -webkit-mask:
+      linear-gradient(to bottom,
+        white 0%, white 8%,
+        transparent 35%, transparent 65%,
+        white 92%, white 100%);
   }
 }
 
@@ -417,7 +451,7 @@ body::after{
 /* ============================================================
    START: LIST VIEW INTEGRATION CSS
    ============================================================ */
-:root {
+   :root {
   /*
     Re-declaring these variables from the new file.
     They are scoped within :root, so they won't conflict
@@ -675,9 +709,12 @@ body::after{
     max-height: 50vh; /* Don't let list take full screen */
   }
 }
+
+
 /* ============================================================
    END: LIST VIEW INTEGRATION CSS
    ============================================================ */
+
 
     </style>
   </head>
@@ -731,7 +768,7 @@ import gsap from "https://esm.sh/gsap@3.12.5";
 /* ========= Seed images ========= */
 /* UPDATED SEED with unique captions */
 const SEED=[
-  {src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:'Corridor light study, concrete hall.'},
+  {src:'https://i.ibb.co/rR91Q0Z4/603a967ad03490104c2aaefe-ZAX01042-2.webp',title:'ZAX01042-2',caption:'Light through a dusty window.'},  
   {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp',title:'wmzWGlaw',caption:'Morning fog over the railway tracks.'},
   {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp',title:'IMG-8403',caption:'Window frost, intricate patterns.'},
   {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp',title:'DSC08656',caption:'Urban geometry, side of building.'},
@@ -764,7 +801,7 @@ const SEED=[
   {src:'https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp',title:'DSC08281',caption:'Single cloud, vast open sky.'},
   {src:'https://i.ibb.co/QvHqKh2P/603afe37ba16f8f9174cf501-IMG-1878.webp',title:'IMG-1878',caption:'Door handle, metal and wood.'},
   {src:'https://i.ibb.co/m5sNTvYX/603a967916b10d5bef5a6dd8-ZAX02712-1.webp',title:'ZAX02712-1',caption:'Cracked paint on an old wall.'},
-  {src:'https://i.ibb.co/rR91Q0Z4/603a967ad03490104c2aaefe-ZAX01042-2.webp',title:'ZAX01042-2',caption:'Light through a dusty window.'},
+  {src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:'Corridor light study, concrete hall.'},
   {src:'https://i.ibb.co/tpK7LjSv/603a967ac64cec73069e2454-ZAX09877.webp',title:'ZAX09877',caption:'Stairwell, top-down perspective.'},
   {src:'https://i.ibb.co/Kph6fp3M/603a967a6a41f4d56ca33b1a-ZAX00794.webp',title:'ZAX00794',caption:'Power lines against a grey sky.'},
   {src:'https://i.ibb.co/0yjJ4j8L/603a967a5dc3e982f571b744-ZAX00968.webp',title:'ZAX00968',caption:'Close-up of brushed aluminum.'},
@@ -929,13 +966,7 @@ async function textureForItem(item){
   const img=await loadImage(item.src).catch(e=>{ console.warn(e); return null; });
   return makeCardTextureFromCanvas(makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()}));
 }
-async function buildRowMajorTextures(items,totalTiles){
-  const filler=makeFillerTexture();
-  const texs=new Array(totalTiles).fill(filler);
-  const count=Math.min(items.length,totalTiles);
-  for(let i=0;i<count;i++){ try{ texs[i]=await textureForItem(items[i]); }catch(e){ console.warn(e); } }
-  return texs;
-}
+/* Removed buildRowMajorTextures function */
 
 /* ========= Post shader ========= */
 class DistortionShader extends THREE.ShaderMaterial{
@@ -956,6 +987,9 @@ class DistortionShader extends THREE.ShaderMaterial{
 function BracketOverlay(){
   const { scene, size } = useThree();
   const matRef = useRef(null);
+  const rafRef = useRef(null);
+  const target = useRef(new THREE.Vector2(0,0));
+  const current = useRef(new THREE.Vector2(0,0));
 
   useEffect(()=>{
     const geom = new THREE.PlaneGeometry(2,2);
@@ -969,77 +1003,74 @@ function BracketOverlay(){
         thickness:{ value: 4.0 },
         length:{ value: 84.0 },
         margin:{ value: 52.0 },
+        marginTop:{ value: 52.0 },
+        marginBottom:{ value: 52.0 },
+        edgeSoft:{ value: 8.0 },
+        offset:{ value: new THREE.Vector2(0.0, 0.0) },
         opacity:{ value: 0.95 }
       },
-      vertexShader: `varying vec2 vUv;
-        void main(){
-          vUv = position.xy * 0.5 + 0.5;
-          gl_Position = vec4(position.xy, 0.0, 1.0);
-        }`,
+      vertexShader: `
+        varying vec2 vUv;
+        void main(){ vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }
+      `,
       fragmentShader: `
         precision highp float;
         varying vec2 vUv;
         uniform vec2 resolution;
-        uniform float thickness, length, margin, opacity;
-
-        float inRect(vec2 p, vec2 mn, vec2 mx){
-          vec2 s = step(mn, p) * step(p, mx);
+        uniform float thickness, length, margin, marginTop, marginBottom, edgeSoft, opacity;
+        uniform vec2 offset;
+        float inRect(vec2 p, vec2 a, vec2 b){
+          vec2 s = step(a, p) * step(p, b);
           return s.x * s.y;
         }
-
         void main(){
-          vec2 p = vUv * resolution;
+          vec2 p = vUv * resolution + offset;
           float th = thickness;
-          float L  = length;
-          float m  = margin;
-
-          vec2 tl = vec2(m,             resolution.y - m);
-          vec2 tr = vec2(resolution.x - m, resolution.y - m);
-          vec2 bl = vec2(m,             m);
-          vec2 br = vec2(resolution.x - m,  m);
-
+          float L = length;
+          float m = margin;
+          float mt = marginTop;
+          float mb = marginBottom;
+          vec2 tl = vec2(m, resolution.y - mt);
+          vec2 tr = vec2(resolution.x - m, resolution.y - mt);
+          vec2 bl = vec2(m, mb);
+          vec2 br = vec2(resolution.x - m, mb);
           float a = 0.0;
-          // top-left
-          a = max(a, inRect(p, vec2(tl.x,          tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
-          a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L),      vec2(tl.x + th*0.5, tl.y)));
-          // top-right
-          a = max(a, inRect(p, vec2(tr.x - L,      tr.y - th*0.5), vec2(tr.x,        tr.y + th*0.5)));
-          a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L),      vec2(tr.x + th*0.5, tr.y)));
-          // bottom-left
-          a = max(a, inRect(p, vec2(bl.x,          bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
-          a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y),          vec2(bl.x + th*0.5, bl.y + L)));
-          // bottom-right
-          a = max(a, inRect(p, vec2(br.x - L,      br.y - th*0.5), vec2(br.x,        br.y + th*0.5)));
-          a = max(a, inRect(p, vec2(br.x - th*0.5, br.y),          vec2(br.x + th*0.5, br.y + L)));
-
+          a = max(a, inRect(p, vec2(tl.x, tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
+          a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L), vec2(tl.x + th*0.5, tl.y)));
+          a = max(a, inRect(p, vec2(tr.x - L, tr.y - th*0.5), vec2(tr.x, tr.y + th*0.5)));
+          a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L), vec2(tr.x + th*0.5, tr.y)));
+          a = max(a, inRect(p, vec2(bl.x, bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
+          a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y), vec2(bl.x + th*0.5, bl.y + L)));
+          a = max(a, inRect(p, vec2(br.x - L, br.y - th*0.5), vec2(br.x, br.y + th*0.5)));
+          a = max(a, inRect(p, vec2(br.x - th*0.5, br.y), vec2(br.x + th*0.5, br.y + L)));
           if(a <= 0.0) discard;
           gl_FragColor = vec4(vec3(1.0), a * opacity);
         }
       `
     });
     mat.toneMapped = false;
-
     const mesh = new THREE.Mesh(geom, mat);
     mesh.frustumCulled = false;
-    mesh.renderOrder = 999;
+    mesh.renderOrder = 9999;
     scene.add(mesh);
     matRef.current = mat;
 
     return ()=>{
-      scene.remove(mesh);
-      geom.dispose();
-      mat.dispose();
+      try{ scene.remove(mesh); }catch(e){}
+      try{ mat.dispose && mat.dispose(); }catch(e){}
+      try{ geom.dispose && geom.dispose(); }catch(e){}
       matRef.current = null;
+      if(rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   },[scene]);
 
   useEffect(()=>{
     if(!matRef.current) return;
-
     matRef.current.uniforms.resolution.value.set(size.width, size.height);
     matRef.current.uniforms.margin.value = 52.0;
     matRef.current.uniforms.opacity.value = 0.95;
 
+    // initial size-based settings
     const W = size.width;
     const desktop = W >= 1024;
     const tablet  = W >= 768 && W < 1024;
@@ -1047,10 +1078,101 @@ function BracketOverlay(){
     const L  = desktop ? 72.0 : (tablet ? 62.0 : 54.0);
     matRef.current.uniforms.thickness.value = th;
     matRef.current.uniforms.length.value = L;
+
+    // parallax target and lerp
+    let tgt = new THREE.Vector2(0,0);
+    let cur = new THREE.Vector2(0,0);
+    const stiffness = 0.12;
+    const maxOffset = Math.min(size.width, 120) * 0.06;
+    function onPointer(e){
+      const rect = document.documentElement.getBoundingClientRect();
+      const cx = rect.left + rect.width/2;
+      const cy = rect.top + rect.height/2;
+      const dx = e.clientX - cx;
+      const dy = e.clientY - cy;
+      const fx = -dx * 0.06;
+      const fy = -dy * 0.03;
+      tgt.set(Math.max(-maxOffset, Math.min(maxOffset, fx)), Math.max(-maxOffset, Math.min(maxOffset, fy)));
+    }
+    function onTouch(e){
+      if(!e.touches || !e.touches.length) return;
+      const t = e.touches[0];
+      onPointer({ clientX:t.clientX, clientY:t.clientY });
+    }
+    function tick(){
+      cur.x += (tgt.x - cur.x) * stiffness;
+      cur.y += (tgt.y - cur.y) * stiffness;
+      if(matRef.current && matRef.current.uniforms && matRef.current.uniforms.offset){
+        matRef.current.uniforms.offset.value.set(cur.x, cur.y);
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    window.addEventListener('pointermove', onPointer, { passive:true });
+    window.addEventListener('touchmove', onTouch, { passive:true });
+    tick();
+
+    // safe-area aware mobile placement
+    function getHeaderFooterSafeArea(){
+      let headerH = 0, footerH = 0;
+      const header = document.querySelector('header, .site-header, #header');
+      const footer = document.querySelector('footer, .site-footer, #footer');
+      if (header) headerH = Math.max(0, header.getBoundingClientRect().height);
+      if (footer) footerH = Math.max(0, footer.getBoundingClientRect().height);
+      return { headerH, footerH };
+    }
+
+    function applyMobileLayout(){
+      const { headerH, footerH } = getHeaderFooterSafeArea();
+      const isMobile = window.matchMedia('(max-width: 640px)').matches;
+      // compute CSS safe-area-inset-bottom
+      let safeInsetBottom = 0;
+      try{
+        const tmp = document.createElement('div');
+        tmp.style.cssText = 'position:fixed;bottom:0;left:0;width:0;height:0;padding-bottom:env(safe-area-inset-bottom);pointer-events:none;visibility:hidden;';
+        document.documentElement.appendChild(tmp);
+        const val = getComputedStyle(tmp).paddingBottom;
+        if(val && val.endsWith('px')) safeInsetBottom = parseFloat(val.replace('px','')) || 0;
+        document.documentElement.removeChild(tmp);
+      }catch(e){ safeInsetBottom = 0; }
+
+      if (isMobile){
+        const mt = headerH + 24;
+        const extraBuffer = 12;
+        const mb = Math.max(24, footerH + 24 + safeInsetBottom + extraBuffer);
+        matRef.current.uniforms.marginTop.value = mt;
+        matRef.current.uniforms.marginBottom.value = mb;
+        matRef.current.uniforms.margin.value = Math.max(24, Math.min(100, Math.round(Math.min(size.width,240) * 0.2)));
+        matRef.current.uniforms.length.value = Math.max(28.0, Math.min(64.0, size.width * 0.06));
+        matRef.current.uniforms.thickness.value = 2.0;
+        matRef.current.uniforms.edgeSoft.value = 6.0;
+      } else {
+        matRef.current.uniforms.marginTop.value = 52.0;
+        matRef.current.uniforms.marginBottom.value = 52.0;
+        matRef.current.uniforms.margin.value = 52.0;
+        matRef.current.uniforms.length.value = Math.max(48.0, Math.min(96.0, size.width * 0.06));
+        matRef.current.uniforms.thickness.value = 3.25;
+        matRef.current.uniforms.edgeSoft.value = 8.0;
+      }
+    }
+
+    applyMobileLayout();
+    const mql = window.matchMedia('(max-width: 640px)');
+    try{ mql.addEventListener('change', applyMobileLayout); }catch(e){ mql.addListener && mql.addListener(applyMobileLayout); }
+    window.addEventListener('resize', applyMobileLayout);
+
+    return ()=>{
+      window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('touchmove', onTouch);
+      window.removeEventListener('resize', applyMobileLayout);
+      try{ mql.removeEventListener && mql.removeEventListener('change', applyMobileLayout); }catch(e){ mql.removeListener && mql.removeListener(applyMobileLayout); }
+      if(rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   },[size.width, size.height]);
 
   return null;
 }
+
+
 
 
 /* ========= Grid / scene (unchanged logic) ========= */
@@ -1070,6 +1192,10 @@ class Grid extends THREE.Group{
     this.hoverIdx=-1;
 
     this.downTime=0; this.downX=0; this.downY=0; this.longPressTimer=null; this.longPressFired=false;
+
+    // ADDED: New properties for drag-zoom
+    this.dragZoomStart = null;
+    this.isDragging = false;
 
     this.pointerMap=new Map(); this.pinchDist0=null; this.cameraZ0=null;
 
@@ -1102,12 +1228,24 @@ class Grid extends THREE.Group{
   setViewport(w,h){ this.viewW=w; this.viewH=h; }
   setManageMode(f){ this.manageMode=!!f; }
 
-  layout(){
-    const {cols,rows,tile,gap}=this.opts;
-    const stepX=tile+gap, stepY=tile+gap;
-    const sizeX=stepX*(cols-1), sizeY=stepY*(rows-1);
-    this.groups.forEach(g=>this.remove(g));
-    this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[];
+  layout(rowsOverride){
+    const {cols, rows: rowsDefault, tile, gap} = this.opts;
+    const rows = Math.max(1, Math.floor(rowsOverride || rowsDefault));
+    const stepX = tile + gap, stepY = tile + gap;
+    const sizeX = stepX * (cols - 1), sizeY = stepY * (rows - 1);
+
+    // dispose previous groups/materials
+    if (this.groups && this.groups.length){
+      this.groups.forEach(g=>{
+        g.children.forEach(m=>{
+          try{ if (m.material) m.material.dispose && m.material.dispose(); }catch(e){}
+          try{ if (m.geometry) m.geometry.dispose && m.geometry.dispose(); }catch(e){}
+        });
+        try{ this.remove(g); }catch(e){}
+      });
+    }
+
+    this.tiles = []; this.bgTiles = []; this.groups = []; this.tileItems = [];
 
     this.contentHalfW = sizeX/2 + tile/2;
     this.contentHalfH = sizeY/2 + tile/2;
@@ -1117,15 +1255,15 @@ class Grid extends THREE.Group{
         const x = c*stepX - sizeX/2;
         const y = sizeY/2 - r*stepY;
 
-        const group=new THREE.Group();
+        const group = new THREE.Group();
         group.position.set(x,y,0);
 
-        const bgMat=new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
-        const bgMesh=new THREE.Mesh(this.bgGeom,bgMat);
+        const bgMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
+        const bgMesh = new THREE.Mesh(this.bgGeom, bgMat);
         bgMesh.position.set(0,0,-0.0005);
 
-        const imgMat=new THREE.MeshBasicMaterial({ color:0xffffff });
-        const imgMesh=new THREE.Mesh(this.tileGeom,imgMat);
+        const imgMat = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
+        const imgMesh = new THREE.Mesh(this.tileGeom, imgMat);
 
         group.add(bgMesh); group.add(imgMesh);
         this.add(group);
@@ -1136,17 +1274,77 @@ class Grid extends THREE.Group{
         this.tileItems.push(null);
       }
     }
+}
+
+  // NEW METHOD: Load texture for a single tile and fade it in
+  async loadAndApplyTexture(mesh, item, index){
+    // Don't load anything for null items (empty grid slots)
+    if (!item) {
+      // Ensure it's the invisible material
+      const oldMat = mesh.material;
+      mesh.material = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.0 });
+      oldMat?.dispose?.();
+      return;
+    }
+
+    let texture;
+    try {
+      // textureForItem is async, it loads/draws the canvas
+      texture = await textureForItem(item);
+    } catch (e) {
+      console.warn(e);
+      texture = makeEmptyTexture(); // Fallback
+    }
+
+    // Now that we have the texture, create the final material
+    const newMat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.0 // Start invisible
+    });
+
+    // Dispose of the previous material (the one from layout)
+    mesh.material?.dispose?.();
+    
+    // Assign the new material
+    mesh.material = newMat;
+
+    // Fade it in with a staggered delay
+    gsap.to(newMat, {
+      opacity: 1.0,
+      duration: 0.6,
+      delay: (index % this.opts.cols) * 0.03 + Math.floor(index / this.opts.cols) * 0.05, // Staggered fade
+      ease: "power2.out"
+    });
   }
 
-  async setItems(items){
-    const total=this.tiles.length;
-    const texs=await buildRowMajorTextures(items,total);
-    for(let i=0;i<total;i++){
-      const old=this.tiles[i].material; old?.dispose?.();
-      this.tiles[i].material=new THREE.MeshBasicMaterial({ map:texs[i] });
-      this.tileItems[i]= i<items.length ? items[i] : null;
+  // MODIFIED: Removed async, now triggers individual tile loading
+  setItems(items){
+    const cols = this.opts.cols;
+    const neededRows = Math.max(1, Math.ceil(items.length / cols));
+
+    // Rebuild layout to exactly fit items (no trailing empty cells)
+    this.layout(neededRows);
+
+    const total = this.tiles.length;
+    for(let i = 0; i < total; i++){
+      const item = i < items.length ? items[i] : null;
+      this.tileItems[i] = item;
+
+      if (!item){
+        try{ if (this.tiles[i].material) this.tiles[i].material.dispose && this.tiles[i].material.dispose(); }catch(e){}
+        this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
+        continue;
+      }
+
+      if (typeof this.loadAndApplyTexture === 'function'){
+        try{ this.loadAndApplyTexture(this.tiles[i], item, i); }catch(e){ console.warn('Error applying texture to tile', e); }
+      } else {
+        try{ this.tiles[i].material.dispose && this.tiles[i].material.dispose(); }catch(e){}
+        this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x222222, transparent:true, opacity:1.0 });
+      }
     }
-  }
+}
 
   _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
   _ndcFromClient(clientX, clientY){
@@ -1230,6 +1428,28 @@ class Grid extends THREE.Group{
     }
 
     if(this.isPointerDown){
+      // MODIFIED: Check if a drag has started, and if so, zoom out
+      if (!this.isDragging) {
+        const dist = Math.hypot((e.clientX - this.downX)||0, (e.clientY - this.downY)||0);
+        const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
+        
+        if (dist > thresh) {
+          // This is now officially a drag
+          this.isDragging = true;
+          this.longPressFired = true; // Prevent click-on-up
+          if(this.longPressTimer){ // Prevent long-press-zoom
+            window.clearTimeout(this.longPressTimer);
+            this.longPressTimer=null;
+          }
+          
+          // Store the zoom *at the moment drag starts*
+          this.dragZoomStart = this.camera.position.z;
+          const targetZ = this._clampZ(this.dragZoomStart * 1.3); // Zoom out by 30%
+          
+          gsap.to(this.camera.position, { z: targetZ, duration: 0.2, ease: "power2.out" });
+        }
+      }
+      
       const dx=(this._lastPX===null?0:(e.clientX-this._lastPX)), dy=(this._lastPY===null?0:(e.clientY-this._lastPY));
       this._lastPX=e.clientX; this._lastPY=e.clientY;
       const d=this._pxToNorm(dx,dy);
@@ -1256,6 +1476,10 @@ class Grid extends THREE.Group{
     this.downX = e.clientX; this.downY = e.clientY;
     this.longPressFired = false;
 
+    // MODIFIED: Reset dragging state and store initial zoom
+    this.isDragging = false;
+    this.dragZoomStart = this.camera.position.z;
+
     this.currentDragEase = this.isTouch ? CONFIG.touchDragEase : this.opts.dragEase;
 
     this._updatePointer(e);
@@ -1281,6 +1505,15 @@ class Grid extends THREE.Group{
     this._removePointer(e);
 
     this.isPointerDown=false; this.canvas.classList.remove("dragging");
+    
+    // ADDED: Check if we were dragging, and if so, revert the zoom
+    if (this.isDragging) {
+      // We were dragging, so revert to the original zoom
+      gsap.to(this.camera.position, { z: this.dragZoomStart, duration: 0.3, ease: "power2.out" });
+      this.dragZoomStart = null;
+      this.isDragging = false;
+    }
+    
     const upTime = performance.now();
     const dt = upTime - this.downTime;
     const dist = Math.hypot((e.clientX - this.downX)||0, (e.clientY - this.downY)||0);
@@ -1405,7 +1638,7 @@ function Postprocessing({ workgridState }){
 
   useEffect(()=>{ if(!shader) return;
     const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
-    const scale = size.width < 800 ? 0.75 : 1.0;
+    const scale = size.width < 800 ? 0.25 : 1.0;
     shader.setDistortion(base * scale);
   },[workgridState,shader,size.width]);
 
@@ -1627,7 +1860,7 @@ function HelpOverlay({ open, onClose }){
     React.createElement("div",{className:"overlay open curved"},
       React.createElement("div",{className:"sheet",role:"dialog","aria-modal":"true",style:{maxWidth:"460px"}},
         React.createElement("div",{className:"titlebar"},
-          React.createElement("h2",null,"intoview.pro is a space to make; a creative playground through which I further my craft."),
+          React.createElement("h2",null,"intoview.pro is a space to make; a creative playground through which I further my craft. As of current, it features a photo:note web app that I am developing."),
           React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
         ),
         React.createElement("div",{style:{overflow:"auto", padding:"4px 2px"}},
@@ -1645,6 +1878,9 @@ function HelpOverlay({ open, onClose }){
     )
   );
 }
+
+
+
 
 /* ========= Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
@@ -1725,6 +1961,42 @@ function loadArchive(){
   }catch{ return []; }
 }
 function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
+
+
+
+
+
+/* ========= Zoom Presets Component (New) ========= */
+function ZoomPresets({ zoom, onSetZoom }){
+  // Presets defined as camera Z distance (smaller Z is more zoomed in)
+  const presets = [
+    { label: "75%", zoomZ: 0.75, title: "Tight View (75% Preset)" }, // More Zoomed In
+    { label: "50%", zoomZ: 1.50, title: "Default View (50% Preset)" },
+    { label: "25%", zoomZ: 2.50, title: "Wide View (25% Preset)" }, // More Zoomed Out
+  ];
+
+  // Determine which button is "active" based on current zoom
+  const activeLabel = presets.reduce((active, preset) => {
+    // Check if the current zoom is within a small threshold (0.2) of a preset value
+    if (Math.abs(zoom - preset.zoomZ) < 0.2) {
+      return preset.label;
+    }
+    return active;
+  }, null);
+
+  return (
+    React.createElement("div", { className: "zoom-presets", "aria-label": "Grid Zoom Presets" },
+      presets.map(p =>
+        React.createElement("button", {
+          key: p.label,
+          className: `zoom-presets-btn ${p.label === activeLabel ? 'active' : ''}`,
+          title: p.title,
+          onClick: () => onSetZoom(p.zoomZ)
+        }, p.label)
+      )
+    )
+  );
+}
 
 /* ========= App ========= */
 function App(){
@@ -1864,7 +2136,8 @@ function App(){
       React.createElement("div",{className:"edge-blur"}),
       React.createElement("div",{className:"vignette"}),
 
-      React.createElement(ZoomRail,{ zoom, onScrub:(z)=> gridCtrl.current?.setZoom?.(z) }),
+// NEW LINE TO ADD in its place:
+React.createElement(ZoomPresets,{ zoom, onSetZoom:(z)=> gridCtrl.current?.setZoom?.(z) }),
 
       React.createElement("div",{ className:"fab-wrap" },
         React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"intoview:note" },
