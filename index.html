@@ -758,7 +758,6 @@ body::after{
     <div class="hud hud-right" id="coordsMount">x 0 • y 0</div>
 
     <script type="module">
-
 import React,{useEffect,useMemo,useRef,useState,Suspense} from "https://esm.sh/react@18.3.1";
 import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 import * as THREE from "https://esm.sh/three@0.160.1";
@@ -824,8 +823,8 @@ const CONFIG={
   dragMultMouse:6.0, dragMultTouch:4.0, touchDragEase:0.18,
   zoomMin:0.25, zoomMax:3.00, wheelScale:0.0015,
   boundSlack: 0.6,
-  rubber:     0.33,
-  magnet:     0.12
+  rubber:     0.63,
+  magnet:     0.22
 };
 
 /* ========= Utilities ========= */
@@ -1137,24 +1136,12 @@ class Grid extends THREE.Group{
   setViewport(w,h){ this.viewW=w; this.viewH=h; }
   setManageMode(f){ this.manageMode=!!f; }
 
-  layout(rowsOverride){
-    const {cols, rows: rowsDefault, tile, gap} = this.opts;
-    const rows = Math.max(1, Math.floor(rowsOverride || rowsDefault));
-    const stepX = tile + gap, stepY = tile + gap;
-    const sizeX = stepX * (cols - 1), sizeY = stepY * (rows - 1);
-
-    // dispose previous groups/materials
-    if (this.groups && this.groups.length){
-      this.groups.forEach(g=>{
-        g.children.forEach(m=>{
-          try{ if (m.material) m.material.dispose && m.material.dispose(); }catch(e){}
-          try{ if (m.geometry) m.geometry.dispose && m.geometry.dispose(); }catch(e){}
-        });
-        try{ this.remove(g); }catch(e){}
-      });
-    }
-
-    this.tiles = []; this.bgTiles = []; this.groups = []; this.tileItems = [];
+  layout(){
+    const {cols,rows,tile,gap}=this.opts;
+    const stepX=tile+gap, stepY=tile+gap;
+    const sizeX=stepX*(cols-1), sizeY=stepY*(rows-1);
+    this.groups.forEach(g=>this.remove(g));
+    this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[];
 
     this.contentHalfW = sizeX/2 + tile/2;
     this.contentHalfH = sizeY/2 + tile/2;
@@ -1164,15 +1151,16 @@ class Grid extends THREE.Group{
         const x = c*stepX - sizeX/2;
         const y = sizeY/2 - r*stepY;
 
-        const group = new THREE.Group();
+        const group=new THREE.Group();
         group.position.set(x,y,0);
 
-        const bgMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
-        const bgMesh = new THREE.Mesh(this.bgGeom, bgMat);
+        const bgMat=new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
+        const bgMesh=new THREE.Mesh(this.bgGeom,bgMat);
         bgMesh.position.set(0,0,-0.0005);
 
-        const imgMat = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
-        const imgMesh = new THREE.Mesh(this.tileGeom, imgMat);
+        // MODIFIED: Start cards as invisible
+        const imgMat=new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
+        const imgMesh=new THREE.Mesh(this.tileGeom,imgMat);
 
         group.add(bgMesh); group.add(imgMesh);
         this.add(group);
@@ -1183,7 +1171,7 @@ class Grid extends THREE.Group{
         this.tileItems.push(null);
       }
     }
-}
+  }
 
   // NEW METHOD: Load texture for a single tile and fade it in
   async loadAndApplyTexture(mesh, item, index){
@@ -1229,31 +1217,16 @@ class Grid extends THREE.Group{
 
   // MODIFIED: Removed async, now triggers individual tile loading
   setItems(items){
-    const cols = this.opts.cols;
-    const neededRows = Math.max(1, Math.ceil(items.length / cols));
-
-    // Rebuild layout to exactly fit items (no trailing empty cells)
-    this.layout(neededRows);
-
     const total = this.tiles.length;
     for(let i = 0; i < total; i++){
       const item = i < items.length ? items[i] : null;
       this.tileItems[i] = item;
-
-      if (!item){
-        try{ if (this.tiles[i].material) this.tiles[i].material.dispose && this.tiles[i].material.dispose(); }catch(e){}
-        this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
-        continue;
-      }
-
-      if (typeof this.loadAndApplyTexture === 'function'){
-        try{ this.loadAndApplyTexture(this.tiles[i], item, i); }catch(e){ console.warn('Error applying texture to tile', e); }
-      } else {
-        try{ this.tiles[i].material.dispose && this.tiles[i].material.dispose(); }catch(e){}
-        this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x222222, transparent:true, opacity:1.0 });
-      }
+      
+      // Start the async load-and-fade for this tile
+      // We don't await it; let them all run in parallel
+      this.loadAndApplyTexture(this.tiles[i], item, i);
     }
-}
+  }
 
   _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
   _ndcFromClient(clientX, clientY){
@@ -2119,9 +2092,9 @@ root.render(React.createElement(App));
   tick();
 })();
 
-    
+    </script>
 
-
+    <script>
       async function sortByBrightness(arr, { sample = 48 } = {}) {
         const results = await Promise.all(arr.map(async (item) => {
           try {
@@ -2164,9 +2137,35 @@ root.render(React.createElement(App));
           }
         }catch(e){ /* ignore */ }
       })();
-    
+    </script>
 
+    <div id="takeover" class="takeover" aria-hidden="true">
+      <div class="backdrop"></div>
+      <div class="panel" role="dialog" aria-modal="true">
+        <div class="left">
+          <div id="leftCover" class="cover" style="background-image:url('https://i.ibb.co/yc6ppFdj/ZAX01304.webp')"></div>
+          <div class="info">
+            <div class="title">Notes — List takeover</div>
+            <div class="subtitle">Press Esc to close. Use search to filter. This left column mirrors the selected item and acts as a preview panel.</div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="list-head">
+            <div class="list-search">
+              <input id="search" class="search-input" placeholder="Search notes..." />
+              <div style="color:var(--muted);font-size:13px;">0 results</div>
+            </div>
+            <div>
+              <button id="close" class="btn ghost">ESC</button>
+            </div>
+          </div>
 
+          <div id="list" class="list-body">
+            </div>
+        </div>
+      </div>
+    </div>
+    <script>
       // Selectors for all base UI elements to hide during list view
       const baseUiSelectors = ['#root', '.header', '.zoom-rail', '.fab-wrap', '.hud-left', '.hud-right', '.edge-blur', '.vignette', '#cursor', '.view-toggle'];
 
@@ -2327,7 +2326,6 @@ root.render(React.createElement(App));
 
       // expose selection for integration with your app
       window.intoview = { openTakeover, closeTakeover, selectItem };
-    
     </script>
     </body>
 </html>
