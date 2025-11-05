@@ -451,7 +451,7 @@ body::after{
 /* ============================================================
    START: LIST VIEW INTEGRATION CSS
    ============================================================ */
-:root {
+   :root {
   /*
     Re-declaring these variables from the new file.
     They are scoped within :root, so they won't conflict
@@ -709,9 +709,12 @@ body::after{
     max-height: 50vh; /* Don't let list take full screen */
   }
 }
+
+
 /* ============================================================
    END: LIST VIEW INTEGRATION CSS
    ============================================================ */
+
 
     </style>
   </head>
@@ -985,8 +988,8 @@ function BracketOverlay(){
   const { scene, size } = useThree();
   const matRef = useRef(null);
   const rafRef = useRef(null);
-  const targetOffset = useRef(new THREE.Vector2(0,0));
-  const currentOffset = useRef(new THREE.Vector2(0,0));
+  const target = useRef(new THREE.Vector2(0,0));
+  const current = useRef(new THREE.Vector2(0,0));
 
   useEffect(()=>{
     const geom = new THREE.PlaneGeometry(2,2);
@@ -1004,7 +1007,6 @@ function BracketOverlay(){
         marginBottom:{ value: 52.0 },
         edgeSoft:{ value: 8.0 },
         offset:{ value: new THREE.Vector2(0.0, 0.0) },
-        color:{ value: new THREE.Color(0xFFFFFF) },
         opacity:{ value: 0.95 }
       },
       vertexShader: `
@@ -1017,26 +1019,32 @@ function BracketOverlay(){
         uniform vec2 resolution;
         uniform float thickness, length, margin, marginTop, marginBottom, edgeSoft, opacity;
         uniform vec2 offset;
-        uniform vec3 color;
-        float rectMask(vec2 p, vec2 a, vec2 b){ vec2 s = step(a, p) * step(p, b); return s.x * s.y; }
+        float inRect(vec2 p, vec2 a, vec2 b){
+          vec2 s = step(a, p) * step(p, b);
+          return s.x * s.y;
+        }
         void main(){
           vec2 p = vUv * resolution + offset;
-          float th = thickness; float L = length; float m = margin; float mt = marginTop; float mb = marginBottom;
-          vec2 tl = vec2(m,             resolution.y - mt);
+          float th = thickness;
+          float L = length;
+          float m = margin;
+          float mt = marginTop;
+          float mb = marginBottom;
+          vec2 tl = vec2(m, resolution.y - mt);
           vec2 tr = vec2(resolution.x - m, resolution.y - mt);
-          vec2 bl = vec2(m,             mb);
-          vec2 br = vec2(resolution.x - m,  mb);
+          vec2 bl = vec2(m, mb);
+          vec2 br = vec2(resolution.x - m, mb);
           float a = 0.0;
-          a = max(a, rectMask(p, vec2(tl.x, tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
-          a = max(a, rectMask(p, vec2(tl.x - th*0.5, tl.y - L), vec2(tl.x + th*0.5, tl.y)));
-          a = max(a, rectMask(p, vec2(tr.x - L, tr.y - th*0.5), vec2(tr.x, tr.y + th*0.5)));
-          a = max(a, rectMask(p, vec2(tr.x - th*0.5, tr.y - L), vec2(tr.x + th*0.5, tr.y)));
-          a = max(a, rectMask(p, vec2(bl.x, bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
-          a = max(a, rectMask(p, vec2(bl.x - th*0.5, bl.y), vec2(bl.x + th*0.5, bl.y + L)));
-          a = max(a, rectMask(p, vec2(br.x - L, br.y - th*0.5), vec2(br.x, br.y + th*0.5)));
-          a = max(a, rectMask(p, vec2(br.x - th*0.5, br.y), vec2(br.x + th*0.5, br.y + L)));
+          a = max(a, inRect(p, vec2(tl.x, tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
+          a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L), vec2(tl.x + th*0.5, tl.y)));
+          a = max(a, inRect(p, vec2(tr.x - L, tr.y - th*0.5), vec2(tr.x, tr.y + th*0.5)));
+          a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L), vec2(tr.x + th*0.5, tr.y)));
+          a = max(a, inRect(p, vec2(bl.x, bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
+          a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y), vec2(bl.x + th*0.5, bl.y + L)));
+          a = max(a, inRect(p, vec2(br.x - L, br.y - th*0.5), vec2(br.x, br.y + th*0.5)));
+          a = max(a, inRect(p, vec2(br.x - th*0.5, br.y), vec2(br.x + th*0.5, br.y + L)));
           if(a <= 0.0) discard;
-          gl_FragColor = vec4(color, a * opacity);
+          gl_FragColor = vec4(vec3(1.0), a * opacity);
         }
       `
     });
@@ -1046,31 +1054,124 @@ function BracketOverlay(){
     mesh.renderOrder = 9999;
     scene.add(mesh);
     matRef.current = mat;
-    return ()=>{ try{ scene.remove(mesh); }catch(e){} try{ mat.dispose && mat.dispose(); }catch(e){} try{ geom.dispose && geom.dispose(); }catch(e){} matRef.current = null; if(rafRef.current) cancelAnimationFrame(rafRef.current); };
+
+    return ()=>{
+      try{ scene.remove(mesh); }catch(e){}
+      try{ mat.dispose && mat.dispose(); }catch(e){}
+      try{ geom.dispose && geom.dispose(); }catch(e){}
+      matRef.current = null;
+      if(rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   },[scene]);
 
   useEffect(()=>{
     if(!matRef.current) return;
     matRef.current.uniforms.resolution.value.set(size.width, size.height);
-    const baseMargin = 28.0, baseTop = 52.0, baseBottom = 52.0;
-    function getHeaderFooterSafeArea(){ let headerH=0, footerH=0; const header = document.querySelector('header, .site-header, #header'); const footer = document.querySelector('footer, .site-footer, #footer'); if(header) headerH = Math.max(0, header.getBoundingClientRect().height); if(footer) footerH = Math.max(0, footer.getBoundingClientRect().height); return { headerH, footerH }; }
-    let target = new THREE.Vector2(0,0);
+    matRef.current.uniforms.margin.value = 52.0;
+    matRef.current.uniforms.opacity.value = 0.95;
+
+    // initial size-based settings
+    const W = size.width;
+    const desktop = W >= 1024;
+    const tablet  = W >= 768 && W < 1024;
+    const th = desktop ? 3.25 : (tablet ? 2.7 : 2.0);
+    const L  = desktop ? 72.0 : (tablet ? 62.0 : 54.0);
+    matRef.current.uniforms.thickness.value = th;
+    matRef.current.uniforms.length.value = L;
+
+    // parallax target and lerp
+    let tgt = new THREE.Vector2(0,0);
+    let cur = new THREE.Vector2(0,0);
     const stiffness = 0.12;
-    const maxOffset = Math.min(size.width,120) * 0.06;
-    function onPointerMove(ev){ const rect = (ev.target && ev.target.getBoundingClientRect) ? ev.target.getBoundingClientRect() : document.documentElement.getBoundingClientRect(); const cx = rect.left + rect.width/2; const cy = rect.top + rect.height/2; const dx = ev.clientX - cx; const dy = ev.clientY - cy; const fx = -dx * 0.06; const fy = -dy * 0.03; target.set(Math.max(-maxOffset, Math.min(maxOffset, fx)), Math.max(-maxOffset, Math.min(maxOffset, fy))); }
-    function onTouchMove(ev){ if(!ev.touches || !ev.touches.length) return; const t = ev.touches[0]; onPointerMove({ clientX:t.clientX, clientY:t.clientY, target: document.documentElement }); }
-    function tick(){ currentOffset.current.x += (target.x - currentOffset.current.x) * stiffness; currentOffset.current.y += (target.y - currentOffset.current.y) * stiffness; if(matRef.current && matRef.current.uniforms && matRef.current.uniforms.offset){ matRef.current.uniforms.offset.value.set(currentOffset.current.x, currentOffset.current.y); } rafRef.current = requestAnimationFrame(tick); }
-    window.addEventListener('pointermove', onPointerMove, { passive:true }); window.addEventListener('touchmove', onTouchMove, { passive:true }); tick();
-    function applyMobileLayout(){ const { headerH, footerH } = getHeaderFooterSafeArea(); const isMobile = window.matchMedia('(max-width: 640px)').matches; if(isMobile){ const mt = headerH + 24; const mb = footerH + 24; matRef.current.uniforms.marginTop.value = mt; matRef.current.uniforms.marginBottom.value = mb; matRef.current.uniforms.margin.value = Math.max(24, Math.min(80, Math.round(Math.min(size.width,160) * 0.15))); matRef.current.uniforms.length.value = Math.max(28.0, Math.min(64.0, size.width * 0.06)); matRef.current.uniforms.thickness.value = 2.0; matRef.current.uniforms.edgeSoft.value = 6.0; } else { matRef.current.uniforms.marginTop.value = baseTop; matRef.current.uniforms.marginBottom.value = baseBottom; matRef.current.uniforms.margin.value = baseMargin; matRef.current.uniforms.length.value = Math.max(48.0, Math.min(96.0, size.width * 0.06)); matRef.current.uniforms.thickness.value = 3.25; matRef.current.uniforms.edgeSoft.value = 8.0; } }
+    const maxOffset = Math.min(size.width, 120) * 0.06;
+    function onPointer(e){
+      const rect = document.documentElement.getBoundingClientRect();
+      const cx = rect.left + rect.width/2;
+      const cy = rect.top + rect.height/2;
+      const dx = e.clientX - cx;
+      const dy = e.clientY - cy;
+      const fx = -dx * 0.06;
+      const fy = -dy * 0.03;
+      tgt.set(Math.max(-maxOffset, Math.min(maxOffset, fx)), Math.max(-maxOffset, Math.min(maxOffset, fy)));
+    }
+    function onTouch(e){
+      if(!e.touches || !e.touches.length) return;
+      const t = e.touches[0];
+      onPointer({ clientX:t.clientX, clientY:t.clientY });
+    }
+    function tick(){
+      cur.x += (tgt.x - cur.x) * stiffness;
+      cur.y += (tgt.y - cur.y) * stiffness;
+      if(matRef.current && matRef.current.uniforms && matRef.current.uniforms.offset){
+        matRef.current.uniforms.offset.value.set(cur.x, cur.y);
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    window.addEventListener('pointermove', onPointer, { passive:true });
+    window.addEventListener('touchmove', onTouch, { passive:true });
+    tick();
+
+    // safe-area aware mobile placement
+    function getHeaderFooterSafeArea(){
+      let headerH = 0, footerH = 0;
+      const header = document.querySelector('header, .site-header, #header');
+      const footer = document.querySelector('footer, .site-footer, #footer');
+      if (header) headerH = Math.max(0, header.getBoundingClientRect().height);
+      if (footer) footerH = Math.max(0, footer.getBoundingClientRect().height);
+      return { headerH, footerH };
+    }
+
+    function applyMobileLayout(){
+      const { headerH, footerH } = getHeaderFooterSafeArea();
+      const isMobile = window.matchMedia('(max-width: 640px)').matches;
+      // compute CSS safe-area-inset-bottom
+      let safeInsetBottom = 0;
+      try{
+        const tmp = document.createElement('div');
+        tmp.style.cssText = 'position:fixed;bottom:0;left:0;width:0;height:0;padding-bottom:env(safe-area-inset-bottom);pointer-events:none;visibility:hidden;';
+        document.documentElement.appendChild(tmp);
+        const val = getComputedStyle(tmp).paddingBottom;
+        if(val && val.endsWith('px')) safeInsetBottom = parseFloat(val.replace('px','')) || 0;
+        document.documentElement.removeChild(tmp);
+      }catch(e){ safeInsetBottom = 0; }
+
+      if (isMobile){
+        const mt = headerH + 24;
+        const extraBuffer = 12;
+        const mb = Math.max(24, footerH + 24 + safeInsetBottom + extraBuffer);
+        matRef.current.uniforms.marginTop.value = mt;
+        matRef.current.uniforms.marginBottom.value = mb;
+        matRef.current.uniforms.margin.value = Math.max(24, Math.min(100, Math.round(Math.min(size.width,240) * 0.2)));
+        matRef.current.uniforms.length.value = Math.max(28.0, Math.min(64.0, size.width * 0.06));
+        matRef.current.uniforms.thickness.value = 2.0;
+        matRef.current.uniforms.edgeSoft.value = 6.0;
+      } else {
+        matRef.current.uniforms.marginTop.value = 52.0;
+        matRef.current.uniforms.marginBottom.value = 52.0;
+        matRef.current.uniforms.margin.value = 52.0;
+        matRef.current.uniforms.length.value = Math.max(48.0, Math.min(96.0, size.width * 0.06));
+        matRef.current.uniforms.thickness.value = 3.25;
+        matRef.current.uniforms.edgeSoft.value = 8.0;
+      }
+    }
+
     applyMobileLayout();
     const mql = window.matchMedia('(max-width: 640px)');
     try{ mql.addEventListener('change', applyMobileLayout); }catch(e){ mql.addListener && mql.addListener(applyMobileLayout); }
     window.addEventListener('resize', applyMobileLayout);
-    return ()=>{ window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('touchmove', onTouchMove); window.removeEventListener('resize', applyMobileLayout); try{ mql.removeEventListener && mql.removeEventListener('change', applyMobileLayout); }catch(e){ mql.removeListener && mql.removeListener(applyMobileLayout); } if(rafRef.current) cancelAnimationFrame(rafRef.current); };
-  },[size.width, size.height, scene]);
+
+    return ()=>{
+      window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('touchmove', onTouch);
+      window.removeEventListener('resize', applyMobileLayout);
+      try{ mql.removeEventListener && mql.removeEventListener('change', applyMobileLayout); }catch(e){ mql.removeListener && mql.removeListener(applyMobileLayout); }
+      if(rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  },[size.width, size.height]);
 
   return null;
 }
+
 
 
 
@@ -1777,6 +1878,9 @@ function HelpOverlay({ open, onClose }){
     )
   );
 }
+
+
+
 
 /* ========= Zoom Rail ========= */
 function ZoomRail({ zoom, onScrub }) {
