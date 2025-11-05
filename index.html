@@ -192,7 +192,7 @@ body::after{
   border: 0;
   background: transparent;
   color: var(--ink-2, #9F9F9F);
-  padding: 12px 8px; /* Wider padding for text */
+  padding: 8px 8px; /* Wider padding for text */
   cursor: pointer;
   border-radius: 8px;
   transition: all .12s ease;
@@ -709,8 +709,6 @@ body::after{
     max-height: 50vh; /* Don't let list take full screen */
   }
 }
-
-
 /* ============================================================
    END: LIST VIEW INTEGRATION CSS
    ============================================================ */
@@ -999,42 +997,22 @@ function BracketOverlay(){
         thickness:{ value: 4.0 },
         length:{ value: 84.0 },
         margin:{ value: 52.0 },
-        edgeSoft:{ value: 8.0 },
-        color:{ value: new THREE.Color(0x000000) },
-        opacity:{ value: 1.0 }
+        opacity:{ value: 0.95 }
       },
-      vertexShader: /* glsl */ `
-        varying vec2 vUv;
+      vertexShader: `varying vec2 vUv;
         void main(){
-          vUv = uv;
-          gl_Position = vec4(position,1.);
-        }
-      `,
-      fragmentShader: /* glsl */ `
+          vUv = position.xy * 0.5 + 0.5;
+          gl_Position = vec4(position.xy, 0.0, 1.0);
+        }`,
+      fragmentShader: `
         precision highp float;
         varying vec2 vUv;
         uniform vec2 resolution;
-        uniform float thickness;
-        uniform float length;
-        uniform float margin;
-        uniform float edgeSoft;
-        uniform vec3 color;
-        uniform float opacity;
+        uniform float thickness, length, margin, opacity;
 
-        float rectSDF(vec2 p, vec2 a, vec2 b){
-          vec2 d = max(abs(p - (a+b)*0.5) - (b-a)*0.5, 0.0);
-          return length(d);
-        }
-
-        float lineMask(vec2 p, vec2 a, vec2 b, float w, float l){
-          // simple L-shaped corner mask between points a (corner) and b (end)
-          vec2 d = p - a;
-          float m = 0.0;
-          // horizontal segment
-          float hx = smoothstep(0.0, w, abs(d.y)) * smoothstep(0.0, l, max(0.0, b.x - a.x - d.x));
-          // vertical segment
-          float vy = smoothstep(0.0, w, abs(d.x)) * smoothstep(0.0, l, max(0.0, a.y - b.y - d.y));
-          return max(hx, vy);
+        float inRect(vec2 p, vec2 mn, vec2 mx){
+          vec2 s = step(mn, p) * step(p, mx);
+          return s.x * s.y;
         }
 
         void main(){
@@ -1050,65 +1028,58 @@ function BracketOverlay(){
 
           float a = 0.0;
           // top-left
-          vec2 p_tl = p - tl;
-          vec2 p_tl_h = p - vec2(tl.x + L, tl.y);
-          vec2 p_tl_v = p - vec2(tl.x, tl.y - L);
-          float seg_tl = step(0.0, -p_tl.x) * step(0.0, p_tl.y) * (1.0 - smoothstep(th - edgeSoft, th + edgeSoft, length(vec2(clamp(p_tl.x, -L, 0.0), clamp(p_tl.y, -L, 0.0)))));
+          a = max(a, inRect(p, vec2(tl.x,          tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
+          a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L),      vec2(tl.x + th*0.5, tl.y)));
           // top-right
-          vec2 p_tr = p - tr;
-          float seg_tr = step(0.0, p_tr.x) * step(0.0, p_tr.y) * (1.0 - smoothstep(th - edgeSoft, th + edgeSoft, length(vec2(clamp(p_tr.x, 0.0, L), clamp(p_tr.y, -L, 0.0)))));
+          a = max(a, inRect(p, vec2(tr.x - L,      tr.y - th*0.5), vec2(tr.x,        tr.y + th*0.5)));
+          a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L),      vec2(tr.x + th*0.5, tr.y)));
           // bottom-left
-          vec2 p_bl = p - bl;
-          float seg_bl = step(0.0, -p_bl.x) * step(0.0, -p_bl.y) * (1.0 - smoothstep(th - edgeSoft, th + edgeSoft, length(vec2(clamp(p_bl.x, -L, 0.0), clamp(p_bl.y, 0.0, L)))));
+          a = max(a, inRect(p, vec2(bl.x,          bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
+          a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y),          vec2(bl.x + th*0.5, bl.y + L)));
           // bottom-right
-          vec2 p_br = p - br;
-          float seg_br = step(0.0, p_br.x) * step(0.0, -p_br.y) * (1.0 - smoothstep(th - edgeSoft, th + edgeSoft, length(vec2(clamp(p_br.x, 0.0, L), clamp(p_br.y, 0.0, L)))));
+          a = max(a, inRect(p, vec2(br.x - L,      br.y - th*0.5), vec2(br.x,        br.y + th*0.5)));
+          a = max(a, inRect(p, vec2(br.x - th*0.5, br.y),          vec2(br.x + th*0.5, br.y + L)));
 
-          a = max(max(seg_tl, seg_tr), max(seg_bl, seg_br));
-
-          vec3 col = color;
-          gl_FragColor = vec4(col, a * opacity);
+          if(a <= 0.0) discard;
+          gl_FragColor = vec4(vec3(1.0), a * opacity);
         }
       `
     });
+    mat.toneMapped = false;
 
-    // Mobile adjustments: make brackets thinner and more inset on small viewports
-    const mql = window.matchMedia('(max-width: 640px)');
-    function applyMobileAdjustments(e){
-      const isMobile = e.matches;
-      if (isMobile){
-        mat.uniforms.thickness.value = 2.0;
-        mat.uniforms.length.value = 56.0;
-        mat.uniforms.margin.value = 28.0;
-        mat.uniforms.edgeSoft.value = 6.0;
-      } else {
-        mat.uniforms.thickness.value = 4.0;
-        mat.uniforms.length.value = 84.0;
-        mat.uniforms.margin.value = 52.0;
-        mat.uniforms.edgeSoft.value = 8.0;
-      }
-    }
-    // apply initially
-    applyMobileAdjustments(mql);
-    // listen for changes
-    try{ mql.addEventListener('change', applyMobileAdjustments); }catch(e){ mql.addListener && mql.addListener(applyMobileAdjustments); }
-
-    matRef.current = mat;
     const mesh = new THREE.Mesh(geom, mat);
-    mesh.renderOrder = 9999;
     mesh.frustumCulled = false;
+    mesh.renderOrder = 999;
     scene.add(mesh);
+    matRef.current = mat;
 
     return ()=>{
-      try{ scene.remove(mesh); }catch(e){}
-      try{ mat.dispose && mat.dispose(); }catch(e){}
-      try{ geom.dispose && geom.dispose(); }catch(e){}
-      try{ mql.removeEventListener && mql.removeEventListener('change', applyMobileAdjustments); }catch(e){ mql.removeListener && mql.removeListener(applyMobileAdjustments); }
+      scene.remove(mesh);
+      geom.dispose();
+      mat.dispose();
+      matRef.current = null;
     };
-  },[scene,size]);
+  },[scene]);
+
+  useEffect(()=>{
+    if(!matRef.current) return;
+
+    matRef.current.uniforms.resolution.value.set(size.width, size.height);
+    matRef.current.uniforms.margin.value = 52.0;
+    matRef.current.uniforms.opacity.value = 0.95;
+
+    const W = size.width;
+    const desktop = W >= 1024;
+    const tablet  = W >= 768 && W < 1024;
+    const th = desktop ? 3.25 : (tablet ? 2.7 : 2.0);
+    const L  = desktop ? 72.0 : (tablet ? 62.0 : 54.0);
+    matRef.current.uniforms.thickness.value = th;
+    matRef.current.uniforms.length.value = L;
+  },[size.width, size.height]);
 
   return null;
 }
+
 
 
 /* ========= Grid / scene (unchanged logic) ========= */
