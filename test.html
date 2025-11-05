@@ -823,8 +823,8 @@ const CONFIG={
   dragMultMouse:6.0, dragMultTouch:4.0, touchDragEase:0.18,
   zoomMin:0.25, zoomMax:3.00, wheelScale:0.0015,
   boundSlack: 0.6,
-  rubber:     0.63,
-  magnet:     0.22
+  rubber:     0.33,
+  magnet:     0.12
 };
 
 /* ========= Utilities ========= */
@@ -999,22 +999,42 @@ function BracketOverlay(){
         thickness:{ value: 4.0 },
         length:{ value: 84.0 },
         margin:{ value: 52.0 },
-        opacity:{ value: 0.95 }
+        edgeSoft:{ value: 8.0 },
+        color:{ value: new THREE.Color(0x000000) },
+        opacity:{ value: 1.0 }
       },
-      vertexShader: `varying vec2 vUv;
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
         void main(){
-          vUv = position.xy * 0.5 + 0.5;
-          gl_Position = vec4(position.xy, 0.0, 1.0);
-        }`,
-      fragmentShader: `
+          vUv = uv;
+          gl_Position = vec4(position,1.);
+        }
+      `,
+      fragmentShader: /* glsl */ `
         precision highp float;
         varying vec2 vUv;
         uniform vec2 resolution;
-        uniform float thickness, length, margin, opacity;
+        uniform float thickness;
+        uniform float length;
+        uniform float margin;
+        uniform float edgeSoft;
+        uniform vec3 color;
+        uniform float opacity;
 
-        float inRect(vec2 p, vec2 mn, vec2 mx){
-          vec2 s = step(mn, p) * step(p, mx);
-          return s.x * s.y;
+        float rectSDF(vec2 p, vec2 a, vec2 b){
+          vec2 d = max(abs(p - (a+b)*0.5) - (b-a)*0.5, 0.0);
+          return length(d);
+        }
+
+        float lineMask(vec2 p, vec2 a, vec2 b, float w, float l){
+          // simple L-shaped corner mask between points a (corner) and b (end)
+          vec2 d = p - a;
+          float m = 0.0;
+          // horizontal segment
+          float hx = smoothstep(0.0, w, abs(d.y)) * smoothstep(0.0, l, max(0.0, b.x - a.x - d.x));
+          // vertical segment
+          float vy = smoothstep(0.0, w, abs(d.x)) * smoothstep(0.0, l, max(0.0, a.y - b.y - d.y));
+          return max(hx, vy);
         }
 
         void main(){
@@ -1030,54 +1050,62 @@ function BracketOverlay(){
 
           float a = 0.0;
           // top-left
-          a = max(a, inRect(p, vec2(tl.x,          tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
-          a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L),      vec2(tl.x + th*0.5, tl.y)));
+          vec2 p_tl = p - tl;
+          vec2 p_tl_h = p - vec2(tl.x + L, tl.y);
+          vec2 p_tl_v = p - vec2(tl.x, tl.y - L);
+          float seg_tl = step(0.0, -p_tl.x) * step(0.0, p_tl.y) * (1.0 - smoothstep(th - edgeSoft, th + edgeSoft, length(vec2(clamp(p_tl.x, -L, 0.0), clamp(p_tl.y, -L, 0.0)))));
           // top-right
-          a = max(a, inRect(p, vec2(tr.x - L,      tr.y - th*0.5), vec2(tr.x,        tr.y + th*0.5)));
-          a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L),      vec2(tr.x + th*0.5, tr.y)));
+          vec2 p_tr = p - tr;
+          float seg_tr = step(0.0, p_tr.x) * step(0.0, p_tr.y) * (1.0 - smoothstep(th - edgeSoft, th + edgeSoft, length(vec2(clamp(p_tr.x, 0.0, L), clamp(p_tr.y, -L, 0.0)))));
           // bottom-left
-          a = max(a, inRect(p, vec2(bl.x,          bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
-          a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y),          vec2(bl.x + th*0.5, bl.y + L)));
+          vec2 p_bl = p - bl;
+          float seg_bl = step(0.0, -p_bl.x) * step(0.0, -p_bl.y) * (1.0 - smoothstep(th - edgeSoft, th + edgeSoft, length(vec2(clamp(p_bl.x, -L, 0.0), clamp(p_bl.y, 0.0, L)))));
           // bottom-right
-          a = max(a, inRect(p, vec2(br.x - L,      br.y - th*0.5), vec2(br.x,        br.y + th*0.5)));
-          a = max(a, inRect(p, vec2(br.x - th*0.5, br.y),          vec2(br.x + th*0.5, br.y + L)));
+          vec2 p_br = p - br;
+          float seg_br = step(0.0, p_br.x) * step(0.0, -p_br.y) * (1.0 - smoothstep(th - edgeSoft, th + edgeSoft, length(vec2(clamp(p_br.x, 0.0, L), clamp(p_br.y, 0.0, L)))));
 
-          if(a <= 0.0) discard;
-          gl_FragColor = vec4(vec3(1.0), a * opacity);
+          a = max(max(seg_tl, seg_tr), max(seg_bl, seg_br));
+
+          vec3 col = color;
+          gl_FragColor = vec4(col, a * opacity);
         }
       `
     });
-    mat.toneMapped = false;
 
-    const mesh = new THREE.Mesh(geom, mat);
-    mesh.frustumCulled = false;
-    mesh.renderOrder = 999;
-    scene.add(mesh);
+    // Mobile adjustments: make brackets thinner and more inset on small viewports
+    const mql = window.matchMedia('(max-width: 640px)');
+    function applyMobileAdjustments(e){
+      const isMobile = e.matches;
+      if (isMobile){
+        mat.uniforms.thickness.value = 2.0;
+        mat.uniforms.length.value = 56.0;
+        mat.uniforms.margin.value = 28.0;
+        mat.uniforms.edgeSoft.value = 6.0;
+      } else {
+        mat.uniforms.thickness.value = 4.0;
+        mat.uniforms.length.value = 84.0;
+        mat.uniforms.margin.value = 52.0;
+        mat.uniforms.edgeSoft.value = 8.0;
+      }
+    }
+    // apply initially
+    applyMobileAdjustments(mql);
+    // listen for changes
+    try{ mql.addEventListener('change', applyMobileAdjustments); }catch(e){ mql.addListener && mql.addListener(applyMobileAdjustments); }
+
     matRef.current = mat;
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.renderOrder = 9999;
+    mesh.frustumCulled = false;
+    scene.add(mesh);
 
     return ()=>{
-      scene.remove(mesh);
-      geom.dispose();
-      mat.dispose();
-      matRef.current = null;
+      try{ scene.remove(mesh); }catch(e){}
+      try{ mat.dispose && mat.dispose(); }catch(e){}
+      try{ geom.dispose && geom.dispose(); }catch(e){}
+      try{ mql.removeEventListener && mql.removeEventListener('change', applyMobileAdjustments); }catch(e){ mql.removeListener && mql.removeListener(applyMobileAdjustments); }
     };
-  },[scene]);
-
-  useEffect(()=>{
-    if(!matRef.current) return;
-
-    matRef.current.uniforms.resolution.value.set(size.width, size.height);
-    matRef.current.uniforms.margin.value = 52.0;
-    matRef.current.uniforms.opacity.value = 0.95;
-
-    const W = size.width;
-    const desktop = W >= 1024;
-    const tablet  = W >= 768 && W < 1024;
-    const th = desktop ? 3.25 : (tablet ? 2.7 : 2.0);
-    const L  = desktop ? 72.0 : (tablet ? 62.0 : 54.0);
-    matRef.current.uniforms.thickness.value = th;
-    matRef.current.uniforms.length.value = L;
-  },[size.width, size.height]);
+  },[scene,size]);
 
   return null;
 }
@@ -1136,12 +1164,24 @@ class Grid extends THREE.Group{
   setViewport(w,h){ this.viewW=w; this.viewH=h; }
   setManageMode(f){ this.manageMode=!!f; }
 
-  layout(){
-    const {cols,rows,tile,gap}=this.opts;
-    const stepX=tile+gap, stepY=tile+gap;
-    const sizeX=stepX*(cols-1), sizeY=stepY*(rows-1);
-    this.groups.forEach(g=>this.remove(g));
-    this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[];
+  layout(rowsOverride){
+    const {cols, rows: rowsDefault, tile, gap} = this.opts;
+    const rows = Math.max(1, Math.floor(rowsOverride || rowsDefault));
+    const stepX = tile + gap, stepY = tile + gap;
+    const sizeX = stepX * (cols - 1), sizeY = stepY * (rows - 1);
+
+    // dispose previous groups/materials
+    if (this.groups && this.groups.length){
+      this.groups.forEach(g=>{
+        g.children.forEach(m=>{
+          try{ if (m.material) m.material.dispose && m.material.dispose(); }catch(e){}
+          try{ if (m.geometry) m.geometry.dispose && m.geometry.dispose(); }catch(e){}
+        });
+        try{ this.remove(g); }catch(e){}
+      });
+    }
+
+    this.tiles = []; this.bgTiles = []; this.groups = []; this.tileItems = [];
 
     this.contentHalfW = sizeX/2 + tile/2;
     this.contentHalfH = sizeY/2 + tile/2;
@@ -1151,16 +1191,15 @@ class Grid extends THREE.Group{
         const x = c*stepX - sizeX/2;
         const y = sizeY/2 - r*stepY;
 
-        const group=new THREE.Group();
+        const group = new THREE.Group();
         group.position.set(x,y,0);
 
-        const bgMat=new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
-        const bgMesh=new THREE.Mesh(this.bgGeom,bgMat);
+        const bgMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
+        const bgMesh = new THREE.Mesh(this.bgGeom, bgMat);
         bgMesh.position.set(0,0,-0.0005);
 
-        // MODIFIED: Start cards as invisible
-        const imgMat=new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
-        const imgMesh=new THREE.Mesh(this.tileGeom,imgMat);
+        const imgMat = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
+        const imgMesh = new THREE.Mesh(this.tileGeom, imgMat);
 
         group.add(bgMesh); group.add(imgMesh);
         this.add(group);
@@ -1171,7 +1210,7 @@ class Grid extends THREE.Group{
         this.tileItems.push(null);
       }
     }
-  }
+}
 
   // NEW METHOD: Load texture for a single tile and fade it in
   async loadAndApplyTexture(mesh, item, index){
@@ -1217,16 +1256,31 @@ class Grid extends THREE.Group{
 
   // MODIFIED: Removed async, now triggers individual tile loading
   setItems(items){
+    const cols = this.opts.cols;
+    const neededRows = Math.max(1, Math.ceil(items.length / cols));
+
+    // Rebuild layout to exactly fit items (no trailing empty cells)
+    this.layout(neededRows);
+
     const total = this.tiles.length;
     for(let i = 0; i < total; i++){
       const item = i < items.length ? items[i] : null;
       this.tileItems[i] = item;
-      
-      // Start the async load-and-fade for this tile
-      // We don't await it; let them all run in parallel
-      this.loadAndApplyTexture(this.tiles[i], item, i);
+
+      if (!item){
+        try{ if (this.tiles[i].material) this.tiles[i].material.dispose && this.tiles[i].material.dispose(); }catch(e){}
+        this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
+        continue;
+      }
+
+      if (typeof this.loadAndApplyTexture === 'function'){
+        try{ this.loadAndApplyTexture(this.tiles[i], item, i); }catch(e){ console.warn('Error applying texture to tile', e); }
+      } else {
+        try{ this.tiles[i].material.dispose && this.tiles[i].material.dispose(); }catch(e){}
+        this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x222222, transparent:true, opacity:1.0 });
+      }
     }
-  }
+}
 
   _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
   _ndcFromClient(clientX, clientY){
