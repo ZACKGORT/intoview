@@ -541,12 +541,12 @@ body::after{
   gap: 6px;
 }
 .left .title {
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 600;
 }
 .left .subtitle {
   color: var(--muted);
-  font-size: 22px;
+  font-size: 13px;
 }
 
 .right {
@@ -614,7 +614,7 @@ body::after{
 }
 .note-sub {
   color: var(--muted);
-  font-size: 16px;
+  font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -929,13 +929,7 @@ async function textureForItem(item){
   const img=await loadImage(item.src).catch(e=>{ console.warn(e); return null; });
   return makeCardTextureFromCanvas(makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()}));
 }
-async function buildRowMajorTextures(items,totalTiles){
-  const filler=makeFillerTexture();
-  const texs=new Array(totalTiles).fill(filler);
-  const count=Math.min(items.length,totalTiles);
-  for(let i=0;i<count;i++){ try{ texs[i]=await textureForItem(items[i]); }catch(e){ console.warn(e); } }
-  return texs;
-}
+/* Removed buildRowMajorTextures function */
 
 /* ========= Post shader ========= */
 class DistortionShader extends THREE.ShaderMaterial{
@@ -1124,7 +1118,8 @@ class Grid extends THREE.Group{
         const bgMesh=new THREE.Mesh(this.bgGeom,bgMat);
         bgMesh.position.set(0,0,-0.0005);
 
-        const imgMat=new THREE.MeshBasicMaterial({ color:0xffffff });
+        // MODIFIED: Start cards as invisible
+        const imgMat=new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
         const imgMesh=new THREE.Mesh(this.tileGeom,imgMat);
 
         group.add(bgMesh); group.add(imgMesh);
@@ -1138,13 +1133,58 @@ class Grid extends THREE.Group{
     }
   }
 
-  async setItems(items){
-    const total=this.tiles.length;
-    const texs=await buildRowMajorTextures(items,total);
-    for(let i=0;i<total;i++){
-      const old=this.tiles[i].material; old?.dispose?.();
-      this.tiles[i].material=new THREE.MeshBasicMaterial({ map:texs[i] });
-      this.tileItems[i]= i<items.length ? items[i] : null;
+  // NEW METHOD: Load texture for a single tile and fade it in
+  async loadAndApplyTexture(mesh, item, index){
+    // Don't load anything for null items (empty grid slots)
+    if (!item) {
+      // Ensure it's the invisible material
+      const oldMat = mesh.material;
+      mesh.material = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.0 });
+      oldMat?.dispose?.();
+      return;
+    }
+
+    let texture;
+    try {
+      // textureForItem is async, it loads/draws the canvas
+      texture = await textureForItem(item);
+    } catch (e) {
+      console.warn(e);
+      texture = makeEmptyTexture(); // Fallback
+    }
+
+    // Now that we have the texture, create the final material
+    const newMat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.0 // Start invisible
+    });
+
+    // Dispose of the previous material (the one from layout)
+    mesh.material?.dispose?.();
+    
+    // Assign the new material
+    mesh.material = newMat;
+
+    // Fade it in with a staggered delay
+    gsap.to(newMat, {
+      opacity: 1.0,
+      duration: 0.6,
+      delay: (index % this.opts.cols) * 0.03 + Math.floor(index / this.opts.cols) * 0.05, // Staggered fade
+      ease: "power2.out"
+    });
+  }
+
+  // MODIFIED: Removed async, now triggers individual tile loading
+  setItems(items){
+    const total = this.tiles.length;
+    for(let i = 0; i < total; i++){
+      const item = i < items.length ? items[i] : null;
+      this.tileItems[i] = item;
+      
+      // Start the async load-and-fade for this tile
+      // We don't await it; let them all run in parallel
+      this.loadAndApplyTexture(this.tiles[i], item, i);
     }
   }
 
