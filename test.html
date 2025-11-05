@@ -984,6 +984,9 @@ class DistortionShader extends THREE.ShaderMaterial{
 function BracketOverlay(){
   const { scene, size } = useThree();
   const matRef = useRef(null);
+  const rafRef = useRef(null);
+  const targetOffset = useRef(new THREE.Vector2(0,0));
+  const currentOffset = useRef(new THREE.Vector2(0,0));
 
   useEffect(()=>{
     const geom = new THREE.PlaneGeometry(2,2);
@@ -997,85 +1000,74 @@ function BracketOverlay(){
         thickness:{ value: 4.0 },
         length:{ value: 84.0 },
         margin:{ value: 52.0 },
+        marginTop:{ value: 52.0 },
+        marginBottom:{ value: 52.0 },
+        edgeSoft:{ value: 8.0 },
+        offset:{ value: new THREE.Vector2(0.0, 0.0) },
+        color:{ value: new THREE.Color(0xFFFFFF) },
         opacity:{ value: 0.95 }
       },
-      vertexShader: `varying vec2 vUv;
-        void main(){
-          vUv = position.xy * 0.5 + 0.5;
-          gl_Position = vec4(position.xy, 0.0, 1.0);
-        }`,
+      vertexShader: `
+        varying vec2 vUv;
+        void main(){ vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }
+      `,
       fragmentShader: `
         precision highp float;
         varying vec2 vUv;
         uniform vec2 resolution;
-        uniform float thickness, length, margin, opacity;
-
-        float inRect(vec2 p, vec2 mn, vec2 mx){
-          vec2 s = step(mn, p) * step(p, mx);
-          return s.x * s.y;
-        }
-
+        uniform float thickness, length, margin, marginTop, marginBottom, edgeSoft, opacity;
+        uniform vec2 offset;
+        uniform vec3 color;
+        float rectMask(vec2 p, vec2 a, vec2 b){ vec2 s = step(a, p) * step(p, b); return s.x * s.y; }
         void main(){
-          vec2 p = vUv * resolution;
-          float th = thickness;
-          float L  = length;
-          float m  = margin;
-
-          vec2 tl = vec2(m,             resolution.y - m);
-          vec2 tr = vec2(resolution.x - m, resolution.y - m);
-          vec2 bl = vec2(m,             m);
-          vec2 br = vec2(resolution.x - m,  m);
-
+          vec2 p = vUv * resolution + offset;
+          float th = thickness; float L = length; float m = margin; float mt = marginTop; float mb = marginBottom;
+          vec2 tl = vec2(m,             resolution.y - mt);
+          vec2 tr = vec2(resolution.x - m, resolution.y - mt);
+          vec2 bl = vec2(m,             mb);
+          vec2 br = vec2(resolution.x - m,  mb);
           float a = 0.0;
-          // top-left
-          a = max(a, inRect(p, vec2(tl.x,          tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
-          a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L),      vec2(tl.x + th*0.5, tl.y)));
-          // top-right
-          a = max(a, inRect(p, vec2(tr.x - L,      tr.y - th*0.5), vec2(tr.x,        tr.y + th*0.5)));
-          a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L),      vec2(tr.x + th*0.5, tr.y)));
-          // bottom-left
-          a = max(a, inRect(p, vec2(bl.x,          bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
-          a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y),          vec2(bl.x + th*0.5, bl.y + L)));
-          // bottom-right
-          a = max(a, inRect(p, vec2(br.x - L,      br.y - th*0.5), vec2(br.x,        br.y + th*0.5)));
-          a = max(a, inRect(p, vec2(br.x - th*0.5, br.y),          vec2(br.x + th*0.5, br.y + L)));
-
+          a = max(a, rectMask(p, vec2(tl.x, tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
+          a = max(a, rectMask(p, vec2(tl.x - th*0.5, tl.y - L), vec2(tl.x + th*0.5, tl.y)));
+          a = max(a, rectMask(p, vec2(tr.x - L, tr.y - th*0.5), vec2(tr.x, tr.y + th*0.5)));
+          a = max(a, rectMask(p, vec2(tr.x - th*0.5, tr.y - L), vec2(tr.x + th*0.5, tr.y)));
+          a = max(a, rectMask(p, vec2(bl.x, bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
+          a = max(a, rectMask(p, vec2(bl.x - th*0.5, bl.y), vec2(bl.x + th*0.5, bl.y + L)));
+          a = max(a, rectMask(p, vec2(br.x - L, br.y - th*0.5), vec2(br.x, br.y + th*0.5)));
+          a = max(a, rectMask(p, vec2(br.x - th*0.5, br.y), vec2(br.x + th*0.5, br.y + L)));
           if(a <= 0.0) discard;
-          gl_FragColor = vec4(vec3(1.0), a * opacity);
+          gl_FragColor = vec4(color, a * opacity);
         }
       `
     });
     mat.toneMapped = false;
-
     const mesh = new THREE.Mesh(geom, mat);
     mesh.frustumCulled = false;
-    mesh.renderOrder = 999;
+    mesh.renderOrder = 9999;
     scene.add(mesh);
     matRef.current = mat;
-
-    return ()=>{
-      scene.remove(mesh);
-      geom.dispose();
-      mat.dispose();
-      matRef.current = null;
-    };
+    return ()=>{ try{ scene.remove(mesh); }catch(e){} try{ mat.dispose && mat.dispose(); }catch(e){} try{ geom.dispose && geom.dispose(); }catch(e){} matRef.current = null; if(rafRef.current) cancelAnimationFrame(rafRef.current); };
   },[scene]);
 
   useEffect(()=>{
     if(!matRef.current) return;
-
     matRef.current.uniforms.resolution.value.set(size.width, size.height);
-    matRef.current.uniforms.margin.value = 52.0;
-    matRef.current.uniforms.opacity.value = 0.95;
-
-    const W = size.width;
-    const desktop = W >= 1024;
-    const tablet  = W >= 768 && W < 1024;
-    const th = desktop ? 3.25 : (tablet ? 2.7 : 2.0);
-    const L  = desktop ? 72.0 : (tablet ? 62.0 : 54.0);
-    matRef.current.uniforms.thickness.value = th;
-    matRef.current.uniforms.length.value = L;
-  },[size.width, size.height]);
+    const baseMargin = 28.0, baseTop = 52.0, baseBottom = 52.0;
+    function getHeaderFooterSafeArea(){ let headerH=0, footerH=0; const header = document.querySelector('header, .site-header, #header'); const footer = document.querySelector('footer, .site-footer, #footer'); if(header) headerH = Math.max(0, header.getBoundingClientRect().height); if(footer) footerH = Math.max(0, footer.getBoundingClientRect().height); return { headerH, footerH }; }
+    let target = new THREE.Vector2(0,0);
+    const stiffness = 0.12;
+    const maxOffset = Math.min(size.width,120) * 0.06;
+    function onPointerMove(ev){ const rect = (ev.target && ev.target.getBoundingClientRect) ? ev.target.getBoundingClientRect() : document.documentElement.getBoundingClientRect(); const cx = rect.left + rect.width/2; const cy = rect.top + rect.height/2; const dx = ev.clientX - cx; const dy = ev.clientY - cy; const fx = -dx * 0.06; const fy = -dy * 0.03; target.set(Math.max(-maxOffset, Math.min(maxOffset, fx)), Math.max(-maxOffset, Math.min(maxOffset, fy))); }
+    function onTouchMove(ev){ if(!ev.touches || !ev.touches.length) return; const t = ev.touches[0]; onPointerMove({ clientX:t.clientX, clientY:t.clientY, target: document.documentElement }); }
+    function tick(){ currentOffset.current.x += (target.x - currentOffset.current.x) * stiffness; currentOffset.current.y += (target.y - currentOffset.current.y) * stiffness; if(matRef.current && matRef.current.uniforms && matRef.current.uniforms.offset){ matRef.current.uniforms.offset.value.set(currentOffset.current.x, currentOffset.current.y); } rafRef.current = requestAnimationFrame(tick); }
+    window.addEventListener('pointermove', onPointerMove, { passive:true }); window.addEventListener('touchmove', onTouchMove, { passive:true }); tick();
+    function applyMobileLayout(){ const { headerH, footerH } = getHeaderFooterSafeArea(); const isMobile = window.matchMedia('(max-width: 640px)').matches; if(isMobile){ const mt = headerH + 24; const mb = footerH + 24; matRef.current.uniforms.marginTop.value = mt; matRef.current.uniforms.marginBottom.value = mb; matRef.current.uniforms.margin.value = Math.max(24, Math.min(80, Math.round(Math.min(size.width,160) * 0.15))); matRef.current.uniforms.length.value = Math.max(28.0, Math.min(64.0, size.width * 0.06)); matRef.current.uniforms.thickness.value = 2.0; matRef.current.uniforms.edgeSoft.value = 6.0; } else { matRef.current.uniforms.marginTop.value = baseTop; matRef.current.uniforms.marginBottom.value = baseBottom; matRef.current.uniforms.margin.value = baseMargin; matRef.current.uniforms.length.value = Math.max(48.0, Math.min(96.0, size.width * 0.06)); matRef.current.uniforms.thickness.value = 3.25; matRef.current.uniforms.edgeSoft.value = 8.0; } }
+    applyMobileLayout();
+    const mql = window.matchMedia('(max-width: 640px)');
+    try{ mql.addEventListener('change', applyMobileLayout); }catch(e){ mql.addListener && mql.addListener(applyMobileLayout); }
+    window.addEventListener('resize', applyMobileLayout);
+    return ()=>{ window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('touchmove', onTouchMove); window.removeEventListener('resize', applyMobileLayout); try{ mql.removeEventListener && mql.removeEventListener('change', applyMobileLayout); }catch(e){ mql.removeListener && mql.removeListener(applyMobileLayout); } if(rafRef.current) cancelAnimationFrame(rafRef.current); };
+  },[size.width, size.height, scene]);
 
   return null;
 }
