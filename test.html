@@ -997,21 +997,25 @@ function BracketOverlay(){
         thickness:{ value: 4.0 },
         length:{ value: 84.0 },
         margin:{ value: 52.0 },
+        edgeSoft:{ value: 8.0 },
+        color:{ value: new THREE.Color(0xFFFFFF) },
         opacity:{ value: 0.95 }
       },
-      vertexShader: `varying vec2 vUv;
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
         void main(){
           vUv = position.xy * 0.5 + 0.5;
           gl_Position = vec4(position.xy, 0.0, 1.0);
         }`,
-      fragmentShader: `
+      fragmentShader: /* glsl */ `
         precision highp float;
         varying vec2 vUv;
         uniform vec2 resolution;
-        uniform float thickness, length, margin, opacity;
+        uniform float thickness, length, margin, edgeSoft, opacity;
+        uniform vec3 color;
 
-        float inRect(vec2 p, vec2 mn, vec2 mx){
-          vec2 s = step(mn, p) * step(p, mx);
+        float rectMask(vec2 p, vec2 a, vec2 b){
+          vec2 s = step(a, p) * step(p, b);
           return s.x * s.y;
         }
 
@@ -1020,6 +1024,7 @@ function BracketOverlay(){
           float th = thickness;
           float L  = length;
           float m  = margin;
+          float es = edgeSoft;
 
           vec2 tl = vec2(m,             resolution.y - m);
           vec2 tr = vec2(resolution.x - m, resolution.y - m);
@@ -1028,20 +1033,22 @@ function BracketOverlay(){
 
           float a = 0.0;
           // top-left
-          a = max(a, inRect(p, vec2(tl.x,          tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
-          a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L),      vec2(tl.x + th*0.5, tl.y)));
+          a = max(a, rectMask(p, vec2(tl.x,          tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
+          a = max(a, rectMask(p, vec2(tl.x - th*0.5, tl.y - L),      vec2(tl.x + th*0.5, tl.y)));
           // top-right
-          a = max(a, inRect(p, vec2(tr.x - L,      tr.y - th*0.5), vec2(tr.x,        tr.y + th*0.5)));
-          a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L),      vec2(tr.x + th*0.5, tr.y)));
+          a = max(a, rectMask(p, vec2(tr.x - L,      tr.y - th*0.5), vec2(tr.x,        tr.y + th*0.5)));
+          a = max(a, rectMask(p, vec2(tr.x - th*0.5, tr.y - L),      vec2(tr.x + th*0.5, tr.y)));
           // bottom-left
-          a = max(a, inRect(p, vec2(bl.x,          bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
-          a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y),          vec2(bl.x + th*0.5, bl.y + L)));
+          a = max(a, rectMask(p, vec2(bl.x,          bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
+          a = max(a, rectMask(p, vec2(bl.x - th*0.5, bl.y),          vec2(bl.x + th*0.5, bl.y + L)));
           // bottom-right
-          a = max(a, inRect(p, vec2(br.x - L,      br.y - th*0.5), vec2(br.x,        br.y + th*0.5)));
-          a = max(a, inRect(p, vec2(br.x - th*0.5, br.y),          vec2(br.x + th*0.5, br.y + L)));
+          a = max(a, rectMask(p, vec2(br.x - L,      br.y - th*0.5), vec2(br.x,        br.y + th*0.5)));
+          a = max(a, rectMask(p, vec2(br.x - th*0.5, br.y),          vec2(br.x + th*0.5, br.y + L)));
 
           if(a <= 0.0) discard;
-          gl_FragColor = vec4(vec3(1.0), a * opacity);
+
+          vec3 col = color;
+          gl_FragColor = vec4(col, a * opacity);
         }
       `
     });
@@ -1049,32 +1056,47 @@ function BracketOverlay(){
 
     const mesh = new THREE.Mesh(geom, mat);
     mesh.frustumCulled = false;
-    mesh.renderOrder = 999;
+    mesh.renderOrder = 9999;
     scene.add(mesh);
     matRef.current = mat;
 
     return ()=>{
-      scene.remove(mesh);
-      geom.dispose();
-      mat.dispose();
+      try{ scene.remove(mesh); }catch(e){}
+      try{ mat.dispose && mat.dispose(); }catch(e){}
+      try{ geom.dispose && geom.dispose(); }catch(e){}
       matRef.current = null;
     };
   },[scene]);
 
   useEffect(()=>{
     if(!matRef.current) return;
-
+    // update resolution
     matRef.current.uniforms.resolution.value.set(size.width, size.height);
-    matRef.current.uniforms.margin.value = 52.0;
-    matRef.current.uniforms.opacity.value = 0.95;
 
     const W = size.width;
-    const desktop = W >= 1024;
-    const tablet  = W >= 768 && W < 1024;
-    const th = desktop ? 3.25 : (tablet ? 2.7 : 2.0);
-    const L  = desktop ? 72.0 : (tablet ? 62.0 : 54.0);
-    matRef.current.uniforms.thickness.value = th;
-    matRef.current.uniforms.length.value = L;
+    const mql = window.matchMedia('(max-width: 640px)');
+    function apply(isMobile){
+      if(isMobile){
+        matRef.current.uniforms.thickness.value = 2.0;
+        matRef.current.uniforms.length.value = 56.0;
+        matRef.current.uniforms.margin.value = 28.0;
+        matRef.current.uniforms.edgeSoft.value = 6.0;
+        matRef.current.uniforms.opacity.value = 0.95;
+      } else {
+        const desktop = W >= 1024;
+        const tablet  = W >= 768 && W < 1024;
+        const th = desktop ? 3.25 : (tablet ? 2.7 : 2.0);
+        const L  = desktop ? 72.0 : (tablet ? 62.0 : 54.0);
+        matRef.current.uniforms.thickness.value = th;
+        matRef.current.uniforms.length.value = L;
+        matRef.current.uniforms.margin.value = 52.0;
+        matRef.current.uniforms.edgeSoft.value = 8.0;
+        matRef.current.uniforms.opacity.value = 0.95;
+      }
+    }
+    // apply initial and listen for changes
+    apply(mql.matches);
+    try { mql.addEventListener('change', (ev)=> apply(ev.matches)); } catch(e) { try { mql.addListener && mql.addListener((ev)=> apply(ev.matches)); } catch(e2){} }
   },[size.width, size.height]);
 
   return null;
