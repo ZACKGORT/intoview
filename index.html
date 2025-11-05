@@ -171,27 +171,43 @@ body::after{
   box-shadow:0 0 0 1px rgba(255,99,99,.35) inset;
 }
 
-/* zoom rail */
-.zoom-rail{
-  position:fixed; right: var(--rail-right); top: 50%; transform: translateY(-50%);
-  height: var(--rail-height-desktop); width: 2px; z-index: var(--z-ui);
-  pointer-events:auto; touch-action: none;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+/* ADDED: Zoom Presets container, mirrors view-toggle */
+.zoom-presets {
+  position: fixed;
+  right: var(--corner-pad); /* Mirroring the left position */
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-ui);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(0,0,0,.35);
+  border-radius: 12px;
+  padding: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
 }
-.zoom-rail__track{ position:relative; width:2px; height:100%; background:rgba(255,255,255,.18); border-radius:2px; }
-.zoom-rail__progress{ position:absolute; left:0; bottom:0; width:100%; height:var(--zoom-pct,0%); background:rgba(255,255,255,.9); border-radius:2px; }
-.zoom-rail__thumb{
-  position:absolute; left:50%; top: calc(100% - var(--zoom-pct, 0%)); transform: translate(-50%, -50%);
-  width:10px; height:10px; border-radius:50%; background:var(--ink);
-  box-shadow:0 0 0 1px rgba(0,0,0,.85), 0 4px 18px rgba(0,0,0,.45);
+.zoom-presets-btn {
+  /* Style based on .toggle-btn but optimized for text labels */
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2, #9F9F9F);
+  padding: 12px 8px; /* Wider padding for text */
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all .12s ease;
+  font-weight: 600;
+  font-size: 12px;
+  min-width: 40px; /* Consistent width */
+  text-align: center;
 }
-.zoom-rail__tooltip{
-  position:absolute; top:calc(100% - var(--zoom-pct,0%)); left:-44px; transform:translateY(-50%);
-  font-weight:700; font-size:12px; color:var(--ink-2); text-shadow:0 1px 2px rgba(0,0,0,.55); user-select:none;
+.zoom-presets-btn:hover {
+  color: var(--ink, #FFFFFF);
+  background: rgba(255,255,255,.06);
 }
-@media (max-width:768px){
-  .zoom-rail{ height: var(--rail-height-mobile); }
-  .zoom-rail__tooltip{ left: -40px; }
+.zoom-presets-btn.active {
+  color: var(--accent, #59D2C8);
+  background: color-mix(in oklab, var(--accent, #59D2C8) 20%, transparent);
 }
 
 /* overlay as centered dialog — full viewport, and ignore .curved transform */
@@ -693,6 +709,8 @@ body::after{
     max-height: 50vh; /* Don't let list take full screen */
   }
 }
+
+
 /* ============================================================
    END: LIST VIEW INTEGRATION CSS
    ============================================================ */
@@ -1823,6 +1841,42 @@ function loadArchive(){
 }
 function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
 
+
+
+
+
+/* ========= Zoom Presets Component (New) ========= */
+function ZoomPresets({ zoom, onSetZoom }){
+  // Presets defined as camera Z distance (smaller Z is more zoomed in)
+  const presets = [
+    { label: "75%", zoomZ: 0.75, title: "Tight View (75% Preset)" }, // More Zoomed In
+    { label: "50%", zoomZ: 1.50, title: "Default View (50% Preset)" },
+    { label: "25%", zoomZ: 2.50, title: "Wide View (25% Preset)" }, // More Zoomed Out
+  ];
+
+  // Determine which button is "active" based on current zoom
+  const activeLabel = presets.reduce((active, preset) => {
+    // Check if the current zoom is within a small threshold (0.2) of a preset value
+    if (Math.abs(zoom - preset.zoomZ) < 0.2) {
+      return preset.label;
+    }
+    return active;
+  }, null);
+
+  return (
+    React.createElement("div", { className: "zoom-presets", "aria-label": "Grid Zoom Presets" },
+      presets.map(p =>
+        React.createElement("button", {
+          key: p.label,
+          className: `zoom-presets-btn ${p.label === activeLabel ? 'active' : ''}`,
+          title: p.title,
+          onClick: () => onSetZoom(p.zoomZ)
+        }, p.label)
+      )
+    )
+  );
+}
+
 /* ========= App ========= */
 function App(){
   const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
@@ -1961,7 +2015,8 @@ function App(){
       React.createElement("div",{className:"edge-blur"}),
       React.createElement("div",{className:"vignette"}),
 
-      React.createElement(ZoomRail,{ zoom, onScrub:(z)=> gridCtrl.current?.setZoom?.(z) }),
+// NEW LINE TO ADD in its place:
+React.createElement(ZoomPresets,{ zoom, onSetZoom:(z)=> gridCtrl.current?.setZoom?.(z) }),
 
       React.createElement("div",{ className:"fab-wrap" },
         React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"intoview:note" },
