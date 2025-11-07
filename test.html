@@ -1203,31 +1203,30 @@ function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify
 
 
 
-
-
-/* ========= Zoom Presets Component (with Mobile Preset) ========= */
+/* ========= Zoom Presets Component (mobile defaults to 25% on load) ========= */
 function ZoomPresets({ zoom, onSetZoom }) {
-  // Base presets (desktop/tablet)
+  // Base presets (desktop/tablet) - 25% uses zoomZ: 2.50
   const basePresets = [
     { label: "75%", zoomZ: 0.75, title: "Tight View (75% Preset)" }, // More Zoomed In
     { label: "50%", zoomZ: 1.50, title: "Default View (50% Preset)" },
     { label: "25%", zoomZ: 2.50, title: "Wide View (25% Preset)" }, // More Zoomed Out
   ];
 
-  // Mobile-only preset (adjust zoomZ to taste)
-  const mobilePreset = { label: "Mobile", zoomZ: 2.50, title: "Mobile Optimized View" };
-
-  // Track whether viewport is "mobile" (<= 768px). Adjust breakpoint if needed.
+  // mobile default is the 25% preset (zoomZ: 2.50)
+  const mobileDefaultZoomZ = 2.50;
+  const mobileBreakpoint = "(max-width: 768px)";
   const [isMobile, setIsMobile] = React.useState(
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 768px)").matches : false
+    typeof window !== "undefined" ? window.matchMedia(mobileBreakpoint).matches : false
   );
+
+  // ensure we only auto-apply the mobile default once (on first mobile detection)
+  const defaultAppliedRef = React.useRef(false);
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 768px)");
+    const mq = window.matchMedia(mobileBreakpoint);
     const handler = (e) => setIsMobile(e.matches);
 
-    // Modern API then fallback
     if (mq.addEventListener) mq.addEventListener("change", handler);
     else mq.addListener(handler);
 
@@ -1237,8 +1236,19 @@ function ZoomPresets({ zoom, onSetZoom }) {
     };
   }, []);
 
-  // Compose presets conditionally
-  const presets = isMobile ? [mobilePreset, ...basePresets] : basePresets;
+  // apply mobile default on initial mobile load if needed
+  React.useEffect(() => {
+    if (!isMobile) return;
+    if (defaultAppliedRef.current) return;
+    // Only set if current zoom is noticeably different (uses same threshold as active detection)
+    if (Math.abs(zoom - mobileDefaultZoomZ) >= 0.2) {
+      onSetZoom(mobileDefaultZoomZ);
+    }
+    defaultAppliedRef.current = true;
+  }, [isMobile, zoom, onSetZoom]);
+
+  // Keep all presets visible on mobile so user can still step through increments
+  const presets = basePresets;
 
   // Determine which button is "active" based on current zoom
   const activeLabel = presets.reduce((active, preset) => {
@@ -1259,12 +1269,14 @@ function ZoomPresets({ zoom, onSetZoom }) {
           className: `zoom-presets-btn ${p.label === activeLabel ? "active" : ""}`,
           title: p.title,
           onClick: () => onSetZoom(p.zoomZ),
+          "aria-pressed": p.label === activeLabel,
         },
         p.label
       )
     )
   );
 }
+
 
 
 /* ========= App ========= */
