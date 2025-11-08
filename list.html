@@ -1,637 +1,2503 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minimal Music Portfolio</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/TextPlugin.min.js"></script>
-    <style>
-        @font-face {
-            font-family: "PP Supply Mono";
-            src: url("https://assets.codepen.io/7558/PPSupplyMono-Variable.woff2") format("woff2");
-            font-weight: 100 900;
-            font-display: swap;
+
+a<!doctypehtml><html lang=en><meta charset=utf-8><meta content="width=device-width,initial-scale=1,viewport-fit=cover"name=viewport><title>intoview • note — (v2.3 dialog chrome)</title><link href=https://fonts.googleapis.com rel=preconnect crossorigin><link href=https://fonts.gstatic.com rel=preconnect crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap"rel=stylesheet>
+
+<style>
+/* Base tokens — aligned to morphing disclosure kit */
+:root{
+  --bg-color: rgb(20, 20, 20);
+  --card-color: rgb(23, 23, 23);
+  --ink:#FFFFFF;--ink-2:#9F9F9F;--ink-3:#6C6C6C;
+  /* UPDATED ACCENT COLOR: #7ee787 (Lime Green) */
+  --accent:#7ee787;
+  --danger:#FF6363;
+  --curve-k:1; --vig-opacity:1; --vig-inner:25%; --vig-mid:80%; --vig-outer:100%;
+  --edge-blur:14px; --edge-mask-i:60%; --edge-mask-o:75%;
+  --cursor-size:20px; --fab-size:120px; --fab-bottom:calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
+  --corner-pad:clamp(14px, 2.4vw, 24px); --corner-top:calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
+  --z-content:0; --z-grain:149; --z-blur:150; --z-vig:151; --z-ui:220; --z-cursor:230;
+  --border-width: 1px; --border-color: rgba(255,255,255,0.12);
+  --duration: 0.26s;
+  --ease: linear(0 0%, 0.2688 9.91%, 0.3859 15%, 0.9929 80.76%, 0.9986 88.89%, 1 100%);
+}
+
+/* Global */
+*{box-sizing:border-box}
+html{color-scheme:dark}
+#root,body,html{height:100%}
+body{margin:0;background:var(--bg-color);color:var(--ink);font:14px/1.4 Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;overflow:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+/* Canvas & vignette */
+.canvas-wrap{position:absolute;inset:0;z-index:var(--z-content)}
+.canvas-wrap canvas{touch-action:none;cursor:grab;background:#000}
+.canvas-wrap canvas.dragging{cursor:grabbing}
+.fallback-grid{position:absolute;inset:0;z-index:var(--z-content);pointer-events:none;opacity:.06;background-image:repeating-linear-gradient(to right,#fff 0 1px,transparent 1px 48px),repeating-linear-gradient(to bottom,#fff 0 1px,transparent 1px 48px)}
+.edge-blur{position:fixed;inset:0;pointer-events:none;z-index:var(--z-blur);background:rgba(0,0,0,.001);backdrop-filter:blur(var(--edge-blur));-webkit-backdrop-filter:blur(var(--edge-blur));mask:radial-gradient(100% 64% at 50% 50%,transparent var(--edge-mask-i),rgba(255,255,255,.98) var(--edge-mask-o));-webkit-mask:radial-gradient(100% 64% at 50% 50%,transparent var(--edge-mask-i),rgba(255,255,255,.98) var(--edge-mask-o))}
+.vignette{position:fixed;inset:0;pointer-events:none;z-index:var(--z-vig);background:radial-gradient(120% 90% at 50% 50%,rgba(0,0,0,0) var(--vig-inner),rgba(0,0,0,.62) var(--vig-mid),rgba(0,0,0,.98) var(--vig-outer));opacity:calc(var(--vig-opacity) * var(--curve-k))}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--z-grain);opacity:.06;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");background-size:120px 120px}
+
+/* Curvature */
+.curved{transform-style:preserve-3d;transform:perspective(1000px) translateZ(calc(-200px * var(--curve-k))) scale(calc(1 + var(--curve-k) * .06));will-change:transform}
+
+/* Header — kit override */
+.header{position:fixed;inset:0 0 auto 0;z-index:var(--z-ui);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:var(--corner-top) var(--corner-pad) 12px var(--corner-pad);pointer-events:none}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;user-select:none;pointer-events:auto;padding:6px 8px;background-color:none;border:none;border-radius:12px}
+.brand img{display:block;height:36px;width:auto}
+.controls{display:flex;gap:8px;align-items:center;pointer-events:auto}
+.icon-btn{
+  appearance:none;cursor:pointer;border:var(--border-width) solid var(--border-color);
+  /* Brighter Icon Button Background */
+  background:rgba(255, 255, 255, 0.2); 
+  color:var(--ink);padding:8px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;transition:transform .12s ease,background .12s ease,color .12s ease,box-shadow .12s ease
+}
+.icon-btn:hover{
+  transform:translateY(-1px);
+  /* Brighter Icon Button Hover */
+  background:rgba(255, 255, 255, 0.4);
+}
+.icon-btn svg{display:block;width:18px;height:18px}
+.icon-btn.danger.active{color:var(--danger);background:rgba(255,99,99,.12);box-shadow:0 0 0 1px rgba(255,99,99,.35) inset}
+
+/* Toggle & presets — kit surface */
+.view-toggle, .zoom-presets {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-ui);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Brighter Toggle/Preset Container */
+  background: rgba(255, 255, 255, 0.2); 
+  border-radius: 12px;
+  padding: 6px;
+  border: var(--border-width) solid var(--border-color);
+}
+.view-toggle {
+  left: var(--corner-pad);
+}
+.zoom-presets {
+  right: var(--corner-pad);
+}
+.toggle-btn, .zoom-presets-btn {
+  appearance: none;
+  border: 0;
+  background: 0 0;
+  color: var(--ink-2);
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all .12s ease;
+  font-weight: 600;
+}
+.toggle-btn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.toggle-btn:hover, .zoom-presets-btn:hover {
+  color: var(--ink);
+  /* Brighter Toggle/Preset Hover */
+  background: rgba(255, 255, 255, 0.4); 
+}
+.toggle-btn.active, .zoom-presets-btn.active {
+  color: var(--accent);
+  /* Brighter Toggle/Preset Active State (RGB(126, 231, 135) from #7ee787) */
+  background: rgba(126, 231, 135, 0.4); 
+}
+
+/* Overlay — kit surface */
+.overlay{position:fixed;inset:0;z-index:1000;display:none;pointer-events:auto;background:radial-gradient(circle at center,rgba(0,0,0,.55) 0,rgba(0,0,0,.9) 100%);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:clamp(8px,2vw,18px)}
+.overlay.open{display:flex}
+.overlay.curved{transform:none!important;transform-style:flat!important;perspective:none!important}
+.sheet{
+  width:min(96vw,720px);
+  background-color:var(--card-color);
+  color:#f3f3f5;
+  border:var(--border-width) solid var(--border-color);
+  border-radius:18px;
+  padding:clamp(12px,2.2vw,20px);
+  box-shadow:0 13px 48px rgba(0,0,0,.25),0 2px 14px rgba(0,0,0,.2);
+  display:grid;grid-template-rows:auto 1fr auto;gap:10px;
+  max-height:min(92vh,92dvh)
+}
+.titlebar{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 8px 10px;
+  border-bottom:var(--border-width) solid rgba(255,255,255,.08);
+  /* Brighter Titlebar Background */
+  background-color:rgba(255, 255, 255, 0.1); 
+  border-radius:12px 12px 0 0;margin:-4px -2px 2px
+}
+.titlebar h2{margin:0;font-size:14px;letter-spacing:.01em}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;gap:10px}
+.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.label{font-weight:600;opacity:.9}
+.input,.textarea{
+  width:100%;border:var(--border-width) solid var(--border-color);
+  /* Brighter Input Field Background */
+  background-color:rgba(255, 255, 255, 0.1);
+  color:#fff;border-radius:10px;padding:8px 10px;font:inherit
+}
+.textarea{min-height:96px;resize:vertical}
+.btn{
+  appearance:none;cursor:pointer;border:var(--border-width) solid var(--border-color);
+  /* Brighter Button Background */
+  background-color:rgba(255, 255, 255, 0.1);
+  color:#fff;padding:9px 14px;border-radius:10px;font-weight:600;
+  transition:background .12s ease,border-color .12s ease,transform .12s ease
+}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:0 0}
+.btn.primary{border-color:var(--accent);background:var(--accent);color:#0b0b0d}
+.hint{color:#c9c9cf;font-size:12px}
+.sheet :focus{outline:2px solid color-mix(in oklab,var(--accent),#fff 10%);outline-offset:2px}
+
+/* Preview frames — kit override */
+.preview,.vf{
+  position:relative;width:100%;max-width:520px;aspect-ratio:1/1;height:auto;margin:6px auto 0;
+  background-color:#000;border-radius:14px;border:var(--border-width) solid var(--border-color);overflow:hidden
+}
+.vf video{width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.04) brightness(.98)}
+.preview canvas,.preview img{width:100%;height:auto;display:block}
+.preview::before{
+  content:"preview • intoview";position:absolute;top:0;left:0;right:0;height:26px;
+  /* Brighter Preview Titlebar Background */
+  background-color:rgba(255, 255, 255, 0.1); 
+  border-bottom:var(--border-width) solid var(--border-color);
+  font:600 11px/26px Inter,sans-serif;padding:0 10px;letter-spacing:.02em;color:#f0f0f0;z-index:3
+}
+  /* Leveler */
+  .leveler{
+    position:absolute;left:50%;bottom:10px;transform:translateX(-50%);
+    width:min(260px,72%);height:30px;border-radius:999px;
+    background-color:rgba(255,255,255,0.04);
+    border:var(--border-width) solid var(--border-color);
+    display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:auto
+  }
+  .leveler .vial{position:absolute;inset:4px;border-radius:999px;background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.06))}
+  .leveler .bubble{position:absolute;top:50%;transform:translate(-50%,-50%);left:var(--bubble-x,50%);width:22px;height:22px;border-radius:999px;background:#ffe066;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 2px 10px rgba(0,0,0,.35)}
+  .leveler .deg{position:absolute;right:8px;top:50%;transform:translateY(-50%);font:600 12px/1 Inter,sans-serif;color:#cfcfcf}
+  .leveler.good .vial{outline:2px solid rgba(120,255,120,.35);outline-offset:-2px}
+  .leveler .enable{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.35));backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);color:#fff;font-weight:600;font-size:12px;border-radius:inherit;cursor:pointer;border:var(--border-width) solid var(--border-color)}
+  
+  /* FAB — kit surface */
+  .fab-wrap{position:fixed;left:50%;bottom:var(--fab-bottom);transform:translateX(-50%);z-index:var(--z-ui);display:flex;flex-direction:column;align-items:center}
+  .fab{
+    position:relative;width:var(--fab-size);height:var(--fab-size);border-radius:999px;
+    background-color:rgba(255,255,255,0.04);color:#fff;border:var(--border-width) solid var(--border-color);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    box-shadow:0 16px 36px rgba(0,0,0,.05);
+    transition:background .15s ease,color .15s ease,transform .1s ease
+  }
+  .fab:hover{background:rgba(255,255,255,.08)}
+  .fab svg{width:58%;height:auto;display:block}
+  .fab-text{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);font:600 11px/1 Inter,sans-serif;color:#fff;opacity:.9}
+  @media (max-width:768px){
+    :root{--fab-size:128px;--fab-bottom:calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));--edge-blur:10px;--edge-mask-i:65%;--edge-mask-o:80%}
+    .sheet{width:min(98vw,560px)}
+  }
+  
+  /* HUD */
+  .hud{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 10px);z-index:var(--z-ui);pointer-events:none;font:600 10px/1 JetBrains Mono,ui-monospace,monospace;color:#c9c9cf;opacity:.9}
+  .hud-left{left:var(--corner-pad)} .hud-right{right:var(--corner-pad)}
+  @media (prefers-reduced-motion:reduce){.edge-blur{backdrop-filter:none;-webkit-backdrop-filter:none}}
+  
+  /* Cursor */
+  #cursor{position:fixed;top:calc(var(--cursor-size) * -.5);left:calc(var(--cursor-size) * -.5);pointer-events:none;filter:url(#goo);mix-blend-mode:difference;z-index:var(--z-cursor)}
+  .cursor-circle{position:absolute;top:0;left:0;width:var(--cursor-size);height:var(--cursor-size);border-radius:999px;background:#fff}
+  .goo{display:none}
+  @media (pointer:coarse){#cursor{display:none}}
+  
+  /* Takeover list view — kit visuals */
+  .takeover{position:fixed;inset:0;display:none;z-index:9999;color:#fff}
+  .takeover.open{display:block}
+  .takeover .backdrop{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.7));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .takeover .panel{position:absolute;inset:0;display:grid;grid-template-columns:420px 1fr;gap:24px;padding:36px}
+  .left{
+    background-color:var(--card-color);
+    border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:16px;align-items:stretch;overflow:hidden;
+    border:var(--border-width) solid var(--border-color)
+  }
+  .left .cover{flex:0 0 260px;border-radius:12px;background-size:cover;background-position:center;border:var(--border-width) solid var(--border-color)}
+  .left .info{display:flex;flex-direction:column;gap:6px}
+  .left .title{font-size:20px;font-weight:600}
+  .left .subtitle{color:var(--ink-3);font-size:13px}
+  .right{
+    background-color:var(--card-color);
+    border-radius:12px;padding:18px;overflow:auto;border:var(--border-width) solid var(--border-color);scrollbar-color:#444 #111
+  }
+  .list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:12px;border-bottom:var(--border-width) solid rgba(255,255,255,.08);margin-bottom:12px}
+  .list-search{display:flex;gap:8px;align-items:center}
+  .search-input{background-color:rgba(255,255,255,0.04);border:var(--border-width) solid var(--border-color);padding:8px 10px;border-radius:8px;color:inherit;font-family:inherit;font-size:14px}
+  .search-input:focus{outline:2px solid var(--accent);outline-offset:2px;border-color:transparent}
+  .note-item{display:grid;grid-template-columns:1fr auto 40px;gap:12px;padding:14px;border-radius:10px;align-items:center;background-color:#000;border:var(--border-width) solid var(--border-color);cursor:pointer}
+  .note-item+.note-item{margin-top:8px}
+  .note-meta{display:flex;flex-direction:column;overflow:hidden}
+  .note-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .note-sub{color:var(--ink-3);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .note-thumb{width:88px;height:64px;border-radius:8px;background-size:cover;background-position:center;flex-shrink:0;border:var(--border-width) solid var(--border-color)}
+  .note-delete-btn{appearance:none;background-color:rgba(255,255,255,0.04);border:var(--border-width) solid var(--border-color);color:var(--ink-3);padding:8px;cursor:pointer;border-radius:8px;transition:all .12s ease;display:flex;align-items:center;justify-content:center}
+  .note-delete-btn:hover{color:var(--danger);background:rgba(255,99,99,.12)}
+  .note-delete-btn svg{width:18px;height:18px}
+  .note-item:hover{background:rgba(255,255,255,.06)}
+  @media (max-width:920px){
+    .takeover .panel{grid-template-columns:1fr;grid-auto-rows:min-content;padding:18px}
+    .left{order:2}
+    .right{order:1;max-height:50vh}
+  }
+  
+  /* Morphing Disclosure kit */
+  .morphing-disclosure{width:100%;letter-spacing:-0.025em;line-height:1.5;font-size:0.875rem}
+  .morphing-disclosure:hover > details::after{opacity:1}
+  .morphing-disclosure:has([open]) details:not([open]) summary{opacity:0.4}
+  details.morph{background-color:rgba(255,255,255,0.05);cursor:pointer;position:relative;transition:margin var(--duration) var(--ease),translate var(--duration) var(--ease),border-radius var(--duration) var(--ease),border-color var(--duration) var(--ease),border-width var(--duration) var(--ease);border-inline:var(--border-width) solid var(--border-color);border-block-end:0px solid var(--border-color);border-block-start:0px solid transparent}
+  details.morph:first-of-type{border-block-start:var(--border-width) solid var(--border-color)}
+  details.morph:last-of-type{border-block-end:var(--border-width) solid var(--border-color)}
+  details.morph:has(+ details[open]){border-bottom-left-radius:12px;border-bottom-right-radius:12px;border-block-end:var(--border-width) solid var(--border-color)}
+  details.morph[open] + details.morph{border-top-left-radius:12px;border-top-right-radius:12px;border-block-start:var(--border-width) solid var(--border-color)}
+  details.morph[open]{margin-block:calc(1.5 * 1rem);border-radius:12px;z-index:10;border-block-end:var(--border-width) solid var(--border-color);border-block-start:var(--border-width) solid var(--border-color)}
+  details.morph[open]:first-of-type{margin-block-start:0}
+  details.morph[open]:last-of-type{margin-block-end:0}
+  details.morph:has(~ details[open]){translate:0 calc(1.5 * -1rem)}
+  details.morph[open] ~ details.morph{translate:0 calc(1.5 * 1rem)}
+  details.morph:hover::before{opacity:1}
+  details.morph::before,details.morph::after{border-radius:inherit;content:"";height:100%;left:0px;opacity:0;position:absolute;top:0px;transition:opacity 500ms;width:100%;pointer-events:none}
+  details.morph::before{background:radial-gradient(600px circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.1), transparent 40%);z-index:3}
+  details.morph::after{background:radial-gradient(400px circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.3), transparent 40%);z-index:1}
+  .morph-summary{padding:0.875rem 1rem;display:grid;grid-template-columns:auto 1fr auto;gap:1rem;align-items:center;cursor:pointer;list-style:none;-webkit-tap-highlight-color:transparent;transition:opacity var(--duration) var(--ease);position:relative;z-index:2;background-color:var(--card-color)}
+  details.morph:first-of-type .morph-summary{border-radius:12px 12px 0 0}
+  details.morph:last-of-type .morph-summary{border-radius:0 0 12px 12px}
+  details.morph:has(+ details[open]) .morph-summary{border-bottom-left-radius:12px;border-bottom-right-radius:12px}
+  details.morph[open] + details.morph .morph-summary{border-top-left-radius:12px;border-top-right-radius:12px}
+  details.morph[open] .morph-summary{border-radius:12px 12px 0 0}
+  .morph-summary svg{width:16px;opacity:0.7;transition:transform var(--duration) var(--ease),opacity var(--duration) var(--ease)}
+  .morph-summary svg:first-of-type{width:18px}
+  details.morph:hover .morph-summary svg:last-of-type{opacity:1}
+  details.morph[open] .morph-summary svg:last-of-type{transform:rotate(225deg)}
+  .morph-content{padding:0 1rem 1rem 1rem;translate:0 calc(1 * 1rem);opacity:0.4;filter:blur(calc(4 * 1px));color:rgba(255,255,255,0.7);transition:translate var(--duration) var(--ease),opacity var(--duration) var(--ease),filter var(--duration) var(--ease);position:relative;z-index:2;background-color:var(--card-color);border-radius:0 0 12px 12px}
+  .morph-content p{margin:0 0 0.75rem 0}
+  .morph-content p:last-child{margin-bottom:0}
+  details.morph[open] .morph-content{translate:0 0;opacity:1;filter:blur(0)}
+  kbd{background:rgba(255,255,255,0.1);padding:0.125rem 0.375rem;border-radius:6px;font-size:0.75rem;font-family:'JetBrains Mono', monospace;border:1px solid rgba(255,255,255,0.15)}
+
+
+
+
+  /* New List View Styles from list.html */
+@font-face {
+    font-family: "PP Supply Mono";
+    src: url("https://assets.codepen.io/7558/PPSupplyMono-Variable.woff2") format("woff2");
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+:root {
+    --color-foreground: rgb(250, 225, 250);
+    --color-background: rgb(5, 5, 5);
+    --color-accent: rgb(255, 223, 0);
+    --font-primary: "PP Supply Mono", monospace;
+}
+
+/* Adjustments for body within the overlay */
+.takeover body {
+    margin: 0;
+    font-family: var(--font-primary);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-weight: 400;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    position: relative;
+    overflow: hidden;
+    z-index: 10;
+}
+
+.portfolio-container::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--color-background);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 250 250' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='4' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.3;
+    z-index: 100;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+}
+
+.portfolio-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100vw;
+    padding: 0 2rem;
+    position: relative;
+    counter-reset: project-counter 0;
+}
+
+.project-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.project-item {
+    cursor: pointer;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 40px 1fr 2fr 1fr 1fr 80px;
+    grid-column-gap: 2rem;
+    padding: 12px 0;
+    align-items: center;
+    border-bottom: 1px solid rgba(200, 255, 200, 0.1);
+    transition: all 0.3s ease;
+    opacity: 1;
+    position: relative;
+}
+
+.project-item.active {
+    opacity: 1;
+    box-shadow: inset 0 1px 0 rgba(200, 255, 200, 0.2),
+        inset 0 -1px 0 rgba(200, 255, 200, 0.2);
+}
+
+.portfolio-container.has-active .project-item {
+    opacity: 0.3;
+}
+
+.portfolio-container.has-active .project-item.active {
+    opacity: 1;
+}
+
+.project-item::before {
+    content: counter(project-counter, decimal-leading-zero);
+    counter-increment: project-counter;
+    padding: 4px 0;
+    line-height: 0.8;
+    opacity: 0.6;
+    justify-self: start;
+    z-index: 10;
+    position: relative;
+    transition: opacity 0.1s ease;
+}
+
+.project-item.counter-hidden::before {
+    opacity: 0.05;
+}
+
+.project-data {
+    font-family: var(--font-primary);
+    position: relative;
+    white-space: nowrap;
+    text-decoration: none;
+    color: var(--color-foreground);
+    z-index: 1;
+    transition: all 0.3s ease;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1;
+    padding: 2px;
+}
+
+.project-data.artist,
+.project-data.album,
+.project-data.category {
+    justify-self: start;
+}
+
+.project-data.year {
+    justify-self: end;
+}
+
+.project-data.label {
+    justify-self: start;
+    opacity: 0.7;
+    font-weight: 300;
+}
+
+.project-data::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: calc(0px - 16px);
+    transform: translateY(-50%);
+    width: calc(100% + 16px + 16px);
+    height: calc(100% - 2px);
+    background: var(--color-accent);
+    transition: transform 0.3s ease;
+    transform: scaleX(0);
+    transform-origin: left;
+    z-index: -1;
+}
+
+.project-item:hover .project-data::after {
+    transform: scaleX(1);
+}
+
+.project-item:hover .project-data {
+    color: rgb(10, 10, 10) !important;
+}
+
+.background-image {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 800px;
+    height: 600px;
+    transform: translate(-50%, -50%) scale(1);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    transition: opacity 0.6s ease, transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    z-index: -2;
+}
+
+@media (max-width: 1200px) {
+    .project-item {
+        grid-template-columns: 30px 1fr 1.5fr 0.8fr 0.8fr 60px;
+        grid-column-gap: 1rem;
+    }
+
+    .background-image {
+        width: 600px;
+        height: 450px;
+    }
+}
+
+@media (max-width: 768px) {
+    .portfolio-container {
+        padding: 0 1rem;
+    }
+
+    .project-item {
+        grid-template-columns: 30px 1fr 1fr;
+        grid-column-gap: 1rem;
+    }
+
+    .project-data:not(.artist):not(.album) {
+        display: none;
+    }
+
+    .background-image {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+}
+  </style>
+
+
+
+<body><svg height=0 width=0 xmlns=http://www.w3.org/2000/svg aria-hidden=true class=goo><defs><filter id=goo><feGaussianBlur in=SourceGraphic result=blur stdDeviation=6></feGaussianBlur><feColorMatrix in=blur mode=matrix result=goo values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 35 -15"></feColorMatrix><feComposite in=SourceGraphic in2=goo operator=atop></feComposite></filter></defs></svg>
+  <div
+      id=cursor aria-hidden=true></div>
+      <div id=root></div>
+      <div class=view-toggle><button class=toggle-btn id=gridBtn title="Grid View"><svg height=24 width=24 xmlns=http://www.w3.org/2000/svg fill=none stroke=currentColor stroke-linecap=round stroke-linejoin=round stroke-width=2 viewBox="0 0 24 24"><rect height=7 width=7 x=3 y=3></rect><rect height=7 width=7 x=14 y=3></rect><rect height=7 width=7 x=14 y=14></rect><rect height=7 width=7 x=3 y=14></rect></svg></button>            <button class=toggle-btn id=listBtn title="List View"><svg height=24 width=24 xmlns=http://www.w3.org/2000/svg fill=none stroke=currentColor stroke-linecap=round stroke-linejoin=round stroke-width=2 viewBox="0 0 24 24"><line x1=8 x2=21 y1=6 y2=6></line><line x1=8 x2=21 y1=12 y2=12></line><line x1=8 x2=21 y1=18 y2=18></line><line x1=3 x2=3.01 y1=6 y2=6></line><line x1=3 x2=3.01 y1=12 y2=12></line><line x1=3 x2=3.01 y1=18 y2=18></line></svg></button></div>
+      <div
+          class="hud hud-left">v2.3.0</div>
+          <div class="hud hud-right" id=coordsMount>x 0 • y 0
+              </div
+
+
+
+
+
+
+
+
+
+><script type=module>import React,{useEffect,useMemo,useRef,useState,Suspense} from "https://esm.sh/react@18.3.1";
+  import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
+  import * as THREE from "https://esm.sh/three@0.160.1";
+  import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
+  import gsap from "https://esm.sh/gsap@3.12.5";
+  
+  /* ========= Seed images ========= */
+  /* UPDATED SEED with unique captions */
+  const SEED=[
+    {src:'https://i.ibb.co/rR91Q0Z4/603a967ad03490104c2aaefe-ZAX01042-2.webp',title:'ZAX01042-2',caption:'Light through a dusty window.'},  
+    {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp',title:'wmzWGlaw',caption:'Morning fog over the railway tracks.'},
+    {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp',title:'IMG-8403',caption:'Window frost, intricate patterns.'},
+    {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp',title:'DSC08656',caption:'Urban geometry, side of building.'},
+    {src:'https://i.ibb.co/bMJNnQtg/DSC08604.webp',title:'DSC08604',caption:'Textured glass panel, abstract.'},
+    {src:'https://i.ibb.co/qLWQC0cN/DSC08358.webp',title:'DSC08358',caption:'Shadow play on a curved wall.'},
+    {src:'https://i.ibb.co/rRdNxC5g/DSC08300.webp',title:'DSC08300',caption:'Industrial detail, metal and rust.'},
+    {src:'https://i.ibb.co/MD923R2f/DSC08254.webp',title:'DSC08254',caption:'Architectural lines, clear sky.'},
+    {src:'https://i.ibb.co/TBtrSYKc/DSC08233.webp',title:'DSC08233',caption:'Streetlight diffusion in mist.'},
+    {src:'https://i.ibb.co/23QsQrCG/DSC05954.webp',title:'DSC05954',caption:'Reflections in a still puddle.'},
+    {src:'https://i.ibb.co/ym1z1pyb/DSC05994.webp',title:'DSC05994',caption:'Late night, empty subway car.'},
+    {src:'https://i.ibb.co/bjMXB8HJ/2328964849369731672-5144774570.webp',title:'2328964849…4570',caption:'Minimalist interior, single chair.'},
+    {src:'https://i.ibb.co/fd1SDQQs/2399506735674938043-5144774570.webp',title:'2399506735…4570',caption:'Overpass structure, brutalist form.'},
+    {src:'https://i.ibb.co/0pNWKFbk/2319420263505008414-5144774570.webp',title:'2319420263…4570',caption:'Worn steps, public staircase.'},
+    {src:'https://i.ibb.co/WvW71PR3/2288089293770285108-5144774570.webp',title:'2288089293…4570',caption:'Found object, weathered plastic.'},
+    {src:'https://i.ibb.co/1YyFqBj3/2278120764300123596-5144774570.webp',title:'2278120764…4570',caption:'Water patterns, flowing stream.'},
+    {src:'https://i.ibb.co/99B3hgp3/2274809041971350857-5144774570.webp',title:'2274809041…4570',caption:'Facade detail, repeating windows.'},
+    {src:'https://i.ibb.co/HpnrrYMR/2269419019461331921-5144774570.webp',title:'2269419019…4570',caption:'Underground passage, tiled walls.'},
+    {src:'https://i.ibb.co/6Rqf37ft/6039d4bbb15be328fc33b54d-IMG-6478.webp',title:'IMG-6478',caption:'Close-up of a woven fabric.'},
+    {src:'https://i.ibb.co/BKv7177j/603d6216612acc7c7e54bef2-IMG-1158.webp',title:'IMG-1158',caption:'Soft light on a plaster surface.'},
+    {src:'https://i.ibb.co/k2svMNFv/603d10120fba838e599b6b5e-IMG-1563.webp',title:'IMG-1563',caption:'Condensation on cold glass.'},
+    {src:'https://i.ibb.co/WNtnFQqP/603d1185cafcb2591f42b1ad-IMG-3932.webp',title:'IMG-3932',caption:'Blurred motion, city lights.'},
+    {src:'https://i.ibb.co/pvFThr4K/603d1185b8ec32082f451ba9-IMG-3882.webp',title:'IMG-3882',caption:'Line of trees, winter silhouette.'},
+    {src:'https://i.ibb.co/QFKMY1sH/603d138e1d5ed053b509992a-IMG-5199.webp',title:'IMG-5199',caption:'Isolated building, dusk sky.'},
+    {src:'https://i.ibb.co/N2cSNMf4/603d102d9f59a611886a6893-IMG-2151.webp',title:'IMG-2151',caption:'Rooftop view, antenna array.'},
+    {src:'https://i.ibb.co/KjzkkW68/603d102d0f02c70fdf7d84eb-IMG-4696.webp',title:'IMG-4696',caption:'Neon sign reflection on wet pavement.'},
+    {src:'https://i.ibb.co/DPyhP1T7/603d100d889053cc334ee5fc-IMG-2083.webp',title:'IMG-2083',caption:'Abstract light flare, bokeh.'},
+    {src:'https://i.ibb.co/Fbr1sSb6/603d8d7a3a6df470a4a661a1-DSC00726.webp',title:'DSC00726',caption:'Shadow of a fence on grass.'},
+    {src:'https://i.ibb.co/5gddKNw3/603d0bb2331da47ee88db089-DSC02085.webp',title:'DSC02085',caption:'Parking garage interior, empty.'},
+    {src:'https://i.ibb.co/9HZMK0nw/603d0b8b038105ae6904872a-DSC08334.webp',title:'DSC08334',caption:'Monochrome study of a leaf.'},
+    {src:'https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp',title:'DSC08281',caption:'Single cloud, vast open sky.'},
+    {src:'https://i.ibb.co/QvHqKh2P/603afe37ba16f8f9174cf501-IMG-1878.webp',title:'IMG-1878',caption:'Door handle, metal and wood.'},
+    {src:'https://i.ibb.co/m5sNTvYX/603a967916b10d5bef5a6dd8-ZAX02712-1.webp',title:'ZAX02712-1',caption:'Cracked paint on an old wall.'},
+    {src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:'Corridor light study, concrete hall.'},
+    {src:'https://i.ibb.co/tpK7LjSv/603a967ac64cec73069e2454-ZAX09877.webp',title:'ZAX09877',caption:'Stairwell, top-down perspective.'},
+    {src:'https://i.ibb.co/Kph6fp3M/603a967a6a41f4d56ca33b1a-ZAX00794.webp',title:'ZAX00794',caption:'Power lines against a grey sky.'},
+    {src:'https://i.ibb.co/0yjJ4j8L/603a967a5dc3e982f571b744-ZAX00968.webp',title:'ZAX00968',caption:'Close-up of brushed aluminum.'},
+    {src:'https://i.ibb.co/zWBgb5Sj/603a95ee83ba30ff4ac9bc6a-DSC00423-1.webp',title:'DSC00423-1',caption:'Plastic sheeting, crinkled texture.'},
+    {src:'https://i.ibb.co/fdT1YyzJ/603a95edd03490eb412aaedc-DSC08676.webp',title:'DSC08676',caption:'Frosted glass, blurred silhouette.'},
+    {src:'https://i.ibb.co/FLS6ZdgN/603a95ed29478f4bc91875b5-DSC08933.webp',title:'DSC08933',caption:'Tire tracks in mud.'},
+    {src:'https://i.ibb.co/5Xr0MDSw/603a93f06a41f45766a3361a-DSC09212.webp',title:'DSC09212',caption:'Escalator, upward angle.'},
+    {src:'https://i.ibb.co/wNFR8hJR/603a93f1d03490ae9d2aa64a-IMG-3824.webp',title:'IMG-3824',caption:'Airport terminal, empty seats.'},
+    {src:'https://i.ibb.co/39wDDcbS/603a93f0e815e830d1783e07-IMG-2033.webp',title:'IMG-2033',caption:'Industrial pipes, repeating forms.'},
+    {src:'https://i.ibb.co/VcxChJB1/603a93eef8754819192222f7-DSC09720.webp',title:'DSC09720',caption:'Ripples on water surface.'},
+    {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp',title:'ZAX09767',caption:'Brick wall, strong side light.'}
+  ];
+  
+  /* ========= Config ========= */
+  const STORAGE_KEY="intoview_archive_cards_v6";
+  const CONFIG={
+    cols:10, rows:7, tile:0.32, gap:0.02, ambient:0.20, dragEase:0.14, velEase:0.92, zoomOut:1.85,
+    distortion:{ flat:0.0, curved:0.46 },
+    clickBounceDelta:0.25, longPressMsMouse:380, longPressMsTouch:520, clickMovePx:6, clickMovePxTouch:12,
+    dragMultMouse:6.0, dragMultTouch:4.0, touchDragEase:0.18,
+    zoomMin:0.25, zoomMax:3.00, wheelScale:0.0015,
+    boundSlack: 0.6,
+    rubber:     0.33,
+    magnet:     0.12
+  };
+  
+  /* ========= Utilities ========= */
+  const TEX_SIZE=768, HAIR=1, BAR_H=28, PAD=12, CAP_SIZE=18, TITLE_SIZE=20;
+  const MONO="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+  const UI="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
+  const isBlobOrData=u=>/^blob:|^data:/i.test(u);
+  function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"),
+    day=String(d.getDate()).padStart(2,"0"), hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
+    return `${y}-${m}-${day} • ${hh}:${mm}`; }
+  function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
+    img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
+  function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
+  function coverImage(ctx,img,x,y,w,h){
+    const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
+    if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
+    const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
+    if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
+    ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
+    ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(x,y,w,h);
+  }
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y,   x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x,   y+h, rr);
+    ctx.arcTo(x,   y+h, x,   y,   rr);
+    ctx.arcTo(x,   y,   x+w, y,   rr);
+    ctx.closePath();
+  }
+  function drawChromeBezel(ctx, s, opts={}) {
+    const w = Math.max(4, opts.width ?? 1);
+    const r = Math.min(12, opts.radius ?? 4);
+  
+    ctx.save();
+    ctx.translate(0.5, 0.5);
+  
+    const grad = ctx.createLinearGradient(0, 0, 0, s);
+    grad.addColorStop(0.00, "rgba(255,255,255,0.95)");
+    grad.addColorStop(0.15, "rgba(210,210,210,0.78)");
+    grad.addColorStop(0.50, "rgba(242,242,242,0.95)");
+    grad.addColorStop(0.85, "rgba(210,210,210,0.78)");
+    grad.addColorStop(1.00, "rgba(255,255,255,0.95)");
+  
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = w;
+    ctx.lineJoin  = "round";
+    ctx.lineCap   = "round";
+    roundRect(ctx, w/2, w/2, s - w, s - w, r);
+    ctx.stroke();
+  
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, w + 0.5, w + 0.5, s - 2*w - 1, s - 2*w - 1, Math.max(2, r - 2));
+    ctx.stroke();
+  
+    ctx.globalCompositeOperation = "lighter";
+    const specTL = ctx.createRadialGradient(w+9, w+9, 0, w+9, w+9, 32);
+    specTL.addColorStop(0,"rgba(255,255,255,0.35)");
+    specTL.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle = specTL; ctx.beginPath(); ctx.arc(w+9, w+9, 32, 0, Math.PI*2); ctx.fill();
+  
+    const specBR = ctx.createRadialGradient(s-w-12, s-w-12, 0, s-w-12, s-w-12, 38);
+    specBR.addColorStop(0,"rgba(255,255,255,0.28)");
+    specBR.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle = specBR; ctx.beginPath(); ctx.arc(s-w-12, s-w-12, 38, 0, Math.PI*2); ctx.fill();
+  
+    ctx.restore();
+  }
+  function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=nowTS()}) {
+    const s=TEX_SIZE, c=document.createElement("canvas"); c.width=s; c.height=s; const ctx=c.getContext("2d");
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,s,s);
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H);
+    ctx.font=`600 ${TITLE_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
+    ctx.fillText(title, PAD, Math.floor((BAR_H-TITLE_SIZE)/2));
+    if(gps){
+      ctx.font=`500 12px ${MONO}`; ctx.textBaseline="middle"; ctx.textAlign="right"; ctx.fillStyle="#cfcfcf";
+      ctx.fillText(gps, s-PAD, BAR_H/2); ctx.textAlign="left";
+    }
+    drawHair(ctx,0,BAR_H,s);
+    const imgTop=BAR_H+HAIR, imgH=s-imgTop-(BAR_H+HAIR);
+    if(img){ coverImage(ctx,img,0,imgTop,s,imgH); }
+    else{
+      // FIX: Force solid black fill and thick white border
+      const BORDER_W = 4;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, imgTop, s, imgH);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = BORDER_W;
+      ctx.strokeRect(
+        BORDER_W / 2,
+        imgTop + BORDER_W / 2,
+        s - BORDER_W,
+        imgH - BORDER_W
+      );
+    }
+    drawHair(ctx,0,s-BAR_H-HAIR,s);
+    ctx.fillStyle="#000"; ctx.fillRect(0,s-BAR_H,s,BAR_H);
+    ctx.font=`500 ${CAP_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
+    ctx.fillText(caption, PAD, s-BAR_H/2);
+    ctx.font=`500 12px ${MONO}`; ctx.fillStyle="#cfcfcf"; ctx.textAlign="right"; ctx.fillText(ts, s-PAD, s-BAR_H/2);
+    drawChromeBezel(ctx, s, { width: 1, radius: 0 });
+    return c;
+  }
+  function makeCardTextureFromCanvas(cnv){
+      const tex = new THREE.CanvasTexture(cnv);
+      
+      // FINAL FIX: Ensure the texture wraps correctly and color space is explicit.
+      tex.format = THREE.RGBAFormat; 
+      tex.colorSpace = THREE.SRGBColorSpace; 
+      
+      // These properties are often the culprit when material color overrides texture
+      tex.wrapS = THREE.ClampToEdgeWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      return tex;
+  }
+  function makeEmptyTexture(){ return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""})); }
+  // Replace the existing makeFillerTexture function with this:
+  function makeFillerTexture(){
+    // Revert to a basic, uninitialized THREE.Texture.
+    // This often forces the material to use its default color (which should be black).
+    const tex = new THREE.Texture();
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    return tex;
+  }
+  async function textureForItem(item){
+    if(item?.placeholder){
+      const cnv = makeCardCanvas({ img:null, title:item.title || "new note", caption:item.caption || "tap to start", gps:"", ts:"" });
+      return makeCardTextureFromCanvas(cnv);
+    }
+    if(!item||!item.src) return makeEmptyTexture();
+    if(item.baked){ try{ const img=await loadImage(item.src); const tex=new THREE.Texture(img); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; } catch (e){ console.warn(e); return makeEmptyTexture(); } }
+    const img=await loadImage(item.src).catch(e=>{ console.warn(e); return null; });
+    return makeCardTextureFromCanvas(makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()}));
+  }
+  /* Removed buildRowMajorTextures function */
+  
+  /* ========= Post shader ========= */
+  class DistortionShader extends THREE.ShaderMaterial{
+    constructor(){ super({
+      name:"DistortionShader",
+      uniforms:{ tDiffuse:{value:null}, distortion:{value:new THREE.Vector2(0,0)} },
+      vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position,1.0); }`,
+      fragmentShader:`precision highp float; uniform sampler2D tDiffuse; uniform vec2 distortion; varying vec2 vUv;
+      vec2 s(vec2 uv){ return 2.0*(uv-0.5);} vec2 u(vec2 suv){ return suv*0.5+0.5;}
+      void main(){ vec2 suv=s(vUv); suv*=(0.88 + distortion*dot(suv,suv)); vec2 uv2=u(suv);
+        vec3 col=texture2D(tDiffuse, uv2).rgb; gl_FragColor=vec4(col,1.0); }`
+    }); this._dist=0; this.update(); }
+    update(){ const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h); this.uniforms.distortion.value.set(this._dist*r,this._dist*r); }
+    setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
+  }
+  
+  /* ========= Bracket overlay (slightly inset) ========= */
+  function BracketOverlay(){
+    const { scene, size } = useThree();
+    const matRef = useRef(null);
+    const rafRef = useRef(null);
+    const target = useRef(new THREE.Vector2(0,0));
+    const current = useRef(new THREE.Vector2(0,0));
+  
+    useEffect(()=>{
+      const geom = new THREE.PlaneGeometry(2,2);
+      const mat = new THREE.ShaderMaterial({
+        name:"BracketOverlay",
+        transparent:true,
+        depthTest:false,
+        depthWrite:false,
+        uniforms:{
+          resolution:{ value:new THREE.Vector2(size.width, size.height) },
+          thickness:{ value: 4.0 },
+          length:{ value: 84.0 },
+          margin:{ value: 52.0 },
+          marginTop:{ value: 52.0 },
+          marginBottom:{ value: 52.0 },
+          edgeSoft:{ value: 8.0 },
+          offset:{ value: new THREE.Vector2(0.0, 0.0) },
+          opacity:{ value: 0.95 }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main(){ vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }
+        `,
+        fragmentShader: `
+          precision highp float;
+          varying vec2 vUv;
+          uniform vec2 resolution;
+          uniform float thickness, length, margin, marginTop, marginBottom, edgeSoft, opacity;
+          uniform vec2 offset;
+          float inRect(vec2 p, vec2 a, vec2 b){
+            vec2 s = step(a, p) * step(p, b);
+            return s.x * s.y;
+          }
+          void main(){
+            vec2 p = vUv * resolution + offset;
+            float th = thickness;
+            float L = length;
+            float m = margin;
+            float mt = marginTop;
+            float mb = marginBottom;
+            vec2 tl = vec2(m, resolution.y - mt);
+            vec2 tr = vec2(resolution.x - m, resolution.y - mt);
+            vec2 bl = vec2(m, mb);
+            vec2 br = vec2(resolution.x - m, mb);
+            float a = 0.0;
+            a = max(a, inRect(p, vec2(tl.x, tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
+            a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L), vec2(tl.x + th*0.5, tl.y)));
+            a = max(a, inRect(p, vec2(tr.x - L, tr.y - th*0.5), vec2(tr.x, tr.y + th*0.5)));
+            a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L), vec2(tr.x + th*0.5, tr.y)));
+            a = max(a, inRect(p, vec2(bl.x, bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
+            a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y), vec2(bl.x + th*0.5, bl.y + L)));
+            a = max(a, inRect(p, vec2(br.x - L, br.y - th*0.5), vec2(br.x, br.y + th*0.5)));
+            a = max(a, inRect(p, vec2(br.x - th*0.5, br.y), vec2(br.x + th*0.5, br.y + L)));
+            if(a <= 0.0) discard;
+            gl_FragColor = vec4(vec3(1.0), a * opacity);
+          }
+        `
+      });
+      mat.toneMapped = false;
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 9999;
+      scene.add(mesh);
+      matRef.current = mat;
+  
+      return ()=>{
+        try{ scene.remove(mesh); }catch(e){}
+        try{ mat.dispose && mat.dispose(); }catch(e){}
+        try{ geom.dispose && geom.dispose(); }catch(e){}
+        matRef.current = null;
+        if(rafRef.current) cancelAnimationFrame(rafRef.current);
+      };
+    },[scene]);
+  
+    useEffect(()=>{
+      if(!matRef.current) return;
+      matRef.current.uniforms.resolution.value.set(size.width, size.height);
+      matRef.current.uniforms.margin.value = 52.0;
+      matRef.current.uniforms.opacity.value = 0.95;
+  
+      // initial size-based settings
+      const W = size.width;
+      const desktop = W >= 1024;
+      const tablet  = W >= 768 && W < 1024;
+      const th = desktop ? 3.25 : (tablet ? 2.7 : 2.0);
+      const L  = desktop ? 72.0 : (tablet ? 62.0 : 54.0);
+      matRef.current.uniforms.thickness.value = th;
+      matRef.current.uniforms.length.value = L;
+  
+      // parallax target and lerp
+      let tgt = new THREE.Vector2(0,0);
+      let cur = new THREE.Vector2(0,0);
+      const stiffness = 0.12;
+      const maxOffset = Math.min(size.width, 120) * 0.06;
+      function onPointer(e){
+        const rect = document.documentElement.getBoundingClientRect();
+        const cx = rect.left + rect.width/2;
+        const cy = rect.top + rect.height/2;
+        const dx = e.clientX - cx;
+        const dy = e.clientY - cy;
+        const fx = -dx * 0.06;
+        const fy = -dy * 0.03;
+        tgt.set(Math.max(-maxOffset, Math.min(maxOffset, fx)), Math.max(-maxOffset, Math.min(maxOffset, fy)));
+      }
+      function onTouch(e){
+        if(!e.touches || !e.touches.length) return;
+        const t = e.touches[0];
+        onPointer({ clientX:t.clientX, clientY:t.clientY });
+      }
+      function tick(){
+        cur.x += (tgt.x - cur.x) * stiffness;
+        cur.y += (tgt.y - cur.y) * stiffness;
+        if(matRef.current && matRef.current.uniforms && matRef.current.uniforms.offset){
+          matRef.current.uniforms.offset.value.set(cur.x, cur.y);
         }
-
-        *,
-        *::after,
-        *::before {
-            box-sizing: border-box;
+        rafRef.current = requestAnimationFrame(tick);
+      }
+      window.addEventListener('pointermove', onPointer, { passive:true });
+      window.addEventListener('touchmove', onTouch, { passive:true });
+      tick();
+  
+      // safe-area aware mobile placement
+      function getHeaderFooterSafeArea(){
+        let headerH = 0, footerH = 0;
+        const header = document.querySelector('header, .site-header, #header');
+        const footer = document.querySelector('footer, .site-footer, #footer');
+        if (header) headerH = Math.max(0, header.getBoundingClientRect().height);
+        if (footer) footerH = Math.max(0, footer.getBoundingClientRect().height);
+        return { headerH, footerH };
+      }
+  
+      function applyMobileLayout(){
+        const { headerH, footerH } = getHeaderFooterSafeArea();
+        const isMobile = window.matchMedia('(max-width: 640px)').matches;
+        // compute CSS safe-area-inset-bottom
+        let safeInsetBottom = 0;
+        try{
+          const tmp = document.createElement('div');
+          tmp.style.cssText = 'position:fixed;bottom:0;left:0;width:0;height:0;padding-bottom:env(safe-area-inset-bottom);pointer-events:none;visibility:hidden;';
+          document.documentElement.appendChild(tmp);
+          const val = getComputedStyle(tmp).paddingBottom;
+          if(val && val.endsWith('px')) safeInsetBottom = parseFloat(val.replace('px','')) || 0;
+          document.documentElement.removeChild(tmp);
+        }catch(e){ safeInsetBottom = 0; }
+  
+        if (isMobile){
+          const mt = headerH + 24;
+          const extraBuffer = 12;
+          const mb = Math.max(24, footerH + 24 + safeInsetBottom + extraBuffer);
+          matRef.current.uniforms.marginTop.value = mt;
+          matRef.current.uniforms.marginBottom.value = mb;
+          matRef.current.uniforms.margin.value = Math.max(24, Math.min(100, Math.round(Math.min(size.width,240) * 0.2)));
+          matRef.current.uniforms.length.value = Math.max(28.0, Math.min(64.0, size.width * 0.06));
+          matRef.current.uniforms.thickness.value = 2.0;
+          matRef.current.uniforms.edgeSoft.value = 6.0;
+        } else {
+          matRef.current.uniforms.marginTop.value = 52.0;
+          matRef.current.uniforms.marginBottom.value = 52.0;
+          matRef.current.uniforms.margin.value = 52.0;
+          matRef.current.uniforms.length.value = Math.max(48.0, Math.min(96.0, size.width * 0.06));
+          matRef.current.uniforms.thickness.value = 3.25;
+          matRef.current.uniforms.edgeSoft.value = 8.0;
         }
-
-        :root {
-            --color-foreground: rgb(250, 225, 250);
-            --color-background: rgb(5, 5, 5);
-            --color-accent: rgb(255, 223, 0);
-            --font-primary: "PP Supply Mono", monospace;
-        }
-
-        body {
-            margin: 0;
-            font-family: var(--font-primary);
-            background-color: var(--color-background);
-            color: var(--color-foreground);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            font-weight: 400;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            position: relative;
-            overflow: hidden;
-            z-index: 10;
-        }
-
-        body::after {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 100%;
-            background-image: repeating-linear-gradient(
-                transparent,
-                transparent 2px,
-                #ffffff0d 4px
-            );
-            background-size: auto 100%;
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        .portfolio-container::before {
-            content: "";
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--color-background);
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 250 250' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='4' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-            opacity: 0.3;
-            z-index: 100;
-            pointer-events: none;
-            mix-blend-mode: overlay;
-        }
-
-        .portfolio-container {
-            display: flex;
-            flex-direction: column;
-            gap: 0;
-            width: 100vw;
-            padding: 0 2rem;
-            position: relative;
-            counter-reset: project-counter 0;
-        }
-
-        .project-list {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-        }
-
-        .project-item {
-            cursor: pointer;
-            width: 100%;
-            display: grid;
-            grid-template-columns: 40px 1fr 2fr 1fr 1fr 80px;
-            grid-column-gap: 2rem;
-            padding: 12px 0;
-            align-items: center;
-            border-bottom: 1px solid rgba(200, 255, 200, 0.1);
-            transition: all 0.3s ease;
-            opacity: 1;
-            position: relative;
-        }
-
-        .project-item.active {
-            opacity: 1;
-            box-shadow: inset 0 1px 0 rgba(200, 255, 200, 0.2),
-                inset 0 -1px 0 rgba(200, 255, 200, 0.2);
-        }
-
-        .portfolio-container.has-active .project-item {
-            opacity: 0.3;
-        }
-
-        .portfolio-container.has-active .project-item.active {
-            opacity: 1;
-        }
-
-        .project-item::before {
-            content: counter(project-counter, decimal-leading-zero);
-            counter-increment: project-counter;
-            padding: 4px 0;
-            line-height: 0.8;
-            opacity: 0.6;
-            justify-self: start;
-            z-index: 10;
-            position: relative;
-            transition: opacity 0.1s ease;
-        }
-
-        .project-item.counter-hidden::before {
-            opacity: 0.05;
-        }
-
-        .project-data {
-            font-family: var(--font-primary);
-            position: relative;
-            white-space: nowrap;
-            text-decoration: none;
-            color: var(--color-foreground);
-            z-index: 1;
-            transition: all 0.3s ease;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            line-height: 1;
-            padding: 2px;
-        }
-
-        .project-data.artist {
-            justify-self: start;
-        }
-
-        .project-data.album {
-            justify-self: start;
-        }
-
-        .project-data.category {
-            justify-self: start;
-        }
-
-        .project-data.label {
-            justify-self: start;
-        }
-
-        .project-data.year {
-            justify-self: end;
-            text-align: right;
-        }
-
-        .project-data::after {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: -8px;
-            width: calc(100% + 16px);
-            height: calc(100% - 2px);
-            background: var(--color-accent);
-            transition: transform 0.3s ease;
-            transform: scaleX(0);
-            transform-origin: left;
-            z-index: -1;
-        }
-
-        .project-item:hover .project-data::after {
-            transform: scaleX(1);
-        }
-
-        .project-item:hover .project-data {
-            color: rgb(10, 10, 10) !important;
-        }
-
-        .background-image {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            width: 800px;
-            height: 600px;
-            transform: translate(-50%, -50%) scale(1);
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            opacity: 0;
-            transition: opacity 0.6s ease,
-                transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-            z-index: -2;
-        }
-
-        @media (max-width: 1200px) {
-            .project-item {
-                grid-template-columns: 30px 1fr 1.5fr 0.8fr 0.8fr 60px;
-                grid-column-gap: 1rem;
-            }
-
-            .background-image {
-                width: 600px;
-                height: 450px;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .portfolio-container {
-                padding: 0 1rem;
-            }
-
-            .project-item {
-                grid-template-columns: 30px 1fr 1fr;
-                grid-column-gap: 1rem;
-            }
-
-            .project-data:not(.artist):not(.album) {
-                display: none;
-            }
-
-            .background-image {
-                width: 400px;
-                height: 300px;
-            }
-        }
-    </style>
-</head>
-<body>
-
-    <main class="portfolio-container">
-        <ul class="project-list" role="list">
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-001.jpg">
-                <span class="project-data artist hover-text">DEATH ON THE BALCONY</span>
-                <span class="project-data album hover-text">VICE</span>
-                <span class="project-data category hover-text">SINGLE</span>
-                <span class="project-data label hover-text">SELF RELEASED</span>
-                <span class="project-data year hover-text">2023</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-002.jpg">
-                <span class="project-data artist hover-text">JIMMY WHOO</span>
-                <span class="project-data album hover-text">NIGHTFALL</span>
-                <span class="project-data category hover-text">EP</span>
-                <span class="project-data label hover-text">DEEP HOUSE</span>
-                <span class="project-data year hover-text">2022</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-003.jpg">
-                <span class="project-data artist hover-text">HERMANOS GUTIÉRREZ</span>
-                <span class="project-data album hover-text">EL BUENO Y EL MALO</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">EASY EYE SOUND</span>
-                <span class="project-data year hover-text">2022</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-004.jpg">
-                <span class="project-data artist hover-text">NEIL FRANCES</span>
-                <span class="project-data album hover-text">LINES</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">ISKA DHAMD</span>
-                <span class="project-data year hover-text">2021</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-005.jpg">
-                <span class="project-data artist hover-text">ADDEX</span>
-                <span class="project-data album hover-text">MIDNIGHT SESSIONS</span>
-                <span class="project-data category hover-text">EP</span>
-                <span class="project-data label hover-text">ELECTRONIC</span>
-                <span class="project-data year hover-text">2023</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-006.jpg">
-                <span class="project-data artist hover-text">BEYHUDE</span>
-                <span class="project-data album hover-text">YALNIZLIK</span>
-                <span class="project-data category hover-text">SINGLE</span>
-                <span class="project-data label hover-text">ALBÜM YAPIM</span>
-                <span class="project-data year hover-text">2023</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-007.jpg">
-                <span class="project-data artist hover-text">THING</span>
-                <span class="project-data album hover-text">SHAPES</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">KOMPAKT</span>
-                <span class="project-data year hover-text">2021</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-008.jpg">
-                <span class="project-data artist hover-text">ABAKUS</span>
-                <span class="project-data album hover-text">THAT MUCH CLOSER TO THE SUN</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">BEATSERVICE</span>
-                <span class="project-data year hover-text">2020</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-001.jpg">
-                <span class="project-data artist hover-text">SAINTÉ</span>
-                <span class="project-data album hover-text">ANXIETY</span>
-                <span class="project-data category hover-text">SINGLE</span>
-                <span class="project-data label hover-text">PARLOPHONE</span>
-                <span class="project-data year hover-text">2023</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-002.jpg">
-                <span class="project-data artist hover-text">CANNONS</span>
-                <span class="project-data album hover-text">FEVER DREAM</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">COLUMBIA</span>
-                <span class="project-data year hover-text">2022</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-003.jpg">
-                <span class="project-data artist hover-text">BAWO</span>
-                <span class="project-data album hover-text">REAL LIES</span>
-                <span class="project-data category hover-text">EP</span>
-                <span class="project-data label hover-text">NINJA TUNE</span>
-                <span class="project-data year hover-text">2023</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-004.jpg">
-                <span class="project-data artist hover-text">SUMAC DUB</span>
-                <span class="project-data album hover-text">ECHOES FROM THE VOID</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">DUB RECORDS</span>
-                <span class="project-data year hover-text">2022</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-005.jpg">
-                <span class="project-data artist hover-text">LEISURE</span>
-                <span class="project-data album hover-text">THE BIG DOOR</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">CASCINE</span>
-                <span class="project-data year hover-text">2021</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-006.jpg">
-                <span class="project-data artist hover-text">MINDCHATTER</span>
-                <span class="project-data album hover-text">IMAGINARY FRIENDS</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">INDEPENDENT</span>
-                <span class="project-data year hover-text">2023</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-007.jpg">
-                <span class="project-data artist hover-text">DJ CINÉMA QUARTIER LATIN</span>
-                <span class="project-data album hover-text">NUIT BLANCHE</span>
-                <span class="project-data category hover-text">MIX</span>
-                <span class="project-data label hover-text">KITSUNE</span>
-                <span class="project-data year hover-text">2023</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-008.jpg">
-                <span class="project-data artist hover-text">EVREN FURTUNA</span>
-                <span class="project-data album hover-text">COSMIC FREQUENCIES</span>
-                <span class="project-data category hover-text">EP</span>
-                <span class="project-data label hover-text">DEEP TECH</span>
-                <span class="project-data year hover-text">2022</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-001.jpg">
-                <span class="project-data artist hover-text">PABLO BOLIVAR</span>
-                <span class="project-data album hover-text">MEMORIES</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">SEVEN VILLAS</span>
-                <span class="project-data year hover-text">2021</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-002.jpg">
-                <span class="project-data artist hover-text">DIALE</span>
-                <span class="project-data album hover-text">FRAGMENTS</span>
-                <span class="project-data category hover-text">EP</span>
-                <span class="project-data label hover-text">AFTERLIFE</span>
-                <span class="project-data year hover-text">2023</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-003.jpg">
-                <span class="project-data artist hover-text">MARTIN ROTH</span>
-                <span class="project-data album hover-text">REBIRTH</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">IBOGA</span>
-                <span class="project-data year hover-text">2022</span>
-            </li>
-            <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-004.jpg">
-                <span class="project-data artist hover-text">KLARTRAUM</span>
-                <span class="project-data album hover-text">LUCID</span>
-                <span class="project-data category hover-text">ALBUM</span>
-                <span class="project-data label hover-text">LUCIDFLOW</span>
-                <span class="project-data year hover-text">2023</span>
-            </li>
-        </ul>
-    </main>
-
-    <div class="background-image" id="backgroundImage" role="img" aria-hidden="true"></div>
-
-    <script>
-        const CONFIG = {
-            timeZone: "Europe/Zagreb",
-            timeUpdateInterval: 1000
-        };
-
-        class AnimationManager {
-            constructor() {
-                this.backgroundImage = document.getElementById("backgroundImage");
-                this.projectItems = document.querySelectorAll(".project-item");
-                this.portfolioContainer = document.querySelector(".portfolio-container");
-                this.currentActiveIndex = -1;
-                this.originalTexts = new Map();
-                this.debounceTimeout = null;
-                this.idleAnimation = null;
-                this.isIdle = true;
-                this.idleTimer = null;
-                this.projectItems.forEach((item) => {
-                    const textElements = item.querySelectorAll(".hover-text");
-                    const texts = Array.from(textElements).map((el) => el.textContent);
-                    this.originalTexts.set(item, texts);
-                });
-            }
-            initializeAnimations() {
-                this.preloadImages();
-                this.projectItems.forEach((item, index) => {
-                    this.addEventListeners(item, index);
-                });
-                const container = document.querySelector(".portfolio-container");
-                container.addEventListener("mouseleave", () => {
-                    if (this.debounceTimeout) {
-                        clearTimeout(this.debounceTimeout);
-                    }
-                    this.clearActiveStates();
-                    this.hideBackgroundImage();
-                    this.startIdleTimer();
-                });
-                this.startIdleTimer();
-            }
-            preloadImages() {
-                this.projectItems.forEach((item) => {
-                    const imageUrl = item.dataset.image;
-                    if (imageUrl) {
-                        const img = new Image();
-                        img.crossOrigin = "anonymous";
-                        img.src = imageUrl;
-                    }
-                });
-            }
-            addEventListeners(item, index) {
-                const textElements = item.querySelectorAll(".hover-text");
-                const imageUrl = item.dataset.image;
-                const originalTexts = this.originalTexts.get(item);
-                const handleMouseEnter = () => {
-                    this.stopIdleAnimation();
-                    this.stopIdleTimer();
-                    this.isIdle = false;
-                    if (this.debounceTimeout) {
-                        clearTimeout(this.debounceTimeout);
-                    }
-                    if (this.currentActiveIndex === index) return;
-                    this.updateActiveStates(index);
-                    textElements.forEach((element, i) => {
-                        gsap.killTweensOf(element);
-                        gsap.to(element, {
-                            duration: 0.8,
-                            scrambleText: {
-                                text: originalTexts[i],
-                                chars: "qwerty1337h@ck3r",
-                                revealDelay: 0.3,
-                                speed: 0.4
-                            }
-                        });
-                    });
-                    if (imageUrl) {
-                        this.showBackgroundImage(imageUrl);
-                    }
-                };
-                const handleMouseLeave = () => {
-                    this.debounceTimeout = setTimeout(() => {
-                        textElements.forEach((element, i) => {
-                            gsap.killTweensOf(element);
-                            element.textContent = originalTexts[i];
-                        });
-                    }, 50);
-                };
-                item.addEventListener("mouseenter", handleMouseEnter);
-                item.addEventListener("mouseleave", handleMouseLeave);
-            }
-            updateActiveStates(activeIndex) {
-                this.currentActiveIndex = activeIndex;
-                this.portfolioContainer.classList.add("has-active");
-                this.projectItems.forEach((item, index) => {
-                    if (index === activeIndex) {
-                        item.classList.add("active");
-                    } else {
-                        item.classList.remove("active");
-                    }
-                });
-            }
-            clearActiveStates() {
-                this.currentActiveIndex = -1;
-                this.portfolioContainer.classList.remove("has-active");
-                this.projectItems.forEach((item) => {
-                    item.classList.remove("active");
-                    const textElements = item.querySelectorAll(".hover-text");
-                    const originalTexts = this.originalTexts.get(item);
-                    textElements.forEach((element, i) => {
-                        gsap.killTweensOf(element);
-                        element.textContent = originalTexts[i];
-                    });
-                });
-                this.startIdleTimer();
-            }
-            showBackgroundImage(imageUrl) {
-                // Reset transform and transition
-                this.backgroundImage.style.transition = "none";
-                this.backgroundImage.style.transform = "translate(-50%, -50%) scale(1.2)";
-                // Set the background image and show it
-                this.backgroundImage.style.backgroundImage = `url(${imageUrl})`;
-                this.backgroundImage.style.opacity = "1";
-                // Force browser to acknowledge the scale reset before animating
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        // Re-enable transition and animate to scale 1.0
-                        this.backgroundImage.style.transition =
-                            "opacity 0.6s ease, transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
-                        this.backgroundImage.style.transform =
-                            "translate(-50%, -50%) scale(1.0)";
-                    });
-                });
-            }
-            hideBackgroundImage() {
-                this.backgroundImage.style.opacity = "0";
-            }
-            startIdleTimer() {
-                this.stopIdleTimer();
-                this.idleTimer = setTimeout(() => {
-                    if (this.currentActiveIndex === -1) {
-                        this.isIdle = true;
-                        this.startIdleAnimation();
-                    }
-                }, 3000);
-            }
-            stopIdleTimer() {
-                if (this.idleTimer) {
-                    clearTimeout(this.idleTimer);
-                    this.idleTimer = null;
-                }
-            }
-            startIdleAnimation() {
-                if (this.idleAnimation) return;
-                this.idleAnimation = gsap.timeline({
-                    repeat: -1,
-                    repeatDelay: 2
-                });
-                const columnElements = {
-                    artists: [...this.projectItems].map((item) =>
-                        item.querySelector(".artist")
-                    ),
-                    albums: [...this.projectItems].map((item) =>
-                        item.querySelector(".album")
-                    ),
-                    categories: [...this.projectItems].map((item) =>
-                        item.querySelector(".category")
-                    ),
-                    labels: [...this.projectItems].map((item) =>
-                        item.querySelector(".label")
-                    ),
-                    years: [...this.projectItems].map((item) => item.querySelector(".year"))
-                };
-                const totalRows = this.projectItems.length;
-                const columnStartDelay = 0.25;
-                const rowDelay = 0.05;
-                const hideShowGap = totalRows * rowDelay * 0.5;
-                this.projectItems.forEach((item, rowIndex) => {
-                    const hideTime = 0 + rowIndex * rowDelay;
-                    const showTime = 0 + hideShowGap + rowIndex * rowDelay;
-                    this.idleAnimation.call(
-                        () => {
-                            item.classList.add("counter-hidden");
-                        },
-                        [],
-                        hideTime
-                    );
-                    this.idleAnimation.call(
-                        () => {
-                            item.classList.remove("counter-hidden");
-                        },
-                        [],
-                        showTime
-                    );
-                });
-                Object.keys(columnElements).forEach((columnName, columnIndex) => {
-                    const elements = columnElements[columnName];
-                    const columnStart = (columnIndex + 1) * columnStartDelay;
-                    elements.forEach((element, rowIndex) => {
-                        const hideTime = columnStart + rowIndex * rowDelay;
-                        this.idleAnimation.to(
-                            element,
-                            {
-                                duration: 0.1,
-                                opacity: 0.05,
-                                ease: "power2.inOut"
-                            },
-                            hideTime
-                        );
-                    });
-                    elements.forEach((element, rowIndex) => {
-                        const showTime = columnStart + hideShowGap + rowIndex * rowDelay;
-                        this.idleAnimation.to(
-                            element,
-                            {
-                                duration: 0.1,
-                                opacity: 1,
-                                ease: "power2.inOut"
-                            },
-                            showTime
-                        );
-                    });
-                });
-            }
-            stopIdleAnimation() {
-                if (this.idleAnimation) {
-                    this.idleAnimation.kill();
-                    this.idleAnimation = null;
-                    gsap.set([...document.querySelectorAll(".project-data")], {
-                        opacity: 1
-                    });
-                    this.projectItems.forEach((item) => {
-                        item.classList.remove("counter-hidden");
-                    });
-                }
-            }
-        }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            const animationManager = new AnimationManager();
-            animationManager.initializeAnimations();
+      }
+  
+      applyMobileLayout();
+      const mql = window.matchMedia('(max-width: 640px)');
+      try{ mql.addEventListener('change', applyMobileLayout); }catch(e){ mql.addListener && mql.addListener(applyMobileLayout); }
+      window.addEventListener('resize', applyMobileLayout);
+  
+      return ()=>{
+        window.removeEventListener('pointermove', onPointer);
+        window.removeEventListener('touchmove', onTouch);
+        window.removeEventListener('resize', applyMobileLayout);
+        try{ mql.removeEventListener && mql.removeEventListener('change', applyMobileLayout); }catch(e){ mql.removeListener && mql.removeListener(applyMobileLayout); }
+        if(rafRef.current) cancelAnimationFrame(rafRef.current);
+      };
+    },[size.width, size.height]);
+  
+    return null;
+  }
+  
+  
+  
+  
+  /* ========= Grid / scene (unchanged logic) ========= */
+  class Grid extends THREE.Group{
+    constructor(canvas,camera,opts){ super();
+      this.canvas=canvas; this.camera=camera; this.opts=opts;
+      this.pointerUv=new THREE.Vector2(0.5,0.5);
+      this.isPointerDown=false; this.isTouch=false;
+      this.velocity=new THREE.Vector2(); this.offset=new THREE.Vector2();
+      this.viewW=1; this.viewH=1; this._lastPX=null; this._lastPY=null;
+      this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[]; this.ray=new THREE.Raycaster();
+      this.manageMode=false; this.onTileSelect=null; this.onTileClick=null;
+      this.onZoomChange=null; this._lastZ=this.camera.position.z;
+      this.tileGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
+      this.bgGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
+      this.currentDragEase = opts.dragEase;
+      this.hoverIdx=-1;
+  
+      this.downTime=0; this.downX=0; this.downY=0; this.longPressTimer=null; this.longPressFired=false;
+  
+      // ADDED: New properties for drag-zoom
+      this.dragZoomStart = null;
+      this.isDragging = false;
+  
+      this.pointerMap=new Map(); this.pinchDist0=null; this.cameraZ0=null;
+  
+      this.layout();
+  
+      this.onPointerMove=this.onPointerMove.bind(this);
+      this.onPointerDown=this.onPointerDown.bind(this);
+      this.onPointerUp=this.onPointerUp.bind(this);
+      this.onWheel=this.onWheel.bind(this);
+      this.onContextMenu=this.onContextMenu.bind(this);
+  
+      canvas.addEventListener("pointermove",this.onPointerMove,{passive:true});
+      canvas.addEventListener("pointerdown",this.onPointerDown,{passive:true});
+      window.addEventListener("pointerup",this.onPointerUp,{passive:true});
+      window.addEventListener("pointercancel",this.onPointerUp,{passive:true});
+      canvas.addEventListener("wheel",this.onWheel,{passive:false});
+      canvas.addEventListener("contextmenu",this.onContextMenu,{passive:false});
+    }
+    dispose(){
+      this.canvas.removeEventListener("pointermove",this.onPointerMove);
+      this.canvas.removeEventListener("pointerdown",this.onPointerDown);
+      window.removeEventListener("pointerup",this.onPointerUp);
+      window.removeEventListener("pointercancel",this.onPointerUp);
+      this.canvas.removeEventListener("wheel",this.onWheel);
+      this.canvas.removeEventListener("contextmenu",this.onContextMenu);
+      this.tileGeom.dispose(); this.bgGeom.dispose();
+      this.tiles.forEach(m=>m.material&&m.material.dispose());
+      this.bgTiles.forEach(m=>m.material&&m.material.dispose());
+    }
+    setViewport(w,h){ this.viewW=w; this.viewH=h; }
+    setManageMode(f){ this.manageMode=!!f; }
+  
+    layout(rowsOverride){
+      const {cols, rows: rowsDefault, tile, gap} = this.opts;
+      const rows = Math.max(1, Math.floor(rowsOverride || rowsDefault));
+      const stepX = tile + gap, stepY = tile + gap;
+      const sizeX = stepX * (cols - 1), sizeY = stepY * (rows - 1);
+  
+      // dispose previous groups/materials
+      if (this.groups && this.groups.length){
+        this.groups.forEach(g=>{
+          g.children.forEach(m=>{
+            try{ if (m.material) m.material.dispose && m.material.dispose(); }catch(e){}
+            try{ if (m.geometry) m.geometry.dispose && m.geometry.dispose(); }catch(e){}
+          });
+          try{ this.remove(g); }catch(e){}
         });
-    </script>
-</body>
-</html>
+      }
+  
+      this.tiles = []; this.bgTiles = []; this.groups = []; this.tileItems = [];
+  
+      this.contentHalfW = sizeX/2 + tile/2;
+      this.contentHalfH = sizeY/2 + tile/2;
+  
+      for(let r=0;r<rows;r++){
+        for(let c=0;c<cols;c++){
+          const x = c*stepX - sizeX/2;
+          const y = sizeY/2 - r*stepY;
+  
+          const group = new THREE.Group();
+          group.position.set(x,y,0);
+  
+          const bgMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
+          const bgMesh = new THREE.Mesh(this.bgGeom, bgMat);
+          bgMesh.position.set(0,0,-0.0005);
+  
+          const imgMat = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
+          const imgMesh = new THREE.Mesh(this.tileGeom, imgMat);
+  
+          group.add(bgMesh); group.add(imgMesh);
+          this.add(group);
+  
+          this.groups.push(group);
+          this.bgTiles.push(bgMesh);
+          this.tiles.push(imgMesh);
+          this.tileItems.push(null);
+        }
+      }
+  }
+  
+    // NEW METHOD: Load texture for a single tile and fade it in
+    async loadAndApplyTexture(mesh, item, index){
+      // Don't load anything for null items (empty grid slots)
+      if (!item) {
+        // Ensure it's the invisible material
+        const oldMat = mesh.material;
+        mesh.material = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.0 });
+        oldMat?.dispose?.();
+        return;
+      }
+  
+      let texture;
+      try {
+        // textureForItem is async, it loads/draws the canvas
+        texture = await textureForItem(item);
+      } catch (e) {
+        console.warn(e);
+        texture = makeEmptyTexture(); // Fallback
+      }
+  
+      // Now that we have the texture, create the final material
+      const newMat = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.0 // Start invisible
+      });
+  
+      // Dispose of the previous material (the one from layout)
+      mesh.material?.dispose?.();
+      
+      // Assign the new material
+      mesh.material = newMat;
+  
+      // Fade it in with a staggered delay
+      gsap.to(newMat, {
+        opacity: 1.0,
+        duration: 0.6,
+        delay: (index % this.opts.cols) * 0.03 + Math.floor(index / this.opts.cols) * 0.05, // Staggered fade
+        ease: "power2.out"
+      });
+    }
+  
+    // MODIFIED: Removed async, now triggers individual tile loading
+    setItems(items){
+      const cols = this.opts.cols;
+      const neededRows = Math.max(1, Math.ceil(items.length / cols));
+  
+      // Rebuild layout to exactly fit items (no trailing empty cells)
+      this.layout(neededRows);
+  
+      const total = this.tiles.length;
+      for(let i = 0; i < total; i++){
+        const item = i < items.length ? items[i] : null;
+        this.tileItems[i] = item;
+  
+        if (!item){
+          try{ if (this.tiles[i].material) this.tiles[i].material.dispose && this.tiles[i].material.dispose(); }catch(e){}
+          this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
+          continue;
+        }
+  
+        if (typeof this.loadAndApplyTexture === 'function'){
+          try{ this.loadAndApplyTexture(this.tiles[i], item, i); }catch(e){ console.warn('Error applying texture to tile', e); }
+        } else {
+          try{ this.tiles[i].material.dispose && this.tiles[i].material.dispose(); }catch(e){}
+          this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x222222, transparent:true, opacity:1.0 });
+        }
+      }
+  }
+  
+    _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
+    _ndcFromClient(clientX, clientY){
+      const rect=this.canvas.getBoundingClientRect();
+      return { x: ((clientX-rect.left)/rect.width)*2-1, y: -((clientY-rect.top)/rect.height)*2+1 };
+    }
+    _hitTileAt(clientX, clientY){
+      const ndc=this._ndcFromClient(clientX, clientY);
+      this.ray.setFromCamera(ndc,this.camera);
+      const hit=this.ray.intersectObjects(this.tiles,false)[0];
+      if(!hit) return { idx:-1, mesh:null };
+      const idx=this.tiles.indexOf(hit.object);
+      return { idx, mesh:this.tiles[idx] };
+    }
+    _setHover(idx){
+      if(this.hoverIdx===idx) return;
+      if(this.hoverIdx>=0 && this.bgTiles[this.hoverIdx]){
+        gsap.to(this.bgTiles[this.hoverIdx].material,{ opacity:0.0, duration:0.15, ease:"power2.out" });
+      }
+      this.hoverIdx=idx;
+      if(idx>=0 && this.bgTiles[idx]){
+        this.bgTiles[idx].material.color.set(0x000000);
+        gsap.to(this.bgTiles[idx].material,{ opacity:0.2, duration:0.12, ease:"power2.out" });
+      }
+    }
+    centerTileByIndex(idx, dur=0.7){
+      if(idx<0||idx>=this.tiles.length) return;
+      const p=this.groups[idx].position;
+      gsap.to(this.offset, { x:-p.x, y:-p.y, duration:dur, ease:"power2.out" });
+    }
+    zoomToFitTile(idx, margin=1.25, dur=0.7){
+      if(idx<0||idx>=this.tiles.length) return;
+      this.centerTileByIndex(idx, dur*0.8);
+      const tileSize = this.opts.tile * margin;
+      const aspect = this.viewW / this.viewH;
+      const fov = this.camera.fov * Math.PI/180;
+      const neededHeight = tileSize * (aspect < 1 ? (1/aspect) : 1);
+      const z = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, neededHeight / (2 * Math.tan(fov/2))));
+      gsap.to(this.camera.position, { z, duration:dur, ease:"power2.out" });
+    }
+    _clampZ(z){ return Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z)); }
+  
+    onWheel(e){
+      if(this.manageMode) return;
+      e.preventDefault();
+      const cur = this.camera.position.z;
+      const dz = e.deltaY * CONFIG.wheelScale * Math.max(0.6, cur);
+      const target = this._clampZ(cur + dz);
+      gsap.to(this.camera.position, { z: target, duration: 0.16, ease:"power2.out" });
+    }
+  
+    onContextMenu(e){
+      e.preventDefault();
+      if(this.manageMode) return;
+      this.resetPosition();
+      gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration: 0.40, ease: "power2.out" });
+    }
+  
+    _updatePointer(e){ if(e.pointerType==="touch") this.pointerMap.set(e.pointerId, { x:e.clientX, y:e.clientY }); }
+    _removePointer(e){ if(e.pointerType==="touch"){ this.pointerMap.delete(e.pointerId); if(this.pointerMap.size<2){ this.pinchDist0=null; this.cameraZ0=null; } } }
+    _twoTouchDistance(){ const v=[...this.pointerMap.values()]; if(v.length<2) return null; const a=v[0],b=v[1]; return Math.hypot(b.x-a.x, b.y-a.y); }
+  
+    onPointerMove(e){
+      const rect=this.canvas.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
+      this.pointerUv.set(x,y);
+      const hit = this._hitTileAt(e.clientX, e.clientY);
+      this._setHover(hit.idx);
+  
+      if(this.manageMode) return;
+  
+      this._updatePointer(e);
+      if(this.pointerMap.size>=2){
+        const d=this._twoTouchDistance();
+        if(d && !this.pinchDist0){ this.pinchDist0=d; this.cameraZ0=this.camera.position.z; }
+        if(d && this.pinchDist0 && this.cameraZ0!=null){
+          let factor = d / this.pinchDist0;
+          const target = this._clampZ(this.cameraZ0 / Math.max(0.3, Math.min(3, factor)));
+          gsap.to(this.camera.position, { z: target, duration: 0.08, ease:"power2.out" });
+        }
+        return;
+      }
+  
+      if(this.isPointerDown){
+        // MODIFIED: Check if a drag has started, and if so, zoom out
+        if (!this.isDragging) {
+          const dist = Math.hypot((e.clientX - this.downX)||0, (e.clientY - this.downY)||0);
+          const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
+          
+          if (dist > thresh) {
+            // This is now officially a drag
+            this.isDragging = true;
+            this.longPressFired = true; // Prevent click-on-up
+            if(this.longPressTimer){ // Prevent long-press-zoom
+              window.clearTimeout(this.longPressTimer);
+              this.longPressTimer=null;
+            }
+            
+            // Store the zoom *at the moment drag starts*
+            this.dragZoomStart = this.camera.position.z;
+            const targetZ = this._clampZ(this.dragZoomStart * 1.3); // Zoom out by 30%
+            
+            gsap.to(this.camera.position, { z: targetZ, duration: 0.2, ease: "power2.out" });
+          }
+        }
+        
+        const dx=(this._lastPX===null?0:(e.clientX-this._lastPX)), dy=(this._lastPY===null?0:(e.clientY-this._lastPY));
+        this._lastPX=e.clientX; this._lastPY=e.clientY;
+        const d=this._pxToNorm(dx,dy);
+        const mult = this.isTouch ? CONFIG.dragMultTouch : CONFIG.dragMultMouse;
+        this.offset.x += d.x * mult;
+        this.offset.y += -d.y * mult;
+        const lerpAmt = 1 - (this.opts.velEase);
+        this.velocity.lerp(new THREE.Vector2(d.x,-d.y), lerpAmt);
+      }
+    }
+  
+    onPointerDown(e){
+      if(this.manageMode){
+        const { idx, mesh } = this._hitTileAt(e.clientX, e.clientY);
+        if(mesh){ const item=this.tileItems[idx]; this.onTileSelect?.(idx,item); }
+        return;
+      }
+      this.isPointerDown=true;
+      this.isTouch = (e.pointerType === "touch");
+      this.canvas.classList.add("dragging");
+      this._lastPX=e.clientX; this._lastPY=e.clientY;
+  
+      this.downTime = performance.now();
+      this.downX = e.clientX; this.downY = e.clientY;
+      this.longPressFired = false;
+  
+      // MODIFIED: Reset dragging state and store initial zoom
+      this.isDragging = false;
+      this.dragZoomStart = this.camera.position.z;
+  
+      this.currentDragEase = this.isTouch ? CONFIG.touchDragEase : this.opts.dragEase;
+  
+      this._updatePointer(e);
+      if(this.pointerMap.size>=2){
+        this.longPressFired = true;
+        if(this.longPressTimer){ window.clearTimeout(this.longPressTimer); this.longPressTimer=null; }
+        return;
+      }
+  
+      const holdMs = this.isTouch ? CONFIG.longPressMsTouch : CONFIG.longPressMsMouse;
+      this.longPressTimer = window.setTimeout(()=>{
+        const dist = Math.hypot((this._lastPX - this.downX)||0, (this._lastPY - this.downY)||0);
+        const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
+        if(this.isPointerDown && dist <= thresh){
+          const { idx } = this._hitTileAt(this._lastPX ?? this.downX, this._lastPY ?? this.downY);
+          if(idx>=0){ this.longPressFired = true; this.zoomToFitTile(idx, 1.25, 0.7); }
+        }
+      }, holdMs);
+    }
+  
+    onPointerUp(e){
+      if(this.manageMode) return;
+      this._removePointer(e);
+  
+      this.isPointerDown=false; this.canvas.classList.remove("dragging");
+      
+      // ADDED: Check if we were dragging, and if so, revert the zoom
+      if (this.isDragging) {
+        // We were dragging, so revert to the original zoom
+        gsap.to(this.camera.position, { z: this.dragZoomStart, duration: 0.3, ease: "power2.out" });
+        this.dragZoomStart = null;
+        this.isDragging = false;
+      }
+      
+      const upTime = performance.now();
+      const dt = upTime - this.downTime;
+      const dist = Math.hypot((e.clientX - this.downX)||0, (e.clientY - this.downY)||0);
+      const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
+  
+      window.clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+  
+      if(!this.longPressFired && dt < (this.isTouch ? CONFIG.longPressMsTouch : CONFIG.longPressMsMouse) && dist <= thresh){
+        const { idx } = this._hitTileAt(e.clientX, e.clientY);
+        if(idx>=0){
+          this.centerTileByIndex(idx, 0.6);
+          this.onTileClick?.(idx, this.tileItems[idx] || null);
+        }
+      }
+    }
+  
+    _rubberClamp(value, min, max, k = CONFIG.rubber){
+      if (value < min) return min + (value - min) * k;
+      if (value > max) return max + (value - max) * k;
+      return value;
+    }
+    _visibleWorldWH(){
+      const z   = this.camera.position.z;
+      const fov = this.camera.fov * Math.PI/180;
+      const visH = 2 * Math.tan(fov/2) * z;
+      const visW = visH * (this.viewW / this.viewH);
+      return { visW, visH };
+    }
+    _computeBounds(){
+      const { visW, visH } = this._visibleWorldWH();
+      const slack = CONFIG.boundSlack;
+  
+      const tooWide  = visW >= this.contentHalfW * 2 + slack * 2;
+      const tooTall  = visH >= this.contentHalfH * 2 + slack * 2;
+  
+      const minX = tooWide ? 0 : ( visW/2 - this.contentHalfW - slack );
+      const maxX = tooWide ? 0 : ( this.contentHalfW + slack - visW/2 );
+      const minY = tooTall ? 0 : ( visH/2 - this.contentHalfH - slack );
+      const maxY = tooTall ? 0 : ( this.contentHalfH + slack - visH/2 );
+  
+      return { minX, maxX, minY, maxY };
+    }
+  
+    update(){
+      const cursorOffset=this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
+  
+      if(!this.isPointerDown && !this.manageMode){
+        this.offset.add(this.velocity.clone().multiplyScalar(5));
+        this.velocity.multiplyScalar(this.opts.velEase);
+      }
+  
+      const tx=this.offset.x+cursorOffset.x, ty=this.offset.y-cursorOffset.y;
+  
+      const { minX, maxX, minY, maxY } = this._computeBounds();
+  
+      const ease = this.currentDragEase || this.opts.dragEase;
+      const txSoft = this._rubberClamp(tx, minX, maxX);
+      const tySoft = this._rubberClamp(ty, minY, maxY);
+  
+      this.position.x += (txSoft - this.position.x) * ease;
+      this.position.y += (tySoft - this.position.y) * ease;
+  
+      if (!this.isPointerDown) {
+        const clampX = Math.min(Math.max(this.offset.x, minX), maxX);
+        const clampY = Math.min(Math.max(this.offset.y, minY), maxY);
+        const k = CONFIG.magnet;
+        this.offset.x += (clampX - this.offset.x) * k;
+        this.offset.y += (clampY - this.offset.y) * k;
+      }
+  
+      const z = this.camera.position.z;
+      if (Math.abs(z - (this._lastZ ?? z)) > 1e-3) {
+        this._lastZ = z;
+        this.onZoomChange?.(z, { min: CONFIG.zoomMin, max: CONFIG.zoomMax });
+      }
+    }
+  
+    resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); this._setHover(-1); }
+  }
+  
+  /* ========= Postprocessing ========= */
+  function Postprocessing({ workgridState }){
+    const { gl, scene, camera, size } = useThree();
+    const [mods, setMods] = useState(null);
+  
+    useEffect(()=>{
+      let cancelled=false;
+      (async()=>{
+        try{
+          const [{ EffectComposer }, { RenderPass }, { ShaderPass }, { OutputPass }] = await Promise.all([
+            import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js"),
+            import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js"),
+            import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js"),
+            import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js"),
+          ]);
+          if(!cancelled) setMods({ EffectComposer, RenderPass, ShaderPass, OutputPass });
+        }catch(e){ console.warn("Post FX unavailable", e); }
+      })();
+      return ()=>{ cancelled=true; };
+    },[]);
+  
+    const { composer, shader } = useMemo(()=>{
+      if(!mods) return { composer:null, shader:null };
+      try{
+        const renderPass=new mods.RenderPass(scene,camera);
+        const shader=new DistortionShader();
+        const shaderPass=new mods.ShaderPass(shader);
+        const outputPass=new mods.OutputPass();
+        const composer=new mods.EffectComposer(gl);
+        composer.addPass(renderPass); composer.addPass(shaderPass); composer.addPass(outputPass);
+        return { composer, shader };
+      }catch(e){ console.warn("Composer init failed",e); return { composer:null, shader:null }; }
+    },[mods, gl, scene, camera]);
+  
+    useEffect(()=>{ if(!composer||!shader) return;
+      const dpr=Math.min(2, gl.getPixelRatio?.()||1.5);
+      composer.setPixelRatio?.(dpr);
+      composer.setSize(size.width, size.height);
+      shader.update();
+    },[composer,shader,size,gl]);
+  
+    useEffect(()=>{ if(!shader) return;
+      const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
+      const scale = size.width < 800 ? 0.25 : 1.0;
+      shader.setDistortion(base * scale);
+    },[workgridState,shader,size.width]);
+  
+    useFrame(()=>{ composer?.render(); }, 1);
+    return null;
+  }
+  
+  /* ========= Primitive ========= */
+  function ProjectsGridPrimitive({ workgridState, items, manageMode, onTileSelect, onTileClick, onZoomChange, controllerRef }){
+    const { gl, camera, size } = useThree();
+    const grid = useMemo(()=> new Grid(gl.domElement, camera, {
+      cols:CONFIG.cols, rows:CONFIG.rows, tile:CONFIG.tile, gap:CONFIG.gap,
+      ambient:CONFIG.ambient, dragEase:CONFIG.dragEase, velEase:CONFIG.velEase
+    }),[gl,camera]);
+    useFrame(()=>grid.update());
+    useEffect(()=>{ grid.setViewport(size.width,size.height); },[size,grid]);
+    useEffect(()=>{ grid.onTileSelect=onTileSelect; },[grid,onTileSelect]);
+    useEffect(()=>{ grid.onTileClick=onTileClick; },[grid,onTileClick]);
+    useEffect(()=>{ grid.setManageMode(manageMode); },[manageMode,grid]);
+    useEffect(()=>{ grid.setItems(items); },[items,grid]);
+    useEffect(()=>{ grid.onZoomChange = (z)=> onZoomChange?.(z); return ()=>{ grid.onZoomChange=null; }; },[grid,onZoomChange]);
+    useEffect(()=>{ if(workgridState==="RESET") grid.resetPosition(); },[workgridState,grid]);
+  
+    useEffect(()=>{ if(!controllerRef) return;
+      controllerRef.current = {
+        setZoom: (z) => {
+          const clamped = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z));
+          gsap.to(camera.position, { z: clamped, duration: 0.12, ease: "power2.out" });
+        }
+      };
+    },[controllerRef, camera]);
+  
+    return React.createElement("primitive",{object:grid});
+  }
+  function GridView(props){
+    return React.createElement(Canvas,{
+        gl:{ antialias:true, powerPreference:"high-performance" },
+        camera:{ fov:35, position:[0,0,CONFIG.zoomOut] },
+        dpr:[1, 2],
+        onCreated:({ gl })=>{
+          gl.setClearColor(0x000000, 1);
+          gl.outputColorSpace = THREE.SRGBColorSpace;
+          gl.toneMapping = THREE.NoToneMapping;
+        }
+      },
+      React.createElement("ambientLight",{intensity:1}),
+      React.createElement("directionalLight",{intensity:.7, position:[2,3,4]}),
+      React.createElement(ProjectsGridPrimitive,props),
+      React.createElement(BracketOverlay,null),
+      React.createElement(Postprocessing,{workgridState:props.workgridState})
+    );
+  }
+  
+  /* ========= Camera hook ========= */
+  function useCamera(){
+    const videoRef=useRef(null), streamRef=useRef(null), [error,setError]=useState("");
+    const isHttps = () => location.protocol==="https:" || location.hostname==="localhost";
+    const stop=()=>{ streamRef.current?.getTracks?.().forEach(t=>t.stop()); streamRef.current=null; if(videoRef.current) videoRef.current.srcObject=null; };
+    const start=async()=>{
+      setError("");
+      if(!isHttps()){ setError("Camera requires HTTPS (or localhost). Use Import instead."); return false; }
+      const v = videoRef.current;
+      if(!v){ setError("Camera function coming soon! xoxo"); return false; }
+  
+      try{
+        v.setAttribute("playsinline",""); v.setAttribute("autoplay",""); v.setAttribute("muted",""); v.playsInline = true; v.muted = true;
+        const constraints = { video: { facingMode: { ideal:"environment" }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = stream; v.srcObject = stream;
+  
+        await new Promise(res=>{ const onReady = () => { v.removeEventListener("loadedmetadata", onReady); res(); }; v.addEventListener("loadedmetadata", onReady); });
+        await v.play().catch(()=>{ });
+  
+        return true;
+      }catch(e){
+        console.warn("Camera error:", e);
+        let msg = "Camera unavailable.";
+        if(e?.name==="NotAllowedError"){ msg = "Camera permission denied. Check browser permissions."; }
+        if(e?.name==="NotFoundError"){ msg = "No suitable camera found."; }
+        if(e?.name==="OverconstrainedError"){ msg = "Camera constraints not supported on this device."; }
+        setError(msg); stop(); return false;
+      }
+    };
+    return { videoRef, start, stop, error };
+  }
+  
+  /* ========= Export ========= */
+  async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
+    const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=sourceCanvas.toDataURL("image/png"); });
+    const cnv = makeCardCanvas({ img, title, caption, gps, ts:nowTS() });
+    return new Promise(resolve=>{ cnv.toBlob(b=>{ const url=URL.createObjectURL(b); resolve({url,blob:b}); },"image/png",0.96); });
+  }
+  
+  /* ========= Leveler ========= */
+  function Leveler(){
+    const [enabled,setEnabled]=useState(false);
+    const [deg,setDeg]=useState(0);
+    useEffect(()=>{ if(!enabled) return;
+      const onOrient = (e)=>{ const g = (typeof e.gamma === "number") ? e.gamma : 0; const clamped = Math.max(-45, Math.min(45, g)); setDeg(clamped); };
+      window.addEventListener("deviceorientation", onOrient, true);
+      return ()=>window.removeEventListener("deviceorientation", onOrient, true);
+    },[enabled]);
+    const good = Math.abs(deg) <= 2;
+    const xPct = ((deg + 45) / 90) * 100;
+    const needPermission = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
+    const askPermission = async ()=>{ try{ if(needPermission){ const st = await DeviceOrientationEvent.requestPermission(); if(st === "granted") setEnabled(true); }else{ setEnabled(true); } }catch{} };
+    return (
+      React.createElement("div",{ className:`leveler ${good?"good":""}` },
+        React.createElement("div",{ className:"vial" }),
+        React.createElement("div",{ className:"bubble", style:{ "--bubble-x": `${xPct}%` } }),
+        React.createElement("div",{ className:"deg" }, `${deg.toFixed(1)}°`),
+        !enabled && React.createElement("button",{ className:"enable", onClick:askPermission },"Enable leveler")
+      )
+    );
+  }
+  
+  /* ========= Overlay Flow ========= */
+  function OverlayFlow({ open, onClose, onAddToArchive }){
+    const [step,setStep]=useState(0), [title,setTitle]=useState(""), [caption,setCaption]=useState("A quick visual note");
+    const [reviewCanvas,setReviewCanvas]=useState(null), [exportUrl,setExportUrl]=useState(""), [exporting,setExporting]=useState(false);
+    const camera=useCamera(); const filePickRef=useRef(null); const sheetRef=useRef(null); const reviewMountRef=useRef(null);
+  
+    useEffect(()=>{ const mount=reviewMountRef.current; if(!mount) return; while(mount.firstChild) mount.removeChild(mount.firstChild);
+      if(reviewCanvas && step===2){
+        reviewCanvas.style.width="100%";
+        reviewCanvas.style.height="auto";
+        reviewCanvas.style.display="block";
+        mount.appendChild(reviewCanvas);
+      } },[reviewCanvas,step]);
+  
+    useEffect(()=>{ if(!open) return; const root=sheetRef.current; if(!root) return;
+      const focusables=()=>[...root.querySelectorAll("button,[href],input,textarea")].filter(el=>!el.disabled&&el.offsetParent!==null);
+      const onKey=e=>{ if(e.key==="Escape"){ e.preventDefault(); onClose?.(); }
+        if(e.key==="Tab"){ const fs=focusables(); if(!fs.length) return; const f=document.activeElement;
+          if(e.shiftKey && f===fs[0]){ e.preventDefault(); fs[fs.length-1].focus(); }
+          else if(!e.shiftKey && f===fs[fs.length-1]){ e.preventDefault(); fs[0].focus(); } } };
+      root.addEventListener("keydown",onKey); return ()=>root.removeEventListener("keydown",onKey);
+    },[open,onClose]);
+  
+    useEffect(()=>{ if(!open){ camera.stop(); setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); setExportUrl(""); setExporting(false);} },[open]);
+  
+    const startCamera=async()=>{ const ok=await camera.start(); setStep(ok?1:0); };
+    const captureShot=()=>{ const v=camera.videoRef.current; if(!v||!v.videoWidth){ return; }
+      const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(vw,vh),sx=Math.floor((vw-s)/2),sy=Math.floor((vh-s)/2);
+      const c=document.createElement("canvas"); c.width=s; c.height=s; const ctx=c.getContext("2d"); ctx.drawImage(v,sx,sy,s,s,0,0,s,s);
+      setReviewCanvas(c); setStep(2);
+    };
+    const pickFile=()=>filePickRef.current?.click();
+    const onFileChange=e=>{
+      const f=e.target.files?.[0]; if(!f) return; const img=new Image(); const url=URL.createObjectURL(f);
+      img.onload=()=>{ const s=Math.min(img.width,img.height), sx=Math.floor((img.width-s)/2), sy=Math.floor((img.height-s)/2);
+        const c=document.createElement("canvas"); c.width=s; c.height=s; c.getContext("2d").drawImage(img,sx,sy,s,s,0,0,s,s);
+        URL.revokeObjectURL(url); setReviewCanvas(c); setStep(2); }; img.src=url;
+    };
+    const doExport=async()=>{ if(!reviewCanvas) return; setExporting(true);
+      const { url } = await exportCardPNGFromCanvas(reviewCanvas, title||"[ title ]", caption||"—");
+      setExportUrl(url); setExporting(false); setStep(5);
+      onAddToArchive?.({ id:"note_"+Date.now(), src:url, title:title||"[ title ]", caption:caption||"—", baked:true, ts:nowTS(), createdMs:Date.now() });
+    };
+  
+    if(!open) return null;
+    return (
+      React.createElement("div",{className:"overlay open curved"},
+        React.createElement("div",{className:"sheet",ref:sheetRef,role:"dialog","aria-modal":"true"},
+          React.createElement("div",{className:"titlebar"},
+            React.createElement("h2",null, ["Start","Viewfinder","Review","Details","Export","Done"][step] || "Start"),
+            React.createElement("button",{className:"btn ghost",onClick:onClose},"ESC")
+          ),
+          step===0 && React.createElement("div",{className:"grid", style:{alignContent:"center"}},
+            camera.error ? React.createElement("div",{className:"hint", style:{color:"#ffb4b4"}}, camera.error) : null,
+            React.createElement("div",{className:"grid cols-2"},
+              React.createElement("button",{className:"btn primary",onClick:startCamera},"Open Camera"),
+              React.createElement("button",{className:"btn",onClick:pickFile},"Import Photo")),
+            React.createElement("input",{ref:filePickRef,type:"file",accept:"image/*",style:{display:"none"},onChange:onFileChange})
+          ),
+          step===1 && React.createElement(React.Fragment,null,
+            React.createElement("div",{className:"vf chrome-frame"},
+              React.createElement("video",{ref:camera.videoRef,playsInline:true,autoPlay:true,muted:true}),
+              React.createElement("span",{className:"perfs","aria-hidden":"true"}),
+              React.createElement(Leveler,null)
+            ),
+            React.createElement("div",{className:"row",style:{marginTop:"12px", justifyContent:"space-between"}},
+              React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(0);}},"Back"),
+              React.createElement("button",{className:"btn primary",onClick:captureShot},"Capture"))
+          ),
+          step===2 && React.createElement(React.Fragment,null,
+            React.createElement("div",{className:"preview chrome-frame",ref:reviewMountRef}),
+            React.createElement("div",{className:"row",style:{marginTop:"12px", justifyContent:"space-between"}},
+              React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(1);}},"Retake"),
+              React.createElement("button",{className:"btn primary",onClick:()=>setStep(3)},"Keep"))
+          ),
+          step===3 && React.createElement("div",{className:"grid"},
+            React.createElement("label",{className:"label",htmlFor:"t"},"Title (40 cap)"),
+            React.createElement("input",{id:"t",maxLength:40,className:"input",value:title,onChange:e=>setTitle(e.target.value)}),
+            React.createElement("label",{className:"label",htmlFor:"c"},"Note (100 cap)"),
+            React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
+            React.createElement("div",{className:"row",style:{marginTop:"6px", justifyContent:"space-between"}},
+              React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
+              React.createElement("button",{className:"btn primary",onClick:()=>setStep(4)}, "Next"))),
+          step===4 && React.createElement("div",{className:"grid"},
+            React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
+            React.createElement("div",{className:"row",style:{justifyContent:"space-between"}},
+              React.createElement("button",{className:"btn",onClick:()=>setStep(3)},"Back"),
+              React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport},exporting?"Exporting…":"Export PNG & Save"))),
+          step===5 && React.createElement("div",{className:"grid",style:{placeItems:"center",textAlign:"center"}},
+            React.createElement("div",{className:"row",style:{justifyContent:"center"}},
+              React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"intoview:note")),
+            React.createElement("div",{className:"row",style:{justifyContent:"center"}},
+              React.createElement("button",{className:"btn primary",onClick:onClose},"ESC")))
+        )
+      )
+    );
+  }
+  
+  /* ========= Help overlay ========= */
+  function HelpOverlay({ open, onClose }){
+    if(!open) return null;
+    return (
+      React.createElement("div",{className:"overlay open curved"},
+        React.createElement("div",{className:"sheet",role:"dialog","aria-modal":"true",style:{maxWidth:"460px"}},
+          React.createElement("div",{className:"titlebar"},
+            React.createElement("h2",null,"intoview.pro is a space to make; a creative playground through which I further my craft. As of current, it features a photo:note web app that I am developing."),
+            React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
+          ),
+          React.createElement("div",{style:{overflow:"auto", padding:"4px 2px"}},
+            React.createElement("div",null,"• Drag to pan"),
+            React.createElement("div",null,"• Wheel / pinch to zoom"),
+            React.createElement("div",null,"• Click a tile to center it"),
+            React.createElement("div",null,"• Long-press a tile to fit view"),
+            React.createElement("div",null,"• Right-click to reset view"),
+            React.createElement("div",null,"• Toggle: square↔circle for distortion"),
+            React.createElement("div",null,"• FAB block: new note"),
+            React.createElement("div",null,"• Leveler: tap “Enable leveler” on the Viewfinder step"),
+            React.createElement("div",null,"• Shortcuts: 1/2 = Flat/Curved, 0 = Reset, N = New, ? = Help")
+          )
+        )
+      )
+    );
+  }
+  
+  
+  
+  
+  /* ========= Zoom Rail ========= */
+  function ZoomRail({ zoom, onScrub }) {
+    const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
+    const pct = clamped * 100;
+    const raw = 100 - Math.round(pct);
+    const pctLabel = Math.max(1, Math.min(100, raw));
+  
+    const trackRef = React.useRef(null);
+    const toZoomFromClientY = (clientY) => {
+      const el = trackRef.current; if(!el) return null;
+      const r = el.getBoundingClientRect();
+      const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
+      const frac = 1 - y;
+      return CONFIG.zoomMin + frac * (CONFIG.zoomMax - CONFIG.zoomMin);
+    };
+    const onPointerDown = (e) => {
+      if (!onScrub) return;
+      const z = toZoomFromClientY(e.clientY); if (z!=null) onScrub( z );
+      const move = (ev)=>{ const zz = toZoomFromClientY(ev.clientY); if(zz!=null) onScrub(zz); };
+      const up = ()=>{ window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up); };
+      window.addEventListener("pointermove",move,{passive:true});
+      window.addEventListener("pointerup",up,{once:true});
+    };
+  
+    return React.createElement("div", { className:"zoom-rail", "aria-label":"Zoom" },
+      React.createElement("div", { className:"zoom-rail__track", ref:trackRef, onPointerDown, role:"slider",
+        "aria-orientation":"vertical",
+        "aria-valuemin":1, "aria-valuemax":100,
+        "aria-valuenow":pctLabel },
+        React.createElement("div", { className:"zoom-rail__progress", style:{ "--zoom-pct": `${pct}%` } }),
+        React.createElement("div", { className:"zoom-rail__thumb", style:{ "--zoom-pct": `${pct}%` } }),
+        React.createElement("div", { className:"zoom-rail__tooltip", style:{ "--zoom-pct": `${pct}%` } }, `${pctLabel}%`)
+      )
+    );
+  }
+  
+  /* ========= Icons ========= */
+  function MorphDistortionIcon({ isCurved, onToggle }){
+    const rectRef = useRef(null);
+    useEffect(()=>{ const target = isCurved ? 9 : 2; gsap.to(rectRef.current, { attr:{ rx: target, ry: target }, duration:0.25, ease:"power2.out" }); },[isCurved]);
+    return (
+      React.createElement("button", { className:"icon-btn", title:isCurved?"Curved (click to go Flat)":"Flat (click to go Curved)", onClick:onToggle, "aria-label":"Toggle distortion" },
+        React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+          React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", rx:isCurved?9:2, ry:isCurved?9:2, fill:"none", stroke:"currentColor", "stroke-width":"2", ref:rectRef })
+        )
+      )
+    );
+  }
+  function ResetIcon({ onClick }){
+    return (
+      React.createElement("button",{ className:"icon-btn", onClick:onClick, title:"Reset view", "aria-label":"Reset view" },
+        React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+          React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", fill:"none", stroke:"currentColor", "stroke-width":"2" }),
+          React.createElement("circle",{ cx:"12", cy:"12", r:"5.5", fill:"none", stroke:"currentColor", "stroke-width":"2" })
+        )
+      )
+    );
+  }
+  /* Removed TrashToggle component as it's no longer used */
+  
+  /* ========= Persistence ========= */
+  function getCreatedMs(item, idx=0){
+    if (typeof item?.createdMs==="number") return item.createdMs;
+    if (item?.id){ const m=String(item.id).match(/^note_(\d+)$/); if(m){ const n=+m[1]; if(!Number.isNaN(n)) return n; } }
+    if (item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
+      const t=Date.parse(item.ts.replace(" • ","T")+":00"); if(!Number.isNaN(t)) return t;
+    }
+    return idx;
+  }
+  function loadArchive(){
+    try{
+      const raw=localStorage.getItem(STORAGE_KEY);
+      if(!raw) return [];
+      const parsed=JSON.parse(raw);
+      if(!Array.isArray(parsed)) return [];
+      return parsed.map((it,i)=>({ ...it, createdMs:getCreatedMs(it,i) }));
+    }catch{ return []; }
+  }
+  function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
+  
+  
+  
+  
+  
+  /* ========= Zoom Presets Component (New) ========= */
+  function ZoomPresets({ zoom, onSetZoom }){
+    // Presets defined as camera Z distance (smaller Z is more zoomed in)
+    const presets = [
+      { label: "75%", zoomZ: 0.75, title: "Tight View (75% Preset)" }, // More Zoomed In
+      { label: "50%", zoomZ: 1.50, title: "Default View (50% Preset)" },
+      { label: "25%", zoomZ: 2.50, title: "Wide View (25% Preset)" }, // More Zoomed Out
+    ];
+  
+    // Determine which button is "active" based on current zoom
+    const activeLabel = presets.reduce((active, preset) => {
+      // Check if the current zoom is within a small threshold (0.2) of a preset value
+      if (Math.abs(zoom - preset.zoomZ) < 0.2) {
+        return preset.label;
+      }
+      return active;
+    }, null);
+  
+    return (
+      React.createElement("div", { className: "zoom-presets", "aria-label": "Grid Zoom Presets" },
+        presets.map(p =>
+          React.createElement("button", {
+            key: p.label,
+            className: `zoom-presets-btn ${p.label === activeLabel ? 'active' : ''}`,
+            title: p.title,
+            onClick: () => onSetZoom(p.zoomZ)
+          }, p.label)
+        )
+      )
+    );
+  }
+  
+  /* ========= App ========= */
+  function App(){
+    const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
+    const [wgState,setWgState]=useState(WorkgridState.DEFAULT);
+    const [overlayOpen,setOverlayOpen]=useState(false);
+    /* Removed manageMode state */
+    const [helpOpen,setHelpOpen]=useState(false);
+    const [archive,setArchive]=useState(loadArchive());
+    // set initial zoom to 25% of the configured zoom range
+    const initialZoom = React.useMemo(() => {
+      return CONFIG.zoomMin + 0.25 * (CONFIG.zoomMax - CONFIG.zoomMin);
+    }, []);
+    const [zoom, setZoom] = useState(initialZoom);
+    const [seed,setSeed] = useState(SEED);
+    const gridCtrl = useRef({ setZoom: (z)=>{} });
+  
+    useEffect(()=>{ saveArchive(archive); },[archive]);
+  
+    useEffect(()=>{ const onUpd = (e)=> setSeed(Array.isArray(e.detail)? e.detail : SEED);
+      window.addEventListener('seedUpdated', onUpd);
+      return ()=> window.removeEventListener('seedUpdated', onUpd);
+    },[]);
+  
+    const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
+  
+    const PLACEHOLDER_START = useMemo(()=>({ id:"placeholder_new_start", placeholder:true, title:"new note", caption:"tap to start" }),[]);
+    const PLACEHOLDER_END   = useMemo(()=>({ id:"placeholder_new_end",   placeholder:true, title:"new note", caption:"tap to start" }),[]);
+    const contentItems=useMemo(()=>[...sortedArchive, ...seed], [sortedArchive, seed]);
+    const combinedItems=useMemo(()=>[PLACEHOLDER_START, ...contentItems, PLACEHOLDER_END], [PLACEHOLDER_START, PLACEHOLDER_END, contentItems]);
+  
+    // BUGFIX: This effect syncs the combined content to the list view
+    useEffect(()=>{ window.dispatchEvent(new CustomEvent('contentUpdated', { detail: contentItems })); },[contentItems]);
+  
+    // BUGFIX: This effect listens for delete requests from the list view
+    useEffect(()=>{
+      const handleDeleteRequest = (e) => {
+        const itemToDelete = e.detail;
+        if (!itemToDelete) return;
+  
+        // Check if it's an archive note (user-created)
+        if (itemToDelete.id && String(itemToDelete.id).startsWith("note_")) {
+          setArchive(arr => arr.filter(x => x.id !== itemToDelete.id));
+        }
+        // Check if it's a seed note
+        else {
+          setSeed(arr => arr.filter(x => x.src !== itemToDelete.src)); // Assuming `src` is a unique key for seed items
+        }
+      };
+      
+      window.addEventListener('requestItemDelete', handleDeleteRequest);
+      return () => window.removeEventListener('requestItemDelete', handleDeleteRequest);
+    },[]); // Empty dependency array, so it only sets up the listener once
+  
+  
+    useEffect(()=>{ document.documentElement.style.setProperty("--curve-k", String(wgState===WorkgridState.INTRO ? 0 : 1)); },[wgState]);
+  
+    const hardReset = () => {
+      setWgState(WorkgridState.RESET);
+      requestAnimationFrame(()=> setWgState(WorkgridState.DEFAULT));
+    };
+  
+    useEffect(()=>{ const onKey=e=>{ if(overlayOpen||helpOpen) return;
+        if(e.key==="1") setWgState(WorkgridState.INTRO);
+        if(e.key==="2") setWgState(WorkgridState.DEFAULT);
+        if(e.key==="0") hardReset();
+        if(e.key==="n"||e.key==="N") setOverlayOpen(true);
+        /* Removed 'm' keybind for manageMode */
+        if(e.key==="?"||e.key==="h"||e.key==="H") setHelpOpen(true);
+      }; window.addEventListener("keydown",onKey); return ()=>window.removeEventListener("keydown",onKey); },[overlayOpen,helpOpen]);
+  
+    const addNoteToArchive=note=> setArchive(arr=>[...arr, note]);
+    /* Removed handleTileSelect (delete logic) */
+    
+    const isCurved = wgState === WorkgridState.DEFAULT;
+  
+    const [cursorXY, setCursorXY] = useState({ x: 0, y: 0 });
+    useEffect(()=>{ const onMove = (e)=> setCursorXY({ x: Math.round(e.clientX), y: 0 }); window.addEventListener("pointermove", onMove, { passive:true }); return ()=> window.removeEventListener("pointermove", onMove); },[]);
+  
+    const handleTileClick = (idx, item) => { if (item?.placeholder) { setOverlayOpen(true); } };
+  
+    useEffect(()=>{ window.SEED = SEED; },[]);
+  
+    // on mount, ensure controller & CSS reflect the initial zoom
+    useEffect(() => {
+      // update controller if GridView exposed setZoom
+      if (gridCtrl.current?.setZoom) {
+        gridCtrl.current.setZoom(initialZoom);
+      }
+  
+      // also set a CSS var for any legacy UI that reads it
+      const clamped = Math.max(0, Math.min(1, (initialZoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
+      const pct = Math.round(clamped * 100);
+      document.documentElement.style.setProperty('--zoom-pct', `${pct}%`);
+    }, [initialZoom]);
+  
+    return (
+      React.createElement(React.Fragment,null,
+        React.createElement("div",{className:"canvas-wrap"},
+          React.createElement("div",{className:"fallback-grid"}),
+          React.createElement(Suspense,{fallback:null},
+            React.createElement(GridView,{
+              workgridState:wgState,
+              items:combinedItems,
+              /* Removed manageMode and onTileSelect props */
+              onTileClick:handleTileClick,
+              onZoomChange:setZoom,
+              controllerRef:gridCtrl
+            })
+          )
+        ),
+  
+        React.createElement("header",{className:"header"},
+          React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
+            React.createElement("img",{
+              id:"brandLogo", alt:"intoview", decoding:"async",
+              src:"https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg"
+            })
+          ),
+          React.createElement("div",{className:"controls"},
+            React.createElement(MorphDistortionIcon,{ isCurved, onToggle:()=>setWgState(isCurved?WorkgridState.INTRO:WorkgridState.DEFAULT) }),
+            React.createElement(ResetIcon,{ onClick:hardReset }),
+            /* Removed TrashToggle component */
+            React.createElement("button",{className:"icon-btn","aria-label":"Info / Controls", onClick:()=>setHelpOpen(true), title:"Help / Controls"},
+              React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+                React.createElement("circle",{cx:"12",cy:"12",r:"10", fill:"none", stroke:"currentColor","stroke-width":"2"}),
+                React.createElement("line",{x1:"12",y1:"16",x2:"12",y2:"12", stroke:"currentColor","stroke-width":"2","stroke-linecap":"round"}),
+                React.createElement("circle",{cx:"12", cy:"8", r:"1.2", fill:"currentColor"})
+              )
+            )
+          )
+        ),
+  
+        React.createElement(HelpOverlay,{ open:helpOpen, onClose:()=>setHelpOpen(false) }),
+        React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive }),
+  
+        React.createElement("div",{className:"edge-blur"}),
+        React.createElement("div",{className:"vignette"}),
+  
+  // NEW LINE TO ADD in its place:
+  React.createElement(ZoomPresets,{ zoom, onSetZoom:(z)=> gridCtrl.current?.setZoom?.(z) }),
+  
+        React.createElement("div",{ className:"fab-wrap" },
+          React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"intoview:note" },
+            React.createElement("svg",{viewBox:"0 0 100 100","aria-hidden":"true"},
+              React.createElement("defs",null,
+                React.createElement("linearGradient",{id:"cubeTop",x1:"0",x2:"1",y1:"0",y2:"1"},
+                  React.createElement("stop",{offset:"0","stop-color":"#fff","stop-opacity":"1"}),
+                  React.createElement("stop",{offset:"1","stop-color":"#dcdcdc","stop-opacity":"1"})
+                ),
+                React.createElement("linearGradient",{id:"cubeSide",x1:"0",x2:"1",y1:"0",y2:"1"},
+                  React.createElement("stop",{offset:"0","stop-color":"#e8e8e8"}),
+                  React.createElement("stop",{offset:"1","stop-color":"#bdbdbd"})
+                ),
+                React.createElement("linearGradient",{id:"cubeDark",x1:"0",x2:"1",y1:"0",y2:"1"},
+                  React.createElement("stop",{offset:"0","stop-color":"#8a8a8a"}),
+                  React.createElement("stop",{offset:"1","stop-color":"#4b4b4b"})
+                ),
+                React.createElement("filter",{id:"cubeGlow",x:"-50%",y:"-50%",width:"200%",height:"200%"},
+                  React.createElement("feDropShadow",{dx:"0",dy:"6","stdDeviation":"6","flood-color":"#000","flood-opacity":".45"})
+                )
+              ),
+              React.createElement("g",{filter:"url(#cubeGlow)"},
+                React.createElement("polygon",{fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
+                React.createElement("polygon",{fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
+                React.createElement("polygon",{fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
+              )
+            ),
+            React.createElement("span",{className:"fab-text"},"New Note")
+          )
+        ),
+  
+        (()=>{ const mount=document.getElementById("coordsMount"); if(mount) mount.textContent=`x ${cursorXY.x} • y ${cursorXY.y}`; })()
+      )
+    );
+  }
+  
+  /* ========= Mount ========= */
+  const root = createRoot(document.getElementById("root"));
+  root.render(React.createElement(App));
+  
+  /* ========= Gooey cursor ========= */
+  (function initGooeyCursor(){
+    const TAIL_LENGTH = 20;
+    const host = document.getElementById('cursor');
+    if(!host) return;
+  
+    for(let i=0;i<TAIL_LENGTH;i++){
+      const d=document.createElement('div');
+      d.className='cursor-circle';
+      host.appendChild(d);
+    }
+    const circles = Array.from(host.querySelectorAll('.cursor-circle'));
+  
+    let mouseX = innerWidth/2, mouseY = innerHeight/2;
+    let history = Array(TAIL_LENGTH).fill(0).map(()=>({ x: mouseX, y: mouseY }));
+  
+    const onMove = (e)=>{ mouseX = e.clientX; mouseY = e.clientY; };
+    window.addEventListener('pointermove', onMove, { passive:true });
+  
+    function tick(){
+      history.shift();
+      history.push({ x: mouseX, y: mouseY });
+      for(let i=0;i<TAIL_LENGTH;i++){
+        const cur = history[i];
+        const next = history[i+1] || history[TAIL_LENGTH-1];
+        cur.x += (next.x - cur.x) * 0.35;
+        cur.y += (next.y - cur.y) * 0.35;
+        const s = Math.max(0.22, i/TAIL_LENGTH);
+        circles[i].style.transform = `translate(${cur.x}px, ${cur.y}px) scale(${s})`;
+      }
+      requestAnimationFrame(tick);
+    }
+    tick();
+  })();</script><script>async function sortByBrightness(arr, { sample = 48 } = {}) {
+          const results = await Promise.all(arr.map(async (item) => {
+            try {
+              const img = await new Promise((res, rej) => {
+                const im = new Image();
+                im.crossOrigin = 'anonymous';
+                im.onload = () => res(im);
+                im.onerror = rej;
+                im.src = item.src;
+              });
+              const w = sample, h = sample;
+              const c = document.createElement('canvas');
+              c.width = w; c.height = h;
+              const ctx = c.getContext('2d', { willReadFrequently: true });
+              ctx.drawImage(img, 0, 0, w, h);
+              const { data } = ctx.getImageData(0, 0, w, h);
+              let sum = 0;
+              for (let i = 0; i < data.length; i += 4) {
+                sum += 0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2];
+              }
+              const brightness = sum / (w * h);
+              return { item, brightness };
+            } catch {
+              return { item, brightness: 0 };
+            }
+          }));
+          return results.sort((a,b)=>b.brightness - a.brightness).map(x=>x.item);
+        }
+        function rebuildGrid(sorted){ window.dispatchEvent(new CustomEvent('seedUpdated', { detail: sorted })); }
+        (async () => {
+          try{
+            const cached = localStorage.getItem('seedSorted');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              rebuildGrid(parsed);
+            } else if (Array.isArray(window.SEED)) {
+              const sorted = await sortByBrightness(window.SEED);
+              localStorage.setItem('seedSorted', JSON.stringify(sorted));
+              rebuildGrid(sorted);
+            }
+          }catch(e){ /* ignore */ }
+        })();</script><div class="takeover" id="takeover">
+  <div class="backdrop"></div>
+  
+  <div class="portfolio-container">
+    <ul class="project-list">
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-001.jpg">
+        <span class="project-data artist hover-text">LANA DEL REY</span>
+        <span class="project-data album hover-text">DID YOU KNOW THAT THERE'S A TUNNEL UNDER OCEAN BLVD</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">POLYDOR / INTERSCOPE</span>
+        <span class="project-data year hover-text">2023</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-006.jpg">
+        <span class="project-data artist hover-text">THE XX</span>
+        <span class="project-data album hover-text">I SEE YOU</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">YOUNG TURKS</span>
+        <span class="project-data year hover-text">2017</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-007.jpg">
+        <span class="project-data artist hover-text">FRANK OCEAN</span>
+        <span class="project-data album hover-text">CHANNEL ORANGE</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">DEF JAM</span>
+        <span class="project-data year hover-text">2012</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-008.jpg">
+        <span class="project-data artist hover-text">KENDRICK LAMAR</span>
+        <span class="project-data album hover-text">TO PIMP A BUTTERFLY</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">TOP DAWG / AFTERMATH</span>
+        <span class="project-data year hover-text">2015</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-009.jpg">
+        <span class="project-data artist hover-text">CARIBOU</span>
+        <span class="project-data album hover-text">SUDDENLY</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">MERGE RECORDS</span>
+        <span class="project-data year hover-text">2020</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-010.jpg">
+        <span class="project-data artist hover-text">APHEK TWIN</span>
+        <span class="project-data album hover-text">DRUKQS</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">WARP</span>
+        <span class="project-data year hover-text">2001</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-011.jpg">
+        <span class="project-data artist hover-text">FOUR TET</span>
+        <span class="project-data album hover-text">NEW ENERGY</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">TEXT RECORDS</span>
+        <span class="project-data year hover-text">2017</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-012.jpg">
+        <span class="project-data artist hover-text">JOY ORBISON</span>
+        <span class="project-data album hover-text">STILL SLIPPIN' VOL. 1</span>
+        <span class="project-data category hover-text">MIXTAPE</span>
+        <span class="project-data label hover-text">HOTTIE</span>
+        <span class="project-data year hover-text">2021</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-013.jpg">
+        <span class="project-data artist hover-text">ODESZA</span>
+        <span class="project-data album hover-text">A MOMENT APART</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">COUNTER RECORDS</span>
+        <span class="project-data year hover-text">2017</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-014.jpg">
+        <span class="project-data artist hover-text">SAMPHA</span>
+        <span class="project-data album hover-text">PROCESS</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">YOUNG TURKS</span>
+        <span class="project-data year hover-text">2017</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-015.jpg">
+        <span class="project-data artist hover-text">JAMES BLAKE</span>
+        <span class="project-data album hover-text">OVERGROWN</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">REPUBLIC RECORDS</span>
+        <span class="project-data year hover-text">2013</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-016.jpg">
+        <span class="project-data artist hover-text">FLUME</span>
+        <span class="project-data album hover-text">SKIN</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">FUTURE CLASSIC</span>
+        <span class="project-data year hover-text">2016</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-017.jpg">
+        <span class="project-data artist hover-text">THE SMASHING PUMPKINS</span>
+        <span class="project-data album hover-text">MELLON COLLIE AND THE INFINITE SADNESS</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">VIRGIN</span>
+        <span class="project-data year hover-text">1995</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-018.jpg">
+        <span class="project-data artist hover-text">TAME IMPALA</span>
+        <span class="project-data album hover-text">CURRENTS</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">INTERSCOPE</span>
+        <span class="project-data year hover-text">2015</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-019.jpg">
+        <span class="project-data artist hover-text">DAFT PUNK</span>
+        <span class="project-data album hover-text">DISCOVERY</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">VIRGIN</span>
+        <span class="project-data year hover-text">2001</span>
+      </li>
+      <li class="project-item" data-image="https://assets.codepen.io/7558/portrait-fashion-020.jpg">
+        <span class="project-data artist hover-text">MASSIVE ATTACK</span>
+        <span class="project-data album hover-text">MEZZANINE</span>
+        <span class="project-data category hover-text">ALBUM</span>
+        <span class="project-data label hover-text">VIRGIN</span>
+        <span class="project-data year hover-text">1998</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="background-image" id="background-image"></div>
+  
+  <button class="close-btn" id="closeTakeoverBtn" title="Close list view" aria-label="Close list view"><svg height="24" width="24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="m18 6-12 12M6 6l12 12"></path></svg></button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/TextPlugin.min.js"></script>
+
+<script>// Selectors for all base UI elements to hide during list view
+        const baseUiSelectors = ['#root', '.header', '.zoom-rail', '.fab-wrap', '.hud-left', '.hud-right', '.edge-blur', '.vignette', '#cursor', '.view-toggle'];
+  
+        // BUGFIX: This array is the source of truth for the list view.
+        // It will be populated by the 'contentUpdated' event from React.
+        let allContent = window.SEED || []; 
+        let currentFilteredContent = allContent; // The content currently displayed (after filtering)
+  
+        const listEl = document.getElementById('list');
+        const takeover = document.getElementById('takeover');
+        const leftCover = document.getElementById('leftCover');
+        const closeBtn = document.getElementById('close');
+        const searchInput = document.getElementById('search');
+        const searchCount = document.querySelector('.list-search div');
+  
+        function renderList(items) {
+          currentFilteredContent = items; // Update the currently displayed content
+  
+          listEl.innerHTML = '';
+          if (!items.length) {
+            listEl.innerHTML = '<div style="color:var(--muted);padding:18px">No results</div>';
+            searchCount.textContent = '0 results';
+            return;
+          }
+          searchCount.textContent = items.length + ' results';
+          items.forEach((it, idx) => {
+            const item = document.createElement('div'); item.className = 'note-item';
+            const meta = document.createElement('div'); meta.className = 'note-meta';
+            const t = document.createElement('div'); t.className = 'note-title'; t.textContent = it.title;
+            const s = document.createElement('div'); s.className = 'note-sub';
+            s.textContent = it.caption;
+            meta.appendChild(t); meta.appendChild(s);
+            const thumb = document.createElement('div'); thumb.className = 'note-thumb'; thumb.style.backgroundImage = `url(${it.src})`;
+            
+            item.appendChild(meta);
+            item.appendChild(thumb);
+            
+            // Create and append delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'note-delete-btn';
+            deleteBtn.title = 'Delete note';
+            deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" role="img" aria-hidden="true"><path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a 1 1 0 0 1 1 1v2M8 6h8m-8 0l1 14a2 2 0 0 0 2 2h2a 2 2 0 0 0 2-2L16 6M10 10v8M14 10v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
+            deleteBtn.addEventListener('click', (e) => {
+              e.stopPropagation(); // Prevent selectItem from firing
+              deleteItem(it); // Pass the full item object
+            });
+            item.appendChild(deleteBtn);
+  
+            // Pass the full item 'it' and its visual index 'idx'
+            item.addEventListener('click', () => selectItem(it, idx));
+            listEl.appendChild(item);
+          })
+        }
+  
+        // BUGFIX: Modified deleteItem to dispatch an event up to React
+        function deleteItem(item) {
+          if (!confirm(`Are you sure you want to delete "${item.title}"?`)) return;
+          
+          // Dispatch an event to React, asking it to delete this item
+          window.dispatchEvent(new CustomEvent('requestItemDelete', { detail: item }));
+          
+          // The list will auto-update when React fires 'contentUpdated' back down.
+        }
+  
+        // Modified openTakeover to use the 'allContent' array
+        function openTakeover(index) {
+          let itemToShow = allContent[index || 0] || null;
+          
+          takeover.classList.add('open');
+          takeover.setAttribute('aria-hidden', 'false');
+          
+          baseUiSelectors.forEach(sel => { const el = document.querySelector(sel); if (el) el.style.display = 'none'; });
+  
+          updateLeft(itemToShow); // Pass the item object
+          renderList(allContent); // Render the full list
+          searchInput.value = ''; // Clear search
+          
+          document.getElementById('gridBtn').classList.remove('active');
+          document.getElementById('listBtn').classList.add('active');
+        }
+  
+        function closeTakeover() {
+          takeover.classList.remove('open');
+          takeover.setAttribute('aria-hidden', 'true');
+          
+          baseUiSelectors.forEach(sel => { const el = document.querySelector(sel); if (el) el.style.display = ''; });
+  
+          document.getElementById('gridBtn').classList.add('active');
+          document.getElementById('listBtn').classList.remove('active');
+        }
+        
+        // Modified updateLeft to handle an empty state
+        function updateLeft(it) {
+          if (!it) {
+            it = { src: '', title: 'No Notes', caption: 'Add a new note to get started.' };
+            leftCover.style.backgroundImage = 'none';
+          } else {
+            leftCover.style.backgroundImage = `url(${it.src})`;
+          }
+          document.querySelector('.left .title').textContent = it.title;
+          document.querySelector('.left .subtitle').textContent = it.caption;
+        }
+        
+        // Modified selectItem to be simpler
+        function selectItem(it, visualIndex) {
+          updateLeft(it);
+          
+          const nodes = listEl.querySelectorAll('.note-item');
+          nodes.forEach(n => n.style.opacity = 0.6);
+          if (nodes[visualIndex]) {
+              nodes[visualIndex].style.opacity = 1;
+          }
+          setTimeout(() => nodes.forEach(n => n.style.opacity = ''), 300);
+        }
+  
+        // Modified filter to use 'allContent'
+        function filter(q) {
+          const ql = q.trim().toLowerCase();
+          let out = allContent; // Start with all content
+          if (ql) {
+            out = allContent.filter(s => (s.title + s.caption).toLowerCase().includes(ql));
+          }
+          renderList(out); // Render the filtered list
+        }
+  
+        // init
+        document.getElementById('gridBtn').classList.add('active');
+  
+        document.getElementById('listBtn').addEventListener('click', () => {
+          openTakeover(0);
+        });
+        document.getElementById('gridBtn').addEventListener('click', () => {
+          closeTakeover();
+        });
+        closeBtn.addEventListener('click', closeTakeover);
+        document.getElementById('takeover').addEventListener('click', (e) => { if (e.target.classList.contains('backdrop')) closeTakeover(); });
+  
+        searchInput.addEventListener('input', (e) => filter(e.target.value));
+  
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && takeover.classList.contains('open')) closeTakeover(); });
+  
+        // BUGFIX: Listen for the 'contentUpdated' event from React
+        window.addEventListener('contentUpdated', (e) => {
+          allContent = Array.isArray(e.detail) ? e.detail : [];
+          // Re-render the list, respecting any active search query
+          filter(searchInput.value);
+          
+          // If the left panel is showing an item that no longer exists, update it
+          const currentTitle = document.querySelector('.left .title').textContent;
+          // Check if the currently previewed item is still in the list
+          const currentItemExists = allContent.some(item => item.title === currentTitle);
+          
+          // If it doesn't exist AND the list is not empty, show the first item
+          if (!currentItemExists) {
+            updateLeft(allContent[0]); // Shows first item or empty state
+          }
+        });
+  
+
+
+
+
+        /* New List View JS Logic from list.html */
+class AnimationManager {
+    constructor() {
+        this.portfolioContainer = document.querySelector(".portfolio-container");
+        this.projectItems = document.querySelectorAll(".project-item");
+        this.backgroundImage = document.getElementById("background-image");
+        this.debounceTimeout = null;
+        this.idleTimer = null;
+        this.idleAnimation = null;
+        this.originalTexts = new Map();
+        this.collectOriginalTexts();
+    }
+
+    collectOriginalTexts() {
+        this.projectItems.forEach((item) => {
+            const elements = item.querySelectorAll(".hover-text");
+            const texts = Array.from(elements).map((el) => el.textContent);
+            this.originalTexts.set(item, texts);
+        });
+    }
+
+    initializeAnimations() {
+        this.preloadImages();
+        this.projectItems.forEach((item, index) => {
+            this.addEventListeners(item, index);
+        });
+        const container = document.querySelector(".portfolio-container");
+        container.addEventListener("mouseleave", () => {
+            if (this.debounceTimeout) {
+                clearTimeout(this.debounceTimeout);
+            }
+            this.clearActiveStates();
+            this.hideBackgroundImage();
+            this.startIdleTimer();
+        });
+        this.startIdleTimer();
+    }
+
+    preloadImages() {
+        this.projectItems.forEach((item) => {
+            const imageUrl = item.dataset.image;
+            if (imageUrl) {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.src = imageUrl;
+            }
+        });
+    }
+
+    addEventListeners(item, index) {
+        const textElements = item.querySelectorAll(".hover-text");
+        const imageUrl = item.dataset.image;
+        const originalTexts = this.originalTexts.get(item);
+
+        item.addEventListener("mouseenter", () => {
+            this.stopIdleAnimation();
+            if (this.debounceTimeout) {
+                clearTimeout(this.debounceTimeout);
+            }
+            this.debounceTimeout = setTimeout(() => {
+                this.clearActiveStates();
+                item.classList.add("active");
+                this.portfolioContainer.classList.add("has-active");
+                this.showBackgroundImage(imageUrl);
+            }, 50);
+
+            textElements.forEach((el, textIndex) => {
+                const text = originalTexts[textIndex];
+                if (text) {
+                    gsap.to(el, {
+                        duration: 0.1,
+                        opacity: 0.5,
+                        onComplete: () => {
+                            el.textContent = text;
+                            gsap.to(el, {
+                                duration: 0.1,
+                                opacity: 1
+                            });
+                        }
+                    });
+                }
+            });
+        });
+
+        item.addEventListener("click", () => {
+            // Your click/navigation logic here
+            console.log(`Clicked on item ${index + 1}`);
+        });
+    }
+
+    clearActiveStates() {
+        this.projectItems.forEach((p) => p.classList.remove("active"));
+        this.portfolioContainer.classList.remove("has-active");
+    }
+
+    showBackgroundImage(url) {
+        if (url) {
+            this.backgroundImage.style.backgroundImage = `url(${url})`;
+            gsap.to(this.backgroundImage, {
+                duration: 0.8,
+                opacity: 1,
+                scale: 1.05,
+                ease: "power3.out"
+            });
+        }
+    }
+
+    hideBackgroundImage() {
+        gsap.to(this.backgroundImage, {
+            duration: 0.6,
+            opacity: 0,
+            scale: 1,
+            ease: "power2.out"
+        });
+    }
+
+    startIdleTimer() {
+        if (this.idleTimer) {
+            clearTimeout(this.idleTimer);
+        }
+        this.idleTimer = setTimeout(() => {
+            this.startIdleAnimation();
+        }, 5000); // Start idle animation after 5 seconds of inactivity
+    }
+
+    startIdleAnimation() {
+        if (this.idleAnimation) return;
+
+        this.idleAnimation = gsap.timeline({
+            repeat: -1,
+            yoyo: false,
+            delay: 1
+        });
+
+        const columns = [
+            document.querySelectorAll(".project-item::before"),
+            document.querySelectorAll(".project-data.artist"),
+            document.querySelectorAll(".project-data.album"),
+            document.querySelectorAll(".project-data.category"),
+            document.querySelectorAll(".project-data.label"),
+            document.querySelectorAll(".project-data.year")
+        ];
+
+        const totalRows = this.projectItems.length;
+        const columnStartDelay = 0.25;
+        const rowDelay = 0.05;
+        const hideShowGap = totalRows * rowDelay * 0.5;
+
+        columns.forEach((elements, columnIndex) => {
+            const columnStart = columnIndex * columnStartDelay;
+
+            elements.forEach((element, rowIndex) => {
+                const hideTime = columnStart + rowIndex * rowDelay;
+                this.idleAnimation.to(
+                    element,
+                    {
+                        duration: 0.1,
+                        opacity: 0.05,
+                        ease: "power2.inOut"
+                    },
+                    hideTime
+                );
+            });
+
+            elements.forEach((element, rowIndex) => {
+                const showTime = columnStart + hideShowGap + rowIndex * rowDelay;
+                this.idleAnimation.to(
+                    element,
+                    {
+                        duration: 0.1,
+                        opacity: 1,
+                        ease: "power2.inOut"
+                    },
+                    showTime
+                );
+            });
+        });
+    }
+
+    stopIdleAnimation() {
+        if (this.idleAnimation) {
+            this.idleAnimation.kill();
+            this.idleAnimation = null;
+            gsap.set([...document.querySelectorAll(".project-data")], {
+                opacity: 1
+            });
+            this.projectItems.forEach((item) => {
+                item.classList.remove("counter-hidden");
+            });
+        }
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const animationManager = new AnimationManager();
+    animationManager.initializeAnimations();
+});
+        // expose selection for integration with your app
+        window.intoview = { openTakeover, closeTakeover, selectItem };
+        
+        
+        
+        </script></body></html>
+  
