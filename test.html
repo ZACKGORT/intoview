@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport">
-<title>intoview • note — (v2.4 grid + minimal list)</title>
+<title>intoview • note — (v1.4.1 grid + minimal list)</title>
 <link href="https://fonts.googleapis.com" rel="preconnect" crossorigin>
 <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
   --accent:#7ee787;
   --danger:#FF6363;
   --curve-k:1; --vig-opacity:1; --vig-inner:25%; --vig-mid:80%; --vig-outer:100%;
-  --edge-blur:14px; --edge-mask-i:60%; --edge-mask-o:75%;
+  --edge-blur:8px; --edge-mask-i:60%; --edge-mask-o:75%;
   --cursor-size:20px; --fab-size:120px; --fab-bottom:calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
   --corner-pad:clamp(14px, 2.4vw, 24px); --corner-top:calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
   --z-content:0; --z-grain:149; --z-blur:150; --z-vig:151; --z-ui:220; --z-cursor:230;
@@ -165,7 +165,11 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
 
 /* Cursor */
 #cursor{position:fixed;top:calc(var(--cursor-size) * -.5);left:calc(var(--cursor-size) * -.5);pointer-events:none;filter:url(#goo);mix-blend-mode:difference;z-index:var(--z-cursor)}
-.cursor-circle{position:absolute;top:0;left:0;width:var(--cursor-size);height:var(--cursor-size);border-radius:999px;background:#fff}
+.cursor-circle{
+  position:absolute;top:0;left:0;width:var(--cursor-size);height:var(--cursor-size);
+  border-radius:999px;background:#fff;
+  will-change: transform; /* OPTIMIZATION: Hint browser to optimize transform changes */
+}
 .goo{display:none}
 @media (pointer:coarse){#cursor{display:none}}
 
@@ -285,9 +289,6 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
   to { transform: rotate(360deg); }
 }
 
-
-
-
 </style>
 
 <body>
@@ -314,7 +315,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
 </div>
 
 
-<div class="hud hud-left">v2.4.0</div>
+<div class="hud hud-left">v1.4.1</div>
 <div class="hud hud-right" id="coordsMount">x 0 • y 0</div>
 
 <script type="module">
@@ -323,6 +324,8 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
   import * as THREE from "https://esm.sh/three@0.160.1";
   import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
   import gsap from "https://esm.sh/gsap@3.12.5";
+
+  
 
   /* ========= Seed images ========= */
   const SEED=[
@@ -373,6 +376,8 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
     {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp',title:'ZAX09767',caption:'Brick wall, strong side light.'}
   ];
 
+
+
   /* ========= Config ========= */
   const STORAGE_KEY="intoview_archive_cards_v6";
   const CONFIG={
@@ -385,6 +390,18 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
   };
 
   /* ========= Utilities ========= */
+  // OPTIMIZATION: Debounce utility for high-frequency events like resize
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
   const TEX_SIZE=768, HAIR=1, BAR_H=28, PAD=12, CAP_SIZE=18, TITLE_SIZE=20;
   const MONO="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
   const UI="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
@@ -392,8 +409,21 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
   function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"),
     day=String(d.getDate()).padStart(2,"0"), hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
     return `${y}-${m}-${day} • ${hh}:${mm}`; }
-  function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
-    img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
+  
+  const imageCache = new Map();
+  // OPTIMIZATION: Cache for generated textures to prevent re-drawing canvases
+  const textureCache = new Map();
+
+  function loadImage(url){
+    if(imageCache.has(url)) return Promise.resolve(imageCache.get(url));
+    return new Promise((res,rej)=>{
+      const img=new Image();
+      if(!/^blob:|^data:/i.test(url)) img.crossOrigin="anonymous";
+      img.onload=()=>{ imageCache.set(url,img); res(img); };
+      img.onerror=()=>rej(new Error("img load failed: "+url));
+      img.src=url;
+    });
+  }
   function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
   function coverImage(ctx,img,x,y,w,h){
     const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
@@ -416,29 +446,24 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
   function drawChromeBezel(ctx, s, opts={}) {
     const w = Math.max(4, opts.width ?? 1);
     const r = Math.min(12, opts.radius ?? 4);
-
     ctx.save();
     ctx.translate(0.5, 0.5);
-
     const grad = ctx.createLinearGradient(0, 0, 0, s);
     grad.addColorStop(0.00, "rgba(255,255,255,0.95)");
     grad.addColorStop(0.15, "rgba(210,210,210,0.78)");
     grad.addColorStop(0.50, "rgba(242,242,242,0.95)");
     grad.addColorStop(0.85, "rgba(210,210,210,0.78)");
     grad.addColorStop(1.00, "rgba(255,255,255,0.95)");
-
     ctx.strokeStyle = grad;
     ctx.lineWidth = w;
     ctx.lineJoin  = "round";
     ctx.lineCap   = "round";
     roundRect(ctx, w/2, w/2, s - w, s - w, r);
     ctx.stroke();
-
     ctx.strokeStyle = "rgba(255,255,255,0.95)";
     ctx.lineWidth = 1;
     roundRect(ctx, w + 0.5, w + 0.5, s - 2*w - 1, s - 2*w - 1, Math.max(2, r - 2));
     ctx.stroke();
-
     ctx.restore();
   }
   function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=nowTS()}) {
@@ -471,29 +496,62 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
     return c;
   }
   function makeCardTextureFromCanvas(cnv){
-      const tex = new THREE.CanvasTexture(cnv);
-      tex.format = THREE.RGBAFormat;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-      tex.anisotropy = 8;
-      tex.needsUpdate = true;
-      return tex;
+    const tex = new THREE.CanvasTexture(cnv);
+    tex.format = THREE.RGBAFormat;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.anisotropy = 8;
+    tex.needsUpdate = true; // ✅ only once here
+    return tex;
   }
-  function makeEmptyTexture(){ return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""})); }
+
+  function makeEmptyTexture(){
+    // OPTIMIZATION: Cache the empty texture
+    if (textureCache.has('__empty')) return textureCache.get('__empty');
+    const tex = makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""}));
+    textureCache.set('__empty', tex);
+    return tex;
+  }
 
   async function textureForItem(item){
+    // OPTIMIZATION: Use texture cache
+    const cacheKey = item.id || item.src || (item.placeholder ? item.id : null);
+    if (!cacheKey) {
+      // Fallback for items without a key (though all *should* have one)
+      if (item?.placeholder) return makeCardTextureFromCanvas(makeCardCanvas({ img:null, title:item.title || "new note", caption:item.caption || "tap to start", gps:"", ts:"" }));
+      return makeEmptyTexture();
+    }
+    if (textureCache.has(cacheKey)) {
+      return textureCache.get(cacheKey);
+    }
+
     if(item?.placeholder){
       const cnv = makeCardCanvas({ img:null, title:item.title || "new note", caption:item.caption || "tap to start", gps:"", ts:"" });
-      return makeCardTextureFromCanvas(cnv);
+      const tex = makeCardTextureFromCanvas(cnv);
+      textureCache.set(cacheKey, tex); // Cache placeholder
+      return tex;
     }
-    if(!item||!item.src) return makeEmptyTexture();
+    if(!item||!item.src) return makeEmptyTexture(); // Already cached
+    
     if(item.baked){
-      try{ const img=await loadImage(item.src); const tex=new THREE.Texture(img); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8; tex.needsUpdate=true; return tex; }
+      try{ 
+        const img=await loadImage(item.src); 
+        const tex=new THREE.Texture(img); 
+        tex.colorSpace=THREE.SRGBColorSpace; 
+        tex.anisotropy=8; 
+        tex.needsUpdate=true; 
+        textureCache.set(cacheKey, tex); // Cache baked
+        return tex; 
+      }
       catch (e){ console.warn(e); return makeEmptyTexture(); }
     }
+    
     const img=await loadImage(item.src).catch(e=>{ console.warn(e); return null; });
-    return makeCardTextureFromCanvas(makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()}));
+    const cnv = makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()});
+    const tex = makeCardTextureFromCanvas(cnv);
+    textureCache.set(cacheKey, tex); // Cache generated
+    return tex;
   }
 
   /* ========= Post shader ========= */
@@ -510,6 +568,14 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
     update(){ const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h); this.uniforms.distortion.value.set(this._dist*r,this._dist*r); }
     setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
   }
+// After DistortionShader class
+const distortionShader = new DistortionShader();
+function updateDistortion(shader){
+  const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h);
+  shader.uniforms.distortion.value.set(shader._dist*r,shader._dist*r);
+}
+// OPTIMIZATION: Debounce resize handler to prevent spamming updates
+window.addEventListener("resize", debounce(()=>updateDistortion(distortionShader), 100));
 
   /* ========= Bracket overlay ========= */
   function BracketOverlay(){
@@ -773,9 +839,8 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
     onPointerMove(e){
       const rect=this.canvas.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
       this.pointerUv.set(x,y);
-      const hit = this._hitTileAt(e.clientX, e.clientY);
-      this._setHover(hit.idx);
       this._updatePointer(e);
+
       if(this.pointerMap.size>=2){
         const d=this._twoTouchDistance();
         if(d && !this.pinchDist0){ this.pinchDist0=d; this.cameraZ0=this.camera.position.z; }
@@ -786,6 +851,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
         }
         return;
       }
+
       if(this.isPointerDown){
         if (!this.isDragging) {
           const dist = Math.hypot((e.clientX - this.downX)||0, (e.clientY - this.downY)||0);
@@ -807,6 +873,10 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
         this.offset.y += -d.y * mult;
         const lerpAmt = 1 - (this.opts.velEase);
         this.velocity.lerp(new THREE.Vector2(d.x,-d.y), lerpAmt);
+      } else {
+        // OPTIMIZATION: Only perform raycasting for hover effect when not dragging
+        const hit = this._hitTileAt(e.clientX, e.clientY);
+        this._setHover(hit.idx);
       }
     }
     onPointerDown(e){
@@ -866,7 +936,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
       const minX = tooWide ? 0 : ( visW/2 - this.contentHalfW - slack );
       const maxX = tooWide ? 0 : ( this.contentHalfW + slack - visW/2 );
       const minY = tooTall ? 0 : ( visH/2 - this.contentHalfH - slack );
-      const maxY = tooTall ? 0 : ( this.contentHalfH + slack - visH/2 );
+      const maxY = tooTall ? 0 : ( this.contentHalfH + slack - visW/2 );
       return { minX, maxX, minY, maxY };
     }
     update(){
@@ -1156,9 +1226,9 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
   /* ========= Zoom Presets ========= */
   function ZoomPresets({ zoom, onSetZoom }){
     const presets = [
-      { label: "75%", zoomZ: 0.75, title: "Tight View (75% Preset)" },
-      { label: "50%", zoomZ: 1.50, title: "Default View (50% Preset)" },
-      { label: "25%", zoomZ: 2.50, title: "Wide View (25% Preset)" },
+      { label: "+", zoomZ: 0.75, title: "Tight View (75% Preset)" },
+      { label: "::", zoomZ: 1.50, title: "Default View (50% Preset)" },
+      { label: "—", zoomZ: 2.50, title: "Wide View (25% Preset)" },
     ];
     const activeLabel = presets.reduce((active, preset) => (Math.abs(zoom - preset.zoomZ) < 0.2 ? preset.label : active), null);
     return (
@@ -1316,8 +1386,19 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
       };
     },[view]);
 
-    const [cursorXY, setCursorXY] = useState({ x: 0, y: 0 });
-    useEffect(()=>{ const onMove = (e)=> setCursorXY({ x: Math.round(e.clientX), y: 0 }); window.addEventListener("pointermove", onMove, { passive:true }); return ()=> window.removeEventListener("pointermove", onMove); },[]);
+    // OPTIMIZATION: Move cursor coordinate update out of React render loop
+    useEffect(() => {
+      const coordsMount = document.getElementById("coordsMount");
+      if (!coordsMount) return;
+      
+      const onMove = (e) => {
+        // Update DOM directly to avoid re-rendering the entire App
+        coordsMount.textContent = `x ${Math.round(e.clientX)} • y ${Math.round(e.clientY)}`;
+      };
+      
+      window.addEventListener("pointermove", onMove, { passive: true });
+      return () => window.removeEventListener("pointermove", onMove);
+    }, []); // Empty dependency array means this runs only once on mount
 
     // Keep initial zoom reflected
     useEffect(() => {
@@ -1430,9 +1511,10 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
             ),
             React.createElement("span",{className:"fab-text"},"New Note")
           )
-        ),
-
-        (()=>{ const mount=document.getElementById("coordsMount"); if(mount) mount.textContent=`x ${cursorXY.x} • y ${cursorXY.y}`; })()
+        )
+        
+        // OPTIMIZATION: Removed the IIFE that updated coordsMount from the render function.
+        // It's now handled in the `useEffectOnce` block above.
       )
     );
   }
@@ -1443,7 +1525,9 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
 
   /* ========= Gooey cursor ========= */
   (function initGooeyCursor(){
-    const TAIL_LENGTH = 20;
+    // OPTIMIZATION: Reduced tail length from 20 to 12 to lessen DOM updates per frame.
+    // The filter/blend-mode are the most expensive parts, but this reduces JS cost.
+    const TAIL_LENGTH = 12;
     const host = document.getElementById('cursor');
     if(!host) return;
 
@@ -1476,60 +1560,10 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
     tick();
   })();
 
-
-
-  /* ========= Loader Control ========= */
-const loader = document.getElementById("loader");
-const gridBtn = document.getElementById("gridBtn");
-const listBtn = document.getElementById("listBtn");
-
-function showLoader() {
-  loader.classList.add("active");
-}
-function hideLoader() {
-  loader.classList.remove("active");
-}
-
-/* ========= View Toggle Logic ========= */
-gridBtn.addEventListener("click", async () => {
-  showLoader();
-  try {
-    await loadGridView();
-  } finally {
-    hideLoader();
-  }
-});
-
-listBtn.addEventListener("click", () => {
-  switchToListView();
-  hideLoader();
-});
-
-/* ========= Page Load ========= */
-window.addEventListener("DOMContentLoaded", async () => {
-  showLoader();
-  try {
-    await loadGridView(); // initial grid load
-  } finally {
-    hideLoader();
-  }
-});
-
-/* ========= Example Grid/List Functions ========= */
-// Replace with your actual implementations
-async function loadGridView() {
-  // Load all textures before showing grid
-  const promises = SEED.map(item => textureForItem(item));
-  await Promise.all(promises);
-
-  // TODO: mount/render your grid view here
-  console.log("Grid view ready");
-}
-
-function switchToListView() {
-  // TODO: mount/render your list view here
-  console.log("List view ready");
-}
+  /* OPTIMIZATION: Removed redundant loader control logic.
+    The React `App` component already handles view switching and loading state internally.
+    The removed code was conflicting with React's state management.
+  */
 
 </script>
 
