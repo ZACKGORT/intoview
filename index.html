@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport">
-<title>intoview • note — (v2.4 grid + minimal list)</title>
+<title>intoview • note — (v1.1.0 grid + minimal list)</title>
 <link href="https://fonts.googleapis.com" rel="preconnect" crossorigin>
 <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
   --accent:#7ee787;
   --danger:#FF6363;
   --curve-k:1; --vig-opacity:1; --vig-inner:25%; --vig-mid:80%; --vig-outer:100%;
-  --edge-blur:14px; --edge-mask-i:60%; --edge-mask-o:75%;
+  --edge-blur:8px; --edge-mask-i:60%; --edge-mask-o:75%;
   --cursor-size:20px; --fab-size:120px; --fab-bottom:calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
   --corner-pad:clamp(14px, 2.4vw, 24px); --corner-top:calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
   --z-content:0; --z-grain:149; --z-blur:150; --z-vig:151; --z-ui:220; --z-cursor:230;
@@ -314,7 +314,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
 </div>
 
 
-<div class="hud hud-left">v2.4.0</div>
+<div class="hud hud-left">v1.1.0</div>
 <div class="hud hud-right" id="coordsMount">x 0 • y 0</div>
 
 <script type="module">
@@ -323,6 +323,8 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
   import * as THREE from "https://esm.sh/three@0.160.1";
   import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
   import gsap from "https://esm.sh/gsap@3.12.5";
+
+  
 
   /* ========= Seed images ========= */
   const SEED=[
@@ -373,6 +375,8 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
     {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp',title:'ZAX09767',caption:'Brick wall, strong side light.'}
   ];
 
+
+
   /* ========= Config ========= */
   const STORAGE_KEY="intoview_archive_cards_v6";
   const CONFIG={
@@ -392,8 +396,17 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
   function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"),
     day=String(d.getDate()).padStart(2,"0"), hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
     return `${y}-${m}-${day} • ${hh}:${mm}`; }
-  function loadImage(url){ return new Promise((res,rej)=>{ const img=new Image(); if(!isBlobOrData(url)) img.crossOrigin="anonymous";
-    img.onload=()=>res(img); img.onerror=()=>rej(new Error("img load failed: "+url)); img.src=url; }); }
+    const imageCache = new Map();
+function loadImage(url){
+  if(imageCache.has(url)) return Promise.resolve(imageCache.get(url));
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    if(!/^blob:|^data:/i.test(url)) img.crossOrigin="anonymous";
+    img.onload=()=>{ imageCache.set(url,img); res(img); };
+    img.onerror=()=>rej(new Error("img load failed: "+url));
+    img.src=url;
+  });
+}
   function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
   function coverImage(ctx,img,x,y,w,h){
     const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
@@ -471,15 +484,16 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
     return c;
   }
   function makeCardTextureFromCanvas(cnv){
-      const tex = new THREE.CanvasTexture(cnv);
-      tex.format = THREE.RGBAFormat;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-      tex.anisotropy = 8;
-      tex.needsUpdate = true;
-      return tex;
-  }
+  const tex = new THREE.CanvasTexture(cnv);
+  tex.format = THREE.RGBAFormat;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.anisotropy = 8;
+  tex.needsUpdate = true; // ✅ only once here
+  return tex;
+}
+
   function makeEmptyTexture(){ return makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""})); }
 
   async function textureForItem(item){
@@ -510,6 +524,13 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--
     update(){ const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h); this.uniforms.distortion.value.set(this._dist*r,this._dist*r); }
     setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
   }
+// After DistortionShader class
+const distortionShader = new DistortionShader();
+function updateDistortion(shader){
+  const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h);
+  shader.uniforms.distortion.value.set(shader._dist*r,shader._dist*r);
+}
+window.addEventListener("resize",()=>updateDistortion(distortionShader));
 
   /* ========= Bracket overlay ========= */
   function BracketOverlay(){
