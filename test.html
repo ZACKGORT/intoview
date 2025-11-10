@@ -2,6 +2,2026 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport">
+<title>intoview • note — (v1.4.2 fixes)</title>
+<link href="https://fonts.googleapis.com" rel="preconnect" crossorigin>
+<link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+  /* Base tokens — aligned to morphing disclosure kit */
+  :root{
+    --bg-color: black;
+    --card-color: transparent;
+    --ink:#FFFFFF;--ink-2:#9F9F9F;--ink-3:#6C6C6C;
+    --accent:#7ee787;
+    --danger:#FF6363;
+    --curve-k:1; --vig-opacity:1; --vig-inner:25%; --vig-mid:80%; --vig-outer:100%;
+    --edge-blur:8px; --edge-mask-i:60%; --edge-mask-o:75%;
+    --cursor-size:20px; --fab-size:120px; --fab-bottom:calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
+    --corner-pad:clamp(14px, 2.4vw, 24px); --corner-top:calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
+    --z-content:0; --z-grain:149; --z-blur:150; --z-vig:151; --z-ui:220; --z-cursor:230;
+    --border-width: 1px; --border-color: rgba(255,255,255,0.12);
+    --duration: 0.26s;
+    --ease: linear(0 0%, 0.2688 9.91%, 0.3859 15%, 0.9929 80.76%, 0.9986 88.89%, 1 100%);
+    --bounce: linear(
+      0 0%, 0.5571 7.53%, 0.8252 11.98%,
+      0.9337 14.38%, 1.0166 16.8%,
+      0.9861 59.8%, 1 81.27% 100%
+    );
+    --blur: 4;
+    --translate-y: 1;
+    --opacity: 0.4;
+    --translate-margin: 1.5;
+    --dim: 0.4;
+    --mouse-x: 50%;
+    --mouse-y: 50%;
+    --dark-alpha-top: 0.62;
+    --dark-alpha-mid: 0.25;
+    --dark-span: 22%;
+  }
+  
+  /* Global */
+  *{box-sizing:border-box}
+  html{color-scheme:dark}
+  #root,body,html{height:100%}
+  body{margin:0;background:var(--bg-color);color:var(--ink);font:14px/1.4 Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;overflow:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  
+  /* Darkening layer */
+  .dark-layer{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index: calc(var(--z-blur) - 5);
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(0,0,0,var(--dark-alpha-top)) 0%,
+        rgba(0,0,0,var(--dark-alpha-top)) var(--dark-span),
+        rgba(0,0,0,var(--dark-alpha-mid)) 50%,
+        rgba(0,0,0,var(--dark-alpha-top)) calc(100% - var(--dark-span)),
+        rgba(0,0,0,var(--dark-alpha-top)) 100%
+      );
+    background-size: 100% 115%;
+    background-position: center center;
+    mix-blend-mode: multiply;
+    opacity: 1;
+    transition: opacity 240ms ease, transform 240ms ease;
+    transform: translateY(0);
+  }
+  
+  @media (min-height: 900px){
+    .dark-layer{ background-size: 100% 105%; transform: translateY(-2vh); }
+  }
+  
+  /* Canvas & vignette */
+  .canvas-wrap{position:absolute;inset:0;z-index:var(--z-content)}
+  .canvas-wrap canvas{touch-action:none;cursor:grab;background:#000}
+  .canvas-wrap canvas.dragging{cursor:grabbing}
+  .fallback-grid{position:absolute;inset:0;z-index:var(--z-content);pointer-events:none;opacity:.06;background-image:repeating-linear-gradient(to right,#fff 0 1px,transparent 1px 48px),repeating-linear-gradient(to bottom,#fff 0 1px,transparent 1px 48px)}
+  .edge-blur{position:fixed;inset:0;pointer-events:none;z-index:var(--z-blur);background:rgba(0,0,0,.001);backdrop-filter:blur(var(--edge-blur));-webkit-backdrop-filter:blur(var(--edge-blur));mask:radial-gradient(100% 64% at 50% 50%,transparent var(--edge-mask-i),rgba(255,255,255,.98) var(--edge-mask-o));-webkit-mask:radial-gradient(100% 64% at 50% 50%,transparent var(--edge-mask-i),rgba(255,255,255,.98) var(--edge-mask-o))}
+  .vignette{position:fixed;inset:0;pointer-events:none;z-index:var(--z-vig);background:radial-gradient(120% 90% at 50% 50%,rgba(0,0,0,0) var(--vig-inner),rgba(0,0,0,.62) var(--vig-mid),rgba(0,0,0,.98) var(--vig-outer));opacity:calc(var(--vig-opacity) * var(--curve-k))}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:var(--z-grain);opacity:.06;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");background-size:120px 120px}
+  
+  /* Curvature */
+  .curved{transform-style:preserve-3d;transform:perspective(1000px) translateZ(calc(-200px * var(--curve-k))) scale(calc(1 + var(--curve-k) * .06));will-change:transform}
+  
+  /* Header */
+  .header{
+    position:fixed;inset:0 0 auto 0;
+    z-index:calc(var(--z-ui) + 1);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;padding:var(--corner-top) var(--corner-pad) 12px var(--corner-pad);pointer-events:none
+  }
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;user-select:none;pointer-events:auto;padding:6px 8px;background-color:none;border:none;border-radius:12px}
+  .brand img{display:block;height:36px;width:auto}
+  .controls{display:flex;gap:8px;align-items:center;pointer-events:auto}
+  .icon-btn{
+    appearance:none;cursor:pointer;border:var(--border-width) solid var(--border-color);
+    background:rgba(255, 255, 255, 0.2);
+    color:var(--ink);padding:8px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;transition:transform .12s ease,background .12s ease,color .12s ease,box-shadow .12s ease
+  }
+  .icon-btn:hover{
+    transform:translateY(-1px);
+    background:rgba(255, 255, 255, 0.4);
+  }
+  .icon-btn svg{display:block;width:18px;height:18px}
+  
+  /* Toggle & presets */
+  .view-toggle, .zoom-presets {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: var(--z-ui);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 6px;
+    border: var(--border-width) solid var(--border-color);
+  }
+  .view-toggle { left: var(--corner-pad); }
+  .zoom-presets { right: var(--corner-pad); }
+  .toggle-btn, .zoom-presets-btn {
+    appearance: none; border: 0; background: 0 0; color: var(--ink-2);
+    padding: 8px; cursor: pointer; border-radius: 8px; transition: all .12s ease; font-weight: 600;
+  }
+  .toggle-btn svg { width: 20px; height: 20px; display: block; }
+  .toggle-btn:hover, .zoom-presets-btn:hover { color: var(--ink); background: rgba(255, 255, 255, 0.4); }
+  .toggle-btn.active, .zoom-presets-btn.active { color: var(--accent); background: rgba(126, 231, 135, 0.4); }
+  
+  /* FIX 1: Overlay z-index increased to ensure it's above all other elements */
+  .overlay{
+    position:fixed;inset:0;z-index:2000;display:none;pointer-events:auto;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    align-items:center;justify-content:center;padding:clamp(8px,2vw,18px)
+  }
+  .overlay.open{display:flex}
+  .overlay.curved{transform:none!important;transform-style:flat!important;perspective:none!important}
+  .sheet{
+    width:min(96vw,720px);
+    background-color:transparent !important;
+    color:#f3f3f5;
+    border: 0 !important;
+    border-radius:18px;
+    padding:clamp(12px,2.2vw,20px);
+    box-shadow:none !important;
+    display:grid;grid-template-rows:auto 1fr auto;gap:10px;
+    max-height:min(92vh,92dvh);
+    /* FIX 1: Ensure sheet is properly positioned */
+    position: relative;
+    z-index: 2001;
+  }
+  .titlebar{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 8px 10px;
+    border-bottom:var(--border-width) solid rgba(255,255,255,.08);
+    background-color:transparent;
+    border-radius:12px 12px 0 0;margin:-4px -2px 2px
+  }
+  .titlebar h2{margin:0;font-size:14px;letter-spacing:.01em}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .grid{display:grid;gap:10px}
+  .cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .label{font-weight:600;opacity:.9}
+  .input,.textarea{
+    width:100%;border:var(--border-width) solid var(--border-color);
+    background-color:rgba(255, 255, 255, 0.04);
+    color:#fff;border-radius:10px;padding:8px 10px;font:inherit
+  }
+  .textarea{min-height:96px;resize:vertical}
+  .btn{
+    appearance:none;cursor:pointer;border:var(--border-width) solid var(--border-color);
+    background-color:rgba(255, 255, 255, 0.04);
+    color:#fff;padding:9px 14px;border-radius:10px;font-weight:600;
+    transition:background .12s ease,border-color .12s ease,transform .12s ease
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{background:0 0}
+  .btn.primary{border-color:var(--accent);background:var(--accent);color:#0b0b0d}
+  .hint{color:#c9c9cf;font-size:12px}
+  .sheet :focus{outline:2px solid color-mix(in oklab,var(--accent),#fff 10%);outline-offset:2px}
+  
+  /* Preview frames */
+  .preview,.vf{
+    position:relative;width:100%;max-width:520px;aspect-ratio:1/1;height:auto;margin:6px auto 0;
+    background-color:transparent !important;border-radius:14px;border:0 !important;overflow:hidden
+  }
+  .vf video{width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.04) brightness(.98)}
+  .preview canvas,.preview img{width:100%;height:auto;display:block}
+  .preview::before{
+    content:"preview • intoview";position:absolute;top:0;left:0;right:0;height:26px;
+    background-color:transparent !important;
+    border-bottom:0 !important;
+    font:600 11px/26px Inter,sans-serif;padding:0 10px;letter-spacing:.02em;color:#f0f0f0;z-index:3
+  }
+  
+  /* FAB */
+  .fab-wrap{position:fixed;left:50%;bottom:var(--fab-bottom);transform:translateX(-50%);z-index:var(--z-ui);display:flex;flex-direction:column;align-items:center}
+  .fab{
+    position:relative;width:var(--fab-size);height:var(--fab-size);border-radius:999px;
+    background-color:rgba(255,255,255,0.04);color:#fff;border:var(--border-width) solid var(--border-color);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    box-shadow:0 16px 36px rgba(0,0,0,.05);
+    transition:background .15s ease,color .15s ease,transform .1s ease
+  }
+  .fab:hover{background:rgba(255,255,255,.08)}
+  .fab svg{width:58%;height:auto;display:block}
+  .fab-text{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);font:600 11px/1 Inter,sans-serif;color:#fff;opacity:.9}
+  @media (max-width:768px){
+    :root{--fab-size:128px;--fab-bottom:calc(env(safe-area-inset-bottom) + clamp(14px, 3.5vh, 36px));--edge-blur:10px;--edge-mask-i:65%;--edge-mask-o:80%}
+    .sheet{width:min(98vw,560px)}
+  }
+  
+  /* HUD */
+  .hud{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 10px);z-index:var(--z-ui);pointer-events:none;font:600 10px/1 JetBrains Mono,ui-monospace,monospace;color:#c9c9cf;opacity:.9}
+  .hud-left{left:var(--corner-pad)} .hud-right{right:var(--corner-pad)}
+  @media (prefers-reduced-motion:reduce){.edge-blur{backdrop-filter:none;-webkit-backdrop-filter:none}}
+  
+  /* Info overlay container */
+  .container{
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    padding: clamp(12px, 2.4vw, 28px);
+    background: transparent;
+    z-index: var(--z-ui);
+    pointer-events: auto;
+    align-items: start;
+  }
+  @media (max-width:900px){
+    .container{ grid-template-columns: 1fr; }
+  }
+  
+  .container .section{
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:1rem;
+    min-height: calc(100vh - (var(--corner-top) + 48px) - (var(--fab-bottom) + var(--fab-size)/2));
+  }
+  
+  .section-title{
+    font-size:1.5rem;
+    font-weight:600;
+    margin-bottom:0.5rem;
+    opacity:0.9;
+  }
+  .morphing-disclosure{
+    width:100%;
+    letter-spacing:-0.025em;
+    line-height:1.5;
+    font-size:0.875rem;
+  }
+  .morphing-disclosure:has([open]) details:not([open]) summary {
+    opacity: var(--dim, 0.4);
+  }
+  details{
+    background-color: transparent !important;
+    cursor:pointer;
+    position:relative;
+    transition: margin var(--duration) var(--ease),
+                translate var(--duration) var(--ease),
+                border-radius var(--duration) var(--ease),
+                border-color var(--duration) var(--ease),
+                border-width var(--duration) var(--ease);
+    border-inline: 0 !important;
+    border-block-end: 0 !important;
+    border-block-start: 0 !important;
+    overflow: visible;
+  }
+  details:first-of-type{
+    border-block-start: 0 !important;
+  }
+  details:last-of-type{
+    border-block-end: 0 !important;
+  }
+  details:has(+ details[open]) {
+    border-bottom-left-radius: 0rem;
+    border-bottom-right-radius: 0rem;
+  }
+  details[open] + details{
+    border-top-left-radius: 0rem;
+    border-top-right-radius: 0rem;
+  }
+  details[open]{
+    margin-block: calc(var(--translate-margin,1.5) * 1rem);
+    border-radius: 0rem;
+    z-index: 10;
+  }
+  details[open]:first-of-type{ margin-block-start: 0; }
+  details[open]:last-of-type{ margin-block-end: 0; }
+  details:has(~ details[open]) {
+    translate: 0 calc(var(--translate-margin,1.5) * -1rem);
+  }
+  details[open] ~ details {
+    translate: 0 calc(var(--translate-margin,1.5) * 1rem);
+  }
+  
+  summary{
+    padding:0.875rem 1rem;
+    display:grid;
+    grid-template-columns:auto 1fr auto;
+    gap:1rem;
+    align-items:center;
+    outline-color: hsl(10 90% 50%);
+    cursor:pointer;
+    list-style:none;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity var(--duration) var(--ease);
+    position:relative;
+    z-index:2;
+    background-color: transparent !important;
+  }
+  details:first-of-type summary{ border-radius: 0rem 0rem 0 0; }
+  details:last-of-type summary{ border-radius: 0 0 0rem 0rem; }
+  details:has(+ details[open]) summary {
+    border-bottom-left-radius: 0rem;
+    border-bottom-right-radius: 0rem;
+  }
+  details[open] + details summary{
+    border-top-left-radius: 0rem;
+    border-top-right-radius: 0rem;
+  }
+  details[open] summary{ border-radius: 0rem 0rem 0 0; }
+  summary::-webkit-details-marker{ display:none; }
+  summary::marker{ font-size:0px; }
+  summary svg{ width:16px; opacity:0.7; transition: transform var(--duration) var(--ease), opacity var(--duration) var(--ease); }
+  summary svg:first-of-type{ width:18px; }
+  details:hover summary svg:last-of-type{ opacity:1; }
+  details[open] summary svg:last-of-type{ transform: rotate(225deg); }
+  .content{
+    padding:0 1rem 1rem 1rem;
+    translate: 0 calc(var(--translate-y,1) * 1rem);
+    opacity: var(--opacity,0.4);
+    filter: blur(calc(var(--blur,4) * 1px));
+    color: rgba(255,255,255,0.86);
+    transition: translate var(--duration) var(--ease),
+                opacity var(--duration) var(--ease),
+                filter var(--duration) var(--ease);
+    position:relative;
+    z-index:2;
+    background-color: transparent !important;
+    border-radius: 0 0 0rem 0rem;
+  }
+  .content p{ margin:0 0 0.75rem 0; }
+  .content p:last-child{ margin-bottom:0; }
+  details[open] .content{
+    translate: 0 0;
+    opacity: 1;
+    filter: blur(0);
+  }
+  .note-meta{
+    display:flex;
+    gap:0.5rem;
+    font-size:0.75rem;
+    opacity:0.6;
+    margin-top:0.5rem;
+  }
+  .note-meta span{ display:flex; align-items:center; gap:0.25rem; }
+  kbd{
+    background: rgba(255,255,255,0.06);
+    padding:0.125rem 0.375rem;
+    border-radius:0rem;
+    font-size:0.75rem;
+    font-family:'JetBrains Mono', monospace;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  @media (max-width:500px){
+    .morphing-disclosure{ font-size:0.8125rem; }
+    summary{ padding:0.75rem 0.875rem; }
+    .content{ padding:0 0.875rem 0.875rem 0.875rem; }
+  }
+  
+  /* Cursor */
+  #cursor{position:fixed;top:calc(var(--cursor-size) * -.5);left:calc(var(--cursor-size) * -.5);pointer-events:none;filter:url(#goo);mix-blend-mode:difference;z-index:var(--z-cursor)}
+  .cursor-circle{
+    position:absolute;top:0;left:0;width:var(--cursor-size);height:var(--cursor-size);
+    border-radius:999px;background:#fff;
+    will-change: transform;
+  }
+  .goo{display:none}
+  @media (pointer:coarse){#cursor{display:none}}
+  
+  /* FIX 2: List view styles */
+  .listview-root{
+    position:fixed;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+    align-items:center;
+    overflow-y:auto;
+    z-index:var(--z-ui);
+    pointer-events:auto;
+    padding-top:calc(var(--corner-top) + 48px);
+    padding-bottom:calc(var(--fab-bottom) + var(--fab-size) / 2);
+  }
+  .portfolio-container::before{
+    content:"";position:fixed;top:0;left:0;width:100%;height:100%;
+    background: transparent !important;
+    opacity:0 !important;
+    z-index: -1 !important;
+    pointer-events:none;mix-blend-mode:normal
+  }
+  .portfolio-container{
+    display:flex;flex-direction:column;gap:0;width:100vw;padding:0 2rem;position:relative;counter-reset:project-counter 0;pointer-events:auto;
+    background: transparent !important;
+    max-width:1200px;
+    margin:0 auto;
+    flex:1;
+  }
+  .project-list{list-style:none;margin:0;padding:0}
+  .project-item{
+    cursor:pointer;width:100%;display:grid;
+    grid-template-columns:40px 1fr 2fr 1fr 1fr 80px;
+    grid-column-gap:2rem;padding:12px 0;align-items:center;
+    border-bottom:1px solid rgba(200,255,200,0.06);transition:all .3s ease;opacity:1;
+    position:relative; z-index: 2;
+    background: transparent !important;
+  }
+  .project-item.active{opacity:1;box-shadow:none !important}
+  .listview-root.has-active .project-item{opacity:0.3}
+  .listview-root.has-active .project-item.active{opacity:1}
+  .project-item::before{
+    content: counter(project-counter, decimal-leading-zero);
+    counter-increment: project-counter; padding:4px 0; line-height:.8; opacity:.6; justify-self:start; z-index:10; position:relative; transition:opacity .1s ease
+  }
+  .project-item.counter-hidden::before{opacity:.05}
+  .project-data{
+    position:relative; white-space:nowrap; text-decoration:none; color:var(--ink); z-index:1;
+    transition:all .3s ease; overflow:hidden; text-overflow:ellipsis; line-height:1; padding:2px; font-family:Inter,system-ui,sans-serif
+  }
+  .project-data.artist,.project-data.album,.project-data.category,.project-data.label{justify-self:start}
+  .project-data.year{justify-self:end;text-align:right}
+  .project-data::after{
+    content:""; position:absolute; top:0; left:-8px; width:calc(100% + 16px); height:calc(100% - 2px);
+    background: var(--accent); transition: transform .3s ease; transform: scaleX(0); transform-origin: left; z-index:-1
+  }
+  .project-item:hover .project-data::after{transform:scaleX(1)}
+  .project-item:hover .project-data{color:rgb(10,10,10)!important}
+  
+  /* FIX 2: Background image with proper visibility */
+  .background-image{
+    position:fixed;
+    top:50%;
+    left:50%;
+    width:800px;
+    height:600px;
+    transform:translate(-50%, -50%);
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    opacity:0;
+    transition: opacity .4s ease;
+    z-index: 1;
+    pointer-events:none;
+  }
+  .background-image.visible{
+    opacity:0.4;
+  }
+  
+  @media (max-width:1200px){
+    .project-item{grid-template-columns:30px 1fr 1.5fr 0.8fr 0.8fr 60px;grid-column-gap:1rem}
+    .background-image{width:600px;height:450px}
+  }
+  @media (max-width:768px){
+    .portfolio-container{padding:0 1rem}
+    .project-item{grid-template-columns:30px 1fr 1fr;grid-column-gap:1rem}
+    .project-data:not(.artist):not(.album){display:none}
+    .background-image{width:400px;height:300px}
+  }
+  
+  /* Loader overlay */
+  .loader-overlay {
+    position: fixed;
+    inset: 0;
+    background: transparent !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .loader-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+    background: rgba(0,0,0,0) !important;
+  }
+  
+  .loader-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(255,255,255,0.12);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  .container,
+  .container * {
+    background-color: solid rgba(0,0,0,0.80);
+    background: transparent !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+    color: inherit !important;
+  }
+  .sheet, .morphing-disclosure, .project-item, .fab, .brand, .controls {
+    pointer-events: auto;
+  }
+  </style>
+  
+
+<body>
+<svg height=0 width=0 xmlns="http://www.w3.org/2000/svg" aria-hidden=true class="goo"><defs><filter id="goo"><feGaussianBlur in="SourceGraphic" result="blur" stdDeviation="6"></feGaussianBlur><feColorMatrix in="blur" mode="matrix" result="goo" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 35 -15"></feColorMatrix><feComposite in="SourceGraphic" in2="goo" operator="atop"></feComposite></filter></defs></svg>
+<div id="cursor" aria-hidden="true"></div>
+
+<div id="root"></div>
+
+<div class="view-toggle">
+  <button class="toggle-btn" id="gridBtn" title="Grid View">
+    <svg height="24" width="24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+      <rect height="7" width="7" x="3" y="3"></rect><rect height="7" width="7" x="14" y="3"></rect><rect height="7" width="7" x="14" y="14"></rect><rect height="7" width="7" x="3" y="14"></rect>
+    </svg>
+  </button>
+  <button class="toggle-btn" id="listBtn" title="List View">
+    <svg height="24" width="24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+      <line x1="8" x2="21" y1="6" y2="6"></line><line x1="8" x2="21" y1="12" y2="12"></line><line x1="8" x2="21" y1="18" y2="18"></line><line x1="3" x2="3.01" y1="6" y2="6"></line><line x1="3" x2="3.01" y1="12" y2="12"></line><line x1="3" x2="3.01" y1="18" y2="18"></line>
+    </svg>
+  </button>
+</div>
+
+<div id="loader" class="loader-overlay">
+  <div class="loader-spinner"></div>
+</div>
+
+<div class="hud hud-left">v1.4.2</div>
+<div class="hud hud-right" id="coordsMount">x 0 • y 0</div>
+
+<script type="module">
+  import React,{useEffect,useMemo,useRef,useState,Suspense} from "https://esm.sh/react@18.3.1";
+  import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
+  import * as THREE from "https://esm.sh/three@0.160.1";
+  import { Canvas, useFrame, useThree } from "https://esm.sh/@react-three/fiber@8.16.0?deps=react@18.3.1,react-dom@18.3.1,three@0.160.1";
+  import gsap from "https://esm.sh/gsap@3.12.5";
+
+  /* ========= Seed images ========= */
+  const SEED=[
+    {src:'https://i.ibb.co/rR91Q0Z4/603a967ad03490104c2aaefe-ZAX01042-2.webp',title:'ZAX01042-2',caption:'Light through a dusty window.'},
+    {src:'https://i.ibb.co/xSCsZcyn/wmzWGlaw.webp',title:'wmzWGlaw',caption:'Morning fog over the railway tracks.'},
+    {src:'https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp',title:'IMG-8403',caption:'Window frost, intricate patterns.'},
+    {src:'https://i.ibb.co/vC0H3LTF/DSC08656.webp',title:'DSC08656',caption:'Urban geometry, side of building.'},
+    {src:'https://i.ibb.co/bMJNnQtg/DSC08604.webp',title:'DSC08604',caption:'Textured glass panel, abstract.'},
+    {src:'https://i.ibb.co/qLWQC0cN/DSC08358.webp',title:'DSC08358',caption:'Shadow play on a curved wall.'},
+    {src:'https://i.ibb.co/rRdNxC5g/DSC08300.webp',title:'DSC08300',caption:'Industrial detail, metal and rust.'},
+    {src:'https://i.ibb.co/MD923R2f/DSC08254.webp',title:'DSC08254',caption:'Architectural lines, clear sky.'},
+    {src:'https://i.ibb.co/TBtrSYKc/DSC08233.webp',title:'DSC08233',caption:'Streetlight diffusion in mist.'},
+    {src:'https://i.ibb.co/23QsQrCG/DSC05954.webp',title:'DSC05954',caption:'Reflections in a still puddle.'},
+    {src:'https://i.ibb.co/ym1z1pyb/DSC05994.webp',title:'DSC05994',caption:'Late night, empty subway car.'},
+    {src:'https://i.ibb.co/bjMXB8HJ/2328964849369731672-5144774570.webp',title:'2328964849…4570',caption:'Minimalist interior, single chair.'},
+    {src:'https://i.ibb.co/fd1SDQQs/2399506735674938043-5144774570.webp',title:'2399506735…4570',caption:'Overpass structure, brutalist form.'},
+    {src:'https://i.ibb.co/0pNWKFbk/2319420263505008414-5144774570.webp',title:'2319420263…4570',caption:'Worn steps, public staircase.'},
+    {src:'https://i.ibb.co/WvW71PR3/2288089293770285108-5144774570.webp',title:'2288089293…4570',caption:'Found object, weathered plastic.'},
+    {src:'https://i.ibb.co/1YyFqBj3/2278120764300123596-5144774570.webp',title:'2278120764…4570',caption:'Water patterns, flowing stream.'},
+    {src:'https://i.ibb.co/99B3hgp3/2274809041971350857-5144774570.webp',title:'2274809041…4570',caption:'Facade detail, repeating windows.'},
+    {src:'https://i.ibb.co/HpnrrYMR/2269419019461331921-5144774570.webp',title:'2269419019…4570',caption:'Underground passage, tiled walls.'},
+    {src:'https://i.ibb.co/6Rqf37ft/6039d4bbb15be328fc33b54d-IMG-6478.webp',title:'IMG-6478',caption:'Close-up of a woven fabric.'},
+    {src:'https://i.ibb.co/BKv7177j/603d6216612acc7c7e54bef2-IMG-1158.webp',title:'IMG-1158',caption:'Soft light on a plaster surface.'},
+    {src:'https://i.ibb.co/k2svMNFv/603d10120fba838e599b6b5e-IMG-1563.webp',title:'IMG-1563',caption:'Condensation on cold glass.'},
+    {src:'https://i.ibb.co/WNtnFQqP/603d1185cafcb2591f42b1ad-IMG-3932.webp',title:'IMG-3932',caption:'Blurred motion, city lights.'},
+    {src:'https://i.ibb.co/pvFThr4K/603d1185b8ec32082f451ba9-IMG-3882.webp',title:'IMG-3882',caption:'Line of trees, winter silhouette.'},
+    {src:'https://i.ibb.co/QFKMY1sH/603d138e1d5ed053b509992a-IMG-5199.webp',title:'IMG-5199',caption:'Isolated building, dusk sky.'},
+    {src:'https://i.ibb.co/N2cSNMf4/603d102d9f59a611886a6893-IMG-2151.webp',title:'IMG-2151',caption:'Rooftop view, antenna array.'},
+    {src:'https://i.ibb.co/KjzkkW68/603d102d0f02c70fdf7d84eb-IMG-4696.webp',title:'IMG-4696',caption:'Neon sign reflection on wet pavement.'},
+    {src:'https://i.ibb.co/DPyhP1T7/603d100d889053cc334ee5fc-IMG-2083.webp',title:'IMG-2083',caption:'Abstract light flare, bokeh.'},
+    {src:'https://i.ibb.co/Fbr1sSb6/603d8d7a3a6df470a4a661a1-DSC00726.webp',title:'DSC00726',caption:'Shadow of a fence on grass.'},
+    {src:'https://i.ibb.co/5gddKNw3/603d0bb2331da47ee88db089-DSC02085.webp',title:'DSC02085',caption:'Parking garage interior, empty.'},
+    {src:'https://i.ibb.co/9HZMK0nw/603d0b8b038105ae6904872a-DSC08334.webp',title:'DSC08334',caption:'Monochrome study of a leaf.'},
+    {src:'https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp',title:'DSC08281',caption:'Single cloud, vast open sky.'},
+    {src:'https://i.ibb.co/QvHqKh2P/603afe37ba16f8f9174cf501-IMG-1878.webp',title:'IMG-1878',caption:'Door handle, metal and wood.'},
+    {src:'https://i.ibb.co/m5sNTvYX/603a967916b10d5bef5a6dd8-ZAX02712-1.webp',title:'ZAX02712-1',caption:'Cracked paint on an old wall.'},
+    {src:'https://i.ibb.co/yc6ppFdj/ZAX01304.webp',title:'ZAX01304',caption:'Corridor light study, concrete hall.'},
+    {src:'https://i.ibb.co/tpK7LjSv/603a967ac64cec73069e2454-ZAX09877.webp',title:'ZAX09877',caption:'Stairwell, top-down perspective.'},
+    {src:'https://i.ibb.co/Kph6fp3M/603a967a6a41f4d56ca33b1a-ZAX00794.webp',title:'ZAX00794',caption:'Power lines against a grey sky.'},
+    {src:'https://i.ibb.co/0yjJ4j8L/603a967a5dc3e982f571b744-ZAX00968.webp',title:'ZAX00968',caption:'Close-up of brushed aluminum.'},
+    {src:'https://i.ibb.co/zWBgb5Sj/603a95ee83ba30ff4ac9bc6a-DSC00423-1.webp',title:'DSC00423-1',caption:'Plastic sheeting, crinkled texture.'},
+    {src:'https://i.ibb.co/fdT1YyzJ/603a95edd03490eb412aaedc-DSC08676.webp',title:'DSC08676',caption:'Frosted glass, blurred silhouette.'},
+    {src:'https://i.ibb.co/FLS6ZdgN/603a95ed29478f4bc91875b5-DSC08933.webp',title:'DSC08933',caption:'Tire tracks in mud.'},
+    {src:'https://i.ibb.co/5Xr0MDSw/603a93f06a41f45766a3361a-DSC09212.webp',title:'DSC09212',caption:'Escalator, upward angle.'},
+    {src:'https://i.ibb.co/wNFR8hJR/603a93f1d03490ae9d2aa64a-IMG-3824.webp',title:'IMG-3824',caption:'Airport terminal, empty seats.'},
+    {src:'https://i.ibb.co/39wDDcbS/603a93f0e815e830d1783e07-IMG-2033.webp',title:'IMG-2033',caption:'Industrial pipes, repeating forms.'},
+    {src:'https://i.ibb.co/VcxChJB1/603a93eef8754819192222f7-DSC09720.webp',title:'DSC09720',caption:'Ripples on water surface.'},
+    {src:'https://i.ibb.co/PztRrNhR/603a93eddcd3ab104d64fcbb-ZAX09767.webp',title:'ZAX09767',caption:'Brick wall, strong side light.'}
+  ];
+
+  const STORAGE_KEY="intoview_archive_cards_v6";
+  const CONFIG={
+    cols:10, rows:7, tile:0.32, gap:0.02, ambient:0.20, dragEase:0.14, velEase:0.92, zoomOut:1.85,
+    distortion:{ flat:0.0, curved:0.46 },
+    clickBounceDelta:0.25, longPressMsMouse:380, longPressMsTouch:520, clickMovePx:6, clickMovePxTouch:12,
+    dragMultMouse:6.0, dragMultTouch:4.0, touchDragEase:0.18,
+    zoomMin:0.25, zoomMax:3.00, wheelScale:0.0015,
+    boundSlack: 0.6, rubber: 0.33, magnet: 0.12
+  };
+
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+  
+  const TEX_SIZE=768, HAIR=1, BAR_H=28, PAD=12, CAP_SIZE=18, TITLE_SIZE=20;
+  const MONO="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+  const UI="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
+  const isBlobOrData=u=>/^blob:|^data:/i.test(u);
+  function nowTS(){ const d=new Date(), y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"),
+    day=String(d.getDate()).padStart(2,"0"), hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
+    return `${y}-${m}-${day} • ${hh}:${mm}`; }
+  
+  const imageCache = new Map();
+  const textureCache = new Map();
+
+  function loadImage(url){
+    if(imageCache.has(url)) return Promise.resolve(imageCache.get(url));
+    return new Promise((res,rej)=>{
+      const img=new Image();
+      if(!/^blob:|^data:/i.test(url)) img.crossOrigin="anonymous";
+      img.onload=()=>{ imageCache.set(url,img); res(img); };
+      img.onerror=()=>rej(new Error("img load failed: "+url));
+      img.src=url;
+    });
+  }
+  function drawHair(ctx,x,y,w){ ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.fillRect(x,y,w,HAIR); }
+  function coverImage(ctx,img,x,y,w,h){
+    const iw=img?.naturalWidth||img?.width||0, ih=img?.naturalHeight||img?.height||0;
+    if(!iw||!ih){ ctx.fillStyle="#111"; ctx.fillRect(x,y,w,h); return; }
+    const ir=iw/ih, ar=w/h; let dw,dh,dx,dy;
+    if(ir>ar){ dh=h; dw=ir*h; dx=x+(w-dw)/2; dy=y; } else { dw=w; dh=w/ir; dx=x; dy=y+(h-dh)/2; }
+    ctx.imageSmoothingQuality="high"; ctx.drawImage(img,dx,dy,dw,dh);
+    ctx.fillStyle="rgba(0,0,0,0.03)"; ctx.fillRect(x,y,w,h);
+  }
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y,   x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x,   y+h, rr);
+    ctx.arcTo(x,   y+h, x,   y,   rr);
+    ctx.arcTo(x,   y,   x+w, y,   rr);
+    ctx.closePath();
+  }
+  function drawChromeBezel(ctx, s, opts={}) {
+    const w = Math.max(4, opts.width ?? 1);
+    const r = Math.min(12, opts.radius ?? 4);
+    ctx.save();
+    ctx.translate(0.5, 0.5);
+    const grad = ctx.createLinearGradient(0, 0, 0, s);
+    grad.addColorStop(0.00, "rgba(255,255,255,0.95)");
+    grad.addColorStop(0.15, "rgba(210,210,210,0.78)");
+    grad.addColorStop(0.50, "rgba(242,242,242,0.95)");
+    grad.addColorStop(0.85, "rgba(210,210,210,0.78)");
+    grad.addColorStop(1.00, "rgba(255,255,255,0.95)");
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = w;
+    ctx.lineJoin  = "round";
+    ctx.lineCap   = "round";
+    roundRect(ctx, w/2, w/2, s - w, s - w, r);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, w + 0.5, w + 0.5, s - 2*w - 1, s - 2*w - 1, Math.max(2, r - 2));
+    ctx.stroke();
+    ctx.restore();
+  }
+  function makeCardCanvas({img,title="[ title ]",caption="[ caption ]",gps="",ts=nowTS()}) {
+    const s=TEX_SIZE, c=document.createElement("canvas"); c.width=s; c.height=s; const ctx=c.getContext("2d");
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,s,s);
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,s,BAR_H);
+    ctx.font=`600 ${TITLE_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="top"; ctx.textAlign="left";
+    ctx.fillText(title, PAD, Math.floor((BAR_H-TITLE_SIZE)/2));
+    if(gps){
+      ctx.font=`500 12px ${MONO}`; ctx.textBaseline="middle"; ctx.textAlign="right"; ctx.fillStyle="#cfcfcf";
+      ctx.fillText(gps, s-PAD, BAR_H/2); ctx.textAlign="left";
+    }
+    drawHair(ctx,0,BAR_H,s);
+    const imgTop=BAR_H+HAIR, imgH=s-imgTop-(BAR_H+HAIR);
+    if(img){ coverImage(ctx,img,0,imgTop,s,imgH); }
+    else{
+      const BORDER_W = 4;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, imgTop, s, imgH);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = BORDER_W;
+      ctx.strokeRect(BORDER_W/2, imgTop + BORDER_W/2, s - BORDER_W, imgH - BORDER_W);
+    }
+    drawHair(ctx,0,s-BAR_H-HAIR,s);
+    ctx.fillStyle="#000"; ctx.fillRect(0,s-BAR_H,s,BAR_H);
+    ctx.font=`500 ${CAP_SIZE}px ${UI}`; ctx.fillStyle="#e6e6e6"; ctx.textBaseline="middle"; ctx.textAlign="left";
+    ctx.fillText(caption, PAD, s-BAR_H/2);
+    ctx.font=`500 12px ${MONO}`; ctx.fillStyle="#cfcfcf"; ctx.textAlign="right"; ctx.fillText(ts, s-PAD, s-BAR_H/2);
+    drawChromeBezel(ctx, s, { width: 1, radius: 0 });
+    return c;
+  }
+  function makeCardTextureFromCanvas(cnv){
+    const tex = new THREE.CanvasTexture(cnv);
+    tex.format = THREE.RGBAFormat;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.anisotropy = 8;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function makeEmptyTexture(){
+    if (textureCache.has('__empty')) return textureCache.get('__empty');
+    const tex = makeCardTextureFromCanvas(makeCardCanvas({img:null,title:"",caption:"",gps:"",ts:""}));
+    textureCache.set('__empty', tex);
+    return tex;
+  }
+
+  async function textureForItem(item){
+    const cacheKey = item.id || item.src || (item.placeholder ? item.id : null);
+    if (!cacheKey) {
+      if (item?.placeholder) return makeCardTextureFromCanvas(makeCardCanvas({ img:null, title:item.title || "new note", caption:item.caption || "tap to start", gps:"", ts:"" }));
+      return makeEmptyTexture();
+    }
+    if (textureCache.has(cacheKey)) {
+      return textureCache.get(cacheKey);
+    }
+
+    if(item?.placeholder){
+      const cnv = makeCardCanvas({ img:null, title:item.title || "new note", caption:item.caption || "tap to start", gps:"", ts:"" });
+      const tex = makeCardTextureFromCanvas(cnv);
+      textureCache.set(cacheKey, tex);
+      return tex;
+    }
+    if(!item||!item.src) return makeEmptyTexture();
+    
+    if(item.baked){
+      try{ 
+        const img=await loadImage(item.src); 
+        const tex=new THREE.Texture(img); 
+        tex.colorSpace=THREE.SRGBColorSpace; 
+        tex.anisotropy=8; 
+        tex.needsUpdate=true; 
+        textureCache.set(cacheKey, tex);
+        return tex; 
+      }
+      catch (e){ console.warn(e); return makeEmptyTexture(); }
+    }
+    
+    const img=await loadImage(item.src).catch(e=>{ console.warn(e); return null; });
+    const cnv = makeCardCanvas({img, title:item.title||"", caption:item.caption||"—", gps:item.gps||"", ts:item.ts||nowTS()});
+    const tex = makeCardTextureFromCanvas(cnv);
+    textureCache.set(cacheKey, tex);
+    return tex;
+  }
+
+  class DistortionShader extends THREE.ShaderMaterial{
+    constructor(){ super({
+      name:"DistortionShader",
+      uniforms:{ tDiffuse:{value:null}, distortion:{value:new THREE.Vector2(0,0)} },
+      vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position,1.0); }`,
+      fragmentShader:`precision highp float; uniform sampler2D tDiffuse; uniform vec2 distortion; varying vec2 vUv;
+      vec2 s(vec2 uv){ return 2.0*(uv-0.5);} vec2 u(vec2 suv){ return suv*0.5+0.5;}
+      void main(){ vec2 suv=s(vUv); suv*=(0.88 + distortion*dot(suv,suv)); vec2 uv2=u(suv);
+        vec3 col=texture2D(tDiffuse, uv2).rgb; gl_FragColor=vec4(col,1.0); }`
+    }); this._dist=0; this.update(); }
+    update(){ const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h); this.uniforms.distortion.value.set(this._dist*r,this._dist*r); }
+    setDistortion(v){ gsap.to(this,{ _dist:v,duration:1,ease:"power2.out", onUpdate:()=>this.update() }); }
+  }
+  
+  const distortionShader = new DistortionShader();
+  function updateDistortion(shader){
+    const w=innerWidth,h=innerHeight,r=Math.min(w,h)/Math.max(w,h);
+    shader.uniforms.distortion.value.set(shader._dist*r,shader._dist*r);
+  }
+  window.addEventListener("resize", debounce(()=>updateDistortion(distortionShader), 100));
+
+  function BracketOverlay({ visible = true }){
+    const { scene, size } = useThree();
+    const matRef = useRef(null);
+    const meshRef = useRef(null);
+
+    useEffect(()=>{
+      const geom = new THREE.PlaneGeometry(2,2);
+      const mat = new THREE.ShaderMaterial({
+        name:"BracketOverlay", transparent:true, depthTest:false, depthWrite:false,
+        uniforms:{
+          resolution:{ value:new THREE.Vector2(size.width, size.height) },
+          thickness:{ value: 3.25 }, length:{ value: 72.0 },
+          margin:{ value: 52.0 }, marginTop:{ value: 52.0 }, marginBottom:{ value: 52.0 },
+          edgeSoft:{ value: 8.0 }, offset:{ value: new THREE.Vector2(0.0, 0.0) }, opacity:{ value: 0.95 }
+        },
+        vertexShader: `varying vec2 vUv; void main(){ vUv=position.xy*0.5+0.5; gl_Position=vec4(position.xy,0.0,1.0); }`,
+        fragmentShader: `
+          precision highp float;
+          varying vec2 vUv;
+          uniform vec2 resolution;
+          uniform float thickness, length, margin, marginTop, marginBottom, opacity;
+          uniform vec2 offset;
+          float inRect(vec2 p, vec2 a, vec2 b){ vec2 s = step(a, p) * step(p, b); return s.x * s.y; }
+          void main(){
+            vec2 p = vUv * resolution + offset;
+            float th = thickness, L = length, m = margin, mt = marginTop, mb = marginBottom;
+            vec2 tl = vec2(m, resolution.y - mt), tr = vec2(resolution.x - m, resolution.y - mt);
+            vec2 bl = vec2(m, mb), br = vec2(resolution.x - m, mb);
+            float a = 0.0;
+            a = max(a, inRect(p, vec2(tl.x, tl.y - th*0.5), vec2(tl.x + L, tl.y + th*0.5)));
+            a = max(a, inRect(p, vec2(tl.x - th*0.5, tl.y - L), vec2(tl.x + th*0.5, tl.y)));
+            a = max(a, inRect(p, vec2(tr.x - L, tr.y - th*0.5), vec2(tr.x, tr.y + th*0.5)));
+            a = max(a, inRect(p, vec2(tr.x - th*0.5, tr.y - L), vec2(tr.x + th*0.5, tr.y)));
+            a = max(a, inRect(p, vec2(bl.x, bl.y - th*0.5), vec2(bl.x + L, bl.y + th*0.5)));
+            a = max(a, inRect(p, vec2(bl.x - th*0.5, bl.y), vec2(bl.x + th*0.5, bl.y + L)));
+            a = max(a, inRect(p, vec2(br.x - L, br.y - th*0.5), vec2(br.x, br.y + th*0.5)));
+            a = max(a, inRect(p, vec2(br.x - th*0.5, br.y), vec2(br.x + th*0.5, br.y + L)));
+            if(a <= 0.0) discard;
+            gl_FragColor = vec4(vec3(1.0), a * opacity);
+          }
+        `
+      });
+      mat.toneMapped = false;
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 9999;
+      scene.add(mesh);
+      matRef.current = mat;
+      meshRef.current = mesh;
+
+      return ()=>{
+        scene.remove(mesh);
+        try{ mat.dispose(); }catch{}
+        try{ geom.dispose(); }catch{}
+      };
+    },[scene]);
+
+    useEffect(() => {
+      if (meshRef.current) {
+        meshRef.current.visible = visible;
+      }
+    }, [visible]);
+
+    useEffect(()=>{
+      const onPointer = (e)=>{
+        const rect = document.documentElement.getBoundingClientRect();
+        const cx = rect.left + rect.width/2;
+        const cy = rect.top + rect.height/2;
+        const dx = e.clientX - cx;
+        const dy = e.clientY - cy;
+        const fx = -dx * 0.06;
+        const fy = -dy * 0.03;
+        if(matRef.current) matRef.current.uniforms.offset.value.set(fx, fy);
+      };
+      window.addEventListener('pointermove', onPointer, { passive:true });
+      return ()=> window.removeEventListener('pointermove', onPointer);
+    },[]);
+    return null;
+  }
+
+  class Grid extends THREE.Group{
+    constructor(canvas,camera,opts){ super();
+      this.canvas=canvas; this.camera=camera; this.opts=opts;
+      this.pointerUv=new THREE.Vector2(0.5,0.5);
+      this.isPointerDown=false; this.isTouch=false;
+      this.velocity=new THREE.Vector2(); this.offset=new THREE.Vector2();
+      this.viewW=1; this.viewH=1; this._lastPX=null; this._lastPY=null;
+      this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[]; this.ray=new THREE.Raycaster();
+      this.onTileClick=null; this.onZoomChange=null; this._lastZ=this.camera.position.z;
+      this.tileGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
+      this.bgGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
+      this.currentDragEase = opts.dragEase;
+      this.hoverIdx=-1;
+
+      this.downTime=0; this.downX=0; this.downY=0; this.longPressTimer=null; this.longPressFired=false;
+      this.dragZoomStart = null; this.isDragging = false;
+      this.pointerMap=new Map(); this.pinchDist0=null; this.cameraZ0=null;
+
+      this.layout();
+
+      this.onPointerMove=this.onPointerMove.bind(this);
+      this.onPointerDown=this.onPointerDown.bind(this);
+      this.onPointerUp=this.onPointerUp.bind(this);
+      this.onWheel=this.onWheel.bind(this);
+      this.onContextMenu=this.onContextMenu.bind(this);
+
+      canvas.addEventListener("pointermove",this.onPointerMove,{passive:true});
+      canvas.addEventListener("pointerdown",this.onPointerDown,{passive:true});
+      window.addEventListener("pointerup",this.onPointerUp,{passive:true});
+      window.addEventListener("pointercancel",this.onPointerUp,{passive:true});
+      canvas.addEventListener("wheel",this.onWheel,{passive:false});
+      canvas.addEventListener("contextmenu",this.onContextMenu,{passive:false});
+    }
+    dispose(){
+      this.canvas.removeEventListener("pointermove",this.onPointerMove);
+      this.canvas.removeEventListener("pointerdown",this.onPointerDown);
+      window.removeEventListener("pointerup",this.onPointerUp);
+      window.removeEventListener("pointercancel",this.onPointerUp);
+      this.canvas.removeEventListener("wheel",this.onWheel);
+      this.canvas.removeEventListener("contextmenu",this.onContextMenu);
+      this.tileGeom.dispose(); this.bgGeom.dispose();
+      this.tiles.forEach(m=>m.material&&m.material.dispose());
+      this.bgTiles.forEach(m=>m.material&&m.material.dispose());
+    }
+    setViewport(w,h){ this.viewW=w; this.viewH=h; }
+    layout(rowsOverride){
+      const {cols, rows: rowsDefault, tile, gap} = this.opts;
+      const rows = Math.max(1, Math.floor(rowsOverride || rowsDefault));
+      const stepX = tile + gap, stepY = tile + gap;
+      const sizeX = stepX * (cols - 1), sizeY = stepY * (rows - 1);
+
+      if (this.groups && this.groups.length){
+        this.groups.forEach(g=>{
+          g.children.forEach(m=>{
+            try{ m.material && m.material.dispose(); }catch(e){}
+            try{ m.geometry && m.geometry.dispose(); }catch(e){}
+          });
+          try{ this.remove(g); }catch(e){}
+        });
+      }
+
+      this.tiles = []; this.bgTiles = []; this.groups = []; this.tileItems = [];
+
+      this.contentHalfW = sizeX/2 + tile/2;
+      this.contentHalfH = sizeY/2 + tile/2;
+
+      for(let r=0;r<rows;r++){
+        for(let c=0;c<cols;c++){
+          const x = c*stepX - sizeX/2;
+          const y = sizeY/2 - r*stepY;
+
+          const group = new THREE.Group();
+          group.position.set(x,y,0);
+
+          const bgMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.0 });
+          const bgMesh = new THREE.Mesh(this.bgGeom, bgMat);
+          bgMesh.position.set(0,0,-0.0005);
+
+          const imgMat = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
+          const imgMesh = new THREE.Mesh(this.tileGeom, imgMat);
+
+          group.add(bgMesh); group.add(imgMesh);
+          this.add(group);
+
+          this.groups.push(group);
+          this.bgTiles.push(bgMesh);
+          this.tiles.push(imgMesh);
+          this.tileItems.push(null);
+        }
+      }
+    }
+    async loadAndApplyTexture(mesh, item, index){
+      if (!item) {
+        const oldMat = mesh.material;
+        mesh.material = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.0 });
+        oldMat?.dispose?.();
+        return;
+      }
+      let texture;
+      try { texture = await textureForItem(item); } catch (e) { console.warn(e); texture = makeEmptyTexture(); }
+      const newMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.0 });
+      mesh.material?.dispose?.();
+      mesh.material = newMat;
+      gsap.to(newMat, {
+        opacity: 1.0, duration: 0.6,
+        delay: (index % this.opts.cols) * 0.03 + Math.floor(index / this.opts.cols) * 0.05,
+        ease: "power2.out"
+      });
+    }
+    setItems(items){
+      const cols = this.opts.cols;
+      const neededRows = Math.max(1, Math.ceil(items.length / cols));
+      this.layout(neededRows);
+      const total = this.tiles.length;
+      for(let i = 0; i < total; i++){
+        const item = i < items.length ? items[i] : null;
+        this.tileItems[i] = item;
+        if (!item){
+          try{ this.tiles[i].material?.dispose?.(); }catch{}
+          this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.0 });
+          continue;
+        }
+        if (typeof this.loadAndApplyTexture === 'function'){
+          try{ this.loadAndApplyTexture(this.tiles[i], item, i); }catch(e){ console.warn('Error applying texture to tile', e); }
+        } else {
+          try{ this.tiles[i].material?.dispose?.(); }catch{}
+          this.tiles[i].material = new THREE.MeshBasicMaterial({ color:0x222222, transparent:true, opacity:1.0 });
+        }
+      }
+    }
+    _pxToNorm(dx,dy){ const s=Math.min(this.viewW,this.viewH); return new THREE.Vector2(dx/s, dy/s); }
+    _ndcFromClient(clientX, clientY){
+      const rect=this.canvas.getBoundingClientRect();
+      return { x: ((clientX-rect.left)/rect.width)*2-1, y: -((clientY-rect.top)/rect.height)*2+1 };
+    }
+    _hitTileAt(clientX, clientY){
+      const ndc=this._ndcFromClient(clientX, clientY);
+      this.ray.setFromCamera(ndc,this.camera);
+      const hit=this.ray.intersectObjects(this.tiles,false)[0];
+      if(!hit) return { idx:-1, mesh:null };
+      const idx=this.tiles.indexOf(hit.object);
+      return { idx, mesh:this.tiles[idx] };
+    }
+    _setHover(idx){
+      if(this.hoverIdx===idx) return;
+      if(this.hoverIdx>=0 && this.bgTiles[this.hoverIdx]){
+        gsap.to(this.bgTiles[this.hoverIdx].material,{ opacity:0.0, duration:0.15, ease:"power2.out" });
+      }
+      this.hoverIdx=idx;
+      if(idx>=0 && this.bgTiles[idx]){
+        this.bgTiles[idx].material.color.set(0x000000);
+        gsap.to(this.bgTiles[idx].material,{ opacity:0.2, duration:0.12, ease:"power2.out" });
+      }
+    }
+    centerTileByIndex(idx, dur=0.7){
+      if(idx<0||idx>=this.tiles.length) return;
+      const p=this.groups[idx].position;
+      gsap.to(this.offset, { x:-p.x, y:-p.y, duration:dur, ease:"power2.out" });
+    }
+    zoomToFitTile(idx, margin=1.25, dur=0.7){
+      if(idx<0||idx>=this.tiles.length) return;
+      this.centerTileByIndex(idx, dur*0.8);
+      const tileSize = this.opts.tile * margin;
+      const aspect = this.viewW / this.viewH;
+      const fov = this.camera.fov * Math.PI/180;
+      const neededHeight = tileSize * (aspect < 1 ? (1/aspect) : 1);
+      const z = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, neededHeight / (2 * Math.tan(fov/2))));
+      gsap.to(this.camera.position, { z, duration:dur, ease:"power2.out" });
+    }
+    _clampZ(z){ return Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z)); }
+    onWheel(e){
+      e.preventDefault();
+      const cur = this.camera.position.z;
+      const dz = e.deltaY * CONFIG.wheelScale * Math.max(0.6, cur);
+      const target = this._clampZ(cur + dz);
+      gsap.to(this.camera.position, { z: target, duration: 0.16, ease:"power2.out" });
+    }
+    onContextMenu(e){
+      e.preventDefault();
+      this.resetPosition();
+      gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration: 0.40, ease: "power2.out" });
+    }
+    _updatePointer(e){ if(e.pointerType==="touch") this.pointerMap.set(e.pointerId, { x:e.clientX, y:e.clientY }); }
+    _removePointer(e){ if(e.pointerType==="touch"){ this.pointerMap.delete(e.pointerId); if(this.pointerMap.size<2){ this.pinchDist0=null; this.cameraZ0=null; } } }
+    _twoTouchDistance(){ const v=[...this.pointerMap.values()]; if(v.length<2) return null; const a=v[0],b=v[1]; return Math.hypot(b.x-a.x, b.y-a.y); }
+    onPointerMove(e){
+      const rect=this.canvas.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
+      this.pointerUv.set(x,y);
+      this._updatePointer(e);
+
+      if(this.pointerMap.size>=2){
+        const d=this._twoTouchDistance();
+        if(d && !this.pinchDist0){ this.pinchDist0=d; this.cameraZ0=this.camera.position.z; }
+        if(d && this.pinchDist0 && this.cameraZ0!=null){
+          let factor = d / this.pinchDist0;
+          const target = this._clampZ(this.cameraZ0 / Math.max(0.3, Math.min(3, factor)));
+          gsap.to(this.camera.position, { z: target, duration: 0.08, ease:"power2.out" });
+        }
+        return;
+      }
+
+      if(this.isPointerDown){
+        if (!this.isDragging) {
+          const dist = Math.hypot((e.clientX - this.downX)||0, (e.clientY - this.downY)||0);
+          const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
+          if (dist > thresh) {
+            this.isDragging = true;
+            this.longPressFired = true;
+            if(this.longPressTimer){ window.clearTimeout(this.longPressTimer); this.longPressTimer=null; }
+            this.dragZoomStart = this.camera.position.z;
+            // FIX 3: Remove zoom-in during drag
+            // const targetZ = this._clampZ(this.dragZoomStart * 1.3);
+            // gsap.to(this.camera.position, { z: targetZ, duration: 0.2, ease: "power2.out" });
+          }
+        }
+        const dx=(this._lastPX===null?0:(e.clientX-this._lastPX)), dy=(this._lastPY===null?0:(e.clientY-this._lastPY));
+        this._lastPX=e.clientX; this._lastPY=e.clientY;
+        const d=this._pxToNorm(dx,dy);
+        const mult = this.isTouch ? CONFIG.dragMultTouch : CONFIG.dragMultMouse;
+        this.offset.x += d.x * mult;
+        this.offset.y += -d.y * mult;
+        const lerpAmt = 1 - (this.opts.velEase);
+        this.velocity.lerp(new THREE.Vector2(d.x,-d.y), lerpAmt);
+      } else {
+        const hit = this._hitTileAt(e.clientX, e.clientY);
+        this._setHover(hit.idx);
+      }
+    }
+    onPointerDown(e){
+      this.isPointerDown=true;
+      this.isTouch = (e.pointerType === "touch");
+      this.canvas.classList.add("dragging");
+      this._lastPX=e.clientX; this._lastPY=e.clientY;
+      this.downTime = performance.now();
+      this.downX = e.clientX; this.downY = e.clientY;
+      this.longPressFired = false;
+      this.isDragging = false;
+      this.dragZoomStart = this.camera.position.z;
+      const holdMs = this.isTouch ? CONFIG.longPressMsTouch : CONFIG.longPressMsMouse;
+      this.longPressTimer = window.setTimeout(()=>{
+        const dist = Math.hypot((this._lastPX - this.downX)||0, (this._lastPY - this.downY)||0);
+        const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
+        if(this.isPointerDown && dist <= thresh){
+          const { idx } = this._hitTileAt(this._lastPX ?? this.downX, this._lastPY ?? this.downY);
+          if(idx>=0){ this.longPressFired = true; this.zoomToFitTile(idx, 1.25, 0.7); }
+        }
+      }, holdMs);
+    }
+    onPointerUp(e){
+      this._removePointer(e);
+      this.isPointerDown=false; this.canvas.classList.remove("dragging");
+      
+      // FIX 3: Remove zoom reset on drag release
+      // if (this.isDragging) {
+      //   gsap.to(this.camera.position, { z: this.dragZoomStart, duration: 0.3, ease: "power2.out" });
+      //   this.dragZoomStart = null;
+      //   this.isDragging = false;
+      // }
+      
+      // FIX 3: Simply mark as not dragging
+      if (this.isDragging) {
+        this.isDragging = false;
+        this.dragZoomStart = null;
+      }
+      
+      const upTime = performance.now();
+      const dt = upTime - this.downTime;
+      const dist = Math.hypot((e.clientX - this.downX)||0, (e.clientY - this.downY)||0);
+      const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
+      window.clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+      if(!this.longPressFired && dt < (this.isTouch ? CONFIG.longPressMsTouch : CONFIG.longPressMsMouse) && dist <= thresh){
+        const { idx } = this._hitTileAt(e.clientX, e.clientY);
+        if(idx>=0){
+          this.centerTileByIndex(idx, 0.6);
+          this.onTileClick?.(idx, this.tileItems[idx] || null);
+        }
+      }
+    }
+    _visibleWorldWH(){
+      const z   = this.camera.position.z;
+      const fov = this.camera.fov * Math.PI/180;
+      const visH = 2 * Math.tan(fov/2) * z;
+      const visW = visH * (this.viewW / this.viewH);
+      return { visW, visH };
+    }
+    _computeBounds(){
+      const { visW, visH } = this._visibleWorldWH();
+      const slack = CONFIG.boundSlack;
+      const tooWide  = visW >= this.contentHalfW * 2 + slack * 2;
+      const tooTall  = visH >= this.contentHalfH * 2 + slack * 2;
+      const minX = tooWide ? 0 : ( visW/2 - this.contentHalfW - slack );
+      const maxX = tooWide ? 0 : ( this.contentHalfW + slack - visW/2 );
+      const minY = tooTall ? 0 : ( visH/2 - this.contentHalfH - slack );
+      const maxY = tooTall ? 0 : ( this.contentHalfH + slack - visW/2 );
+      return { minX, maxX, minY, maxY };
+    }
+    update(){
+      const cursorOffset=this.pointerUv.clone().subScalar(0.5).multiplyScalar(-this.opts.ambient);
+      if(!this.isPointerDown){
+        this.offset.add(this.velocity.clone().multiplyScalar(5));
+        this.velocity.multiplyScalar(this.opts.velEase);
+      }
+      const tx=this.offset.x+cursorOffset.x, ty=this.offset.y-cursorOffset.y;
+      const { minX, maxX, minY, maxY } = this._computeBounds();
+      const ease = this.currentDragEase || this.opts.dragEase;
+      const txSoft = Math.min(Math.max(tx, minX), maxX);
+      const tySoft = Math.min(Math.max(ty, minY), maxY);
+      this.position.x += (txSoft - this.position.x) * ease;
+      this.position.y += (tySoft - this.position.y) * ease;
+      const z = this.camera.position.z;
+      if (Math.abs(z - (this._lastZ ?? z)) > 1e-3) {
+        this._lastZ = z;
+        this.onZoomChange?.(z, { min: CONFIG.zoomMin, max: CONFIG.zoomMax });
+      }
+    }
+    resetPosition(){ this.offset.set(0,0); this.velocity.set(0,0); }
+  }
+
+  function Postprocessing({ workgridState }){
+    const { gl, scene, camera, size } = useThree();
+    const [mods, setMods] = useState(null);
+
+    useEffect(()=>{
+      let cancelled=false;
+      (async()=>{
+        try{
+          const [{ EffectComposer }, { RenderPass }, { ShaderPass }, { OutputPass }] = await Promise.all([
+            import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/EffectComposer.js"),
+            import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/RenderPass.js"),
+            import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/ShaderPass.js"),
+            import("https://esm.sh/three@0.160.1/examples/jsm/postprocessing/OutputPass.js"),
+          ]);
+          if(!cancelled) setMods({ EffectComposer, RenderPass, ShaderPass, OutputPass });
+        }catch(e){ console.warn("Post FX unavailable", e); }
+      })();
+      return ()=>{ cancelled=true; };
+    },[]);
+
+    const { composer, shader } = useMemo(()=>{
+      if(!mods) return { composer:null, shader:null };
+      try{
+        const renderPass=new mods.RenderPass(scene,camera);
+        const shader=new DistortionShader();
+        const shaderPass=new mods.ShaderPass(shader);
+        const outputPass=new mods.OutputPass();
+        const composer=new mods.EffectComposer(gl);
+        composer.addPass(renderPass); composer.addPass(shaderPass); composer.addPass(outputPass);
+        return { composer, shader };
+      }catch(e){ console.warn("Composer init failed",e); return { composer:null, shader:null }; }
+    },[mods, gl, scene, camera]);
+
+    useEffect(()=>{ if(!composer||!shader) return;
+      const dpr=Math.min(2, gl.getPixelRatio?.()||1.5);
+      composer.setPixelRatio?.(dpr);
+      composer.setSize(size.width, size.height);
+      shader.update();
+    },[composer,shader,size,gl]);
+
+    useEffect(()=>{ if(!shader) return;
+      const base = (workgridState==="INTRO" ? CONFIG.distortion.flat : CONFIG.distortion.curved);
+      const scale = size.width < 800 ? 0.25 : 1.0;
+      shader.setDistortion(base * scale);
+    },[workgridState,shader,size.width]);
+
+    useFrame(()=>{ composer?.render(); }, 1);
+    return null;
+  }
+
+  function ProjectsGridPrimitive({ workgridState, items, onTileClick, onZoomChange, controllerRef }){
+    const { gl, camera, size } = useThree();
+    const grid = useMemo(()=> new Grid(gl.domElement, camera, {
+      cols:CONFIG.cols, rows:CONFIG.rows, tile:CONFIG.tile, gap:CONFIG.gap,
+      ambient:CONFIG.ambient, dragEase:CONFIG.dragEase, velEase:CONFIG.velEase
+    }),[gl,camera]);
+
+    useFrame(()=>grid.update());
+    useEffect(()=>{ grid.setViewport(size.width,size.height); },[size,grid]);
+    useEffect(()=>{ grid.onTileClick=onTileClick; },[grid,onTileClick]);
+    useEffect(()=>{ grid.setItems(items); },[items,grid]);
+    useEffect(()=>{ grid.onZoomChange = (z)=> onZoomChange?.(z); return ()=>{ grid.onZoomChange=null; }; },[grid,onZoomChange]);
+    useEffect(()=>{ if(!controllerRef) return;
+      controllerRef.current = {
+        setZoom: (z) => {
+          const clamped = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z));
+          gsap.to(camera.position, { z: clamped, duration: 0.12, ease: "power2.out" });
+        }
+      };
+    },[controllerRef, camera]);
+
+    return React.createElement("primitive",{object:grid});
+  }
+
+  function GridView(props){
+    const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
+    return React.createElement(Canvas,{
+        gl:{ antialias:true, powerPreference:"high-performance" },
+        camera:{ fov:35, position:[0,0,CONFIG.zoomOut] },
+        dpr:[1, 2],
+        onCreated:({ gl })=>{
+          gl.setClearColor(0x000000, 1);
+          gl.outputColorSpace = THREE.SRGBColorSpace;
+          gl.toneMapping = THREE.NoToneMapping;
+        }
+      },
+      React.createElement("ambientLight",{intensity:1}),
+      React.createElement("directionalLight",{intensity:.7, position:[2,3,4]}),
+      React.createElement(ProjectsGridPrimitive,props),
+      React.createElement(BracketOverlay,{ 
+        visible: props.workgridState !== WorkgridState.INTRO 
+      }),
+      React.createElement(Postprocessing,{workgridState:props.workgridState})
+    );
+  }
+
+  function useCamera(){
+    const videoRef=useRef(null), streamRef=useRef(null), [error,setError]=useState("");
+    const isHttps = () => location.protocol==="https:" || location.hostname==="localhost";
+    const stop=()=>{ streamRef.current?.getTracks?.().forEach(t=>t.stop()); streamRef.current=null; if(videoRef.current) videoRef.current.srcObject=null; };
+    const start=async()=>{
+      setError("");
+      if(!isHttps()){ setError("Camera requires HTTPS (or localhost). Use Import instead."); return false; }
+      const v = videoRef.current;
+      if(!v){ setError("Camera function coming soon! xoxo"); return false; }
+      try{
+        v.setAttribute("playsinline",""); v.setAttribute("autoplay",""); v.setAttribute("muted",""); v.playsInline = true; v.muted = true;
+        const constraints = { video: { facingMode: { ideal:"environment" }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = stream; v.srcObject = stream;
+        await new Promise(res=>{ const onReady = () => { v.removeEventListener("loadedmetadata", onReady); res(); }; v.addEventListener("loadedmetadata", onReady); });
+        await v.play().catch(()=>{ });
+        return true;
+      }catch(e){
+        console.warn("Camera error:", e);
+        let msg = "Camera unavailable.";
+        if(e?.name==="NotAllowedError"){ msg = "Camera permission denied. Check browser permissions."; }
+        if(e?.name==="NotFoundError"){ msg = "No suitable camera found."; }
+        if(e?.name==="OverconstrainedError"){ msg = "Camera constraints not supported on this device."; }
+        setError(msg); stop(); return false;
+      }
+    };
+    return { videoRef, start, stop, error };
+  }
+  
+  async function exportCardPNGFromCanvas(sourceCanvas,title,caption,gps=""){
+    const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=sourceCanvas.toDataURL("image/png"); });
+    const cnv = makeCardCanvas({ img, title, caption, gps, ts:nowTS() });
+    return new Promise(resolve=>{ cnv.toBlob(b=>{ const url=URL.createObjectURL(b); resolve({url,blob:b}); },"image/png",0.96); });
+  }
+  
+  function Leveler(){
+    const [enabled,setEnabled]=useState(false);
+    const [deg,setDeg]=useState(0);
+    useEffect(()=>{ if(!enabled) return;
+      const onOrient = (e)=>{ const g = (typeof e.gamma === "number") ? e.gamma : 0; const clamped = Math.max(-45, Math.min(45, g)); setDeg(clamped); };
+      window.addEventListener("deviceorientation", onOrient, true);
+      return ()=>window.removeEventListener("deviceorientation", onOrient, true);
+    },[enabled]);
+    const good = Math.abs(deg) <= 2;
+    const xPct = ((deg + 45) / 90) * 100;
+    const needPermission = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
+    const askPermission = async ()=>{ try{ if(needPermission){ const st = await DeviceOrientationEvent.requestPermission(); if(st === "granted") setEnabled(true); }else{ setEnabled(true); } }catch{} };
+    return (
+      React.createElement("div",{ className:`leveler ${good?"good":""}` },
+        React.createElement("div",{ className:"vial" }),
+        React.createElement("div",{ className:"bubble", style:{ "--bubble-x": `${xPct}%` } }),
+        React.createElement("div",{ className:"deg" }, `${deg.toFixed(1)}°`),
+        !enabled && React.createElement("button",{ className:"enable", onClick:askPermission },"Enable leveler")
+      )
+    );
+  }
+  function OverlayFlow({ open, onClose, onAddToArchive }){
+    const [step,setStep]=useState(0), [title,setTitle]=useState(""), [caption,setCaption]=useState("A quick visual note");
+    const [reviewCanvas,setReviewCanvas]=useState(null), [exporting,setExporting]=useState(false);
+    const camera=useCamera(); const filePickRef=useRef(null); const sheetRef=useRef(null); const reviewMountRef=useRef(null);
+
+    useEffect(()=>{ const mount=reviewMountRef.current; if(!mount) return; while(mount.firstChild) mount.removeChild(mount.firstChild);
+      if(reviewCanvas && step===2){
+        reviewCanvas.style.width="100%";
+        reviewCanvas.style.height="auto";
+        reviewCanvas.style.display="block";
+        mount.appendChild(reviewCanvas);
+      } },[reviewCanvas,step]);
+
+    useEffect(()=>{ if(!open){ camera.stop(); setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); setExporting(false);} },[open]);
+
+    const startCamera=async()=>{ const ok=await camera.start(); setStep(ok?1:0); };
+    const captureShot=()=>{ const v=camera.videoRef.current; if(!v||!v.videoWidth){ return; }
+      const vw=v.videoWidth,vh=v.videoHeight,s=Math.min(vw,vh),sx=Math.floor((vw-s)/2),sy=Math.floor((vh-s)/2);
+      const c=document.createElement("canvas"); c.width=s; c.height=s; const ctx=c.getContext("2d"); ctx.drawImage(v,sx,sy,s,s,0,0,s,s);
+      setReviewCanvas(c); setStep(2);
+    };
+    const pickFile=()=>filePickRef.current?.click();
+    const onFileChange=e=>{
+      const f=e.target.files?.[0]; if(!f) return; const img=new Image(); const url=URL.createObjectURL(f);
+      img.onload=()=>{ const s=Math.min(img.width,img.height), sx=Math.floor((img.width-s)/2), sy=Math.floor((img.height-s)/2);
+        const c=document.createElement("canvas"); c.width=s; c.height=s; c.getContext("2d").drawImage(img,sx,sy,s,s,0,0,s,s);
+        URL.revokeObjectURL(url); setReviewCanvas(c); setStep(2); }; img.src=url;
+    };
+    const doExport=async()=>{ if(!reviewCanvas) return; setExporting(true);
+      const { url } = await exportCardPNGFromCanvas(reviewCanvas, title||"[ title ]", caption||"—");
+      setExporting(false); setStep(5);
+      onAddToArchive?.({ id:"note_"+Date.now(), src:url, title:title||"[ title ]", caption:caption||"—", baked:true, ts:nowTS(), createdMs:Date.now() });
+    };
+
+    if(!open) return null;
+    return (
+      React.createElement("div",{className:"overlay open curved"},
+        React.createElement("div",{className:"sheet",ref:sheetRef,role:"dialog","aria-modal":"true"},
+          React.createElement("div",{className:"titlebar"},
+            React.createElement("h2",null, ["Start","Viewfinder","Review","Details","Export","Done"][step] || "Start"),
+            React.createElement("button",{className:"btn ghost",onClick:onClose},"ESC")
+          ),
+          step===0 && React.createElement("div",{className:"grid", style:{alignContent:"center"}},
+            camera.error ? React.createElement("div",{className:"hint", style:{color:"#ffb4b4"}}, camera.error) : null,
+            React.createElement("div",{className:"grid cols-2"},
+              React.createElement("button",{className:"btn primary",onClick:startCamera},"Open Camera"),
+              React.createElement("button",{className:"btn",onClick:pickFile},"Import Photo")),
+            React.createElement("input",{ref:filePickRef,type:"file",accept:"image/*",style:{display:"none"},onChange:onFileChange})
+          ),
+          step===1 && React.createElement(React.Fragment,null,
+            React.createElement("div",{className:"vf chrome-frame"},
+              React.createElement("video",{ref:camera.videoRef,playsInline:true,autoPlay:true,muted:true}),
+              React.createElement("span",{className:"perfs","aria-hidden":"true"}),
+              React.createElement(Leveler,null)
+            ),
+            React.createElement("div",{className:"row",style:{marginTop:"12px", justifyContent:"space-between"}},
+              React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(0);}},"Back"),
+              React.createElement("button",{className:"btn primary",onClick:captureShot},"Capture"))
+          ),
+          step===2 && React.createElement(React.Fragment,null,
+            React.createElement("div",{className:"preview chrome-frame",ref:reviewMountRef}),
+            React.createElement("div",{className:"row",style:{marginTop:"12px", justifyContent:"space-between"}},
+              React.createElement("button",{className:"btn",onClick:()=>{camera.stop(); setStep(1);}},"Retake"),
+              React.createElement("button",{className:"btn primary",onClick:()=>setStep(3)},"Keep"))
+          ),
+          step===3 && React.createElement("div",{className:"grid"},
+            React.createElement("label",{className:"label",htmlFor:"t"},"Title (40 cap)"),
+            React.createElement("input",{id:"t",maxLength:40,className:"input",value:title,onChange:e=>setTitle(e.target.value)}),
+            React.createElement("label",{className:"label",htmlFor:"c"},"Note (100 cap)"),
+            React.createElement("textarea",{id:"c",maxLength:100,className:"textarea",value:caption,onChange:e=>setCaption(e.target.value)}),
+            React.createElement("div",{className:"row",style:{marginTop:"6px", justifyContent:"space-between"}},
+              React.createElement("button",{className:"btn",onClick:()=>setStep(2)},"Back"),
+              React.createElement("button",{className:"btn primary",onClick:()=>setStep(4)}, "Next"))),
+          step===4 && React.createElement("div",{className:"grid"},
+            React.createElement("div",{className:"hint"},"Export generates a 1:1 card PNG and adds it to the archive."),
+            React.createElement("div",{className:"row",style:{justifyContent:"space-between"}},
+              React.createElement("button",{className:"btn",onClick:()=>setStep(3)},"Back"),
+              React.createElement("button",{className:"btn primary",disabled:exporting,onClick:doExport},exporting?"Exporting…":"Export PNG & Save"))),
+          step===5 && React.createElement("div",{className:"grid",style:{placeItems:"center",textAlign:"center"}},
+            React.createElement("div",{className:"row",style:{justifyContent:"center"}},
+              React.createElement("button",{className:"btn",onClick:()=>{ setStep(0); setTitle(""); setCaption("A quick visual note"); setReviewCanvas(null); }},"intoview:note")),
+            React.createElement("div",{className:"row",style:{justifyContent:"center"}},
+              React.createElement("button",{className:"btn primary",onClick:onClose},"ESC")))
+        )
+      )
+    );
+  }
+
+  /* ========= Help overlay ========= */
+  function HelpOverlay({ open, onClose }){
+    if(!open) return null;
+
+    // Ref for the main container to attach spotlight listeners
+    const containerRef = useRef(null);
+
+    // FIX: Remove spotlight effect logic
+    /*
+    useEffect(()=>{
+      const container = containerRef.current;
+      if(!container) return;
+
+      function initSpotlight(container){
+        if(!container) return;
+
+        // set initial center to 50% 50%
+        container.style.setProperty('--mouse-x', '50%');
+        container.style.setProperty('--mouse-y', '50%');
+
+        // on pointer move update each parent details so the radial gradient aligns per-item
+        const onPointerMove = (e) => {
+          const el = document.elementFromPoint(e.clientX, e.clientY);
+          const detailsEl = el && el.closest('details');
+          if(!detailsEl) return;
+
+          const rect = detailsEl.getBoundingClientRect();
+          const x = (e.clientX - rect.left);
+          const y = (e.clientY - rect.top);
+
+          detailsEl.style.setProperty('--mouse-x', `${x}px`);
+          detailsEl.style.setProperty('--mouse-y', `${y}px`);
+          container.style.setProperty('--mouse-x', `${e.clientX}px`);
+          container.style.setProperty('--mouse-y', `${e.clientY}px`);
+        };
+        
+        container.addEventListener('pointermove', onPointerMove, { passive: true });
+
+        // reset on leave for each details
+        const detailsElements = container.querySelectorAll('details');
+        const onPointerLeave = (e) => {
+          e.currentTarget.style.setProperty('--mouse-x', '50%');
+          e.currentTarget.style.setProperty('--mouse-y', '50%');
+        };
+
+        detailsElements.forEach(d => {
+          d.addEventListener('pointerleave', onPointerLeave);
+        });
+        
+        // Cleanup
+        return () => {
+          container.removeEventListener('pointermove', onPointerMove);
+          detailsElements.forEach(d => {
+            d.removeEventListener('pointerleave', onPointerLeave);
+          });
+        };
+      }
+      
+      // We need to query selector from the container ref
+      const helpDisclosure = container.querySelector('#help-disclosure');
+      const faqDisclosure = container.querySelector('#faq-disclosure');
+
+      const cleanupHelp = initSpotlight(helpDisclosure);
+      const cleanupFaq = initSpotlight(faqDisclosure);
+
+      return () => {
+        cleanupHelp?.();
+        cleanupFaq?.();
+      };
+
+    }, [containerRef.current]); // Re-run if ref changes
+    */
+
+    return (
+      React.createElement("div",{className:"overlay open curved"},
+        // FIX: Increase overlay size
+        React.createElement("div",{className:"sheet",role:"dialog","aria-modal":"true",style:{
+            width: "min(90vw, 1200px)",
+            height: "min(90vh, 900px)"
+          }}, 
+          React.createElement("div",{className:"titlebar"},
+            React.createElement("h2",null,"Info"), // Changed title
+            React.createElement("button",{className:"btn ghost",onClick:onClose},"Close")
+          ),
+          // New content from intoview-info.html
+          React.createElement("div",{className:"container", ref:containerRef, style: { overflowY: 'auto', padding: '1rem', height: '100%' }},
+            React.createElement("div",{className:"section"},
+              React.createElement("h2",{className:"section-title"},"Help & Controls"),
+              React.createElement("div",{className:"morphing-disclosure",id:"help-disclosure"},
+                React.createElement("details",{name:"help"},
+                  React.createElement("summary",null,
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{d:"M11.25 4.533A9.707 9.707 0 006 3a9.735 9.735 0 00-3.25.555.75.75 0 00-.5.707v14.25a.75.75 0 001 .707A8.237 8.237 0 016 18.75c1.995 0 3.823.707 5.25 1.886V4.533zM12.75 20.636A8.214 8.214 0 0118 18.75c.966 0 1.89.166 2.75.47a.75.75 0 001-.708V4.262a.75.75 0 00-.5-.707A9.735 9.735 0 0018 3a9.707 9.707 0 00-5.25 1.533v16.103z"})
+                    ),
+                    React.createElement("span",null,"Navigation"),
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z",clipRule:"evenodd"})
+                    )
+                  ),
+                  React.createElement("div",{className:"content"},
+                    React.createElement("p",null,React.createElement("strong",null,"Mouse:")," Drag to pan • Wheel to zoom • Click tile to center • Long-press tile to fit view • Right-click to reset"),
+                    React.createElement("p",null,React.createElement("strong",null,"Touch:")," Drag to pan • Pinch to zoom • Tap tile to center • Long-press tile to fit")
+                  )
+                ),
+                React.createElement("details",{name:"help"},
+                  React.createElement("summary",null,
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M2.25 6a3 3 0 013-3h13.5a3 3 0 013 3v12a3 3 0 01-3 3H5.25a3 3 0 01-3-3V6zm3.97.97a.75.75 0 011.06 0l2.25 2.25a.75.75 0 010 1.06l-2.25 2.25a.75.75 0 01-1.06-1.06l1.72-1.72-1.72-1.72a.75.75 0 010-1.06zm4.28 4.28a.75.75 0 000 1.5h5.25a.75.75 0 000-1.5H10.5z",clipRule:"evenodd"})
+                    ),
+                    React.createElement("span",null,"Keyboard Shortcuts"),
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z",clipRule:"evenodd"})
+                    )
+                  ),
+                  React.createElement("div",{className:"content"},
+                    React.createElement("p",null,React.createElement("kbd",null,"1")," Flat distortion • ",React.createElement("kbd",null,"2")," Curved distortion • ",React.createElement("kbd",null,"0")," Reset view"),
+                    React.createElement("p",null,React.createElement("kbd",null,"N")," New note • ",React.createElement("kbd",null,"?")," or ",React.createElement("kbd",null,"H")," Help dialog")
+                  )
+                ),
+                React.createElement("details",{name:"help"},
+                  React.createElement("summary",null,
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z",clipRule:"evenodd"})
+                    ),
+                    React.createElement("span",null,"View Controls"),
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z",clipRule:"evenodd"})
+                    )
+                  ),
+                  React.createElement("div",{className:"content"},
+                    React.createElement("p",null,"Toggle between ",React.createElement("strong",null,"Grid View")," (default spatial layout) and ",React.createElement("strong",null,"List View")," using the buttons in the left sidebar."),
+                    React.createElement("p",null,"Use ",React.createElement("strong",null,"Zoom Presets")," (25%, 50%, 75%) for quick framing adjustments.")
+                  )
+                ),
+                React.createElement("details",{name:"help"},
+                  React.createElement("summary",null,
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{d:"M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z"}),
+                      React.createElement("path",{fillRule:"evenodd",d:"M9.344 3.071a49.52 49.52 0 015.312 0c.967.052 1.83.585 2.332 1.39l.821 1.317c.24.383.645.643 1.11.71.386.054.77.113 1.152.177 1.432.239 2.429 1.493 2.429 2.909V18a3 3 0 01-3 3h-15a3 3 0 01-3-3V9.574c0-1.416.997-2.67 2.429-2.909.382-.064.766-.123 1.151-.178a1.56 1.56 0 001.11-.71l.822-1.315a2.942 2.942 0 012.332-1.39zM6.75 12.75a5.25 5.25 0 1110.5 0 5.25 5.25 0 01-10.5 0zm12-1.5a.75.75 0 100-1.5.75.75 0 000 1.5z",clipRule:"evenodd"})
+                    ),
+                    React.createElement("span",null,"Camera & Leveler"),
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z",clipRule:"evenodd"})
+                    )
+                  ),
+                  React.createElement("div",{className:"content"},
+                    React.createElement("p",null,"The ",React.createElement("strong",null,"leveler")," appears on the Viewfinder step when creating a new note. Tap \"Enable leveler\" to use device orientation for perfect horizontals."),
+                    React.createElement("p",null,"Requires ",React.createElement("strong",null,"HTTPS")," (or localhost) and device permission.")
+                  )
+                )
+              )
+            ),
+            React.createElement("div",{className:"section"},
+              React.createElement("h2",{className:"section-title"},"FAQ"),
+              React.createElement("div",{className:"morphing-disclosure",id:"faq-disclosure"},
+                React.createElement("details",{name:"faq"},
+                  React.createElement("summary",null,
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{d:"M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm1.07-7.75l-.9.92A3.49 3.49 0 0112 12.5h-1v-1h1c.28 0 .5-.22.5-.5 0-.13-.05-.26-.14-.36l-.8-.8A2 2 0 0113 6.5a2 2 0 012 2c0 .55-.22 1.05-.58 1.5z"})
+                    ),
+                    React.createElement("span",null,"What is intoview?"),
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z",clipRule:"evenodd"})
+                    )
+                  ),
+                  React.createElement("div",{className:"content"},
+                    React.createElement("p",null,React.createElement("strong",null,"intoview.pro")," is a curated platform and toolkit for creators — designers, developers, and makers — to present high-impact work in context rather than as a traditional résumé. It’s focused on \"showing\" instead of \"listing\": visual, interactive snapshots that communicate influence, intent, and outcomes."),
+                    React.createElement("p",{className:"note-meta"},React.createElement("span",null,"🔗 brand: intoview.pro"),React.createElement("span",null,"🧭 focus: discovery & framing"))
+                  )
+                ),
+                React.createElement("details",{name:"faq"},
+                  React.createElement("summary",null,
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{d:"M3 6a1 1 0 011-1h16a1 1 0 011 1v11a1 1 0 01-1 1H4a1 1 0 01-1-1V6z"})
+                    ),
+                    React.createElement("span",null,"My process (as it pertains to intoview.pro)"),
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z",clipRule:"evenodd"})
+                    )
+                  ),
+                  React.createElement("div",{className:"content"},
+                    React.createElement("p",null,"My workflow blends quick iteration and storytelling: capture a project snapshot → distill the signal (problem, approach, result) → create an \"into view\" asset (interactive or visual) that demonstrates impact and motion. I favor concise, experiential pieces over long form case studies for first impressions."),
+                    React.createElement("p",{className:"note-meta"},React.createElement("span",null,"🛠️ methods: prototyping, selective documentation"),React.createElement("span",null,"⚡ signal-first storytelling"))
+                  )
+                ),
+                React.createElement("details",{name:"faq"},
+                  React.createElement("summary",null,
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{d:"M12 6a6 6 0 100 12 6 6 0 000-12z"})
+                    ),
+                    React.createElement("span",null,"What I am doing"),
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z",clipRule:"evenodd"})
+                    )
+                  ),
+                  React.createElement("div",{className:"content"},
+                    React.createElement("p",null,"Right now I’m iterating the intoview prototypes (visual explorer, note/gallery flows, and sharing affordances). I’m also building tooling to convert brief project inputs into compact interactive \"notes\" that communicate context and impact quickly."),
+                    React.createElement("p",{className:"note-meta"},React.createElement("span",null,"📦 current: prototypes & workflows"),React.createElement("span",null,"🔁 iteration cadence: frequent"))
+                  )
+                ),
+                React.createElement("details",{name:"faq"},
+                  React.createElement("summary",null,
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{d:"M6 3h12l2 4H4l2-4zM4 9h16v9a2 2 0 01-2 2H6a2 2 0 01-2-2V9z"})
+                    ),
+                    React.createElement("span",null,"Where I am going"),
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z",clipRule:"evenodd"})
+                    )
+                  ),
+                  React.createElement("div",{className:"content"},
+                    React.createElement("p",null,"The roadmap focuses on three pillars: (1) discoverability — making \"shine\" (active, influential work) surface; (2) compact presentation — short interactive notes that tell the story at a glance; (3) exportability — share/embed-ready assets for portfolios and conversations."),
+                    React.createElement("p",{className:"note-meta"},React.createElement("span",null,"🎯 goals: clarity, reach, reusability"))
+                  )
+                ),
+                React.createElement("details",{name:"faq"},
+                  React.createElement("summary",null,
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{d:"M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"})
+                    ),
+                    React.createElement("span",null,"Where I'd like to be"),
+                    React.createElement("svg",{xmlns:"http://www.w3.org/2000/svg",viewBox:"0 0 24 24",fill:"currentColor"},
+                      React.createElement("path",{fillRule:"evenodd",d:"M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z",clipRule:"evenodd"})
+                    )
+                  ),
+                  React.createElement("div",{className:"content"},
+                    React.createElement("p",null,"Ideally, intoview becomes the lightweight, default way makers show their best, most current work — an ecosystem of short-form, interactive artifacts people can easily discover, remix, and use in conversations, applications, and portfolios."),
+                    React.createElement("p",{className:"note-meta"},React.createElement("span",null,"🚀 aspiration: a signal-first profile layer"))
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    );
+  }
+
+  /* ========= Zoom Presets ========= */
+  function ZoomPresets({ zoom, onSetZoom }){
+    const presets = [
+      { label: "+", zoomZ: 0.75, title: "Tight View (75% Preset)" },
+      { label: "::", zoomZ: 1.50, title: "Default View (50% Preset)" },
+      { label: "—", zoomZ: 2.50, title: "Wide View (25% Preset)" },
+    ];
+    const activeLabel = presets.reduce((active, preset) => (Math.abs(zoom - preset.zoomZ) < 0.2 ? preset.label : active), null);
+    return (
+      React.createElement("div", { className: "zoom-presets", "aria-label": "Grid Zoom Presets" },
+        presets.map(p =>
+          React.createElement("button", {
+            key: p.label,
+            className: `zoom-presets-btn ${p.label === activeLabel ? 'active' : ''}`,
+            title: p.title,
+            onClick: () => onSetZoom(p.zoomZ)
+          }, p.label)
+        )
+      )
+    );
+  }
+
+  /* ========= Minimal List View (rebuilt) ========= */
+  function ListView({ items }){
+    const bgRef = useRef(null);
+    const containerRef = useRef(null);
+    const [activeIdx, setActiveIdx] = useState(-1);
+
+    useEffect(()=>{
+      const container = containerRef.current;
+      if(!container) return;
+      const onLeave = ()=>{
+        setActiveIdx(-1);
+        if(bgRef.current) {
+          // FIX: Smoother fade-out
+          bgRef.current.style.opacity = "0";
+          // Delay clearing the image until after the fade
+          setTimeout(() => {
+            if (bgRef.current && activeIdx === -1) {
+              bgRef.current.style.backgroundImage = 'none';
+            }
+          }, 600); // Match CSS transition
+        }
+        container.classList.remove("has-active");
+      };
+      container.addEventListener("mouseleave", onLeave);
+      return ()=> container.removeEventListener("mouseleave", onLeave);
+    },[activeIdx]); // FIX: Add activeIdx dependency
+
+    const onEnterRow = (idx, imageUrl)=>{
+      setActiveIdx(idx);
+      containerRef.current?.classList.add("has-active");
+      const bg = bgRef.current;
+      if(!bg) return;
+      // FIX: Simplify transition
+      bg.style.backgroundImage = `url(${imageUrl})`;
+      bg.style.opacity = "1";
+    };
+
+    return (
+      React.createElement("div",{ className:"listview-root curved" },
+        React.createElement("main",{ className:"portfolio-container", ref:containerRef },
+          React.createElement("ul",{ className:"project-list", role:"list" },
+            items.map((it, idx) => {
+              const artist = it.title || "—";
+              const album  = it.caption || "—";
+              const image  = it.src || "";
+              return React.createElement("li", {
+                key: `${artist}_${idx}`,
+                className: `project-item ${activeIdx===idx ? 'active' : ''}`,
+                onMouseEnter: ()=>onEnterRow(idx, image)
+              },
+                React.createElement("span",{ className:"project-data artist" }, artist),
+                React.createElement("span",{ className:"project-data album" }, album),
+                React.createElement("span",{ className:"project-data category" }, "NOTE"),
+                React.createElement("span",{ className:"project-data label" }, "ARCHIVE"),
+                React.createElement("span",{ className:"project-data year" }, new Date().getFullYear())
+              );
+            })
+          )
+        ),
+        React.createElement("div",{ className:"background-image", id:"backgroundImage", ref:bgRef, role:"img", "aria-hidden":"true" })
+      )
+    );
+  }
+
+  /* ========= Persistence ========= */
+  function getCreatedMs(item, idx=0){
+    if (typeof item?.createdMs==="number") return item.createdMs;
+    if (item?.id){ const m=String(item.id).match(/^note_(\d+)$/); if(m){ const n=+m[1]; if(!Number.isNaN(n)) return n; } }
+    if (item?.ts && /^\d{4}-\d{2}-\d{2} • \d{2}:\d{2}$/.test(item.ts)){
+      const t=Date.parse(item.ts.replace(" • ","T")+":00"); if(!Number.isNaN(t)) return t;
+    }
+    return idx;
+  }
+  function loadArchive(){
+    try{
+      const raw=localStorage.getItem(STORAGE_KEY);
+      if(!raw) return [];
+      const parsed=JSON.parse(raw);
+      if(!Array.isArray(parsed)) return [];
+      return parsed.map((it,i)=>({ ...it, createdMs:getCreatedMs(it,i) }));
+    }catch{ return []; }
+  }
+  function saveArchive(arr){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch{} }
+
+  /* ========= App ========= */
+  function App(){
+    const WorkgridState = { INTRO:"INTRO", DEFAULT:"DEFAULT", RESET:"RESET" };
+    const [wgState,setWgState]=useState(WorkgridState.DEFAULT);
+    const [overlayOpen,setOverlayOpen]=useState(false);
+    const [helpOpen,setHelpOpen]=useState(false);
+    const [archive,setArchive]=useState(loadArchive());
+    const [seed,setSeed] = useState(SEED);
+    const gridCtrl = useRef({ setZoom: (z)=>{} });
+
+    const [view,setView] = useState("grid"); // "grid" | "list"
+
+    useEffect(()=>{ saveArchive(archive); },[archive]);
+
+    const sortedArchive=useMemo(()=>[...archive].map((it,i)=>({...it,createdMs:getCreatedMs(it,i)})).sort((a,b)=>b.createdMs-a.createdMs),[archive]);
+
+    const PLACEHOLDER_START = useMemo(()=>({ id:"placeholder_new_start", placeholder:true, title:"new note", caption:"tap to start" }),[]);
+    const PLACEHOLDER_END   = useMemo(()=>({ id:"placeholder_new_end",   placeholder:true, title:"new note", caption:"tap to start" }),[]);
+    const contentItems=useMemo(()=>[...sortedArchive, ...seed], [sortedArchive, seed]);
+    const combinedItems=useMemo(()=>[PLACEHOLDER_START, ...contentItems, PLACEHOLDER_END], [PLACEHOLDER_START, PLACEHOLDER_END, contentItems]);
+
+    useEffect(()=>{ document.documentElement.style.setProperty("--curve-k", String(wgState===WorkgridState.INTRO ? 0 : 1)); },[wgState]);
+
+    const hardReset = () => {
+      setWgState(WorkgridState.RESET);
+      requestAnimationFrame(()=> setWgState(WorkgridState.DEFAULT));
+    };
+
+    useEffect(()=>{ const onKey=e=>{ if(overlayOpen||helpOpen) return;
+        if(e.key==="1") setWgState(WorkgridState.INTRO);
+        if(e.key==="2") setWgState(WorkgridState.DEFAULT);
+        if(e.key==="0") hardReset();
+        if(e.key==="n"||e.key==="N") setOverlayOpen(true);
+        if(e.key==="?"||e.key==="h"||e.key==="H") setHelpOpen(true);
+      }; window.addEventListener("keydown",onKey); return ()=>window.removeEventListener("keydown",onKey); },[overlayOpen,helpOpen]);
+
+    const addNoteToArchive=note=> setArchive(arr=>[...arr, note]);
+
+    const [zoom, setZoom] = useState(CONFIG.zoomMin + 0.25 * (CONFIG.zoomMax - CONFIG.zoomMin));
+    const handleTileClick = (idx, item) => { if (item?.placeholder) { setOverlayOpen(true); } };
+
+    useEffect(()=>{
+      // initialize active button state
+      const gb=document.getElementById("gridBtn"), lb=document.getElementById("listBtn");
+      const syncBtns=()=>{
+        gb?.classList.toggle("active", view==="grid");
+        lb?.classList.toggle("active", view==="list");
+      };
+      syncBtns();
+      const onGrid=()=>{ setView("grid"); syncBtns(); };
+      const onList=()=>{ setView("list"); syncBtns(); };
+      gb?.addEventListener("click", onGrid);
+      lb?.addEventListener("click", onList);
+      return ()=>{
+        gb?.removeEventListener("click", onGrid);
+        lb?.removeEventListener("click", onList);
+      };
+    },[view]);
+
+    // OPTIMIZATION: Move cursor coordinate update out of React render loop
+    useEffect(() => {
+      const coordsMount = document.getElementById("coordsMount");
+      if (!coordsMount) return;
+      
+      const onMove = (e) => {
+        // Update DOM directly to avoid re-rendering the entire App
+        coordsMount.textContent = `x ${Math.round(e.clientX)} • y ${Math.round(e.clientY)}`;
+      };
+      
+      window.addEventListener("pointermove", onMove, { passive: true });
+      return () => window.removeEventListener("pointermove", onMove);
+    }, []); // Empty dependency array means this runs only once on mount
+
+    // Keep initial zoom reflected
+    useEffect(() => {
+      if (gridCtrl.current?.setZoom) gridCtrl.current.setZoom(zoom);
+      const clamped = Math.max(0, Math.min(1, (zoom - CONFIG.zoomMin) / (CONFIG.zoomMax - CONFIG.zoomMin)));
+      const pct = Math.round(clamped * 100);
+      document.documentElement.style.setProperty('--zoom-pct', `${pct}%`);
+    }, [zoom]);
+
+    return (
+      React.createElement(React.Fragment,null,
+        // Canvas remains mounted in both views to preserve post FX parity
+        React.createElement("div",{className:"canvas-wrap"},
+          React.createElement("div",{className:"fallback-grid"}),
+          React.createElement(Suspense,{fallback:null},
+            view==="grid"
+              ? React.createElement(GridView,{
+                  workgridState:wgState,
+                  items:combinedItems,
+                  onTileClick:handleTileClick,
+                  onZoomChange:setZoom,
+                  controllerRef:gridCtrl
+                })
+              : React.createElement(Canvas,{
+                  gl:{ antialias:true, powerPreference:"high-performance" },
+                  camera:{ fov:35, position:[0,0,CONFIG.zoomOut] },
+                  dpr:[1,2],
+                  onCreated:({ gl })=>{
+                    gl.setClearColor(0x000000, 1);
+                    gl.outputColorSpace = THREE.SRGBColorSpace;
+                    gl.toneMapping = THREE.NoToneMapping;
+                  }
+                },
+                React.createElement("ambientLight",{intensity:1}),
+                React.createElement("directionalLight",{intensity:.7, position:[2,3,4]}),
+                // FIX: Brackets always hidden in list view
+                React.createElement(BracketOverlay,{ visible: false }),
+                React.createElement(Postprocessing,{workgridState:wgState})
+              )
+          )
+        ),
+
+        // Header (info overlay preserved)
+        React.createElement("header",{className:"header"},
+          React.createElement("a",{className:"brand", href:"#", "aria-label":"intoview home"},
+            React.createElement("img",{
+              id:"brandLogo", alt:"intoview", decoding:"async",
+              src:"https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg"
+            })
+          ),
+          React.createElement("div",{className:"controls"},
+            React.createElement("button",{ className:"icon-btn", title: wgState===WorkgridState.DEFAULT ? "Curved (click to go Flat)" : "Flat (click to go Curved)", onClick:()=>setWgState(wgState===WorkgridState.DEFAULT?WorkgridState.INTRO:WorkgridState.DEFAULT), "aria-label":"Toggle distortion" },
+              React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+                React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", rx: wgState===WorkgridState.DEFAULT?9:2, ry: wgState===WorkgridState.DEFAULT?9:2, fill:"none", stroke:"currentColor", "stroke-width":"2" })
+              )
+            ),
+            React.createElement("button",{ className:"icon-btn", onClick:hardReset, title:"Reset view", "aria-label":"Reset view" },
+              React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+                React.createElement("rect",{ x:"4", y:"4", width:"16", height:"16", fill:"none", stroke:"currentColor", "stroke-width":"2" }),
+                React.createElement("circle",{ cx:"12", cy:"12", r:"5.5", fill:"none", stroke:"currentColor", "stroke-width":"2" })
+              )
+            ),
+            React.createElement("button",{className:"icon-btn","aria-label":"Info / Controls", onClick:()=>setHelpOpen(true), title:"Help / Controls"},
+              React.createElement("svg",{viewBox:"0 0 24 24", role:"img","aria-hidden":"true"},
+                React.createElement("circle",{cx:"12",cy:"12",r:"10", fill:"none", stroke:"currentColor","stroke-width":"2"}),
+                React.createElement("line",{x1:"12",y1:"16",x2:"12",y2:"12", stroke:"currentColor","stroke-width":"2","stroke-linecap":"round"}),
+                React.createElement("circle",{cx:"12", cy:"8", r:"1.2", fill:"currentColor"})
+              )
+            )
+          )
+        ),
+
+        // Minimal list view overlay (rebuilt), mounted only when view === 'list'
+        view==="list" && React.createElement(ListView,{ items: contentItems }),
+
+        React.createElement(HelpOverlay,{ open:helpOpen, onClose:()=>setHelpOpen(false) }),
+        React.createElement(OverlayFlow,{ open:overlayOpen, onClose:()=>setOverlayOpen(false), onAddToArchive:addNoteToArchive }),
+
+        React.createElement("div",{className:"edge-blur"}),
+        React.createElement("div",{className:"vignette"}),
+
+        React.createElement(ZoomPresets,{ zoom, onSetZoom:(z)=> gridCtrl.current?.setZoom?.(z) }),
+
+        // FAB MUST remain visible in both grid and list view
+        React.createElement("div",{ className:"fab-wrap" },
+          React.createElement("button",{ className:"fab", onClick:()=>setOverlayOpen(true), title:"New note", "aria-label":"intoview:note" },
+            React.createElement("svg",{viewBox:"0 0 100 100","aria-hidden":"true"},
+              React.createElement("defs",null,
+                React.createElement("linearGradient",{id:"cubeTop",x1:"0",x2:"1",y1:"0",y2:"1"},
+                  React.createElement("stop",{offset:"0","stop-color":"#fff","stop-opacity":"1"}),
+                  React.createElement("stop",{offset:"1","stop-color":"#dcdcdc","stop-opacity":"1"})
+                ),
+                React.createElement("linearGradient",{id:"cubeSide",x1:"0",x2:"1",y1:"0",y2:"1"},
+                  React.createElement("stop",{offset:"0","stop-color":"#e8e8e8"}),
+                  React.createElement("stop",{offset:"1","stop-color":"#bdbdbd"})
+                ),
+                React.createElement("linearGradient",{id:"cubeDark",x1:"0",x2:"1",y1:"0",y2:"1"},
+                  React.createElement("stop",{offset:"0","stop-color":"#8a8a8a"}),
+                  React.createElement("stop",{offset:"1","stop-color":"#4b4b4b"})
+                ),
+                React.createElement("filter",{id:"cubeGlow",x:"-50%",y:"-50%",width:"200%",height:"200%"},
+                  React.createElement("feDropShadow",{dx:"0",dy:"6","stdDeviation":"6","flood-color":"#000","flood-opacity":".45"})
+                )
+              ),
+              React.createElement("g",{filter:"url(#cubeGlow)"},
+                React.createElement("polygon",{fill:"url(#cubeTop)", points:"50,14 80,30 50,46 20,30"}),
+                React.createElement("polygon",{fill:"url(#cubeSide)", points:"80,30 80,66 50,82 50,46"}),
+                React.createElement("polygon",{fill:"url(#cubeDark)", points:"50,46 50,82 20,66 20,30"})
+              )
+            ),
+            React.createElement("span",{className:"fab-text"},"New Note")
+          )
+        )
+        
+        // OPTIMIZATION: Removed the IIFE that updated coordsMount from the render function.
+        // It's now handled in the `useEffectOnce` block above.
+      )
+    );
+  }
+
+  /* ========= Mount ========= */
+  const root = createRoot(document.getElementById("root"));
+  root.render(React.createElement(App));
+
+  /* ========= Gooey cursor ========= */
+  (function initGooeyCursor(){
+    // OPTIMIZATION: Reduced tail length from 20 to 12 to lessen DOM updates per frame.
+    // The filter/blend-mode are the most expensive parts, but this reduces JS cost.
+    const TAIL_LENGTH = 12;
+    const host = document.getElementById('cursor');
+    if(!host) return;
+
+    for(let i=0;i<TAIL_LENGTH;i++){
+      const d=document.createElement('div');
+      d.className='cursor-circle';
+      host.appendChild(d);
+    }
+    const circles = Array.from(host.querySelectorAll('.cursor-circle'));
+
+    let mouseX = innerWidth/2, mouseY = innerHeight/2;
+    let history = Array(TAIL_LENGTH).fill(0).map(()=>({ x: mouseX, y: mouseY }));
+
+    const onMove = (e)=>{ mouseX = e.clientX; mouseY = e.clientY; };
+    window.addEventListener('pointermove', onMove, { passive:true });
+
+    function tick(){
+      history.shift();
+      history.push({ x: mouseX, y: mouseY });
+      for(let i=0;i<TAIL_LENGTH;i++){
+        const cur = history[i];
+        const next = history[i+1] || history[TAIL_LENGTH-1];
+        cur.x += (next.x - cur.x) * 0.35;
+        cur.y += (next.y - cur.y) * 0.35;
+        const s = Math.max(0.22, i/TAIL_LENGTH);
+        circles[i].style.transform = `translate(${cur.x}px, ${cur.y}px) scale(${s})`;
+      }
+      requestAnimationFrame(tick);
+    }
+    tick();
+  })();
+
+  /* OPTIMIZATION: Removed redundant loader control logic.
+    The React `App` component already handles view switching and loading state internally.
+    The removed code was conflicting with React's state management.
+  */
+
+</script>
+
+</body>
+</html><!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport">
 <title>intoview • note — (v1.4.1 grid + minimal list)</title>
 <link href="https://fonts.googleapis.com" rel="preconnect" crossorigin>
 <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
