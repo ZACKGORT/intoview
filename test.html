@@ -765,19 +765,165 @@
   .hud-right {
       right: var(--corner-pad);
   }
-  .listview-root {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-      align-items: center;
-      overflow-y: auto;
-      z-index: var(--z-ui);
-      pointer-events: auto;
-      padding-top: calc(var(--corner-top) + 48px);
-      padding-bottom: calc(var(--fab-bottom) + var(--fab-size) / 2);
-  }
+/* --- ListView Layout --- */
+.listview-root {
+  position: fixed;
+  inset: 0; /* fills viewport */
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: #000; /* adjust to match site theme */
+  z-index: 20; /* above main grid, below overlays */
+}
+
+/* Scrollable content area */
+.portfolio-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100vw;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+  min-height: 100vh;
+  counter-reset: project-counter 0;
+  pointer-events: auto;
+  justify-content: flex-start;
+}
+
+/* --- List --- */
+.project-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 960px;
+  align-self: center;
+}
+
+/* --- Items --- */
+.project-item {
+  cursor: pointer;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 40px 1fr 2fr 1fr 1fr 80px;
+  grid-column-gap: 2rem;
+  padding: 12px 0;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  transition: opacity 0.3s ease;
+  opacity: 1;
+  position: relative;
+  z-index: 2;
+}
+
+.project-item.active {
+  opacity: 1;
+}
+
+.listview-root.has-active .project-item {
+  opacity: 0.3;
+}
+
+.listview-root.has-active .project-item.active {
+  opacity: 1;
+}
+
+/* --- Row numbering --- */
+.project-item::before {
+  content: counter(project-counter, decimal-leading-zero);
+  counter-increment: project-counter;
+  padding: 4px 0;
+  line-height: 0.8;
+  opacity: 0.6;
+  justify-self: start;
+  z-index: 10;
+  position: relative;
+  transition: opacity 0.1s ease;
+  font-variant-numeric: tabular-nums;
+}
+
+.project-item.counter-hidden::before {
+  opacity: 0.05;
+}
+
+/* --- Data columns --- */
+.project-data {
+  position: relative;
+  white-space: nowrap;
+  color: var(--ink, #fafafa);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+  padding: 2px;
+  font-family: Inter, system-ui, sans-serif;
+  transition: all 0.3s ease;
+  z-index: 1;
+}
+
+.project-data.artist,
+.project-data.album,
+.project-data.category,
+.project-data.label {
+  justify-self: start;
+}
+
+.project-data.year {
+  justify-self: end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hover highlight background */
+.project-data::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -8px;
+  width: calc(100% + 16px);
+  height: calc(100% - 2px);
+  background: var(--accent, #9eff9e);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+  z-index: -1;
+  border-radius: 4px;
+}
+
+.project-item:hover .project-data::after {
+  transform: scaleX(1);
+}
+
+.project-item:hover .project-data {
+  color: #0a0a0a !important;
+}
+
+/* --- Hover Background Preview --- */
+.background-image {
+  position: fixed; /* fixed to viewport */
+  top: 0;
+  left: 0;
+  width: 420px;
+  height: 320px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  border-radius: 14px;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  z-index: 0;
+  filter: brightness(0.7);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.background-image.visible {
+  opacity: 0.4;
+}
+
   .portfolio-container {
       display: flex;
       flex-direction: column;
@@ -3341,22 +3487,37 @@
   // Smooth follow effect for background image
   useEffect(() => {
   const bg = bgRef.current;
-  if (!bg) return;
+  const container = containerRef.current;
+  if (!bg || !container) return;
 
-  // Track both scroll and cursor position
   const update = () => {
     const scrollY = window.scrollY || window.pageYOffset;
-    const targetX = mouse.current.x;
-    const targetY = mouse.current.y + scrollY; // add scroll offset
 
-    bgPos.current.x += (targetX - bgPos.current.x) * 0.1;
-    bgPos.current.y += (targetY - bgPos.current.y) * 0.1;
+    // Calculate container bounds in *page* coordinates
+    const bounds = container.getBoundingClientRect();
+    const absTop = bounds.top + scrollY;
+    const absBottom = absTop + bounds.height;
+    const absLeft = bounds.left + window.scrollX;
+    const absRight = absLeft + bounds.width;
 
-    // Align top/left directly to cursor
+    // Target mouse position in page space
+    const targetX = mouse.current.x + window.scrollX;
+    const targetY = mouse.current.y + scrollY;
+
+    // Clamp inside container (with some padding)
+    const pad = 40;
+    const clampedX = Math.min(Math.max(targetX, absLeft + pad), absRight - pad);
+    const clampedY = Math.min(Math.max(targetY, absTop + pad), absBottom - pad);
+
+    // Smooth follow
+    bgPos.current.x += (clampedX - bgPos.current.x) * 0.12;
+    bgPos.current.y += (clampedY - bgPos.current.y) * 0.12;
+
+    // Center the preview on the cursor
     gsap.set(bg, {
       x: bgPos.current.x,
       y: bgPos.current.y,
-      xPercent: -50, // center relative to mouse
+      xPercent: -50,
       yPercent: -50,
       force3D: true,
     });
