@@ -1977,7 +1977,7 @@
       this.viewW=1; this.viewH=1; this._lastPX=null; this._lastPY=null;
       this.tiles=[]; this.bgTiles=[]; this.groups=[]; this.tileItems=[]; this.ray=new THREE.Raycaster();
       this.manageMode=false; this.onTileSelect=null; this.onTileClick=null;
-      this.onZoomChange=null; this._lastZ=this.camera.position.z;
+      this._lastZ=this.camera.position.z;
       this.tileGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
       this.bgGeom=new THREE.PlaneGeometry(opts.tile,opts.tile,1,1);
       this.currentDragEase = opts.dragEase;
@@ -2182,6 +2182,7 @@
     onWheel(e){
       if(this.manageMode) return;
       e.preventDefault();
+      this._externalZoomActive = false; // Ensure wheel zoom is treated as internal
       const cur = this.camera.position.z;
       const dz = e.deltaY * CONFIG.wheelScale * Math.max(0.6, cur);
       const target = this._clampZ(cur + dz);
@@ -2351,21 +2352,69 @@
           }
           const tx = this.offset.x + cursorOffset.x,
               ty = this.offset.y - cursorOffset.y;
-          const { minX, maxX, minY, maxY } = this._computeBounds();
-          const ease = this.currentDragEase || this.opts.dragEase;
-          const txSoft = Math.min(Math.max(tx, minX), maxX);
-          const tySoft = Math.min(Math.max(ty, minY), maxY);
-          this.position.x += (txSoft - this.position.x) * ease;
-          this.position.y += (tySoft - this.position.y) * ease;
+
+          // ADDED: Use enhanced constraint system with rubber band and magnetic snapping
+          this._updatePositionWithConstraints(tx, ty);
+          
           const z = this.camera.position.z;
           if (Math.abs(z - (this._lastZ ?? z)) > 1e-3) {
               this._lastZ = z;
-              this.onZoomChange?.(z, { min: CONFIG.zoomMin, max: CONFIG.zoomMax });
+              // REMOVED: onZoomChange callback - React now owns zoom state exclusively
           }
       }
       resetPosition() {
           this.offset.set(0, 0);
           this.velocity.set(0, 0);
+      }
+
+      // ADDED: Rubber band effect for boundary constraints
+      _applyRubberBand(value, min, max, rubber) {
+          if (value < min) {
+              const excess = min - value;
+              return min - excess * rubber;
+          } else if (value > max) {
+              const excess = value - max;
+              return max + excess * rubber;
+          }
+          return value;
+      }
+
+      // ADDED: Magnetic grid snapping
+      _snapToGrid(value, gridSize, magnetStrength) {
+          const snappedValue = Math.round(value / gridSize) * gridSize;
+          const diff = snappedValue - value;
+          const threshold = gridSize * magnetStrength;
+          
+          if (Math.abs(diff) < threshold) {
+              return snappedValue;
+          }
+          return value;
+      }
+
+      // ADDED: Enhanced position update with rubber band and magnetic snapping
+      _updatePositionWithConstraints(tx, ty) {
+          const { minX, maxX, minY, maxY } = this._computeBounds();
+          const ease = this.currentDragEase || this.opts.dragEase;
+          
+          // Apply magnetic snapping when not dragging
+          if (!this.isPointerDown && !this.isDragging) {
+              const gridSize = this.opts.tile + this.opts.gap;
+              tx = this._snapToGrid(tx, gridSize, CONFIG.magnet);
+              ty = this._snapToGrid(ty, gridSize, CONFIG.magnet);
+          }
+          
+          // Apply rubber band effect when dragging
+          if (this.isDragging) {
+              tx = this._applyRubberBand(tx, minX, maxX, CONFIG.rubber);
+              ty = this._applyRubberBand(ty, minY, maxY, CONFIG.rubber);
+          } else {
+              // Normal constraints when not dragging
+              tx = Math.min(Math.max(tx, minX), maxX);
+              ty = Math.min(Math.max(ty, minY), maxY);
+          }
+          
+          this.position.x += (tx - this.position.x) * ease;
+          this.position.y += (ty - this.position.y) * ease;
       }
   }
   function Postprocessing({ workgridState }) {
@@ -2425,7 +2474,7 @@
       }, 1);
       return null;
   }
-  function ProjectsGridPrimitive({ workgridState, items, onTileClick, onZoomChange, controllerRef }) {
+  function ProjectsGridPrimitive({ workgridState, items, onTileClick, controllerRef }) {
       const { gl, camera, size } = useThree();
       const grid = useMemo(
           () =>
@@ -2450,18 +2499,20 @@
       useEffect(() => {
           grid.setItems(items);
       }, [items, grid]);
-      useEffect(() => {
-          grid.onZoomChange = (z) => onZoomChange?.(z);
-          return () => {
-              grid.onZoomChange = null;
-          };
-      }, [grid, onZoomChange]);
+      // REMOVED: onZoomChange callback to eliminate circular dependency
+      // React now owns zoom state exclusively
       useEffect(() => {
           if (!controllerRef) return;
           controllerRef.current = {
               setZoom: (z) => {
+                  grid._externalZoomActive = true;
                   const clamped = Math.max(CONFIG.zoomMin, Math.min(CONFIG.zoomMax, z));
-                  gsap.to(camera.position, { z: clamped, duration: 0.12, ease: "power2.out" });
+                  gsap.to(camera.position, { 
+                      z: clamped, 
+                      duration: 0.12, 
+                      ease: "power2.out",
+                      onComplete: () => { grid._externalZoomActive = false; }
+                  });
               },
           };
       }, [controllerRef, camera]);
@@ -3725,14 +3776,12 @@
                           workgridState: wgState, 
                           items: combinedItems, 
                           onTileClick: handleTileClick, 
-                          onZoomChange: setZoom, 
                           controllerRef: gridCtrl, 
                       })
                       : React.createElement(GridView, { 
                           workgridState: wgState, 
                           items: combinedItems, 
                           onTileClick: handleTileClick, 
-                          onZoomChange: setZoom, 
                           controllerRef: gridCtrl, 
                           isListView: !0 
                       })
