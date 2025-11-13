@@ -2342,6 +2342,7 @@
       onPointerDown(e) {
           this.isPointerDown = !0;
           this.isTouch = e.pointerType === "touch";
+          this.currentDragEase = this.isTouch ? CONFIG.touchDragEase : 0.3; // Use a faster ease for active mouse drag
           this.canvas.classList.add("dragging");
           this._lastPX = e.clientX;
           this._lastPY = e.clientY;
@@ -2351,8 +2352,16 @@
           this.longPressFired = !1;
           this.isDragging = !1;
           this.dragZoomStart = this.camera.position.z;
-          this.currentDragEase = this.isTouch ? CONFIG.touchDragEase : 0.3; // Use a faster ease for active mouse drag
+
           const holdMs = this.isTouch ? CONFIG.longPressMsTouch : CONFIG.longPressMsMouse;
+          
+          // Clear both timers
+          if (this.longPressTimer) window.clearTimeout(this.longPressTimer);
+          if (this.deletePressTimer) window.clearTimeout(this.deletePressTimer); 
+          this.longPressTimer = null;
+          this.deletePressTimer = null;
+
+          // Existing long-press timer for ZOOMING
           this.longPressTimer = window.setTimeout(() => {
               const dist = Math.hypot(this._lastPX - this.downX || 0, this._lastPY - this.downY || 0);
               const thresh = this.isTouch ? CONFIG.clickMovePxTouch : CONFIG.clickMovePx;
@@ -2364,6 +2373,41 @@
                   }
               }
           }, holdMs);
+
+          // ADDED: New 2-second timer for DELETE (TOUCH ONLY)
+          if (this.isTouch) {
+              const deleteHoldMs = 2000; // 2 seconds
+              this.deletePressTimer = window.setTimeout(() => {
+                  const dist = Math.hypot(this._lastPX - this.downX || 0, this._lastPY - this.downY || 0);
+                  const thresh = CONFIG.clickMovePxTouch;
+                  
+                  // Check if still holding, not dragging, and a zoom hasn't already fired
+                  if (this.isPointerDown && dist <= thresh && !this.longPressFired) {
+                      const { idx } = this._hitTileAt(this._lastPX ?? this.downX, this._lastPY ?? this.downY);
+                      
+                      if (idx >= 0 && this.tileItems && this.tileItems[idx]) {
+                          const item = this.tileItems[idx];
+                          if (item && !item.placeholder) { // Don't delete placeholders
+                              this.longPressFired = !0; // Mark as fired to prevent click
+                              
+                              // Calculate index relative to content (excluding placeholders)
+                              // This assumes 1 placeholder at the start
+                              const contentIndex = idx - 1; 
+                              
+                              if (contentIndex >= 0 && contentIndex < (this.tileItems.length - 2)) {
+                                  const artist = item.title || item.artist || 'Item';
+                                  const album = item.caption || item.album || '';
+                                  
+                                  if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+                                  
+                                  // Show the delete confirmation dialog
+                                  window.showDeleteConfirm(contentIndex, artist, album, window.deleteFromArchive);
+                              }
+                          }
+                      }
+                  }
+              }, deleteHoldMs);
+          }
       }
       onPointerUp(e) {
           this._removePointer(e);
