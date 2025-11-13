@@ -344,6 +344,53 @@
       display: flex;
   }
 
+  .delete-confirm-dialog {
+    background: var(--glass-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    padding: clamp(20px, 3vw, 32px);
+    max-width: min(90vw, 400px);
+    width: 100%;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .delete-confirm-dialog h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .delete-confirm-dialog p {
+    margin: 0 0 24px 0;
+    color: var(--ink-2);
+    line-height: 1.5;
+  }
+
+  .delete-confirm-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+
+  .btn-cancel {
+    background: var(--glass-bg);
+    border: var(--border-width) solid var(--border-color);
+    color: var(--ink);
+  }
+
+  .btn-delete {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #ffffff;
+  }
+
+  .btn-delete:hover {
+    background: color-mix(in oklch, var(--danger) 90%, white);
+    border-color: color-mix(in oklch, var(--danger) 90%, white);
+  }
+
   .overlay.curved {
       transform: none !important;
       transform-style: flat !important;
@@ -1255,6 +1302,18 @@
 
 
 
+
+<!-- Delete Confirmation Dialog -->
+<div id="deleteConfirmOverlay" class="overlay">
+  <div class="delete-confirm-dialog">
+    <h3>Delete Item</h3>
+    <p>Are you sure you want to delete this item? This action cannot be undone.</p>
+    <div class="delete-confirm-buttons">
+      <button class="btn btn-cancel" id="cancelDelete">Cancel</button>
+      <button class="btn btn-delete" id="confirmDelete">Delete</button>
+    </div>
+  </div>
+</div>
 
 <!-- README Overlay -->
 <div id="readmeOverlay" class="overlay-wrapper">
@@ -2192,8 +2251,17 @@
     onContextMenu(e){
       e.preventDefault();
       if(this.manageMode) return;
-      this.resetPosition();
-      gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration: 0.40, ease: "power2.out" });
+         // Get clicked tile information
+         const intersect = this._getIntersect(e);
+         if (intersect && intersect.object) {
+           const tileIndex = this.tiles.indexOf(intersect.object);
+           if (tileIndex !== -1 && this.items && this.items[tileIndex]) {
+             const item = this.items[tileIndex];
+             // Adjust index to exclude placeholder items
+             const adjustedIndex = Math.max(0, tileIndex - 1); // Subtract 1 for placeholder start
+             window.showDeleteConfirm(adjustedIndex, item.artist || 'Item', item.album || '', window.deleteFromArchive);
+           }
+         }
     }
       _updatePointer(e) {
           if (e.pointerType === "touch") this.pointerMap.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -3614,6 +3682,12 @@
               key: `${artist}_${idx}`,
               className: `project-item ${activeIdx === idx ? "active" : ""}`,
               onMouseEnter: () => onEnterRow(idx, image),
+              onContextMenu: (e) => {
+                e.preventDefault();
+                if (window.deleteFromArchive) {
+                  window.showDeleteConfirm(idx, artist, album, window.deleteFromArchive);
+                }
+              },
             },
             React.createElement("span", { className: "project-data artist" }, artist),
             React.createElement("span", { className: "project-data album" }, album),
@@ -3717,6 +3791,36 @@
           return () => window.removeEventListener("keydown", onKey);
       }, [overlayOpen, helpOpen]);
       const addNoteToArchive = (note) => setArchive((arr) => [...arr, note]);
+
+      const deleteFromArchive = (index) => {
+          // Calculate the actual index in the sortedArchive array
+          // The index passed is from the displayed items (contentItems)
+          // We need to map it back to the original archive
+          if (index < sortedArchive.length) {
+              setArchive((currentArchive) => {
+                  const newArchive = [...currentArchive];
+                  const itemToDelete = sortedArchive[index];
+                  const originalIndex = currentArchive.findIndex(item => 
+                      item.id === itemToDelete.id || 
+                      (item.artist === itemToDelete.artist && item.album === itemToDelete.album)
+                  );
+                  
+                  if (originalIndex !== -1) {
+                      newArchive.splice(originalIndex, 1);
+                      return newArchive;
+                  }
+                  return currentArchive;
+              });
+          }
+      };
+
+      // Make delete function available globally
+      useEffect(() => {
+          window.deleteFromArchive = deleteFromArchive;
+          return () => {
+              delete window.deleteFromArchive;
+          };
+      }, [deleteFromArchive, sortedArchive]);
       const [zoom, setZoom] = useState(CONFIG.zoomMin + 0.25 * (CONFIG.zoomMax - CONFIG.zoomMin));
       const handleTileClick = (idx, item) => {
           if (item?.placeholder) {
@@ -4031,6 +4135,46 @@
   readmeClose.addEventListener('click', () => {
     readmeOverlay.classList.remove('open');
     document.body.classList.remove('no-scroll');
+  });
+
+  // Delete confirmation dialog functionality
+  const deleteConfirmOverlay = document.getElementById('deleteConfirmOverlay');
+  const cancelDeleteBtn = document.getElementById('cancelDelete');
+  const confirmDeleteBtn = document.getElementById('confirmDelete');
+  
+  let pendingDeleteIndex = null;
+  let pendingDeleteCallback = null;
+
+  // Global function to show delete confirmation
+  window.showDeleteConfirm = function(index, artist, album, deleteCallback) {
+    pendingDeleteIndex = index;
+    pendingDeleteCallback = deleteCallback;
+    deleteConfirmOverlay.classList.add('open');
+    document.body.classList.add('no-scroll');
+    
+    // Update dialog text with item info
+    const dialogText = deleteConfirmOverlay.querySelector('p');
+    dialogText.textContent = `Are you sure you want to delete "${artist} - ${album}"? This action cannot be undone.`;
+  };
+
+  // Cancel delete
+  cancelDeleteBtn.addEventListener('click', () => {
+    deleteConfirmOverlay.classList.remove('open');
+    document.body.classList.remove('no-scroll');
+    pendingDeleteIndex = null;
+    pendingDeleteCallback = null;
+  });
+
+  // Confirm delete
+  confirmDeleteBtn.addEventListener('click', () => {
+    if (pendingDeleteIndex !== null && pendingDeleteCallback) {
+      pendingDeleteCallback(pendingDeleteIndex);
+    }
+    
+    deleteConfirmOverlay.classList.remove('open');
+    document.body.classList.remove('no-scroll');
+    pendingDeleteIndex = null;
+    pendingDeleteCallback = null;
   });
 </script>
 </body>
