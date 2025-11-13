@@ -2249,20 +2249,21 @@
     }
   
     onContextMenu(e){
-      e.preventDefault();
-      if(this.manageMode) return;
-         // Get clicked tile information
-         const intersect = this._getIntersect(e);
-         if (intersect && intersect.object) {
-           const tileIndex = this.tiles.indexOf(intersect.object);
-           if (tileIndex !== -1 && this.items && this.items[tileIndex]) {
-             const item = this.items[tileIndex];
-             // Adjust index to exclude placeholder items
-             const adjustedIndex = Math.max(0, tileIndex - 1); // Subtract 1 for placeholder start
-             window.showDeleteConfirm(adjustedIndex, item.artist || 'Item', item.album || '', window.deleteFromArchive);
-           }
-         }
-    }
+        e.preventDefault();
+        if(this.manageMode) return;
+        
+        // --- NEW LOGIC ---
+        // Only trigger for mouse right-click, not touch holds
+        if (e.pointerType !== 'touch') {
+          // Animate position back to center
+          gsap.to(this.offset, { x: 0, y: 0, duration: 0.6, ease:"power2.out" });
+          // Animate zoom back to default
+          gsap.to(this.camera.position, { z: CONFIG.zoomOut, duration: 0.6, ease:"power2.out" });
+        }
+        // --- END NEW LOGIC ---
+        
+        // (Old delete logic from here was removed)
+      }
       _updatePointer(e) {
           if (e.pointerType === "touch") this.pointerMap.set(e.pointerId, { x: e.clientX, y: e.clientY });
       }
@@ -2350,6 +2351,7 @@
           this.longPressFired = !1;
           this.isDragging = !1;
           this.dragZoomStart = this.camera.position.z;
+          this.currentDragEase = this.isTouch ? CONFIG.touchDragEase : 0.3; // Use a faster ease for active mouse drag
           const holdMs = this.isTouch ? CONFIG.longPressMsTouch : CONFIG.longPressMsMouse;
           this.longPressTimer = window.setTimeout(() => {
               const dist = Math.hypot(this._lastPX - this.downX || 0, this._lastPY - this.downY || 0);
@@ -2371,6 +2373,7 @@
               gsap.to(this.camera.position, { z: this.dragZoomStart, duration: 0.3, ease: "power2.out" });
               this.dragZoomStart = null;
               this.isDragging = !1;
+              this.currentDragEase = this.opts.dragEase; // Revert to default ease for inertia
           }
           const upTime = performance.now();
           const dt = upTime - this.downTime;
