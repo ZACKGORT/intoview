@@ -1,7 +1,8 @@
+
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8">
-<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport">
+<meta content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1.0,minimum-scale=1.0" name="viewport">
 <title>intoview • note — (v1.4.1 grid + minimal list)</title>
 <link href="https://fonts.googleapis.com" rel="preconnect" crossorigin>
 <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
@@ -83,6 +84,12 @@
       overflow: hidden;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
   }
 
 
@@ -143,6 +150,11 @@
       background: #000;
       width: 100%;
       height: 100%;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
   }
 
   .canvas-wrap canvas.dragging {
@@ -1666,10 +1678,10 @@
       longPressMsMouse: 380,
       longPressMsTouch: 520,
       clickMovePx: 6,
-      clickMovePxTouch: 12,
+      clickMovePxTouch: 8,
       dragMultMouse: 6.0,
-      dragMultTouch: 4.0,
-      touchDragEase: 0.18,
+      dragMultTouch: 3.5,
+      touchDragEase: 0.16,
       zoomMin: 0.25,
       zoomMax: 3.0,
       wheelScale: 0.0015,
@@ -2050,6 +2062,12 @@
       this.isDragging = false;
   
       this.pointerMap=new Map(); this.pinchDist0=null; this.cameraZ0=null;
+      
+      // ENHANCED: Improved pinch zoom properties
+      this.pinchAnimation = null;
+      this.lastPinchTime = 0;
+      this.pinchVelocity = 0;
+      this.pinchSmoothingFactor = 0.8;
   
       this.layout();
   
@@ -2059,12 +2077,63 @@
       this.onWheel=this.onWheel.bind(this);
       this.onContextMenu=this.onContextMenu.bind(this);
   
-      canvas.addEventListener("pointermove",this.onPointerMove,{passive:true});
-      canvas.addEventListener("pointerdown",this.onPointerDown,{passive:true});
+      canvas.addEventListener("pointermove",this.onPointerMove,{passive:false});
+      canvas.addEventListener("pointerdown",this.onPointerDown,{passive:false});
       window.addEventListener("pointerup",this.onPointerUp,{passive:true});
       window.addEventListener("pointercancel",this.onPointerUp,{passive:true});
       canvas.addEventListener("wheel",this.onWheel,{passive:false});
       canvas.addEventListener("contextmenu",this.onContextMenu,{passive:false});
+      
+      // DISABLE PINCH ZOOM: Comprehensive touch event prevention
+      canvas.addEventListener("touchstart", (e) => {
+          if (e.touches.length >= 2) {
+              e.preventDefault();
+              e.stopPropagation();
+          }
+      }, {passive: false});
+      
+      canvas.addEventListener("touchmove", (e) => {
+          if (e.touches.length >= 2) {
+              e.preventDefault();
+              e.stopPropagation();
+          }
+      }, {passive: false});
+      
+      // Prevent pinch zoom on the entire document
+      document.addEventListener("touchstart", (e) => {
+          if (e.touches.length >= 2) {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+          }
+      }, {passive: false});
+      
+      document.addEventListener("touchmove", (e) => {
+          if (e.touches.length >= 2) {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+          }
+      }, {passive: false});
+      
+      // Additional prevention for gesture events
+      document.addEventListener("gesturestart", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+      }, {passive: false});
+      
+      document.addEventListener("gesturechange", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+      }, {passive: false});
+      
+      document.addEventListener("gestureend", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+      }, {passive: false});
     }
     dispose(){
       this.canvas.removeEventListener("pointermove",this.onPointerMove);
@@ -2274,6 +2343,12 @@
               if (this.pointerMap.size < 2) {
                   this.pinchDist0 = null;
                   this.cameraZ0 = null;
+                  this.pinchVelocity = 0;
+                  // Cancel any ongoing pinch animations
+                  if (this.pinchAnimation) {
+                      this.pinchAnimation.kill();
+                      this.pinchAnimation = null;
+                  }
               }
           }
       }
@@ -2285,23 +2360,21 @@
           return Math.hypot(b.x - a.x, b.y - a.y);
       }
       onPointerMove(e) {
+          // DISABLE PINCH ZOOM: Prevent default for all touch events
+          if (e.pointerType === "touch") {
+              e.preventDefault();
+              e.stopPropagation();
+          }
+          
           const rect = this.canvas.getBoundingClientRect(),
               x = (e.clientX - rect.left) / rect.width,
               y = (e.clientY - rect.top) / rect.height;
           this.pointerUv.set(x, y);
           this._updatePointer(e);
+          
+          // DISABLE PINCH ZOOM: Completely ignore pinch gestures
           if (this.pointerMap.size >= 2) {
-              const d = this._twoTouchDistance();
-              if (d && !this.pinchDist0) {
-                  this.pinchDist0 = d;
-                  this.cameraZ0 = this.camera.position.z;
-              }
-              if (d && this.pinchDist0 && this.cameraZ0 != null) {
-                  let factor = d / this.pinchDist0;
-                  const target = this._clampZ(this.cameraZ0 / Math.max(0.3, Math.min(3, factor)));
-                  gsap.to(this.camera.position, { z: target, duration: 0.08, ease: "power2.out" });
-              }
-              return;
+              return; // Exit early - no pinch zoom processing
           }
           if (this.isPointerDown) {
               if (!this.isDragging) {
@@ -2341,6 +2414,11 @@
           }
       }
       onPointerDown(e) {
+          // ENHANCED: Prevent default for touch events
+          if (e.pointerType === "touch") {
+              e.preventDefault();
+          }
+          
           this.isPointerDown = !0;
           this.isTouch = e.pointerType === "touch";
           this.currentDragEase = this.isTouch ? CONFIG.touchDragEase : 0.3; // Use a faster ease for active mouse drag
@@ -2481,6 +2559,15 @@
       resetPosition() {
           this.offset.set(0, 0);
           this.velocity.set(0, 0);
+          this.pinchDist0 = null;
+          this.cameraZ0 = null;
+          this.pinchVelocity = 0;
+          
+          // Cancel any ongoing animations
+          if (this.pinchAnimation) {
+              this.pinchAnimation.kill();
+              this.pinchAnimation = null;
+          }
       }
 
       // ADDED: Rubber band effect for boundary constraints
