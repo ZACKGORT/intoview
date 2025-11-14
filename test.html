@@ -1,7 +1,8 @@
+
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8">
-<meta content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1.0" name="viewport">
+<meta content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1.0,minimum-scale=1.0" name="viewport">
 <title>intoview • note — (v1.4.1 grid + minimal list)</title>
 <link href="https://fonts.googleapis.com" rel="preconnect" crossorigin>
 <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
@@ -83,6 +84,12 @@
       overflow: hidden;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
   }
 
 
@@ -146,6 +153,8 @@
       -webkit-touch-callout: none;
       -webkit-user-select: none;
       user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
   }
 
   .canvas-wrap canvas.dragging {
@@ -2075,9 +2084,56 @@
       canvas.addEventListener("wheel",this.onWheel,{passive:false});
       canvas.addEventListener("contextmenu",this.onContextMenu,{passive:false});
       
-      // ENHANCED: Additional touch events for better mobile handling
-      canvas.addEventListener("touchstart", (e) => e.preventDefault(), {passive: false});
-      canvas.addEventListener("touchmove", (e) => e.preventDefault(), {passive: false});
+      // DISABLE PINCH ZOOM: Comprehensive touch event prevention
+      canvas.addEventListener("touchstart", (e) => {
+          if (e.touches.length >= 2) {
+              e.preventDefault();
+              e.stopPropagation();
+          }
+      }, {passive: false});
+      
+      canvas.addEventListener("touchmove", (e) => {
+          if (e.touches.length >= 2) {
+              e.preventDefault();
+              e.stopPropagation();
+          }
+      }, {passive: false});
+      
+      // Prevent pinch zoom on the entire document
+      document.addEventListener("touchstart", (e) => {
+          if (e.touches.length >= 2) {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+          }
+      }, {passive: false});
+      
+      document.addEventListener("touchmove", (e) => {
+          if (e.touches.length >= 2) {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+          }
+      }, {passive: false});
+      
+      // Additional prevention for gesture events
+      document.addEventListener("gesturestart", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+      }, {passive: false});
+      
+      document.addEventListener("gesturechange", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+      }, {passive: false});
+      
+      document.addEventListener("gestureend", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+      }, {passive: false});
     }
     dispose(){
       this.canvas.removeEventListener("pointermove",this.onPointerMove);
@@ -2304,9 +2360,10 @@
           return Math.hypot(b.x - a.x, b.y - a.y);
       }
       onPointerMove(e) {
-          // ENHANCED: Prevent default for touch events to avoid browser zoom
+          // DISABLE PINCH ZOOM: Prevent default for all touch events
           if (e.pointerType === "touch") {
               e.preventDefault();
+              e.stopPropagation();
           }
           
           const rect = this.canvas.getBoundingClientRect(),
@@ -2314,67 +2371,10 @@
               y = (e.clientY - rect.top) / rect.height;
           this.pointerUv.set(x, y);
           this._updatePointer(e);
+          
+          // DISABLE PINCH ZOOM: Completely ignore pinch gestures
           if (this.pointerMap.size >= 2) {
-              const d = this._twoTouchDistance();
-              const currentTime = performance.now();
-              
-              if (d && !this.pinchDist0) {
-                  this.pinchDist0 = d;
-                  this.cameraZ0 = this.camera.position.z;
-                  this.lastPinchTime = currentTime;
-                  this.pinchVelocity = 0;
-              }
-              
-              if (d && this.pinchDist0 && this.cameraZ0 != null) {
-                  // Calculate velocity for smoother zoom
-                  const deltaTime = currentTime - this.lastPinchTime;
-                  if (deltaTime > 0) {
-                      const newFactor = d / this.pinchDist0;
-                      const oldFactor = (this.cameraZ0 / this.camera.position.z);
-                      this.pinchVelocity = (newFactor - oldFactor) / Math.max(deltaTime, 1);
-                      this.lastPinchTime = currentTime;
-                  }
-                  
-                  let factor = d / this.pinchDist0;
-                  
-                  // Validate factor to prevent extreme zoom
-                  if (!isFinite(factor) || factor <= 0) {
-                      return;
-                  }
-                  
-                  // Apply smoothing to reduce jitter
-                  const smoothedFactor = this.pinchSmoothingFactor * factor + 
-                                       (1 - this.pinchSmoothingFactor) * (this.cameraZ0 / this.camera.position.z);
-                  
-                  const target = this._clampZ(this.cameraZ0 / Math.max(0.1, Math.min(5, smoothedFactor)));
-                  
-                  // Validate target to prevent invalid zoom values
-                  if (!isFinite(target) || target <= 0) {
-                      return;
-                  }
-                  
-                  // Cancel previous animation and create new one
-                  if (this.pinchAnimation) {
-                      this.pinchAnimation.kill();
-                  }
-                  
-                  this.pinchAnimation = gsap.to(this.camera.position, { 
-                      z: target, 
-                      duration: 0.06, 
-                      ease: "power2.out",
-                      onUpdate: () => {
-                          // Ensure smooth zoom during animation
-                          if (this.pointerMap.size >= 2) {
-                              this._externalZoomActive = true;
-                          }
-                      },
-                      onComplete: () => {
-                          this.pinchAnimation = null;
-                          this._externalZoomActive = false;
-                      }
-                  });
-              }
-              return;
+              return; // Exit early - no pinch zoom processing
           }
           if (this.isPointerDown) {
               if (!this.isDragging) {
