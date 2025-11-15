@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SMS Kanban - Urgent Request System</title>
+  <title>SMS Kanban</title>
   <script crossorigin="" src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
   <script crossorigin="" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -191,7 +191,7 @@
       background: var(--sms-color);
       position: fixed;
       bottom: 20px;
-      right: 20px;
+      left: 20px;
       color: white;
       padding: 15px 20px;
       border-radius: 8px;
@@ -1274,7 +1274,7 @@
       border: 1px solid var(--border-color);
       border-radius: 8px;
       box-shadow: var(--shadow-md);
-      z-index: 1000;
+      z-index: 1003;
       min-width: 150px;
     }
 
@@ -1310,7 +1310,7 @@
       height: 100%;
       background: var(--dark-bg);
       opacity: 0.9;
-      z-index: 999;
+      z-index: 1002;
     }
   </style>
 <script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
@@ -1494,7 +1494,8 @@
         isDragging = _useState[0],
         setIsDragging = _useState[1];
       var cardRef = useRef(null);
-      var longPressTimer = useRef(null);
+      var tapCount = useRef(0);
+      var lastTapTime = useRef(0);
 
       var handleDragStart = function handleDragStart(e) {
         setIsDragging(true);
@@ -1563,20 +1564,21 @@
         }
       }, [isMobile, note, onNoteDrop]);
 
-      const handleTouchStart = (e) => {
-        if (isMobile) {
-          longPressTimer.current = setTimeout(() => {
-            const touch = e.touches[0] || e.changedTouches[0];
-            const posX = touch.pageX;
-            const posY = touch.pageY;
-            handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
-          }, 500); // Long press duration
+      const handleTouchEnd = (e) => {
+        const currentTime = Date.now();
+        if (currentTime - lastTapTime.current < 300) {
+          tapCount.current += 1;
+        } else {
+          tapCount.current = 1;
         }
-      };
+        lastTapTime.current = currentTime;
 
-      const handleTouchEnd = () => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
+        if (tapCount.current === 2) {
+          const touch = e.changedTouches[0];
+          const posX = touch.pageX;
+          const posY = touch.pageY;
+          handleOpenContextMenu({ pageX: posX, pageY: posY }, note);
+          tapCount.current = 0;
         }
       };
 
@@ -1606,9 +1608,7 @@
           onDragStart: !isMobile ? handleDragStart : null,
           onDragEnd: !isMobile ? handleDragEnd : null,
           onContextMenu: (e) => handleOpenContextMenu(e, note),
-          onTouchStart: handleTouchStart,
-          onTouchEnd: handleTouchEnd,
-          onTouchCancel: handleTouchEnd
+          onTouchEnd: handleTouchEnd
         },
         /*#__PURE__*/React.createElement(
           "div",
