@@ -398,7 +398,22 @@
         padding: 30px;
         overflow-x: auto;
         overflow-y: auto;
+        position: relative; /* Added for positioning scroll indicator */
     }
+
+    /* --- NEW CSS: Scroll indicator (right fade when scrollable) --- */
+    .kanban-container.scrollable::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 30px;
+      background: linear-gradient(to left, rgba(0,0,0,0.3), transparent);
+      pointer-events: none;
+      z-index: 5;
+    }
+    /* --- END NEW CSS --- */
 
     .kanban-board {
         display: flex;
@@ -829,6 +844,7 @@
       background: var(--ui-bg);
       border-bottom: 1px solid var(--border-color);
       padding: 0 30px;
+      position: relative;
     }
 
     .tab-btn {
@@ -841,6 +857,7 @@
       cursor: pointer;
       transition: all 0.3s ease;
       white-space: nowrap;
+      position: relative;
     }
 
     .tab-btn.active {
@@ -850,6 +867,22 @@
 
     .tab-btn:hover {
       color: var(--text-primary);
+    }
+
+    .tab-badge {
+      position: absolute;
+      top: 0px;
+      right: 0px;
+      background: var(--danger-color);
+      color: white;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 600;
     }
 
     .toast {
@@ -941,6 +974,8 @@
             transform: translateX(-100%);
             transition: transform 0.3s ease;
             z-index: 1000;
+            background: var(--dark-bg);
+            backdrop-filter: none;
         }
 
         .sidebar.open {
@@ -2154,7 +2189,7 @@
       var _useState14 = useState('date'),
         sortBy = _useState14[0],
         setSortBy = _useState14[1];
-      var _useState15 = useState(true),
+      var _useState15 = useState(false),
         sidebarOpen = _useState15[0],
         setSidebarOpen = _useState15[1];
       var _useState16 = useState(window.innerWidth <= 768),
@@ -2181,6 +2216,12 @@
         setIsScrollable = _useState22[1];
       var kanbanContainerRef = useRef(null);
       var kanbanBoardRef = useRef(null);
+      var _useState23 = useState({}),
+        categoryNotifications = _useState23[0],
+        setCategoryNotifications = _useState23[1];
+      var _useState24 = useState(''),
+        currentTime = _useState24[0],
+        setCurrentTime = _useState24[1];
 
       var categories = [{
         id: 'foh',
@@ -2201,9 +2242,9 @@
         id: 'bottleshop',
         name: 'Bottle shop'
       }];
-      var _useState23 = useState(categories[0].id),
-        currentCategory = _useState23[0],
-        setCurrentCategory = _useState23[1];
+      var _useState25 = useState(categories[0].id),
+        currentCategory = _useState25[0],
+        setCurrentCategory = _useState25[1];
 
       useEffect(function () {
         var handleResize = function handleResize() {
@@ -2211,6 +2252,19 @@
         };
         window.addEventListener('resize', handleResize);
         return function () { return window.removeEventListener('resize', handleResize); };
+      }, []);
+
+      useEffect(function () {
+        const updateTime = () => {
+          const now = new Date();
+          const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+          const day = now.toLocaleDateString('en-US', { weekday: 'long' });
+          const date = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+          setCurrentTime(`${time} ${day}, ${date}`);
+        };
+        updateTime();
+        const interval = setInterval(updateTime, 60000); // Update every minute
+        return () => clearInterval(interval);
       }, []);
 
       // Simulate incoming SMS requests
@@ -2242,6 +2296,12 @@
               message: 'New urgent SMS request received!',
               timestamp: new Date().toISOString()
             }]); });
+
+            // Update category notification
+            setCategoryNotifications(prev => ({
+              ...prev,
+              [smsRequest.category]: (prev[smsRequest.category] || 0) + 1
+            }));
           }
         }, 30000); // Every 30 seconds for demo
 
@@ -2269,6 +2329,16 @@
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
       }, [contextMenu.visible]);
+
+      useEffect(() => {
+        // Reset category notification when switching categories
+        if (categoryNotifications[currentCategory]) {
+          setCategoryNotifications(prev => ({
+            ...prev,
+            [currentCategory]: 0
+          }));
+        }
+      }, [currentCategory]);
 
       var handleCreateNote = function handleCreateNote() {
         setEditingNote(null);
@@ -2298,6 +2368,12 @@
           setNotes(function (prev) {
             return [].concat(_toConsumableArray(prev), [newNote]);
           });
+
+          // Update category notification for new notes
+          setCategoryNotifications(prev => ({
+            ...prev,
+            [newNote.category]: (prev[newNote.category] || 0) + 1
+          }));
         }
         setIsModalOpen(false);
         setEditingNote(null);
@@ -2517,7 +2593,7 @@
             /*#__PURE__*/React.createElement(
               "h1",
               { className: "header-title" },
-              "Boathouse KanBan"
+              currentTime
             ),
             /*#__PURE__*/React.createElement(
               "div",
@@ -2555,10 +2631,14 @@
                 "button",
                 {
                   key: cat.id,
-                  className: "tab-btn ".concat(currentCategory === cat.id ? 'active' : ''),
-                  onClick: function onClick() { return setCurrentCategory(cat.id); }
+                  className: "tab-btn ".concat(currentCategory === cat.id ? 'active' : '')
                 },
-                cat.name
+                cat.name,
+                (categoryNotifications[cat.id] || 0) > 0 && /*#__PURE__*/React.createElement(
+                  "span",
+                  { className: "tab-badge" },
+                  categoryNotifications[cat.id]
+                )
               );
             })
           ),
