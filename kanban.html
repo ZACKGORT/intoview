@@ -250,6 +250,9 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        position: sticky; /* Make header sticky */
+        top: 0;
+        z-index: 50;
     }
     
     .header-title {
@@ -729,6 +732,67 @@
       z-index: 999;
     }
     
+    /* Tab Styles */
+    .tabs {
+      display: flex;
+      overflow-x: auto;
+      background: var(--ui-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 30px;
+    }
+
+    .tab-btn {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn.active {
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    /* Toast Banner Styles */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--success-color);
+      color: white;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 1001;
+      max-width: 300px;
+      animation: slideInToast 0.3s ease-out;
+    }
+
+    .toast button {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    @keyframes slideInToast {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
     /* Responsive Design */
     @media (max-width: 768px) {
         .app-container {
@@ -801,11 +865,6 @@
         .filter-label {
             font-size: 12px;
         }
-
-        .form-select {
-            font-size: 12px;
-            padding: 8px 10px;
-        }
     
         .kanban-container {
             padding: 15px;
@@ -833,6 +892,22 @@
 
         .note-footer {
             font-size: 10px;
+        }
+
+        .tabs {
+          padding: 0 15px;
+        }
+
+        .tab-btn {
+          padding: 10px 15px;
+          font-size: 13px;
+        }
+
+        .toast {
+          bottom: 10px;
+          right: 10px;
+          left: 10px;
+          max-width: none;
         }
     }
     
@@ -940,7 +1015,7 @@
       initials: 'AR'
     }];
     
-    // Mock Notes Data
+    // Mock Notes Data with categories
     var mockNotes = [{
       id: 1,
       title: 'Staff Meeting Tomorrow',
@@ -952,7 +1027,7 @@
       author: 2,
       createdAt: '2024-01-14T09:30:00',
       status: 'todo',
-      category: 'meeting'
+      category: 'admin'
     }, {
       id: 2,
       title: 'New Menu Item Launch',
@@ -964,7 +1039,7 @@
       author: 1,
       createdAt: '2024-01-14T08:15:00',
       status: 'inprogress',
-      category: 'menu'
+      category: 'kitchen'
     }, {
       id: 3,
       title: 'Health Inspection Preparation',
@@ -976,7 +1051,7 @@
       author: 1,
       createdAt: '2024-01-13T14:20:00',
       status: 'todo',
-      category: 'compliance'
+      category: 'admin'
     }, {
       id: 4,
       title: 'Inventory Audit',
@@ -988,7 +1063,7 @@
       author: 2,
       createdAt: '2024-01-14T07:45:00',
       status: 'completed',
-      category: 'inventory'
+      category: 'admin'
     }, {
       id: 5,
       title: 'Customer Service Training',
@@ -1000,7 +1075,31 @@
       author: 1,
       createdAt: '2024-01-14T11:30:00',
       status: 'todo',
-      category: 'training'
+      category: 'foh'
+    }, {
+      id: 6,
+      title: 'Bar Stock Replenishment',
+      content: 'Order new spirits and check bar equipment.',
+      priority: 'medium',
+      dueDate: '2024-01-18',
+      dueTime: '16:00',
+      assignee: 5,
+      author: 1,
+      createdAt: '2024-01-14T12:00:00',
+      status: 'todo',
+      category: 'bar'
+    }, {
+      id: 7,
+      title: 'Maintenance Check',
+      content: 'Inspect HVAC and plumbing systems.',
+      priority: 'high',
+      dueDate: '2024-01-19',
+      dueTime: '11:00',
+      assignee: 2,
+      author: 1,
+      createdAt: '2024-01-14T13:00:00',
+      status: 'inprogress',
+      category: 'maintenance'
     }];
     
     // Note Card Component with edit/delete buttons
@@ -1161,7 +1260,7 @@
           dueDate: '',
           dueTime: '',
           assignee: currentUser.id,
-          category: 'general'
+          category: 'admin'  // Default category
         }),
         formData = _useState5[0],
         setFormData = _useState5[1];
@@ -1177,7 +1276,7 @@
             dueDate: '',
             dueTime: '',
             assignee: currentUser.id,
-            category: 'general'
+            category: 'admin'
           });
         }
       }, [editingNote, currentUser]);
@@ -1307,6 +1406,25 @@
           value: user.id
         }, user.name, " - ", user.role);
       }))), /*#__PURE__*/React.createElement("div", {
+        className: "form-group"
+      }, /*#__PURE__*/React.createElement("label", {
+        className: "form-label"
+      }, "Category"), /*#__PURE__*/React.createElement("select", {
+        name: "category",
+        className: "form-select",
+        value: formData.category,
+        onChange: handleInputChange
+      }, /*#__PURE__*/React.createElement("option", {
+        value: "foh"
+      }, "Front of House"), /*#__PURE__*/React.createElement("option", {
+        value: "kitchen"
+      }, "Kitchen"), /*#__PURE__*/React.createElement("option", {
+        value: "admin"
+      }, "Admin"), /*#__PURE__*/React.createElement("option", {
+        value: "bar"
+      }, "Bar"), /*#__PURE__*/React.createElement("option", {
+        value: "maintenance"
+      }, "Maintenance"))), /*#__PURE__*/React.createElement("div", {
         className: "form-actions"
       }, /*#__PURE__*/React.createElement("button", {
         type: "button",
@@ -1354,6 +1472,22 @@
       var _useState25 = useState(false),
         isFilterOpen = _useState25[0],
         setIsFilterOpen = _useState25[1];
+      // Toast state for SMS feature demonstration
+      var _useState27 = useState(true),
+        showToast = _useState27[0],
+        setShowToast = _useState27[1];
+
+      // Categories for tabs
+      var categories = [
+        { id: 'foh', name: 'Front of House' },
+        { id: 'kitchen', name: 'Kitchen' },
+        { id: 'admin', name: 'Admin' },
+        { id: 'bar', name: 'Bar' },
+        { id: 'maintenance', name: 'Maintenance' }
+      ];
+      var _useState29 = useState(categories[0].id),
+        currentCategory = _useState29[0],
+        setCurrentCategory = _useState29[1];
 
       useEffect(function () {
         var handleResize = function handleResize() {
@@ -1362,6 +1496,14 @@
         window.addEventListener('resize', handleResize);
         return function () { return window.removeEventListener('resize', handleResize); };
       }, []);
+
+      // Auto-hide toast after 5 seconds
+      useEffect(() => {
+        if (showToast) {
+          const timer = setTimeout(() => setShowToast(false), 5000);
+          return () => clearTimeout(timer);
+        }
+      }, [showToast]);
 
       var handleCreateNote = function handleCreateNote() {
         setEditingNote(null);
@@ -1419,26 +1561,29 @@
         onLogout();
       };
 
-      // Filter and sort notes
-      var filteredNotes = notes.filter(function (note) {
-        var priorityMatch = filterPriority === 'all' || note.priority === filterPriority;
-        var assigneeMatch = filterAssignee === 'all' || note.assignee.toString() === filterAssignee;
-        return priorityMatch && assigneeMatch;
-      }).sort(function (a, b) {
-        switch (sortBy) {
-          case 'priority':
-            var priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-            return priorityOrder[a.priority] - priorityOrder[b.priority];
-          case 'date':
-            return new Date(b.createdAt) - new Date(a.createdAt);
-          case 'dueDate':
-            if (!a.dueDate) return 1;
-            if (!b.dueDate) return -1;
-            return new Date(a.dueDate) - new Date(b.dueDate);
-          default:
-            return 0;
-        }
-      });
+      // Filter and sort notes, including category filter
+      var filteredNotes = notes
+        .filter(function (note) { return note.category === currentCategory; })  // Filter by current tab category
+        .filter(function (note) {
+          var priorityMatch = filterPriority === 'all' || note.priority === filterPriority;
+          var assigneeMatch = filterAssignee === 'all' || note.assignee.toString() === filterAssignee;
+          return priorityMatch && assigneeMatch;
+        })
+        .sort(function (a, b) {
+          switch (sortBy) {
+            case 'priority':
+              var priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+              return priorityOrder[a.priority] - priorityOrder[b.priority];
+            case 'date':
+              return new Date(b.createdAt) - new Date(a.createdAt);
+            case 'dueDate':
+              if (!a.dueDate) return 1;
+              if (!b.dueDate) return -1;
+              return new Date(a.dueDate) - new Date(b.dueDate);
+            default:
+              return 0;
+          }
+        });
 
       // Group notes by status
       var todoNotes = filteredNotes.filter(function (note) { return note.status === 'todo'; });
@@ -1462,7 +1607,7 @@
           delay: 0.5,
           ease: 'power2.out',
         });
-      }, [notes]);  // Re-animate on notes change for fluid feel
+      }, [notes, currentCategory]);  // Re-animate on notes or category change
 
       var toggleSidebar = function toggleSidebar() {
         setSidebarOpen(!sidebarOpen);
@@ -1557,7 +1702,19 @@
         onClick: handleCreateNote
       }, /*#__PURE__*/React.createElement("i", {
         className: "fa-solid fa-plus"
-      }), "New Note"))), (!isMobile || isFilterOpen) && /*#__PURE__*/React.createElement("div", {
+      }), "New Note"))), 
+      // Tab navigation section
+      /*#__PURE__*/React.createElement("div", {
+        className: "tabs"
+      }, categories.map(function (cat) {
+        return /*#__PURE__*/React.createElement("button", {
+          key: cat.id,
+          className: `tab-btn ${currentCategory === cat.id ? 'active' : ''}`,
+          onClick: function onClick() { setCurrentCategory(cat.id); }
+        }, cat.name);
+      })),
+      // Filter bar - hidden by default, toggled by filter icon
+      isFilterOpen && /*#__PURE__*/React.createElement("div", {
         className: "filter-bar"
       }, /*#__PURE__*/React.createElement("div", {
         className: "filter-group"
@@ -1643,7 +1800,13 @@
         onSave: handleSaveNote,
         editingNote: editingNote,
         currentUser: currentUser
-      }));
+      }),
+      // Toast banner for SMS feature
+      showToast && /*#__PURE__*/React.createElement("div", { className: "toast" },
+        /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+        "Try our SMS feature: Get real-time notifications on your phone for urgent tasks!",
+        /*#__PURE__*/React.createElement("button", { onClick: () => setShowToast(false) }, "×")
+      ));
     };
 
     // Main App Component (assume logged in as General Manager)
