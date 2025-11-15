@@ -398,7 +398,22 @@
         padding: 30px;
         overflow-x: auto;
         overflow-y: auto;
+        position: relative; /* Added for positioning scroll indicator */
     }
+
+    /* --- NEW CSS: Scroll indicator (right fade when scrollable) --- */
+    .kanban-container.scrollable::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 30px;
+      background: linear-gradient(to left, rgba(0,0,0,0.3), transparent);
+      pointer-events: none;
+      z-index: 5;
+    }
+    /* --- END NEW CSS --- */
 
     .kanban-board {
         display: flex;
@@ -830,6 +845,7 @@
       background: var(--ui-bg);
       border-bottom: 1px solid var(--border-color);
       padding: 0 30px;
+      position: relative;
     }
 
     .tab-btn {
@@ -842,6 +858,7 @@
       cursor: pointer;
       transition: all 0.3s ease;
       white-space: nowrap;
+      position: relative;
     }
 
     .tab-btn.active {
@@ -851,6 +868,22 @@
 
     .tab-btn:hover {
       color: var(--text-primary);
+    }
+
+    .tab-badge {
+      position: absolute;
+      top: 0px;
+      right: 0px;
+      background: var(--danger-color);
+      color: white;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 600;
     }
 
     .toast {
@@ -942,6 +975,8 @@
             transform: translateX(-100%);
             transition: transform 0.3s ease;
             z-index: 1000;
+            background: var(--dark-bg);
+            backdrop-filter: none;
         }
 
         .sidebar.open {
@@ -1265,6 +1300,18 @@
       pointer-events: none;
       color: var(--text-secondary);
     }
+
+    /* New style for context menu overlay on mobile */
+    .context-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--dark-bg);
+      opacity: 0.9;
+      z-index: 999;
+    }
   </style>
 <script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
@@ -1519,7 +1566,10 @@
       const handleTouchStart = (e) => {
         if (isMobile) {
           longPressTimer.current = setTimeout(() => {
-            handleOpenContextMenu(e, note);
+            const touch = e.touches[0] || e.changedTouches[0];
+            const posX = touch.pageX;
+            const posY = touch.pageY;
+            handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
           }, 500); // Long press duration
         }
       };
@@ -2202,7 +2252,7 @@
       var _useState14 = useState('date'),
         sortBy = _useState14[0],
         setSortBy = _useState14[1];
-      var _useState15 = useState(!isMobile),
+      var _useState15 = useState(false),
         sidebarOpen = _useState15[0],
         setSidebarOpen = _useState15[1];
       var _useState16 = useState(window.innerWidth <= 768),
@@ -2340,7 +2390,11 @@
           }
         };
         document.addEventListener('click', handleClickOutside);
-        return () => document.removeEventListener('click', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+        return () => {
+          document.removeEventListener('click', handleClickOutside);
+          document.removeEventListener('touchstart', handleClickOutside);
+        };
       }, [contextMenu.visible]);
 
       useEffect(() => {
@@ -2414,7 +2468,13 @@
 
       var handleOpenContextMenu = (e, note) => {
         e.preventDefault();
-        setContextMenu({ visible: true, position: { x: e.pageX, y: e.pageY }, note });
+        let posX = e.pageX;
+        let posY = e.pageY;
+        if (e.touches && e.touches[0]) {
+          posX = e.touches[0].pageX;
+          posY = e.touches[0].pageY;
+        }
+        setContextMenu({ visible: true, position: { x: posX, y: posY }, note });
       };
 
       var handleOptionSelect = (newStatus) => {
@@ -3004,39 +3064,44 @@
             );
           }),
           contextMenu.visible && /*#__PURE__*/React.createElement(
-            "div",
-            {
-              className: "context-menu",
-              style: { left: `${contextMenu.position.x}px`, top: `${contextMenu.position.y}px` },
-              ref: menuRef
-            },
+            React.Fragment,
+            null,
+            isMobile && /*#__PURE__*/React.createElement("div", { className: "context-overlay", onClick: function onClick() { return setContextMenu({ visible: false, position: { x: 0, y: 0 }, note: null }); } }),
             /*#__PURE__*/React.createElement(
-              "ul",
-              null,
+              "div",
+              {
+                className: "context-menu",
+                style: { left: `${contextMenu.position.x}px`, top: `${contextMenu.position.y}px` },
+                ref: menuRef
+              },
               /*#__PURE__*/React.createElement(
-                "li",
-                { onClick: function onClick() { return handleOptionSelect('urgent'); } },
-                "Urgent"
-              ),
-              /*#__PURE__*/React.createElement(
-                "li",
-                { onClick: function onClick() { return handleOptionSelect('todo'); } },
-                "To-do"
-              ),
-              /*#__PURE__*/React.createElement(
-                "li",
-                { onClick: function onClick() { return handleOptionSelect('inprogress'); } },
-                "In Progress"
-              ),
-              /*#__PURE__*/React.createElement(
-                "li",
-                { onClick: function onClick() { return handleOptionSelect('completed'); } },
-                "Completed"
-              ),
-              /*#__PURE__*/React.createElement(
-                "li",
-                { className: "disabled" },
-                "Archive (Coming Soon)"
+                "ul",
+                null,
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('urgent'); } },
+                  "Urgent"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('todo'); } },
+                  "To-do"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('inprogress'); } },
+                  "In Progress"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('completed'); } },
+                  "Completed"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { className: "disabled" },
+                  "Archive (Coming Soon)"
+                )
               )
             )
           )
