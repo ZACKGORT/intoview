@@ -381,7 +381,6 @@
     
     .note-card.dragging {
         opacity: 0.5;
-        transform: rotate(2deg) scale(1.05);
     }
     
     .note-card.urgent {
@@ -767,7 +766,8 @@
     .toast {
       position: fixed;
       bottom: 20px;
-      right: 20px;
+      left: 20px;
+      right: auto;
       background: var(--success-color);
       color: white;
       padding: 15px 20px;
@@ -911,8 +911,8 @@
 
         .toast {
           bottom: 10px;
-          right: 10px;
           left: 10px;
+          right: auto;
           max-width: none;
         }
     }
@@ -1146,6 +1146,73 @@
         width: 100%;
       }
     }
+
+    /* Enhanced Scroll Indicators */
+    .kanban-container::-webkit-scrollbar,
+    .sidebar::-webkit-scrollbar,
+    .right-panel-content::-webkit-scrollbar,
+    .modal::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    .kanban-container::-webkit-scrollbar-track,
+    .sidebar::-webkit-scrollbar-track,
+    .right-panel-content::-webkit-scrollbar-track,
+    .modal::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    .kanban-container::-webkit-scrollbar-thumb,
+    .sidebar::-webkit-scrollbar-thumb,
+    .right-panel-content::-webkit-scrollbar-thumb,
+    .modal::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      border-radius: 4px;
+    }
+
+    .kanban-container::-webkit-scrollbar-thumb:hover,
+    .sidebar::-webkit-scrollbar-thumb:hover,
+    .right-panel-content::-webkit-scrollbar-thumb:hover,
+    .modal::-webkit-scrollbar-thumb:hover {
+      background: var(--primary-color);
+    }
+
+    /* Context Menu Styles */
+    .context-menu {
+      position: fixed;
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: var(--shadow-md);
+      z-index: 1001;
+      min-width: 150px;
+    }
+
+    .context-menu ul {
+      list-style: none;
+      margin: 0;
+      padding: 8px 0;
+    }
+
+    .context-menu li {
+      padding: 10px 20px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s ease;
+    }
+
+    .context-menu li:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .context-menu li.disabled {
+      color: var(--text-secondary);
+      cursor: not-allowed;
+    }
+
   </style>
 </head>
 <body>
@@ -1270,9 +1337,9 @@
     }];
     
     // Note Card Component
-    const NoteCard = ({ note, onEdit, onDelete, currentUser }) => {
+    const NoteCard = ({ note, onEdit, onDelete, currentUser, onShowContext }) => {
       const [isDragging, setIsDragging] = useState(false);
-      const cardRef = useRef(null);
+      const longPressTimer = useRef(null);
 
       const handleDragStart = (e) => {
         setIsDragging(true);
@@ -1282,6 +1349,25 @@
 
       const handleDragEnd = () => {
         setIsDragging(false);
+      };
+
+      const handleTouchStart = (e) => {
+        longPressTimer.current = setTimeout(() => {
+          onShowContext(note, { x: e.touches[0].pageX, y: e.touches[0].pageY });
+        }, 500);
+      };
+
+      const handleTouchEnd = () => {
+        clearTimeout(longPressTimer.current);
+      };
+
+      const handleTouchMove = () => {
+        clearTimeout(longPressTimer.current);
+      };
+
+      const handleContextMenu = (e) => {
+        e.preventDefault();
+        onShowContext(note, { x: e.pageX, y: e.pageY });
       };
 
       const formatDate = (dateString) => {
@@ -1302,11 +1388,14 @@
 
       return (
         <div
-          ref={cardRef}
           className={`note-card ${note.priority} ${isDragging ? 'dragging' : ''}`}
           draggable="true"
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchMove={handleTouchMove}
+          onContextMenu={handleContextMenu}
         >
           <div className="note-header">
             <h4 className="note-title">{note.title}</h4>
@@ -1350,7 +1439,7 @@
     };
 
     // Kanban Column Component
-    const KanbanColumn = ({ title, notes, status, onNoteDrop, onEdit, onDelete, currentUser }) => {
+    const KanbanColumn = ({ title, notes, status, onNoteDrop, onEdit, onDelete, currentUser, onShowContext }) => {
       const [isDragOver, setIsDragOver] = useState(false);
 
       const handleDragOver = (e) => {
@@ -1403,6 +1492,7 @@
                   onEdit={onEdit}
                   onDelete={onDelete}
                   currentUser={currentUser}
+                  onShowContext={onShowContext}
                 />
               ))
             )}
@@ -1576,6 +1666,34 @@
       );
     };
 
+    // Context Menu Component
+    const ContextMenu = ({ position, onClose, onChangeStatus, currentStatus }) => {
+      return (
+        <div className="context-menu" style={{ left: position.x, top: position.y }}>
+          <ul>
+            <li 
+              className={currentStatus === 'todo' ? 'disabled' : ''} 
+              onClick={() => currentStatus !== 'todo' && onChangeStatus('todo')}
+            >
+              Move to To Do
+            </li>
+            <li 
+              className={currentStatus === 'inprogress' ? 'disabled' : ''} 
+              onClick={() => currentStatus !== 'inprogress' && onChangeStatus('inprogress')}
+            >
+              Move to In Progress
+            </li>
+            <li 
+              className={currentStatus === 'completed' ? 'disabled' : ''} 
+              onClick={() => currentStatus !== 'completed' && onChangeStatus('completed')}
+            >
+              Move to Completed
+            </li>
+          </ul>
+        </div>
+      );
+    };
+
     // Main Application Component
     const MainApp = ({ currentUser, onLogout }) => {
       const [notes, setNotes] = useState(mockNotes);
@@ -1589,6 +1707,9 @@
       const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
       const [isFilterOpen, setIsFilterOpen] = useState(false);
       const [showToast, setShowToast] = useState(true);
+      const [menuNote, setMenuNote] = useState(null);
+      const [menuPosition, setMenuPosition] = useState(null);
+      const [isPanelOpen, setIsPanelOpen] = useState(false);
       
       const categories = [
         { id: 'foh', name: 'Front of House' },
@@ -1596,12 +1717,11 @@
         { id: 'admin', name: 'Admin' },
         { id: 'bar', name: 'Bar' },
         { id: 'maintenance', name: 'Maintenance' },
-        { id: 'belowdeck', name: 'Bottle Shop' }
+        { id: 'bottleshop', name: 'Bottle Shop' }
       ];
       const [currentCategory, setCurrentCategory] = useState(categories[0].id);
-      
-      // --- NEW STATE FOR RIGHT PANEL ---
-      const [isPanelOpen, setIsPanelOpen] = useState(false);
+
+      const kanbanContainerRef = useRef(null);
 
       useEffect(() => {
         const handleResize = () => {
@@ -1617,6 +1737,14 @@
           return () => clearTimeout(timer);
         }
       }, [showToast]);
+
+      useEffect(() => {
+        const handleClick = () => setMenuNote(null);
+        if (menuNote) {
+          document.addEventListener('click', handleClick);
+          return () => document.removeEventListener('click', handleClick);
+        }
+      }, [menuNote]);
 
       const handleCreateNote = () => {
         setEditingNote(null);
@@ -1647,6 +1775,10 @@
         }
         setIsModalOpen(false);
         setEditingNote(null);
+        // Ensure header visibility on mobile
+        if (kanbanContainerRef.current) {
+          kanbanContainerRef.current.scrollTop = 0;
+        }
       };
 
       const handleDeleteNote = (noteId) => {
@@ -1661,6 +1793,11 @@
             note.id === noteId ? { ...note, status: newStatus } : note
           )
         );
+      };
+
+      const handleShowContext = (note, position) => {
+        setMenuNote(note);
+        setMenuPosition(position);
       };
 
       const filteredNotes = notes
@@ -1852,7 +1989,7 @@
               </div>
             )}
 
-            <div className="kanban-container">
+            <div className="kanban-container" ref={kanbanContainerRef}>
               <div className="kanban-board">
                 <KanbanColumn
                   title="To Do"
@@ -1862,6 +1999,7 @@
                   onEdit={handleEditNote}
                   onDelete={handleDeleteNote}
                   currentUser={currentUser}
+                  onShowContext={handleShowContext}
                 />
                 <KanbanColumn
                   title="In Progress"
@@ -1871,6 +2009,7 @@
                   onEdit={handleEditNote}
                   onDelete={handleDeleteNote}
                   currentUser={currentUser}
+                  onShowContext={handleShowContext}
                 />
                 <KanbanColumn
                   title="Completed"
@@ -1880,12 +2019,10 @@
                   onEdit={handleEditNote}
                   onDelete={handleDeleteNote}
                   currentUser={currentUser}
+                  onShowContext={handleShowContext}
                 />
               </div>
             </div>
-
-
-            {/* --- NEW CODE START --- */}
 
 <button 
   className="fab" 
@@ -1967,8 +2104,6 @@
   </div>
 }
 
-{/* --- NEW CODE END --- */}
-
           </div>
 
           <CreateNoteModal
@@ -1979,6 +2114,18 @@
             currentUser={currentUser}
           />
 
+          {menuNote && (
+            <ContextMenu
+              position={menuPosition}
+              onClose={() => setMenuNote(null)}
+              onChangeStatus={(newStatus) => {
+                handleNoteDrop(menuNote.id, newStatus);
+                setMenuNote(null);
+              }}
+              currentStatus={menuNote.status}
+            />
+          )}
+
           {showToast && (
             <div className="toast">
               <i className="fa-solid fa-sms"></i>
@@ -1986,89 +2133,6 @@
               <button onClick={() => setShowToast(false)}>×</button>
             </div>
           )}
-          
-          {/* --- NEW CODE START --- */}
-      
-          <button 
-            className="fab" 
-            onClick={() => setIsPanelOpen(true)}
-          >
-            <i className="fa-solid fa-fire"></i>
-          </button>
-          
-          {isPanelOpen && 
-  <div 
-    className="right-panel-overlay" 
-    onClick={() => setIsPanelOpen(false)}
-  >
-    <div 
-      className="right-panel" 
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="right-panel-header">
-        <h3 className="right-panel-title">📌 Proof of Concept Overview</h3>
-        <button 
-          className="modal-close" 
-          onClick={() => setIsPanelOpen(false)}
-        >
-          <i className="fa-solid fa-times"></i>
-        </button>
-      </div>
-
-      <div className="right-panel-content">
-
-        <h4>SMS → Kanban Urgent Request System</h4>
-        <p>
-          This panel outlines the concept, operational value, and cost context for
-          implementing an SMS-based escalation system integrated directly into the 
-          Boathouse Kanban board.
-        </p>
-
-        <h4>Operational Value</h4>
-        <ul>
-          <li>Enables FOH & BOH staff to escalate urgent requests instantly via SMS</li>
-          <li>Managers receive immediate visibility and notifications</li>
-          <li>Reduces delays in handling allergies, VIPs, guest recovery, and special events</li>
-          <li>Centralizes all urgent requests into a structured workflow</li>
-          <li>Improves service reliability during high-volume periods</li>
-        </ul>
-
-        <h4>Development Scope</h4>
-        <ul>
-          <li>SMS gateway integration + employee validation</li>
-          <li>Database + backend API for urgent notes</li>
-          <li>Real-time updates into “Urgent Requests” board column</li>
-          <li>Toast notifications for management</li>
-          <li>Assignment workflow (claim, delegate, resolve)</li>
-          <li>Final QA, deployment, and documentation</li>
-        </ul>
-
-        <h4>Cost Context</h4>
-        <p>
-          A comparable contractor or agency implementation would typically fall in
-          the <strong>$10–20k</strong> range, depending on depth of integration.
-        </p>
-        <p>
-          Proposed internal development cost: <strong>$3–4k</strong>.
-        </p>
-        <p>
-          This reflects a significantly reduced internal rate, streamlined development,
-          and direct operational experience with the restaurant’s workflow.
-        </p>
-
-        <h4>Purpose</h4>
-        <p>
-          The intention is to provide a cost-effective, high-impact system designed to
-          improve communication efficiency and service quality. This proposal surfaces
-          realistic expectations while acknowledging internal investment and operational
-          value returned to the business.
-        </p>
-
-      </div>
-    </div>
-  </div>
-}
-
           
         </div>
       );
