@@ -398,22 +398,7 @@
         padding: 30px;
         overflow-x: auto;
         overflow-y: auto;
-        position: relative; /* Added for positioning scroll indicator */
     }
-
-    /* --- NEW CSS: Scroll indicator (right fade when scrollable) --- */
-    .kanban-container.scrollable::after {
-      content: '';
-      position: absolute;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      width: 30px;
-      background: linear-gradient(to left, rgba(0,0,0,0.3), transparent);
-      pointer-events: none;
-      z-index: 5;
-    }
-    /* --- END NEW CSS --- */
 
     .kanban-board {
         display: flex;
@@ -488,6 +473,7 @@
     .note-card.dragging {
         opacity: 0.5;
         transform: rotate(2deg) scale(1.05);
+        z-index: 10000; /* High z-index for dragged card */
     }
 
     .note-card.urgent {
@@ -844,7 +830,6 @@
       background: var(--ui-bg);
       border-bottom: 1px solid var(--border-color);
       padding: 0 30px;
-      position: relative;
     }
 
     .tab-btn {
@@ -857,7 +842,6 @@
       cursor: pointer;
       transition: all 0.3s ease;
       white-space: nowrap;
-      position: relative;
     }
 
     .tab-btn.active {
@@ -867,22 +851,6 @@
 
     .tab-btn:hover {
       color: var(--text-primary);
-    }
-
-    .tab-badge {
-      position: absolute;
-      top: 0px;
-      right: 0px;
-      background: var(--danger-color);
-      color: white;
-      border-radius: 50%;
-      width: 16px;
-      height: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 9px;
-      font-weight: 600;
     }
 
     .toast {
@@ -974,8 +942,6 @@
             transform: translateX(-100%);
             transition: transform 0.3s ease;
             z-index: 1000;
-            background: var(--dark-bg);
-            backdrop-filter: none;
         }
 
         .sidebar.open {
@@ -1481,6 +1447,7 @@
         isDragging = _useState[0],
         setIsDragging = _useState[1];
       var cardRef = useRef(null);
+      var longPressTimer = useRef(null);
 
       var handleDragStart = function handleDragStart(e) {
         setIsDragging(true);
@@ -1494,9 +1461,37 @@
 
       useEffect(() => {
         if (isMobile && cardRef.current) {
-          Draggable.create(cardRef.current, {
+          const draggable = Draggable.create(cardRef.current, {
             type: "x,y",
             onDragStart: () => setIsDragging(true),
+            onDrag: function() {
+              // Check proximity to columns during drag
+              const columns = document.querySelectorAll('.kanban-column');
+              let closestColumn = null;
+              let minDistance = Infinity;
+              columns.forEach(col => {
+                const colBounds = col.getBoundingClientRect();
+                const centerX = this.pointerX;
+                const centerY = this.pointerY;
+                const distX = Math.max(colBounds.left - centerX, 0, centerX - colBounds.right);
+                const distY = Math.max(colBounds.top - centerY, 0, centerY - colBounds.bottom);
+                const distance = Math.sqrt(distX * distX + distY * distY);
+                if (distance < minDistance && distance < 50) { // Proximity threshold
+                  minDistance = distance;
+                  closestColumn = col;
+                }
+              });
+              if (closestColumn) {
+                // Snap to closest column
+                const colBounds = closestColumn.getBoundingClientRect();
+                gsap.to(this.target, {
+                  x: colBounds.left - this.target.getBoundingClientRect().left + colBounds.width / 2 - this.target.offsetWidth / 2,
+                  y: colBounds.top - this.target.getBoundingClientRect().top + colBounds.height / 2 - this.target.offsetHeight / 2,
+                  duration: 0.2,
+                  ease: "power1.out"
+                });
+              }
+            },
             onDragEnd: function(e) {
               setIsDragging(false);
               const bounds = this.target.getBoundingClientRect();
@@ -1516,9 +1511,24 @@
               }
               gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
             }
-          });
+          })[0];
+          return () => draggable.kill();
         }
       }, [isMobile, note, onNoteDrop]);
+
+      const handleTouchStart = (e) => {
+        if (isMobile) {
+          longPressTimer.current = setTimeout(() => {
+            handleOpenContextMenu(e, note);
+          }, 500); // Long press duration
+        }
+      };
+
+      const handleTouchEnd = () => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+        }
+      };
 
       var formatDate = function formatDate(dateString) {
         var date = new Date(dateString);
@@ -1545,7 +1555,10 @@
           draggable: !isMobile,
           onDragStart: !isMobile ? handleDragStart : null,
           onDragEnd: !isMobile ? handleDragEnd : null,
-          onContextMenu: (e) => handleOpenContextMenu(e, note)
+          onContextMenu: (e) => handleOpenContextMenu(e, note),
+          onTouchStart: handleTouchStart,
+          onTouchEnd: handleTouchEnd,
+          onTouchCancel: handleTouchEnd
         },
         /*#__PURE__*/React.createElement(
           "div",
@@ -2189,7 +2202,7 @@
       var _useState14 = useState('date'),
         sortBy = _useState14[0],
         setSortBy = _useState14[1];
-      var _useState15 = useState(false),
+      var _useState15 = useState(!isMobile),
         sidebarOpen = _useState15[0],
         setSidebarOpen = _useState15[1];
       var _useState16 = useState(window.innerWidth <= 768),
@@ -2631,7 +2644,8 @@
                 "button",
                 {
                   key: cat.id,
-                  className: "tab-btn ".concat(currentCategory === cat.id ? 'active' : '')
+                  className: "tab-btn ".concat(currentCategory === cat.id ? 'active' : ''),
+                  onClick: function onClick() { return setCurrentCategory(cat.id); }
                 },
                 cat.name,
                 (categoryNotifications[cat.id] || 0) > 0 && /*#__PURE__*/React.createElement(
