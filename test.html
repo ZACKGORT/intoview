@@ -1482,7 +1482,8 @@
     }];
 
     // Enhanced Note Card with SMS features
-    var NoteCard = function NoteCard(_ref) {
+// Enhanced Note Card with SMS features
+var NoteCard = function NoteCard(_ref) {
       var note = _ref.note,
         onEdit = _ref.onEdit,
         onDelete = _ref.onDelete,
@@ -1494,6 +1495,7 @@
         isDragging = _useState[0],
         setIsDragging = _useState[1];
       var cardRef = useRef(null);
+      var menuTriggered = useRef(false); // <-- FIX: Add ref to act as a gate
 
       var handleDragStart = function handleDragStart(e) {
         setIsDragging(true);
@@ -1511,9 +1513,16 @@
         if (isMobile && cardRef.current) {
           const draggable = Draggable.create(cardRef.current, {
             type: "x,y",
-            onDragStart: () => setIsDragging(true),
+            onDragStart: function() {
+              setIsDragging(true);
+              menuTriggered.current = false; // <-- FIX: Reset gate on new drag
+            },
             onDrag: function() {
               // 'this' is the Draggable instance
+              
+              // <-- FIX: If menu is already triggered, stop processing
+              if (menuTriggered.current) return;
+              
               const column = this.target.closest('.kanban-column');
               if (!column) return;
               
@@ -1524,11 +1533,13 @@
               const cardCenterX = cardBounds.left + cardBounds.width / 2;
               
               // Check if card center has left the horizontal bounds of its original column
-              // We add a small tolerance so it doesn't trigger *exactly* at the edge
               const tolerance = 5; 
               const isOutside = cardCenterX < (columnBounds.left - tolerance) || cardCenterX > (columnBounds.right + tolerance);
               
               if (isOutside) {
+                // <-- FIX: Set gate to true to prevent this from firing again
+                menuTriggered.current = true;
+                
                 // 1. Interrupt the drag
                 this.endDrag(); 
                 
@@ -1536,20 +1547,22 @@
                 gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
                 
                 // 3. Display the context menu
-                // Use pointerX/Y for menu position
                 handleOpenContextMenu({ pageX: this.pointerX, pageY: this.pointerY }, note);
               }
             },
             onDragEnd: function() {
               setIsDragging(false);
-              // Snap back if the drag ended for any other reason (e.g., user let go)
-              // without triggering the 'isOutside' logic.
-              gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
+              
+              // <-- FIX: Only snap back if the menu was *not* triggered.
+              // (If menu *was* triggered, the snap-back is handled in onDrag)
+              if (!menuTriggered.current) {
+                gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
+              }
             }
           })[0];
           return () => draggable.kill();
         }
-      }, [isMobile, note, onNoteDrop, handleOpenContextMenu]); // Added handleOpenContextMenu to dependency array
+      }, [isMobile, note, onNoteDrop, handleOpenContextMenu]);
       // *** MODIFICATION END ***
 
       var formatDate = function formatDate(dateString) {
@@ -1578,7 +1591,7 @@
           onDragStart: !isMobile ? handleDragStart : null,
           onDragEnd: !isMobile ? handleDragEnd : null,
           onContextMenu: (e) => handleOpenContextMenu(e, note)
-          // Removed onTouchStart, onTouchEnd, onTouchCancel. GSAP Draggable handles mobile touch.
+          // GSAP Draggable handles mobile touch events
         },
         /*#__PURE__*/React.createElement(
           "div",
