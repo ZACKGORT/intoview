@@ -1494,7 +1494,6 @@
         isDragging = _useState[0],
         setIsDragging = _useState[1];
       var cardRef = useRef(null);
-      var longPressTimer = useRef(null);
 
       var handleDragStart = function handleDragStart(e) {
         setIsDragging(true);
@@ -1506,79 +1505,52 @@
         setIsDragging(false);
       };
 
+      // *** MODIFICATION START ***
+      // This useEffect now implements the requested mobile "drag-to-show-menu" interaction
       useEffect(() => {
         if (isMobile && cardRef.current) {
           const draggable = Draggable.create(cardRef.current, {
             type: "x,y",
             onDragStart: () => setIsDragging(true),
             onDrag: function() {
-              // Check proximity to columns during drag
-              const columns = document.querySelectorAll('.kanban-column');
-              let closestColumn = null;
-              let minDistance = Infinity;
-              columns.forEach(col => {
-                const colBounds = col.getBoundingClientRect();
-                const centerX = this.pointerX;
-                const centerY = this.pointerY;
-                const distX = Math.max(colBounds.left - centerX, 0, centerX - colBounds.right);
-                const distY = Math.max(colBounds.top - centerY, 0, centerY - colBounds.bottom);
-                const distance = Math.sqrt(distX * distX + distY * distY);
-                if (distance < minDistance && distance < 50) { // Proximity threshold
-                  minDistance = distance;
-                  closestColumn = col;
-                }
-              });
-              if (closestColumn) {
-                // Snap to closest column
-                const colBounds = closestColumn.getBoundingClientRect();
-                gsap.to(this.target, {
-                  x: colBounds.left - this.target.getBoundingClientRect().left + colBounds.width / 2 - this.target.offsetWidth / 2,
-                  y: colBounds.top - this.target.getBoundingClientRect().top + colBounds.height / 2 - this.target.offsetHeight / 2,
-                  duration: 0.2,
-                  ease: "power1.out"
-                });
+              // 'this' is the Draggable instance
+              const column = this.target.closest('.kanban-column');
+              if (!column) return;
+              
+              const columnBounds = column.getBoundingClientRect();
+              const cardBounds = this.target.getBoundingClientRect();
+              
+              // Use card center for horizontal detection
+              const cardCenterX = cardBounds.left + cardBounds.width / 2;
+              
+              // Check if card center has left the horizontal bounds of its original column
+              // We add a small tolerance so it doesn't trigger *exactly* at the edge
+              const tolerance = 5; 
+              const isOutside = cardCenterX < (columnBounds.left - tolerance) || cardCenterX > (columnBounds.right + tolerance);
+              
+              if (isOutside) {
+                // 1. Interrupt the drag
+                this.endDrag(); 
+                
+                // 2. Snap the card back to its original position
+                gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
+                
+                // 3. Display the context menu
+                // Use pointerX/Y for menu position
+                handleOpenContextMenu({ pageX: this.pointerX, pageY: this.pointerY }, note);
               }
             },
-            onDragEnd: function(e) {
+            onDragEnd: function() {
               setIsDragging(false);
-              const bounds = this.target.getBoundingClientRect();
-              const centerX = bounds.left + bounds.width / 2;
-              const centerY = bounds.top + bounds.height / 2;
-              const columns = document.querySelectorAll('.kanban-column');
-              let targetStatus = null;
-              columns.forEach(col => {
-                const colBounds = col.getBoundingClientRect();
-                if (centerX > colBounds.left && centerX < colBounds.right &&
-                    centerY > colBounds.top && centerY < colBounds.bottom) {
-                  targetStatus = col.dataset.status;
-                }
-              });
-              if (targetStatus && targetStatus !== note.status) {
-                onNoteDrop(note.id, targetStatus);
-              }
+              // Snap back if the drag ended for any other reason (e.g., user let go)
+              // without triggering the 'isOutside' logic.
               gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
             }
           })[0];
           return () => draggable.kill();
         }
-      }, [isMobile, note, onNoteDrop]);
-
-      const handleTouchStart = (e) => {
-        if (isMobile) {
-          longPressTimer.current = setTimeout(() => {
-            const touch = e.touches[0] || e.changedTouches[0];
-            const posX = touch.pageX;
-            const posY = touch.pageY;
-            handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
-          }, 500); // Long press duration
-        }
-      };
-
-      const handleTouchEnd = () => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-        }
-      };
+      }, [isMobile, note, onNoteDrop, handleOpenContextMenu]); // Added handleOpenContextMenu to dependency array
+      // *** MODIFICATION END ***
 
       var formatDate = function formatDate(dateString) {
         var date = new Date(dateString);
@@ -1605,10 +1577,8 @@
           draggable: !isMobile,
           onDragStart: !isMobile ? handleDragStart : null,
           onDragEnd: !isMobile ? handleDragEnd : null,
-          onContextMenu: (e) => handleOpenContextMenu(e, note),
-          onTouchStart: handleTouchStart,
-          onTouchEnd: handleTouchEnd,
-          onTouchCancel: handleTouchEnd
+          onContextMenu: (e) => handleOpenContextMenu(e, note)
+          // Removed onTouchStart, onTouchEnd, onTouchCancel. GSAP Draggable handles mobile touch.
         },
         /*#__PURE__*/React.createElement(
           "div",
