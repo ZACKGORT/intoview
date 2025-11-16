@@ -889,7 +889,7 @@
     .toast {
       position: fixed;
       bottom: 20px;
-      right: 20px;
+      left: 20px;
       background: var(--success-color);
       color: white;
       padding: 15px 20px;
@@ -1274,7 +1274,7 @@
       border: 1px solid var(--border-color);
       border-radius: 8px;
       box-shadow: var(--shadow-md);
-      z-index: 1003;
+      z-index: 1000;
       min-width: 150px;
     }
 
@@ -1310,7 +1310,7 @@
       height: 100%;
       background: var(--dark-bg);
       opacity: 0.9;
-      z-index: 1002;
+      z-index: 999;
     }
   </style>
 <script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
@@ -1494,8 +1494,7 @@
         isDragging = _useState[0],
         setIsDragging = _useState[1];
       var cardRef = useRef(null);
-      var tapCount = useRef(0);
-      var lastTapTime = useRef(0);
+      var longPressTimer = useRef(null);
 
       var handleDragStart = function handleDragStart(e) {
         setIsDragging(true);
@@ -1564,21 +1563,20 @@
         }
       }, [isMobile, note, onNoteDrop]);
 
-      const handleTouchEnd = (e) => {
-        const currentTime = Date.now();
-        if (currentTime - lastTapTime.current < 300) {
-          tapCount.current += 1;
-        } else {
-          tapCount.current = 1;
+      const handleTouchStart = (e) => {
+        if (isMobile) {
+          longPressTimer.current = setTimeout(() => {
+            const touch = e.touches[0] || e.changedTouches[0];
+            const posX = touch.pageX;
+            const posY = touch.pageY;
+            handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
+          }, 500); // Long press duration
         }
-        lastTapTime.current = currentTime;
+      };
 
-        if (tapCount.current === 2) {
-          const touch = e.changedTouches[0];
-          const posX = touch.pageX;
-          const posY = touch.pageY;
-          handleOpenContextMenu({ pageX: posX, pageY: posY }, note);
-          tapCount.current = 0;
+      const handleTouchEnd = () => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
         }
       };
 
@@ -1608,7 +1606,9 @@
           onDragStart: !isMobile ? handleDragStart : null,
           onDragEnd: !isMobile ? handleDragEnd : null,
           onContextMenu: (e) => handleOpenContextMenu(e, note),
-          onTouchEnd: handleTouchEnd
+          onTouchStart: handleTouchStart,
+          onTouchEnd: handleTouchEnd,
+          onTouchCancel: handleTouchEnd
         },
         /*#__PURE__*/React.createElement(
           "div",
