@@ -1482,9 +1482,7 @@
       isSmsRequest: false
     }];
 
-    // Enhanced Note Card with SMS features
-// Enhanced Note Card with SMS features
-var NoteCard = function NoteCard(_ref) {
+    var NoteCard = function NoteCard(_ref) {
   var note = _ref.note,
     onEdit = _ref.onEdit,
     onDelete = _ref.onDelete,
@@ -1496,13 +1494,11 @@ var NoteCard = function NoteCard(_ref) {
     isDragging = _useState[0],
     setIsDragging = _useState[1];
   var cardRef = useRef(null);
-  var longPressTimer = useRef(null);
+  // New: Track touch start position and timer for motion implication
+  var touchStartPos = useRef({ x: 0, y: 0 });
+  var touchTimer = useRef(null);
 
   var handleDragStart = function handleDragStart(e) {
-    if (e.nativeEvent.target.closest('.note-action-btn')) {
-      e.preventDefault();
-      return;
-    }
     setIsDragging(true);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('noteId', note.id);
@@ -1512,216 +1508,166 @@ var NoteCard = function NoteCard(_ref) {
     setIsDragging(false);
   };
 
-  useEffect(() => {
-    if (isMobile && cardRef.current) {
-      const draggable = Draggable.create(cardRef.current, {
-        type: "x,y",
-        onDragStart: function() {
-          if (this.pointerEvent.target.closest('.note-action-btn')) {
-            this.kill();
-            return;
-          }
-          setIsDragging(true);
-        },
-        onDrag: function() {
-          // ... (existing code remains unchanged)
-        },
-        onDragEnd: function(e) {
-          // ... (existing code remains unchanged)
-        }
-      })[0];
-      return () => draggable.kill();
-    }
-  }, [isMobile, note, onNoteDrop]);
-
+  // New: Touch start - Record position and start "drag implication" animation
   const handleTouchStart = (e) => {
     if (isMobile) {
-      if (e.target.closest('.note-action-btn')) return; // Skip if touch starts on action button
-      longPressTimer.current = setTimeout(() => {
-        const touch = e.touches[0] || e.changedTouches[0];
+      const touch = e.touches[0];
+      touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+      // Imply drag motion: Brief lift/rotate animation
+      gsap.to(cardRef.current, {
+        scale: 1.05,
+        rotation: 1,
+        duration: 0.2,
+        ease: 'power1.out',
+      });
+      // Optional: Short delay before allowing end, but we handle in touch end
+    }
+  };
+
+  // New: Touch end - Check if it's a tap (short distance), reset animation, show menu
+  const handleTouchEnd = (e) => {
+    if (isMobile) {
+      const touch = e.changedTouches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
+      // Reset animation regardless
+      gsap.to(cardRef.current, {
+        scale: 1,
+        rotation: 0,
+        duration: 0.2,
+        ease: 'power1.out',
+      });
+      // If moved less than 10px (tap, not swipe), show context menu
+      if (deltaX < 10 && deltaY < 10) {
+        e.preventDefault();
         const posX = touch.pageX;
         const posY = touch.pageY;
         handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
-      }, 500); // Long press duration
+      }
     }
   };
 
-  const handleTouchEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
+  // Retained: Desktop context menu
+  const handleContextMenu = (e) => {
+    if (!isMobile) {
+      handleOpenContextMenu(e, note);
     }
   };
 
-      // *** MODIFICATION START ***
-      // This useEffect now implements the requested mobile "drag-to-show-menu" interaction
-      useEffect(() => {
-        if (isMobile && cardRef.current) {
-          const draggable = Draggable.create(cardRef.current, {
-            type: "x,y",
-            onDragStart: function() {
-              setIsDragging(true);
-              menuTriggered.current = false; // <-- FIX: Reset gate on new drag
-            },
-            onDrag: function() {
-              // 'this' is the Draggable instance
-              
-              // <-- FIX: If menu is already triggered, stop processing
-              if (menuTriggered.current) return;
-              
-              const column = this.target.closest('.kanban-column');
-              if (!column) return;
-              
-              const columnBounds = column.getBoundingClientRect();
-              const cardBounds = this.target.getBoundingClientRect();
-              
-              // Use card center for horizontal detection
-              const cardCenterX = cardBounds.left + cardBounds.width / 2;
-              
-              // Check if card center has left the horizontal bounds of its original column
-              const tolerance = 5; 
-              const isOutside = cardCenterX < (columnBounds.left - tolerance) || cardCenterX > (columnBounds.right + tolerance);
-              
-              if (isOutside) {
-                // <-- FIX: Set gate to true to prevent this from firing again
-                menuTriggered.current = true;
-                
-                // 1. Interrupt the drag
-                this.endDrag(); 
-                
-                // 2. Snap the card back to its original position
-                gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
-                
-                // 3. Display the context menu
-                handleOpenContextMenu({ pageX: this.pointerX, pageY: this.pointerY }, note);
-              }
-            },
-            onDragEnd: function() {
-              setIsDragging(false);
-              
-              // <-- FIX: Only snap back if the menu was *not* triggered.
-              // (If menu *was* triggered, the snap-back is handled in onDrag)
-              if (!menuTriggered.current) {
-                gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
-              }
-            }
-          })[0];
-          return () => draggable.kill();
-        }
-      }, [isMobile, note, onNoteDrop, handleOpenContextMenu]);
-      // *** MODIFICATION END ***
+  var formatDate = function formatDate(dateString) {
+    var date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
 
-      var formatDate = function formatDate(dateString) {
-        var date = new Date(dateString);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      };
+  var formatTime = function formatTime(timeString) {
+    var _timeString$split = timeString.split(':'),
+      hours = _timeString$split[0],
+      minutes = _timeString$split[1];
+    var hour = parseInt(hours);
+    var ampm = hour >= 12 ? 'PM' : 'AM';
+    var displayHour = hour % 12 || 12;
+    return "".concat(displayHour, ":").concat(minutes, " ").concat(ampm);
+  };
 
-      var formatTime = function formatTime(timeString) {
-        var _timeString$split = timeString.split(':'),
-          hours = _timeString$split[0],
-          minutes = _timeString$split[1];
-        var hour = parseInt(hours);
-        var ampm = hour >= 12 ? 'PM' : 'AM';
-        var displayHour = hour % 12 || 12;
-        return "".concat(displayHour, ":").concat(minutes, " ").concat(ampm);
-      };
+  var assignee = mockUsers.find(function (u) { return u.id === note.assignee; });
 
-      var assignee = mockUsers.find(function (u) { return u.id === note.assignee; });
-
-      return /*#__PURE__*/React.createElement(
+  return /*#__PURE__*/React.createElement(
+    "div",
+    {
+      ref: cardRef,
+      className: "note-card ".concat(note.priority, " ").concat(isDragging ? 'dragging' : '', " ").concat(note.isSmsRequest ? 'sms-request-card urgent-sms-alert' : ''),
+      draggable: !isMobile, // Changed: Disable drag on mobile
+      onDragStart: !isMobile ? handleDragStart : null, // Disable drag handlers on mobile
+      onDragEnd: !isMobile ? handleDragEnd : null,
+      onContextMenu: handleContextMenu, // Desktop only
+      onTouchStart: handleTouchStart, // Mobile tap/drag implication start
+      onTouchEnd: handleTouchEnd, // Mobile tap detection and menu
+      onTouchCancel: handleTouchEnd // Handle cancel similarly
+    },
+    /*#__PURE__*/React.createElement(
+      "div",
+      { className: "note-header" },
+      /*#__PURE__*/React.createElement(
+        "h4",
+        { className: "note-title" },
+        note.title
+      ),
+      /*#__PURE__*/React.createElement(
         "div",
-        {
-          ref: cardRef,
-          className: "note-card ".concat(note.priority, " ").concat(isDragging ? 'dragging' : '', " ").concat(note.isSmsRequest ? 'sms-request-card urgent-sms-alert' : ''),
-          draggable: !isMobile,
-          onDragStart: !isMobile ? handleDragStart : null,
-          onDragEnd: !isMobile ? handleDragEnd : null,
-          onContextMenu: (e) => handleOpenContextMenu(e, note)
-          // GSAP Draggable handles mobile touch events
-        },
+        { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
         /*#__PURE__*/React.createElement(
-          "div",
-          { className: "note-header" },
-          /*#__PURE__*/React.createElement(
-            "h4",
-            { className: "note-title" },
-            note.title
-          ),
-          /*#__PURE__*/React.createElement(
-            "div",
-            { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
-            /*#__PURE__*/React.createElement(
-              "span",
-              { className: "note-priority priority-".concat(note.priority) },
-              note.priority
-            ),
-            note.isSmsRequest && /*#__PURE__*/React.createElement(
-              "span",
-              { className: "sms-badge" },
-              "SMS"
-            )
-          )
-        ),
-        /*#__PURE__*/React.createElement(
-          "p",
-          { className: "note-content" },
-          note.content
+          "span",
+          { className: "note-priority priority-".concat(note.priority) },
+          note.priority
         ),
         note.isSmsRequest && /*#__PURE__*/React.createElement(
-          "div",
-          { style: { fontSize: '11px', color: 'var(--sms-color)', marginBottom: '8px' } },
-          /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
-          " From: ".concat(note.smsFrom, " at ").concat(new Date(note.smsTimestamp).toLocaleTimeString())
+          "span",
+          { className: "sms-badge" },
+          "SMS"
+        )
+      )
+    ),
+    /*#__PURE__*/React.createElement(
+      "p",
+      { className: "note-content" },
+      note.content
+    ),
+    note.isSmsRequest && /*#__PURE__*/React.createElement(
+      "div",
+      { style: { fontSize: '11px', color: 'var(--sms-color)', marginBottom: '8px' } },
+      /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+      " From: ".concat(note.smsFrom, " at ").concat(new Date(note.smsTimestamp).toLocaleTimeString())
+    ),
+    /*#__PURE__*/React.createElement(
+      "div",
+      { className: "note-footer" },
+      /*#__PURE__*/React.createElement(
+        "div",
+        { className: "note-meta" },
+        note.dueDate && /*#__PURE__*/React.createElement(
+          "span",
+          null,
+          /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-calendar" }),
+          formatDate(note.dueDate)
         ),
+        note.dueTime && /*#__PURE__*/React.createElement(
+          "span",
+          null,
+          /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-clock" }),
+          formatTime(note.dueTime)
+        )
+      ),
+      assignee && /*#__PURE__*/React.createElement(
+        "div",
+        { className: "note-assignee" },
         /*#__PURE__*/React.createElement(
           "div",
-          { className: "note-footer" },
-          /*#__PURE__*/React.createElement(
-            "div",
-            { className: "note-meta" },
-            note.dueDate && /*#__PURE__*/React.createElement(
-              "span",
-              null,
-              /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-calendar" }),
-              formatDate(note.dueDate)
-            ),
-            note.dueTime && /*#__PURE__*/React.createElement(
-              "span",
-              null,
-              /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-clock" }),
-              formatTime(note.dueTime)
-            )
-          ),
-          assignee && /*#__PURE__*/React.createElement(
-            "div",
-            { className: "note-assignee" },
-            /*#__PURE__*/React.createElement(
-              "div",
-              { className: "assignee-avatar" },
-              assignee.initials
-            ),
-            /*#__PURE__*/React.createElement(
-              "span",
-              null,
-              assignee.name.split(' ')[0]
-            )
-          ),
-          /*#__PURE__*/React.createElement(
-            "div",
-            { className: "note-actions" },
-            /*#__PURE__*/React.createElement(
-              "button",
-              { onClick: function onClick() { return onEdit(note); }, className: "note-action-btn" },
-              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-edit" })
-            ),
-            /*#__PURE__*/React.createElement(
-              "button",
-              { onClick: function onClick() { return onDelete(note.id); }, className: "note-action-btn" },
-              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-trash" })
-            )
-          )
+          { className: "assignee-avatar" },
+          assignee.initials
+        ),
+        /*#__PURE__*/React.createElement(
+          "span",
+          null,
+          assignee.name.split(' ')[0]
         )
-      );
-    };
+      ),
+      /*#__PURE__*/React.createElement(
+        "div",
+        { className: "note-actions" },
+        /*#__PURE__*/React.createElement(
+          "button",
+          { onClick: function onClick() { return onEdit(note); }, className: "note-action-btn" },
+          /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-edit" })
+        ),
+        /*#__PURE__*/React.createElement(
+          "button",
+          { onClick: function onClick() { return onDelete(note.id); }, className: "note-action-btn" },
+          /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-trash" })
+        )
+      )
+    )
+  );
+};
 
     // Enhanced Kanban Column with Urgent Requests column
     var KanbanColumn = function KanbanColumn(_ref2) {
