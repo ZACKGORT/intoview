@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,9 +8,10 @@
   <script crossorigin="" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
+  <!-- Fixed incorrect CDN URL for CSS3DRenderer -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/Draggable.min.js"></script>
+  <!-- Removed Draggable.min.js script -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <style>
@@ -1061,6 +1061,7 @@
             font-size: 12px;
         }
 
+    
         .note-footer {
             font-size: 10px;
         }
@@ -1483,132 +1484,51 @@
     }];
 
     // Enhanced Note Card with SMS features
-// Enhanced Note Card with SMS features
-var NoteCard = function NoteCard(_ref) {
-  var note = _ref.note,
-    onEdit = _ref.onEdit,
-    onDelete = _ref.onDelete,
-    currentUser = _ref.currentUser,
-    isMobile = _ref.isMobile,
-    onNoteDrop = _ref.onNoteDrop,
-    handleOpenContextMenu = _ref.handleOpenContextMenu;
-  var _useState = useState(false),
-    isDragging = _useState[0],
-    setIsDragging = _useState[1];
-  var cardRef = useRef(null);
-  var longPressTimer = useRef(null);
+    var NoteCard = function NoteCard(_ref) {
+      var note = _ref.note,
+        onEdit = _ref.onEdit,
+        onDelete = _ref.onDelete,
+        currentUser = _ref.currentUser,
+        isMobile = _ref.isMobile,
+        onNoteDrop = _ref.onNoteDrop,
+        handleOpenContextMenu = _ref.handleOpenContextMenu;
+      var _useState = useState(false),
+        isDragging = _useState[0],
+        setIsDragging = _useState[1];
+      var cardRef = useRef(null);
+      var longPressTimer = useRef(null); // Retained for mobile "right-click"
 
-  var handleDragStart = function handleDragStart(e) {
-    if (e.nativeEvent.target.closest('.note-action-btn')) {
-      e.preventDefault();
-      return;
-    }
-    setIsDragging(true);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('noteId', note.id);
-  };
+      var handleDragStart = function handleDragStart(e) {
+        setIsDragging(true);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('noteId', note.id);
+      };
 
-  var handleDragEnd = function handleDragEnd() {
-    setIsDragging(false);
-  };
+      var handleDragEnd = function handleDragEnd() {
+        setIsDragging(false);
+      };
 
-  useEffect(() => {
-    if (isMobile && cardRef.current) {
-      const draggable = Draggable.create(cardRef.current, {
-        type: "x,y",
-        onDragStart: function() {
-          if (this.pointerEvent.target.closest('.note-action-btn')) {
-            this.kill();
-            return;
-          }
-          setIsDragging(true);
-        },
-        onDrag: function() {
-          // ... (existing code remains unchanged)
-        },
-        onDragEnd: function(e) {
-          // ... (existing code remains unchanged)
+      // Removed the GSAP Draggable.create() useEffect
+      
+      // Kept the long-press logic for mobile context menu
+      const handleTouchStart = (e) => {
+        if (isMobile) {
+          longPressTimer.current = setTimeout(() => {
+            // Prevent default context menu, if any
+            e.preventDefault(); 
+            const touch = e.touches[0] || e.changedTouches[0];
+            const posX = touch.pageX;
+            const posY = touch.pageY;
+            handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
+          }, 500); // Long press duration
         }
-      })[0];
-      return () => draggable.kill();
-    }
-  }, [isMobile, note, onNoteDrop]);
+      };
 
-  const handleTouchStart = (e) => {
-    if (isMobile) {
-      if (e.target.closest('.note-action-btn')) return; // Skip if touch starts on action button
-      longPressTimer.current = setTimeout(() => {
-        const touch = e.touches[0] || e.changedTouches[0];
-        const posX = touch.pageX;
-        const posY = touch.pageY;
-        handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
-      }, 500); // Long press duration
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-    }
-  };
-
-      // *** MODIFICATION START ***
-      // This useEffect now implements the requested mobile "drag-to-show-menu" interaction
-      useEffect(() => {
-        if (isMobile && cardRef.current) {
-          const draggable = Draggable.create(cardRef.current, {
-            type: "x,y",
-            onDragStart: function() {
-              setIsDragging(true);
-              menuTriggered.current = false; // <-- FIX: Reset gate on new drag
-            },
-            onDrag: function() {
-              // 'this' is the Draggable instance
-              
-              // <-- FIX: If menu is already triggered, stop processing
-              if (menuTriggered.current) return;
-              
-              const column = this.target.closest('.kanban-column');
-              if (!column) return;
-              
-              const columnBounds = column.getBoundingClientRect();
-              const cardBounds = this.target.getBoundingClientRect();
-              
-              // Use card center for horizontal detection
-              const cardCenterX = cardBounds.left + cardBounds.width / 2;
-              
-              // Check if card center has left the horizontal bounds of its original column
-              const tolerance = 5; 
-              const isOutside = cardCenterX < (columnBounds.left - tolerance) || cardCenterX > (columnBounds.right + tolerance);
-              
-              if (isOutside) {
-                // <-- FIX: Set gate to true to prevent this from firing again
-                menuTriggered.current = true;
-                
-                // 1. Interrupt the drag
-                this.endDrag(); 
-                
-                // 2. Snap the card back to its original position
-                gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
-                
-                // 3. Display the context menu
-                handleOpenContextMenu({ pageX: this.pointerX, pageY: this.pointerY }, note);
-              }
-            },
-            onDragEnd: function() {
-              setIsDragging(false);
-              
-              // <-- FIX: Only snap back if the menu was *not* triggered.
-              // (If menu *was* triggered, the snap-back is handled in onDrag)
-              if (!menuTriggered.current) {
-                gsap.to(this.target, {x: 0, y: 0, duration: 0.2});
-              }
-            }
-          })[0];
-          return () => draggable.kill();
+      const handleTouchEnd = () => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
         }
-      }, [isMobile, note, onNoteDrop, handleOpenContextMenu]);
-      // *** MODIFICATION END ***
+      };
 
       var formatDate = function formatDate(dateString) {
         var date = new Date(dateString);
@@ -1632,11 +1552,13 @@ var NoteCard = function NoteCard(_ref) {
         {
           ref: cardRef,
           className: "note-card ".concat(note.priority, " ").concat(isDragging ? 'dragging' : '', " ").concat(note.isSmsRequest ? 'sms-request-card urgent-sms-alert' : ''),
-          draggable: !isMobile,
-          onDragStart: !isMobile ? handleDragStart : null,
-          onDragEnd: !isMobile ? handleDragEnd : null,
-          onContextMenu: (e) => handleOpenContextMenu(e, note)
-          // GSAP Draggable handles mobile touch events
+          draggable: true, // Set to true for all devices
+          onDragStart: handleDragStart, // Enabled for all devices
+          onDragEnd: handleDragEnd, // Enabled for all devices
+          onContextMenu: (e) => handleOpenContextMenu(e, note), // Desktop right-click
+          onTouchStart: handleTouchStart, // Mobile long-press for context menu
+          onTouchEnd: handleTouchEnd,
+          onTouchCancel: handleTouchEnd
         },
         /*#__PURE__*/React.createElement(
           "div",
