@@ -1,73 +1,3284 @@
-# React + TypeScript + Vite
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMS Kanban - Urgent Request System</title>
+  <script crossorigin="" src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin="" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Fixed incorrect CDN URL for CSS3DRenderer -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <!-- Removed Draggable.min.js script -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    :root {
+        --primary-color: #3b82f6;
+        --secondary-color: #8b5cf6;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --dark-bg: #0f172a;
+        --light-bg: #1e293b;
+        --ui-bg: rgba(30, 41, 59, 0.1);
+        --card-bg: rgba(30, 41, 59, 0.77);
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: rgba(255, 255, 255, 0.1);
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+        --sms-color: #10b981;
+        --urgent-glow: rgba(239, 68, 68, 0.3);
+        --vh: 1vh;
+    }
+    
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    body {
+        font-family: 'Inter', sans-serif;
+        background: linear-gradient(135deg, #1e3a8a 0%, #6d28d9 100%);
+        min-height: calc(100 * var(--vh));
+        color: var(--text-primary);
+        overflow: hidden;
+    }
+    
+    #three-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    
+    #vignette {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background: radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.3) 100%);
+      z-index: 10;
+    }
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+    /* SMS-specific animations */
+    @keyframes urgentPulse {
+      0% { box-shadow: 0 0 0 0 var(--urgent-glow); }
+      50% { box-shadow: 0 0 20px 10px var(--urgent-glow); }
+      100% { box-shadow: 0 0 0 0 var(--urgent-glow); }
+    }
 
-Currently, two official plugins are available:
+    .urgent-sms-alert {
+      animation: urgentPulse 2s infinite;
+    }
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+    /* SMS Button Styles */
+    .sms-btn {
+      background: var(--sms-color);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
 
-## React Compiler
+    .sms-btn:hover {
+      background: #059669;
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+    /* Urgent Requests Column Special Styling */
+    .urgent-requests-column {
+      border: 2px solid var(--danger-color);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+    }
 
-## Expanding the ESLint configuration
+    .urgent-requests-column .column-header {
+      background: rgba(239, 68, 68, 0.2);
+      margin: -20px -20px 20px -20px;
+      padding: 20px;
+      border-bottom: 2px solid var(--danger-color);
+    }
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+    /* SMS Request Card */
+    .sms-request-card {
+      border-left: 4px solid var(--sms-color);
+      position: relative;
+    }
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+    .sms-request-card::before {
+      content: '';
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 8px;
+      height: 8px;
+      background: var(--sms-color);
+      border-radius: 50%;
+      animation: urgentPulse 2s infinite;
+    }
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+    .sms-badge {
+      background: var(--sms-color);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+    /* Phone Number Input */
+    .phone-input-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+    .phone-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 14px;
+      background: var(--light-bg);
+      color: var(--text-primary);
+    }
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+    .verify-btn {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+    .verify-btn:hover {
+      background: #1d4ed8;
+    }
+
+    .verified-badge {
+      background: var(--success-color);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Enhanced Toast for SMS */
+    .sms-toast {
+      background: var(--sms-color);
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      color: white;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 1001;
+      max-width: 300px;
+      animation: slideInToast 0.3s ease-out;
+    }
+
+    /* Live Status Indicator */
+    .live-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      background: rgba(16, 185, 129, 0.2);
+      border-radius: 12px;
+      font-size: 11px;
+      color: var(--success-color);
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--success-color);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Include all original styles from kanban.html */
+    .app-container {
+        display: flex;
+        height: calc(100 * var(--vh));
+    }
+
+    .sidebar {
+        width: 280px;
+        background: var(--ui-bg);
+        backdrop-filter: blur(20px);
+        color: var(--text-primary);
+        padding: 30px 20px;
+        overflow-y: auto;
+        transition: width 0.3s ease;
+    }
+
+    .sidebar.collapsed {
+        width: 60px;
+        padding: 30px 10px;
+    }
+
+    .sidebar.collapsed .user-info, .sidebar.collapsed .nav-link span, .sidebar.collapsed .notification-badge {
+        display: none;
+    }
+
+    .sidebar.collapsed .user-profile {
+        justify-content: center;
+    }
+
+    .sidebar.collapsed .nav-link {
+        justify-content: center;
+        padding: 12px;
+    }
+
+    .user-profile {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .user-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 18px;
+    }
+
+    .user-info h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .user-info p {
+        font-size: 12px;
+        opacity: 0.7;
+    }
+
+    .nav-menu {
+        list-style: none;
+    }
+
+    .nav-item {
+        margin-bottom: 8px;
+    }
+
+    .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-primary);
+    }
+
+    .nav-link i {
+        width: 20px;
+        text-align: center;
+    }
+
+    .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transition: margin-left 0.3s ease;
+    }
+
+    .header {
+        background: var(--ui-bg);
+        backdrop-filter: blur(20px);
+        padding: 20px 30px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+    }
+
+    .header-title {
+        font-size: 24px;
+        font-weight: 700;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #1d4ed8;
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .btn-secondary {
+        background: var(--light-bg);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+        background: var(--dark-bg);
+    }
+
+    .kanban-container {
+        flex: 1;
+        padding: 30px;
+        overflow-x: auto;
+        overflow-y: auto;
+        position: relative; /* Added for positioning scroll indicator */
+    }
+
+    /* --- NEW CSS: Scroll indicator (right fade when scrollable) --- */
+    .kanban-container.scrollable::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 30px;
+      background: linear-gradient(to left, rgba(0,0,0,0.3), transparent);
+      pointer-events: none;
+      z-index: 5;
+    }
+    /* --- END NEW CSS --- */
+
+    .kanban-board {
+        display: flex;
+        gap: 20px;
+        min-height: 600px;
+    }
+
+    .kanban-column {
+        flex: 1;
+        min-width: 300px;
+        background: var(--ui-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .kanban-column.drag-over {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: var(--primary-color);
+    }
+
+    .column-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .column-title {
+        font-size: 16px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .column-count {
+        background: var(--border-color);
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .notes-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 200px;
+    }
+
+    .note-card {
+        transform-style: preserve-3d;
+        background: var(--card-bg);
+        backdrop-filter: blur(20px);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: var(--shadow-sm);
+        cursor: move;
+        transition: all 0.3s ease;
+        border-left: 4px solid var(--primary-color);
+        opacity: 1 !important;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+
+    .note-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+    }
+
+    .note-card.dragging {
+        opacity: 0.5;
+        transform: rotate(2deg) scale(1.05);
+        z-index: 10000; /* High z-index for dragged card */
+    }
+
+    .note-card.urgent {
+        border-left-color: var(--danger-color);
+    }
+
+    .note-card.high {
+        border-left-color: var(--warning-color);
+    }
+
+    .note-card.medium {
+        border-left-color: var(--primary-color);
+    }
+
+    .note-card.low {
+        border-left-color: var(--success-color);
+    }
+
+    .note-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+
+    .note-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+        flex: 1;
+    }
+
+    .note-priority {
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+
+    .priority-urgent {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--danger-color);
+    }
+
+    .priority-high {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--warning-color);
+    }
+
+    .priority-medium {
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--primary-color);
+    }
+
+    .priority-low {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--success-color);
+    }
+
+    .note-content {
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin-bottom: 12px;
+    }
+
+    .note-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+        color: var(--text-secondary);
+        gap: 12px;
+    }
+
+    .note-meta {
+        display: flex;
+        gap: 12px;
+    }
+
+    .note-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .note-assignee {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .assignee-avatar {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 8px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .note-actions {
+        display: flex;
+        gap: 4px;
+    }
+
+    .note-action-btn {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 4px 6px;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+
+    .note-action-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+    }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+    }
+
+    .modal {
+        background: var(--card-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        padding: 30px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-lg);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+    }
+
+    .modal-title {
+        font-size: 20px;
+        font-weight: 600;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .modal-close:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-primary);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .form-input,
+    .form-textarea,
+    .form-select {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        background: var(--light-bg);
+        color: var(--text-primary);
+    }
+
+    .form-input:focus,
+    .form-textarea:focus,
+    .form-select:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .form-textarea {
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    .form-row {
+        display: flex;
+        gap: 15px;
+    }
+
+    .form-row .form-group {
+        flex: 1;
+    }
+
+    .priority-options {
+        display: flex;
+        gap: 10px;
+    }
+
+    .priority-option {
+        flex: 1;
+        padding: 12px;
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.3s ease;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .priority-option:hover {
+        border-color: var(--primary-color);
+        transform: translateY(-2px);
+    }
+
+    .priority-option.selected {
+        color: white;
+    }
+
+    .priority-option.urgent.selected {
+        background: var(--danger-color);
+        border-color: var(--danger-color);
+    }
+
+    .priority-option.high.selected {
+        background: var(--warning-color);
+        border-color: var(--warning-color);
+    }
+
+    .priority-option.medium.selected {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
+    .priority-option.low.selected {
+        background: var(--success-color);
+        border-color: var(--success-color);
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 25px;
+    }
+
+    .filter-bar {
+        background: var(--ui-bg);
+        backdrop-filter: blur(20px);
+        padding: 20px 30px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .filter-bar.hidden {
+        display: none;
+    }
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .filter-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-secondary);
+    }
+
+    .notification-badge {
+        position: relative;
+    }
+
+
+
+    
+    .badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: var(--danger-color);
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    .sidebar-toggle {
+      display: inline-flex;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+    }
+
+    .tabs {
+      display: flex;
+      overflow-x: auto;
+      background: var(--ui-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 30px;
+      position: relative;
+    }
+
+    .tab-btn {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .tab-btn.active {
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .tab-badge {
+      position: absolute;
+      top: 0px;
+      right: 0px;
+      background: var(--danger-color);
+      color: white;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 600;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: var(--success-color);
+      color: white;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 1001;
+      max-width: 300px;
+      animation: slideInToast 0.3s ease-out;
+    }
+
+    .toast button {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    @keyframes slideInToast {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+
+    .empty-state p {
+        font-size: 14px;
+        margin-bottom: 20px;
+    }
+
+    .fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .slide-in {
+        animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(-100%);
+        }
+        to {
+            transform: translateX(0);
+        }
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .app-container {
+            flex-direction: column;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            background: var(--dark-bg);
+            backdrop-filter: none;
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        .main-content {
+            width: 100%;
+        }
+
+        .kanban-board {
+            flex-direction: column;
+        }
+
+        .kanban-column {
+            min-width: 100%;
+        }
+
+        .modal {
+            width: 95%;
+            padding: 20px;
+        }
+
+        .header {
+            padding: 10px 15px;
+            flex-wrap: wrap;
+        }
+
+        .header-title {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .header-actions {
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .filter-bar {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 10px 15px;
+            gap: 10px;
+        }
+
+        .filter-group {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+        }
+
+        .filter-label {
+            font-size: 12px;
+        }
+
+        .kanban-container {
+            padding: 15px;
+        }
+
+        .kanban-column {
+            padding: 15px;
+        }
+
+        .column-title {
+            font-size: 14px;
+        }
+
+        .note-card {
+            padding: 12px;
+        }
+
+        .note-title {
+            font-size: 13px;
+        }
+
+        .note-content {
+            font-size: 12px;
+        }
+
+    
+        .note-footer {
+            font-size: 10px;
+        }
+
+        .tabs {
+          padding: 0 15px;
+        }
+
+        .tab-btn {
+          padding: 10px 15px;
+          font-size: 13px;
+        }
+
+        .toast {
+          bottom: 10px;
+          right: 10px;
+          left: 10px;
+          max-width: none;
+        }
+    }
+
+
+
+    
+    /* --- NEW STYLES FOR FAB AND RIGHT PANEL --- */
+    .fab {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--warning-color) 0%, var(--danger-color) 100%);
+      color: white;
+      border: none;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-lg);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      z-index: 1001;
+    }
+
+    .fab:hover {
+      transform: scale(1.1) rotate(10deg);
+      box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    .right-panel-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 1002;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .right-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 500px;
+      height: 100%;
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border-left: 1px solid var(--border-color);
+      box-shadow: var(--shadow-lg);
+      z-index: 1003;
+      display: flex;
+      flex-direction: column;
+      animation: slideInFromRight 0.3s ease-out;
+    }
+    
+    @keyframes slideInFromRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .right-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 30px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .right-panel-title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .right-panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px;
+    }
+    
+    .right-panel-content h4 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-top: 25px;
+      margin-bottom: 15px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+    }
+    
+    .right-panel-content h4:first-child {
+      margin-top: 0;
+    }
+
+    .right-panel-content h5 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--primary-color);
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+
+    .right-panel-content p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+    
+    .right-panel-content ul {
+      list-style: none;
+      padding-left: 10px;
+      margin-bottom: 15px;
+    }
+
+    .right-panel-content li {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 8px;
+      position: relative;
+      padding-left: 20px;
+    }
+
+    .right-panel-content li::before {
+      content: '•';
+      color: var(--primary-color);
+      font-weight: bold;
+      display: inline-block; 
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    
+    .right-panel-content blockquote {
+      border-left: 4px solid var(--primary-color);
+      padding-left: 15px;
+      margin: 20px 0;
+      font-style: italic;
+      color: var(--text-primary);
+    }
+
+    .cost-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    
+    .cost-table th,
+    .cost-table td {
+      border: 1px solid var(--border-color);
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 13px;
+    }
+    
+    .cost-table th {
+      background: var(--light-bg);
+      font-weight: 600;
+    }
+    
+    .cost-table td:last-child {
+      text-align: right;
+      font-weight: 500;
+    }
+
+    .cost-table strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    
+    @media (max-width: 768px) {
+      .fab {
+        bottom: 20px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+      }
+      
+      .right-panel {
+        width: 100%;
+      }
+    }
+
+    /* New styles for context menu */
+    .context-menu {
+      position: absolute;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: var(--shadow-md);
+      z-index: 1000;
+      min-width: 150px;
+    }
+
+    .context-menu ul {
+      list-style: none;
+      margin: 0;
+      padding: 8px 0;
+    }
+
+    .context-menu li {
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-size: 14px;
+    }
+
+    .context-menu li:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .context-menu li.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+      color: var(--text-secondary);
+    }
+
+    /* New style for context menu overlay on mobile */
+    .context-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--dark-bg);
+      opacity: 0.9;
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+  <div id="three-container"></div>
+  <div id="vignette"></div>
+  <script type="text/babel">
+    "use strict";
+    
+    function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
+    function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
+    function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+    function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
+    function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
+    function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
+    function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { _defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
+    function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
+    function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : i + ""; }
+    function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
+    function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
+    function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+    function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+    function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
+    function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t["return"] && (u = t["return"](), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
+    function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
+    var _React = React,
+      useState = _React.useState,
+      useEffect = _React.useEffect,
+      useRef = _React.useRef,
+      useCallback = _React.useCallback;
+    
+    // Enhanced Mock Data with SMS features
+    var mockUsers = [{
+      id: 1,
+      name: 'Wendy',
+      role: 'General Manager',
+      initials: 'W',
+      phone: '+1234567890',
+      phoneVerified: true
+    }, {
+      id: 2,
+      name: 'Sarah Johnson',
+      role: 'Operations Manager',
+      initials: 'SJ',
+      phone: '+1234567891',
+      phoneVerified: true
+    }, {
+      id: 3,
+      name: 'Mike Chen',
+      role: 'Kitchen Manager',
+      initials: 'MC',
+      phone: '+1234567892',
+      phoneVerified: false
+    }, {
+      id: 4,
+      name: 'Emily Davis',
+      role: 'Front of House Manager',
+      initials: 'ED',
+      phone: '+1234567893',
+      phoneVerified: true
+    }, {
+      id: 5,
+      name: 'Alex Rodriguez',
+      role: 'Bar Manager',
+      initials: 'AR',
+      phone: '+1234567894',
+      phoneVerified: false
+    }];
+    
+    // Enhanced Notes Data with SMS integration
+    var mockNotes = [{
+      id: 1,
+      title: 'Staff Meeting Tomorrow',
+      content: 'Monthly performance review meeting with all department heads. Please prepare your quarterly reports.',
+      priority: 'high',
+      dueDate: '2024-01-15',
+      dueTime: '10:00',
+      assignee: 1,
+      author: 2,
+      createdAt: '2024-01-14T09:30:00',
+      status: 'todo',
+      category: 'admin',
+      isSmsRequest: false
+    }, {
+      id: 2,
+      title: 'URGENT: Allergy Alert - Table 12',
+      content: 'Customer at table 12 has severe nut allergy. Kitchen must use separate prep area and clean utensils.',
+      priority: 'urgent',
+      dueDate: '2024-01-14',
+      dueTime: '15:00',
+      assignee: 3,
+      author: 4,
+      createdAt: '2024-01-14T08:15:00',
+      status: 'urgent',
+      category: 'kitchen',
+      isSmsRequest: true,
+      smsFrom: '+1234567895',
+      smsTimestamp: '2024-01-14T08:10:00'
+    }, {
+      id: 3,
+      title: 'Health Inspection Preparation',
+      content: 'Ensure all areas are inspection-ready. Check cleanliness, food storage, and documentation.',
+      priority: 'high',
+      dueDate: '2024-01-20',
+      dueTime: '09:00',
+      assignee: 4,
+      author: 1,
+      createdAt: '2024-01-13T14:20:00',
+      status: 'todo',
+      category: 'admin',
+      isSmsRequest: false
+    }, {
+      id: 4,
+      title: 'VIP Guest Arriving - Table 5',
+      content: 'VIP guest requested special seating arrangement and menu customization. Ensure VIP service protocol.',
+      priority: 'urgent',
+      dueDate: '2024-01-14',
+      dueTime: '18:00',
+      assignee: 4,
+      author: 5,
+      createdAt: '2024-01-14T07:45:00',
+      status: 'urgent',
+      category: 'foh',
+      isSmsRequest: true,
+      smsFrom: '+1234567896',
+      smsTimestamp: '2024-01-14T07:40:00'
+    }, {
+      id: 5,
+      title: 'Customer Service Training',
+      content: 'Schedule and conduct customer service refresher training for all front-of-house staff.',
+      priority: 'low',
+      dueDate: '2024-01-25',
+      dueTime: '14:00',
+      assignee: 4,
+      author: 1,
+      createdAt: '2024-01-14T11:30:00',
+      status: 'todo',
+      category: 'foh',
+      isSmsRequest: false
+    }, {
+      id: 6,
+      title: 'Bar Stock Emergency',
+      content: 'Running low on premium spirits for tonight\'s reservation. Need immediate restock.',
+      priority: 'urgent',
+      dueDate: '2024-01-14',
+      dueTime: '16:00',
+      assignee: 5,
+      author: 2,
+      createdAt: '2024-01-14T12:00:00',
+      status: 'urgent',
+      category: 'bar',
+      isSmsRequest: true,
+      smsFrom: '+1234567897',
+      smsTimestamp: '2024-01-14T11:55:00'
+    }, {
+      id: 7,
+      title: 'Maintenance Check',
+      content: 'Inspect HVAC and plumbing systems.',
+      priority: 'high',
+      dueDate: '2024-01-19',
+      dueTime: '11:00',
+      assignee: 2,
+      author: 1,
+      createdAt: '2024-01-14T13:00:00',
+      status: 'inprogress',
+      category: 'maintenance',
+      isSmsRequest: false
+    }];
+
+    // Enhanced Note Card with SMS features
+    var NoteCard = function NoteCard(_ref) {
+      var note = _ref.note,
+        onEdit = _ref.onEdit,
+        onDelete = _ref.onDelete,
+        currentUser = _ref.currentUser,
+        isMobile = _ref.isMobile,
+        onNoteDrop = _ref.onNoteDrop,
+        handleOpenContextMenu = _ref.handleOpenContextMenu;
+      var _useState = useState(false),
+        isDragging = _useState[0],
+        setIsDragging = _useState[1];
+      var cardRef = useRef(null);
+      var longPressTimer = useRef(null); // Retained for mobile "right-click"
+
+      var handleDragStart = function handleDragStart(e) {
+        setIsDragging(true);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('noteId', note.id);
+      };
+
+      var handleDragEnd = function handleDragEnd() {
+        setIsDragging(false);
+      };
+
+      // Removed the GSAP Draggable.create() useEffect
+      
+      // Kept the long-press logic for mobile context menu
+      const handleTouchStart = (e) => {
+        if (isMobile) {
+          longPressTimer.current = setTimeout(() => {
+            // Prevent default context menu, if any
+            e.preventDefault(); 
+            const touch = e.touches[0] || e.changedTouches[0];
+            const posX = touch.pageX;
+            const posY = touch.pageY;
+            handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
+          }, 400); // Reduced to 400ms
+        }
+      };
+
+      const handleTouchEnd = () => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+        }
+      };
+
+      var formatDate = function formatDate(dateString) {
+        var date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      };
+
+      var formatTime = function formatTime(timeString) {
+        var _timeString$split = timeString.split(':'),
+          hours = _timeString$split[0],
+          minutes = _timeString$split[1];
+        var hour = parseInt(hours);
+        var ampm = hour >= 12 ? 'PM' : 'AM';
+        var displayHour = hour % 12 || 12;
+        return "".concat(displayHour, ":").concat(minutes, " ").concat(ampm);
+      };
+
+      var assignee = mockUsers.find(function (u) { return u.id === note.assignee; });
+
+      
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+
+    const handleMove = (e) => {
+      const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+      const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+      if (!clientX || !clientY) return;
+
+      const rect = card.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+
+      const rotateX = (y - centerY) / centerY * 5; // Subtle: max 5 degrees
+      const rotateY = (centerX - x) / centerX * 5;
+
+      gsap.to(card, {
+        rotationX: rotateX,
+        rotationY: rotateY,
+        duration: 0.2,
+        ease: 'power2.out'
+      });
+    };
+
+    const handleLeave = () => {
+      gsap.to(card, {
+        rotationX: 0,
+        rotationY: 0,
+        duration: 0.3,
+        ease: 'power2.out'
+      });
+    };
+
+    card.addEventListener('mousemove', handleMove);
+    card.addEventListener('mouseleave', handleLeave);
+    card.addEventListener('touchmove', handleMove);
+    card.addEventListener('touchend', handleLeave);
+
+    return () => {
+      card.removeEventListener('mousemove', handleMove);
+      card.removeEventListener('mouseleave', handleLeave);
+      card.removeEventListener('touchmove', handleMove);
+      card.removeEventListener('touchend', handleLeave);
+    };
+  }, []);
+
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        {
+          ref: cardRef,
+          className: "note-card ".concat(note.priority, " ").concat(isDragging ? 'dragging' : '', " ").concat(note.isSmsRequest ? 'sms-request-card urgent-sms-alert' : ''),
+          draggable: !isMobile, // Set to true for all devices
+          onDragStart: handleDragStart, // Enabled for all devices
+          onDragEnd: handleDragEnd, // Enabled for all devices
+          onContextMenu: (e) => handleOpenContextMenu(e, note), // Desktop right-click
+          onTouchStart: handleTouchStart, // Mobile long-press for context menu
+          onTouchEnd: handleTouchEnd,
+          onTouchCancel: handleTouchEnd
+        },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "note-header" },
+          /*#__PURE__*/React.createElement(
+            "h4",
+            { className: "note-title" },
+            note.title
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+            /*#__PURE__*/React.createElement(
+              "span",
+              { className: "note-priority priority-".concat(note.priority) },
+              note.priority
+            ),
+            note.isSmsRequest && /*#__PURE__*/React.createElement(
+              "span",
+              { className: "sms-badge" },
+              "SMS"
+            )
+          )
+        ),
+        /*#__PURE__*/React.createElement(
+          "p",
+          { className: "note-content" },
+          note.content
+        ),
+        note.isSmsRequest && /*#__PURE__*/React.createElement(
+          "div",
+          { style: { fontSize: '11px', color: 'var(--sms-color)', marginBottom: '8px' } },
+          /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+          " From: ".concat(note.smsFrom, " at ").concat(new Date(note.smsTimestamp).toLocaleTimeString())
+        ),
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "note-footer" },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "note-meta" },
+            note.dueDate && /*#__PURE__*/React.createElement(
+              "span",
+              null,
+              /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-calendar" }),
+              formatDate(note.dueDate)
+            ),
+            note.dueTime && /*#__PURE__*/React.createElement(
+              "span",
+              null,
+              /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-clock" }),
+              formatTime(note.dueTime)
+            )
+          ),
+          assignee && /*#__PURE__*/React.createElement(
+            "div",
+            { className: "note-assignee" },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "assignee-avatar" },
+              assignee.initials
+            ),
+            /*#__PURE__*/React.createElement(
+              "span",
+              null,
+              assignee.name.split(' ')[0]
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "note-actions" },
+            /*#__PURE__*/React.createElement(
+              "button",
+              { onClick: function onClick() { return onEdit(note); }, className: "note-action-btn" },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-edit" })
+            ),
+            /*#__PURE__*/React.createElement(
+              "button",
+              { onClick: function onClick() { return onDelete(note.id); }, className: "note-action-btn" },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-trash" })
+            )
+          )
+        )
+      );
+    };
+
+    // Enhanced Kanban Column with Urgent Requests column
+    var KanbanColumn = function KanbanColumn(_ref2) {
+      var title = _ref2.title,
+        notes = _ref2.notes,
+        status = _ref2.status,
+        onNoteDrop = _ref2.onNoteDrop,
+        onEdit = _ref2.onEdit,
+        onDelete = _ref2.onDelete,
+        currentUser = _ref2.currentUser,
+        isMobile = _ref2.isMobile,
+        handleOpenContextMenu = _ref2.handleOpenContextMenu;
+      var _useState3 = useState(false),
+        isDragOver = _useState3[0],
+        setIsDragOver = _useState3[1];
+
+      var handleDragOver = function handleDragOver(e) {
+        e.preventDefault();
+        setIsDragOver(true);
+      };
+
+      var handleDragLeave = function handleDragLeave() {
+        setIsDragOver(false);
+      };
+
+      var handleDrop = function handleDrop(e) {
+        e.preventDefault();
+        setIsDragOver(false);
+        var noteId = parseInt(e.dataTransfer.getData('noteId'));
+        onNoteDrop(noteId, status);
+      };
+
+      var statusIcons = {
+        urgent: 'fa-exclamation-triangle',
+        todo: 'fa-clipboard-list',
+        inprogress: 'fa-spinner',
+        completed: 'fa-check-circle',
+      };
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        {
+          className: "kanban-column ".concat(isDragOver ? 'drag-over' : '', " ").concat(status === 'urgent' ? 'urgent-requests-column' : ''),
+          "data-status": status
+        },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "column-header" },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "column-title" },
+            /*#__PURE__*/React.createElement("i", { className: "fa-solid ".concat(statusIcons[status]) }),
+            title,
+            status === 'urgent' && /*#__PURE__*/React.createElement(
+              "div",
+              { className: "live-indicator", style: { marginLeft: '8px' } },
+              /*#__PURE__*/React.createElement("div", { className: "live-dot" }),
+              "LIVE"
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "span",
+            { className: "column-count" },
+            notes.length
+          )
+        ),
+        /*#__PURE__*/React.createElement(
+          "div",
+          {
+            className: "notes-list",
+            onDragOver: handleDragOver,
+            onDragLeave: handleDragLeave,
+            onDrop: handleDrop
+          },
+          notes.length === 0 ? /*#__PURE__*/React.createElement(
+            "div",
+            { className: "empty-state" },
+            /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-inbox" }),
+            /*#__PURE__*/React.createElement("p", null, "No items in this column")
+          ) : notes.map(function (note) {
+            return /*#__PURE__*/React.createElement(NoteCard, {
+              key: note.id,
+              note: note,
+              onEdit: onEdit,
+              onDelete: onDelete,
+              currentUser: currentUser,
+              isMobile: isMobile,
+              onNoteDrop: onNoteDrop,
+              handleOpenContextMenu: handleOpenContextMenu
+            });
+          })
+        )
+      );
+    };
+    
+    
+
+    // SMS Settings Modal
+    var SMSSettingsModal = function SMSSettingsModal(_ref3) {
+      var isOpen = _ref3.isOpen,
+        onClose = _ref3.onClose,
+        currentUser = _ref3.currentUser;
+      var _useState5 = useState(currentUser.phone || ''),
+        phoneNumber = _useState5[0],
+        setPhoneNumber = _useState5[1];
+      var _useState6 = useState(currentUser.phoneVerified || false),
+        isVerified = _useState6[0],
+        setIsVerified = _useState6[1];
+
+      var handleVerify = function handleVerify() {
+        // Simulate phone verification
+        setTimeout(function () {
+          setIsVerified(true);
+          alert('Phone number verified! You will now receive SMS notifications for urgent requests.');
+        }, 1000);
+      };
+
+      if (!isOpen) return null;
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        { className: "modal-overlay" },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "modal" },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "modal-header" },
+            /*#__PURE__*/React.createElement(
+              "h2",
+              { className: "modal-title" },
+              "SMS Notification Settings"
+            ),
+            /*#__PURE__*/React.createElement(
+              "button",
+              { className: "modal-close", onClick: onClose },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-times" })
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "form-group" },
+            /*#__PURE__*/React.createElement(
+              "label",
+              { className: "form-label" },
+              "Phone Number for SMS Alerts"
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "phone-input-group" },
+              /*#__PURE__*/React.createElement("input", {
+                type: "tel",
+                className: "phone-input",
+                value: phoneNumber,
+                onChange: function onChange(e) { return setPhoneNumber(e.target.value); },
+                placeholder: "+1 (555) 123-4567"
+              }),
+              isVerified ? /*#__PURE__*/React.createElement(
+                "div",
+                { className: "verified-badge" },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-check" }),
+                "Verified"
+              ) : /*#__PURE__*/React.createElement(
+                "button",
+                { className: "verify-btn", onClick: handleVerify },
+                "Verify"
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "form-group" },
+            /*#__PURE__*/React.createElement(
+              "label",
+              { className: "form-label" },
+              "Notification Preferences"
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                /*#__PURE__*/React.createElement("input", { type: "checkbox", defaultChecked: true }),
+                "Urgent Requests (All Categories)"
+              ),
+              /*#__PURE__*/React.createElement(
+                "label",
+                { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                /*#__PURE__*/React.createElement("input", { type: "checkbox", defaultChecked: true }),
+                "High Priority Items"
+              ),
+              /*#__PURE__*/React.createElement(
+                "label",
+                { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                /*#__PURE__*/React.createElement("input", { type: "checkbox" }),
+                "Assignment Changes"
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "form-actions" },
+            /*#__PURE__*/React.createElement(
+              "button",
+              { type: "button", className: "btn btn-secondary", onClick: onClose },
+              "Close"
+            ),
+            /*#__PURE__*/React.createElement(
+              "button",
+              { type: "button", className: "sms-btn" },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-save" }),
+              "Save Settings"
+            )
+          )
+        )
+      );
+    };
+
+    // Create Note Modal with SMS option
+    var CreateNoteModal = function CreateNoteModal(_ref4) {
+      var isOpen = _ref4.isOpen,
+        onClose = _ref4.onClose,
+        onSave = _ref4.onSave,
+        editingNote = _ref4.editingNote,
+        currentUser = _ref4.currentUser;
+      var _useState7 = useState({
+          title: '',
+          content: '',
+          priority: 'medium',
+          dueDate: '',
+          dueTime: '',
+          assignee: currentUser.id,
+          category: 'admin',
+          sendSms: false
+        }),
+        formData = _useState7[0],
+        setFormData = _useState7[1];
+
+      useEffect(function () {
+        if (editingNote) {
+          setFormData(_objectSpread(_objectSpread({}, editingNote), {}, { sendSms: false }));
+        } else {
+          setFormData({
+            title: '',
+            content: '',
+            priority: 'medium',
+            dueDate: '',
+            dueTime: '',
+            assignee: currentUser.id,
+            category: 'admin',
+            sendSms: false
+          });
+        }
+      }, [editingNote, currentUser]);
+
+      var handleSubmit = function handleSubmit(e) {
+        e.preventDefault();
+        onSave(formData);
+      };
+
+      var handleInputChange = function handleInputChange(e) {
+        var _e$target = e.target,
+          name = _e$target.name,
+          value = _e$target.type === 'checkbox' ? _e$target.checked : _e$target.value;
+        setFormData(function (prev) {
+          return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, name, value));
+        });
+      };
+
+      var handlePrioritySelect = function handlePrioritySelect(priority) {
+        setFormData(function (prev) {
+          return _objectSpread(_objectSpread({}, prev), {}, {
+            priority: priority
+          });
+        });
+      };
+
+      if (!isOpen) return null;
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        { className: "modal-overlay" },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "modal" },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "modal-header" },
+            /*#__PURE__*/React.createElement(
+              "h2",
+              { className: "modal-title" },
+              editingNote ? 'Edit Note' : 'Create New Note'
+            ),
+            /*#__PURE__*/React.createElement(
+              "button",
+              { className: "modal-close", onClick: onClose },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-times" })
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "form",
+            { onSubmit: handleSubmit },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Title"
+              ),
+              /*#__PURE__*/React.createElement("input", {
+                type: "text",
+                name: "title",
+                className: "form-input",
+                value: formData.title,
+                onChange: handleInputChange,
+                placeholder: "Enter note title...",
+                required: true
+              })
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Content"
+              ),
+              /*#__PURE__*/React.createElement("textarea", {
+                name: "content",
+                className: "form-textarea",
+                value: formData.content,
+                onChange: handleInputChange,
+                placeholder: "Describe the task or message...",
+                required: true
+              })
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Priority Level"
+              ),
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "priority-options" },
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  {
+                    className: "priority-option urgent ".concat(formData.priority === 'urgent' ? 'selected' : ''),
+                    onClick: function onClick() { return handlePrioritySelect('urgent'); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-exclamation-circle" }),
+                  /*#__PURE__*/React.createElement("div", null, "Urgent")
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  {
+                    className: "priority-option high ".concat(formData.priority === 'high' ? 'selected' : ''),
+                    onClick: function onClick() { return handlePrioritySelect('high'); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-exclamation-triangle" }),
+                  /*#__PURE__*/React.createElement("div", null, "High")
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  {
+                    className: "priority-option medium ".concat(formData.priority === 'medium' ? 'selected' : ''),
+                    onClick: function onClick() { return handlePrioritySelect('medium'); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-flag" }),
+                  /*#__PURE__*/React.createElement("div", null, "Medium")
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  {
+                    className: "priority-option low ".concat(formData.priority === 'low' ? 'selected' : ''),
+                    onClick: function onClick() { return handlePrioritySelect('low'); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-check" }),
+                  /*#__PURE__*/React.createElement("div", null, "Low")
+                )
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-row" },
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "form-group" },
+                /*#__PURE__*/React.createElement(
+                  "label",
+                  { className: "form-label" },
+                  "Due Date"
+                ),
+                /*#__PURE__*/React.createElement("input", {
+                  type: "date",
+                  name: "dueDate",
+                  className: "form-input",
+                  value: formData.dueDate,
+                  onChange: handleInputChange
+                })
+              ),
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "form-group" },
+                /*#__PURE__*/React.createElement(
+                  "label",
+                  { className: "form-label" },
+                  "Due Time"
+                ),
+                /*#__PURE__*/React.createElement("input", {
+                  type: "time",
+                  name: "dueTime",
+                  className: "form-input",
+                  value: formData.dueTime,
+                  onChange: handleInputChange
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Assign To"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  name: "assignee",
+                  className: "form-select",
+                  value: formData.assignee,
+                  onChange: handleInputChange
+                },
+                mockUsers.map(function (user) {
+                  return /*#__PURE__*/React.createElement(
+                    "option",
+                    { key: user.id, value: user.id },
+                    user.name,
+                    " - ",
+                    user.role
+                  );
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Category"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  name: "category",
+                  className: "form-select",
+                  value: formData.category,
+                  onChange: handleInputChange
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "foh" },
+                  "Front of House"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "kitchen" },
+                  "Kitchen"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "admin" },
+                  "Admin"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "bar" },
+                  "Bar"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "maintenance" },
+                  "Maintenance"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "bottleshop" },
+                  "Bottle shop"
+                )
+              )
+            ),
+            !editingNote && /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { style: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' } },
+                /*#__PURE__*/React.createElement("input", {
+                  type: "checkbox",
+                  name: "sendSms",
+                  checked: formData.sendSms,
+                  onChange: handleInputChange
+                }),
+                "Send SMS notification to assignee"
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-actions" },
+              /*#__PURE__*/React.createElement(
+                "button",
+                { type: "button", className: "btn btn-secondary", onClick: onClose },
+                "Cancel"
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { type: "submit", className: "btn btn-primary" },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-save" }),
+                editingNote ? 'Update Note' : 'Create Note'
+              )
+            )
+          )
+        )
+      );
+    };
+
+    // Enhanced Main Application Component
+    var MainApp = function MainApp(_ref5) {
+      var currentUser = _ref5.currentUser,
+        onLogout = _ref5.onLogout;
+      var _useState8 = useState(mockNotes),
+        notes = _useState8[0],
+        setNotes = _useState8[1];
+      var _useState9 = useState(false),
+        isModalOpen = _useState9[0],
+        setIsModalOpen = _useState9[1];
+      var _useState10 = useState(null),
+        editingNote = _useState10[0],
+        setEditingNote = _useState10[1];
+      var _useState11 = useState('board'),
+        activeView = _useState11[0],
+        setActiveView = _useState11[1];
+      var _useState12 = useState('all'),
+        filterPriority = _useState12[0],
+        setFilterPriority = _useState12[1];
+      var _useState13 = useState('all'),
+        filterAssignee = _useState13[0],
+        setFilterAssignee = _useState13[1];
+      var _useState14 = useState('date'),
+        sortBy = _useState14[0],
+        setSortBy = _useState14[1];
+      var _useState15 = useState(false),
+        sidebarOpen = _useState15[0],
+        setSidebarOpen = _useState15[1];
+      var _useState16 = useState(window.innerWidth <= 768),
+        isMobile = _useState16[0],
+        setIsMobile = _useState16[1];
+      var _useState17 = useState(false),
+        isFilterOpen = _useState17[0],
+        setIsFilterOpen = _useState17[1];
+      var _useState18 = useState(false),
+        isSmsModalOpen = _useState18[0],
+        setIsSmsModalOpen = _useState18[1];
+      var _useState19 = useState([]),
+        smsNotifications = _useState19[0],
+        setSmsNotifications = _useState19[1];
+      var _useState20 = useState({ visible: false, position: { x: 0, y: 0 }, note: null }),
+        contextMenu = _useState20[0],
+        setContextMenu = _useState20[1];
+      var menuRef = useRef(null);
+      var _useState21 = useState(false),
+        isPanelOpen = _useState21[0],
+        setIsPanelOpen = _useState21[1];
+      var _useState22 = useState(false),
+        isScrollable = _useState22[0],
+        setIsScrollable = _useState22[1];
+      var kanbanContainerRef = useRef(null);
+      var kanbanBoardRef = useRef(null);
+      var _useState23 = useState({}),
+        categoryNotifications = _useState23[0],
+        setCategoryNotifications = _useState23[1];
+      var _useState24 = useState(''),
+        currentTime = _useState24[0],
+        setCurrentTime = _useState24[1];
+
+      var categories = [{
+        id: 'foh',
+        name: 'Front of House'
+      }, {
+        id: 'kitchen',
+        name: 'Kitchen'
+      }, {
+        id: 'admin',
+        name: 'Admin'
+      }, {
+        id: 'bar',
+        name: 'Bar'
+      }, {
+        id: 'maintenance',
+        name: 'Maintenance'
+      }, {
+        id: 'bottleshop',
+        name: 'Bottle shop'
+      }];
+      var _useState25 = useState(categories[0].id),
+        currentCategory = _useState25[0],
+        setCurrentCategory = _useState25[1];
+
+      useEffect(function () {
+        var handleResize = function handleResize() {
+          setIsMobile(window.innerWidth <= 768);
+        };
+        window.addEventListener('resize', handleResize);
+        return function () { return window.removeEventListener('resize', handleResize); };
+      }, []);
+
+      useEffect(function () {
+        const updateTime = () => {
+          const now = new Date();
+          const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+          const day = now.toLocaleDateString('en-US', { weekday: 'long' });
+          const date = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+          setCurrentTime(`${time} ${day}, ${date}`);
+        };
+        updateTime();
+        const interval = setInterval(updateTime, 60000); // Update every minute
+        return () => clearInterval(interval);
+      }, []);
+
+      // Simulate incoming SMS requests
+      useEffect(function () {
+        var interval = setInterval(function () {
+          // Simulate random SMS urgent request
+          if (Math.random() > 0.8) {
+            var smsRequest = {
+              id: Date.now(),
+              title: 'URGENT: Customer Complaint',
+              content: 'Customer at table 8 is unhappy with service quality. Manager intervention required immediately.',
+              priority: 'urgent',
+              dueDate: new Date().toISOString().split('T')[0],
+              dueTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
+              assignee: mockUsers[Math.floor(Math.random() * mockUsers.length)].id,
+              author: 6, // SMS system
+              createdAt: new Date().toISOString(),
+              status: 'urgent',
+              category: categories[Math.floor(Math.random() * categories.length)].id,
+              isSmsRequest: true,
+              smsFrom: '+1' + Math.floor(Math.random() * 9000000000 + 1000000000),
+              smsTimestamp: new Date().toISOString()
+            };
+            setNotes(function (prev) { return [].concat(_toConsumableArray(prev), [smsRequest]); });
+            
+            // Show notification
+            setSmsNotifications(function (prev) { return [].concat(_toConsumableArray(prev), [{
+              id: Date.now(),
+              message: 'New urgent SMS request received!',
+              timestamp: new Date().toISOString()
+            }]); });
+
+            // Update category notification
+            setCategoryNotifications(prev => ({
+              ...prev,
+              [smsRequest.category]: (prev[smsRequest.category] || 0) + 1
+            }));
+          }
+        }, 30000); // Every 30 seconds for demo
+
+        return function () { return clearInterval(interval); };
+      }, []);
+
+      useEffect(() => {
+        const checkScrollable = () => {
+          if (kanbanBoardRef.current && kanbanContainerRef.current) {
+            const isOverflow = kanbanBoardRef.current.scrollWidth > kanbanContainerRef.current.clientWidth;
+            setIsScrollable(isOverflow);
+          }
+        };
+        checkScrollable();
+        window.addEventListener('resize', checkScrollable);
+        return () => window.removeEventListener('resize', checkScrollable);
+      }, [notes, currentCategory]);
+
+      useEffect(() => {
+        const handleClickOutside = (event) => {
+          if (contextMenu.visible && menuRef.current && !menuRef.current.contains(event.target)) {
+            setContextMenu({ visible: false, position: { x: 0, y: 0 }, note: null });
+          }
+        };
+        document.addEventListener('click', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+        return () => {
+          document.removeEventListener('click', handleClickOutside);
+          document.removeEventListener('touchstart', handleClickOutside);
+        };
+      }, [contextMenu.visible]);
+
+      useEffect(() => {
+        // Reset category notification when switching categories
+        if (categoryNotifications[currentCategory]) {
+          setCategoryNotifications(prev => ({
+            ...prev,
+            [currentCategory]: 0
+          }));
+        }
+      }, [currentCategory]);
+
+      useEffect(() => {
+        if (kanbanContainerRef.current) {
+          kanbanContainerRef.current.scrollTop = 0;
+        }
+      }, [currentCategory]);
+
+      var handleCreateNote = function handleCreateNote() {
+        setEditingNote(null);
+        setIsModalOpen(true);
+      };
+
+      var handleEditNote = function handleEditNote(note) {
+        setEditingNote(note);
+        setIsModalOpen(true);
+      };
+
+      var handleSaveNote = function handleSaveNote(noteData) {
+        if (editingNote) {
+          setNotes(function (prev) {
+            return prev.map(function (note) {
+              return note.id === editingNote.id ? _objectSpread(_objectSpread({}, note), noteData) : note;
+            });
+          });
+        } else {
+          var newNote = _objectSpread(_objectSpread({}, noteData), {}, {
+            id: Date.now(),
+            author: currentUser.id,
+            createdAt: new Date().toISOString(),
+            status: noteData.priority === 'urgent' ? 'urgent' : 'todo',
+            isSmsRequest: noteData.sendSms || false
+          });
+          setNotes(function (prev) {
+            return [].concat(_toConsumableArray(prev), [newNote]);
+          });
+
+          // Update category notification for new notes
+          setCategoryNotifications(prev => ({
+            ...prev,
+            [newNote.category]: (prev[newNote.category] || 0) + 1
+          }));
+        }
+        setIsModalOpen(false);
+        setEditingNote(null);
+      };
+
+      var handleDeleteNote = function handleDeleteNote(noteId) {
+        if (window.confirm('Are you sure you want to delete this note?')) {
+          setNotes(function (prev) {
+            return prev.filter(function (note) {
+              return note.id !== noteId;
+            });
+          });
+        }
+      };
+
+      var handleNoteDrop = function handleNoteDrop(noteId, newStatus) {
+        setNotes(function (prev) {
+          return prev.map(function (note) {
+            return note.id === noteId ? _objectSpread(_objectSpread({}, note), {}, {
+              status: newStatus
+            }) : note;
+          });
+        });
+      };
+
+      var handleOpenContextMenu = (e, note) => {
+        e.preventDefault();
+        let posX = e.pageX;
+        let posY = e.pageY;
+        if (e.touches && e.touches[0]) {
+          posX = e.touches[0].pageX;
+          posY = e.touches[0].pageY;
+        }
+        setContextMenu({ visible: true, position: { x: posX, y: posY }, note });
+      };
+
+      var handleOptionSelect = (newStatus) => {
+        if (contextMenu.note) {
+          handleNoteDrop(contextMenu.note.id, newStatus);
+        }
+        setContextMenu({ visible: false, position: { x: 0, y: 0 }, note: null });
+      };
+
+      useEffect(() => {
+        if (contextMenu.visible && menuRef.current && isMobile) {
+          const menu = menuRef.current;
+          const rect = menu.getBoundingClientRect();
+          let newX = contextMenu.position.x;
+          let newY = contextMenu.position.y;
+
+          if (newX + rect.width > window.innerWidth) {
+            newX = window.innerWidth - rect.width - 10;
+          }
+          if (newX < 0) {
+            newX = 10;
+          }
+
+          if (newY + rect.height > window.innerHeight) {
+            newY = window.innerHeight - rect.height - 10;
+          }
+          if (newY < 0) {
+            newY = 10;
+          }
+
+          menu.style.left = `${newX}px`;
+          menu.style.top = `${newY}px`;
+        }
+      }, [contextMenu.visible, isMobile]);
+
+      var filteredNotes = notes
+        .filter(function (note) { return note.category === currentCategory; })
+        .filter(function (note) {
+          var priorityMatch = filterPriority === 'all' || note.priority === filterPriority;
+          var assigneeMatch = filterAssignee === 'all' || note.assignee.toString() === filterAssignee;
+          return priorityMatch && assigneeMatch;
+        })
+        .sort(function (a, b) {
+          switch (sortBy) {
+            case 'priority':
+              var priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+              return priorityOrder[a.priority] - priorityOrder[b.priority];
+            case 'date':
+              return new Date(b.createdAt) - new Date(a.createdAt);
+            case 'dueDate':
+              if (!a.dueDate) return 1;
+              if (!b.dueDate) return -1;
+              return new Date(a.dueDate) - new Date(b.dueDate);
+            default:
+              return 0;
+          }
+        });
+
+      var urgentNotes = filteredNotes.filter(function (note) { return note.status === 'urgent'; });
+      var todoNotes = filteredNotes.filter(function (note) { return note.status === 'todo'; });
+      var inProgressNotes = filteredNotes.filter(function (note) { return note.status === 'inprogress'; });
+      var completedNotes = filteredNotes.filter(function (note) { return note.status === 'completed'; });
+
+      useEffect(function () {
+        gsap.from('.header', { y: -50, duration: 0.5, delay: 0.2, ease: 'power2.out' });
+        gsap.from('.kanban-column', {
+          y: 30,
+          duration: 0.5,
+          delay: 0.3,
+          stagger: 0.1,
+          ease: 'power2.out',
+        });
+        gsap.from('.note-card', {
+          y: 20,
+          duration: 0.3,
+          stagger: 0.1,
+          delay: 0.5,
+          ease: 'power2.out',
+        });
+      }, [notes, currentCategory]);
+
+      var toggleSidebar = function toggleSidebar() {
+        setSidebarOpen(!sidebarOpen);
+      };
+
+      var toggleFilter = function toggleFilter() {
+        setIsFilterOpen(!isFilterOpen);
+      };
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        { className: "app-container" },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "sidebar ".concat(sidebarOpen ? 'open' : 'collapsed') },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "user-profile" },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "user-avatar" },
+              currentUser.initials
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "user-info" },
+              /*#__PURE__*/React.createElement("h3", null, currentUser.name),
+              /*#__PURE__*/React.createElement("p", null, currentUser.role),
+              currentUser.phoneVerified && /*#__PURE__*/React.createElement(
+                "div",
+                { className: "verified-badge", style: { marginTop: '4px' } },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+                "SMS Active"
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "nav",
+            null,
+            /*#__PURE__*/React.createElement(
+              "ul",
+              { className: "nav-menu" },
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link active", onClick: function onClick() { return setActiveView('board'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-th-large" }),
+                  /*#__PURE__*/React.createElement("span", null, "Kanban Board")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('notifications'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-bell" }),
+                  /*#__PURE__*/React.createElement("span", null, "Notifications"),
+                  smsNotifications.length > 0 && /*#__PURE__*/React.createElement(
+                    "span",
+                    { className: "notification-badge" },
+                    /*#__PURE__*/React.createElement(
+                      "span",
+                      { className: "badge" },
+                      smsNotifications.length
+                    )
+                  )
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setIsSmsModalOpen(true); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+                  /*#__PURE__*/React.createElement("span", null, "SMS Settings")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('team'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-users" }),
+                  /*#__PURE__*/React.createElement("span", null, "Team Members")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('reports'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-chart-bar" }),
+                  /*#__PURE__*/React.createElement("span", null, "Reports")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('settings'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-cog" }),
+                  /*#__PURE__*/React.createElement("span", null, "Settings")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item", style: { marginTop: 'auto' } },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: onLogout },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sign-out-alt" }),
+                  /*#__PURE__*/React.createElement("span", null, "Logout")
+                )
+              )
+            )
+          )
+        ),
+        sidebarOpen && isMobile && /*#__PURE__*/React.createElement(
+          "div",
+          { className: "overlay", onClick: toggleSidebar }
+        ),
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "main-content" },
+          /*#__PURE__*/React.createElement(
+            "header",
+            { className: "header" },
+            /*#__PURE__*/React.createElement(
+              "h1",
+              { className: "header-title" },
+              currentTime
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "header-actions" },
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "sidebar-toggle btn btn-secondary", onClick: toggleSidebar },
+                /*#__PURE__*/React.createElement("i", { className: sidebarOpen ? 'fa-solid fa-chevron-left' : 'fa-solid fa-chevron-right' })
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "sms-btn", onClick: function onClick() { return setIsSmsModalOpen(true); } },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+                "SMS Setup"
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "btn btn-secondary", onClick: toggleFilter },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-filter" }),
+                isFilterOpen ? "Close Filters" : "Filters"
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "btn btn-primary", onClick: handleCreateNote },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-plus" }),
+                "New Note"
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "tabs" },
+            categories.map(function (cat) {
+              return /*#__PURE__*/React.createElement(
+                "button",
+                {
+                  key: cat.id,
+                  className: "tab-btn ".concat(currentCategory === cat.id ? 'active' : ''),
+                  onClick: function onClick() { return setCurrentCategory(cat.id); }
+                },
+                cat.name,
+                (categoryNotifications[cat.id] || 0) > 0 && /*#__PURE__*/React.createElement(
+                  "span",
+                  { className: "tab-badge" },
+                  categoryNotifications[cat.id]
+                )
+              );
+            })
+          ),
+          isFilterOpen && /*#__PURE__*/React.createElement(
+            "div",
+            { className: "filter-bar" },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "filter-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "filter-label" },
+                "Priority:"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  className: "form-select",
+                  style: { width: '120px' },
+                  value: filterPriority,
+                  onChange: function onChange(e) { return setFilterPriority(e.target.value); }
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "all" },
+                  "All"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "urgent" },
+                  "Urgent"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "high" },
+                  "High"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "medium" },
+                  "Medium"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "low" },
+                  "Low"
+                )
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "filter-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "filter-label" },
+                "Assignee:"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  className: "form-select",
+                  style: { width: '150px' },
+                  value: filterAssignee,
+                  onChange: function onChange(e) { return setFilterAssignee(e.target.value); }
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "all" },
+                  "Everyone"
+                ),
+                mockUsers.map(function (user) {
+                  return /*#__PURE__*/React.createElement(
+                    "option",
+                    { key: user.id, value: user.id },
+                    user.name
+                  );
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "filter-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "filter-label" },
+                "Sort by:"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  className: "form-select",
+                  style: { width: '120px' },
+                  value: sortBy,
+                  onChange: function onChange(e) { return setSortBy(e.target.value); }
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "date" },
+                  "Date"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "priority" },
+                  "Priority"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "dueDate" },
+                  "Due Date"
+                )
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "kanban-container ".concat(isScrollable ? 'scrollable' : ''), ref: kanbanContainerRef },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "kanban-board", ref: kanbanBoardRef },
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "Urgent Requests",
+                notes: urgentNotes,
+                status: "urgent",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu
+              }),
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "To Do",
+                notes: todoNotes,
+                status: "todo",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu
+              }),
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "In Progress",
+                notes: inProgressNotes,
+                status: "inprogress",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu
+              }),
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "Completed",
+                notes: completedNotes,
+                status: "completed",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu
+              })
+            )
+          ),
+          /*#__PURE__*/React.createElement(CreateNoteModal, {
+            isOpen: isModalOpen,
+            onClose: function onClose() { return setIsModalOpen(false); },
+            onSave: handleSaveNote,
+            editingNote: editingNote,
+            currentUser: currentUser
+          }),
+          /*#__PURE__*/React.createElement(SMSSettingsModal, {
+            isOpen: isSmsModalOpen,
+            onClose: function onClose() { return setIsSmsModalOpen(false); },
+            currentUser: currentUser
+          }),
+          /*#__PURE__*/React.createElement(
+            "button",
+            {
+              className: "fab",
+              onClick: function onClick() { return setIsPanelOpen(true); }
+            },
+            /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-fire" })
+          ),
+          isPanelOpen && /*#__PURE__*/React.createElement(
+            "div",
+            {
+              className: "right-panel-overlay",
+              onClick: function onClick() { return setIsPanelOpen(false); }
+            },
+            /*#__PURE__*/React.createElement(
+              "div",
+              {
+                className: "right-panel",
+                onClick: function onClick(e) { return e.stopPropagation(); }
+              },
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "right-panel-header" },
+                /*#__PURE__*/React.createElement(
+                  "h3",
+                  { className: "right-panel-title" },
+                  "📌 Proof of Concept Overview"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "button",
+                  {
+                    className: "modal-close",
+                    onClick: function onClick() { return setIsPanelOpen(false); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-times" })
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "right-panel-content" },
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "SMS → Kanban Urgent Request System"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "This panel outlines the concept, operational value, and cost context for implementing an SMS-based escalation system integrated directly into the Boathouse Kanban board."
+                ),
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "Operational Value"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "ul",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Enables FOH & BOH staff to escalate urgent requests instantly via SMS"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Managers receive immediate visibility and notifications"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Reduces delays in handling allergies, VIPs, guest recovery, and special events"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Centralizes all urgent requests into a structured workflow"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Improves service reliability during high-volume periods"
+                  )
+                ),
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "Development Scope"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "ul",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "SMS gateway integration + employee validation"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Database + backend API for urgent notes"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Real-time updates into “Urgent Requests” board column"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Toast notifications for management"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Assignment workflow (claim, delegate, resolve)"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Final QA, deployment, and documentation"
+                  )
+                ),
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "Cost Context"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "A comparable contractor or agency implementation would typically fall in the ",
+                  /*#__PURE__*/React.createElement("strong", null, "$10–20k"),
+                  " range, depending on depth of integration."
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "Proposed internal development cost: ",
+                  /*#__PURE__*/React.createElement("strong", null, "$3–4k"),
+                  "."
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "This reflects a significantly reduced internal rate, streamlined development, and direct operational experience with the restaurant’s workflow."
+                ),
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "Purpose"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "The intention is to provide a cost-effective, high-impact system designed to improve communication efficiency and service quality. This proposal surfaces realistic expectations while acknowledging internal investment and operational value returned to the business."
+                )
+              )
+            )
+          ),
+          smsNotifications.map(function (notification) {
+            return /*#__PURE__*/React.createElement(
+              "div",
+              { key: notification.id, className: "sms-toast" },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+              notification.message,
+              /*#__PURE__*/React.createElement(
+                "button",
+                { onClick: function onClick() { return setSmsNotifications(function (prev) { return prev.filter(function (n) { return n.id !== notification.id; }); }); } },
+                "×"
+              )
+            );
+          }),
+          contextMenu.visible && /*#__PURE__*/React.createElement(
+            React.Fragment,
+            null,
+            isMobile && /*#__PURE__*/React.createElement("div", { className: "context-overlay", onClick: function onClick() { return setContextMenu({ visible: false, position: { x: 0, y: 0 }, note: null }); } }),
+            /*#__PURE__*/React.createElement(
+              "div",
+              {
+                className: "context-menu",
+                style: { left: `${contextMenu.position.x}px`, top: `${contextMenu.position.y}px` },
+                ref: menuRef
+              },
+              /*#__PURE__*/React.createElement(
+                "ul",
+                null,
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('urgent'); } },
+                  "Urgent"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('todo'); } },
+                  "To-do"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('inprogress'); } },
+                  "In Progress"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('completed'); } },
+                  "Completed"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { className: "disabled" },
+                  "Archive (Coming Soon)"
+                )
+              )
+            )
+          )
+        )
+      );
+    };
+
+    // Main App Component
+    var App = function App() {
+      var currentUser = useState(mockUsers[0])[0]; // Logged in as General Manager
+
+      var handleLogout = function handleLogout() {
+        console.log('Logged out');
+      };
+
+      return /*#__PURE__*/React.createElement(MainApp, {
+        currentUser: currentUser,
+        onLogout: handleLogout
+      });
+    };
+
+    // Render the app
+    const appContent = document.createElement('div');
+    appContent.style.overflow = 'hidden';
+    appContent.style.position = 'absolute';
+    const root = ReactDOM.createRoot(appContent);
+    root.render( /*#__PURE__*/React.createElement(App, null));
+
+    function initThree() {
+      const container = document.getElementById('three-container');
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      const scene = new THREE.Scene();
+      const fov = 75;
+      const camera = new THREE.PerspectiveCamera(fov, width / height, 1, 5000);
+      let z = (height / 2) / Math.tan((fov / 2) * Math.PI / 180);
+      camera.position.z = z;
+
+      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(width, height);
+      renderer.setClearColor(0x000000, 0);
+      container.appendChild(renderer.domElement);
+
+      const cssRenderer = new THREE.CSS3DRenderer();
+      cssRenderer.setSize(width, height);
+      cssRenderer.domElement.style.position = 'absolute';
+      cssRenderer.domElement.style.top = 0;
+      cssRenderer.domElement.style.left = 0;
+      container.appendChild(cssRenderer.domElement);
+
+      // Particles
+      const particlesGeometry = new THREE.BufferGeometry();
+      const particlesCount = 100;
+      const posArray = new Float32Array(particlesCount * 3);
+      for (let i = 0; i < particlesCount * 3; i++) {
+        posArray[i] = (Math.random() - 0.5) * 2000;
+      }
+      particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+      const particlesMaterial = new THREE.PointsMaterial({
+        size: 5,
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.2,
+      });
+      const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+      scene.add(particlesMesh);
+
+      // Geometric shapes
+      const geometries = [
+        new THREE.BoxGeometry(200, 200, 200),
+        new THREE.SphereGeometry(150, 32, 32),
+        new THREE.TetrahedronGeometry(180, 0),
+      ];
+      const meshes = geometries.map((geometry, index) => {
+        const material = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(0x3b82f6).lerp(new THREE.Color(0x8b5cf6), index / geometries.length),
+          wireframe: true,
+          transparent: true,
+          opacity: 0.4,
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set((Math.random() - 0.5) * 2000, (Math.random() - 0.5) * 2000, (Math.random() - 0.5) * 2000 - 1000);
+        scene.add(mesh);
+        return mesh;
+      });
+
+      // App content object
+      appContent.style.width = width + 'px';
+      appContent.style.height = height + 'px';
+      const object = new THREE.CSS3DObject(appContent);
+      object.position.set(0, 0, 0);
+      scene.add(object);
+
+      // Animation loop
+      const animate = () => {
+        requestAnimationFrame(animate);
+        particlesMesh.rotation.y += 0.0002;
+        particlesMesh.rotation.x += 0.0001;
+        meshes.forEach((mesh, index) => {
+          mesh.rotation.x += 0.001;
+          mesh.rotation.y += 0.001;
+          mesh.position.z += Math.sin(Date.now() * 0.001 + index) * 0.1;
+        });
+        renderer.render(scene, camera);
+        cssRenderer.render(scene, camera);
+      };
+      animate();
+
+      // Parallax on mouse move
+      const handleMouseMove = (e) => {
+        const mouseX = (e.clientX / width) * 2 - 1;
+        const mouseY = -(e.clientY / height) * 2 + 1;
+        gsap.to(object.rotation, {
+          y: mouseX * 0.01,
+          x: mouseY * 0.01,
+          duration: 0.5,
+          ease: 'power2.out'
+        });
+      };
+      document.addEventListener('mousemove', handleMouseMove);
+
+      // Handle resize
+      const handleResize = () => {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        document.documentElement.style.setProperty('--vh', `${height / 100}px`);
+        camera.aspect = width / height;
+        z = (height / 2) / Math.tan((fov / 2) * Math.PI / 180);
+        camera.position.z = z;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+        cssRenderer.setSize(width, height);
+        appContent.style.width = width + 'px';
+        appContent.style.height = height + 'px';
+      };
+      window.addEventListener('resize', handleResize);
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight / 100}px`);
+    }
+
+    initThree();
+  </script>
+</body>
+</html>
