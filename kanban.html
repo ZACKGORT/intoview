@@ -1580,9 +1580,9 @@
         {
           ref: cardRef,
           className: "note-card ".concat(note.priority, " ").concat(isDragging ? 'dragging' : '', " ").concat(note.isSmsRequest ? 'sms-request-card urgent-sms-alert' : ''),
-          draggable: !isMobile, // Set to true for all devices
-          onDragStart: handleDragStart, // Enabled for all devices
-          onDragEnd: handleDragEnd, // Enabled for all devices
+          draggable: !isMobile, // Disable drag on mobile
+          onDragStart: handleDragStart,
+          onDragEnd: handleDragEnd,
           onContextMenu: (e) => handleOpenContextMenu(e, note, 'card'), // Desktop right-click
           onTouchStart: handleTouchStart, // Mobile long-press for context menu
           onTouchMove: handleTouchMove,
@@ -1640,20 +1640,12 @@
               null,
               /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-clock" }),
               formatTime(note.dueTime)
-            )
-          ),
-          assignee && /*#__PURE__*/React.createElement(
-            "div",
-            { className: "note-assignee" },
-            /*#__PURE__*/React.createElement(
-              "div",
-              { className: "assignee-avatar" },
-              assignee.initials
             ),
             /*#__PURE__*/React.createElement(
               "span",
               null,
-              assignee.name.split(' ')[0]
+              /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-user" }),
+              assignee ? assignee.name : 'Unassigned'
             )
           ),
           /*#__PURE__*/React.createElement(
@@ -1661,19 +1653,19 @@
             { className: "note-actions" },
             /*#__PURE__*/React.createElement(
               "button",
-              { onClick: function onClick() { return onEdit(note); }, className: "note-action-btn" },
-              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-edit" })
+              { className: "note-action-btn", onClick: function onClick() { return onEdit(note); } },
+              /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-edit" })
             ),
             /*#__PURE__*/React.createElement(
               "button",
-              { onClick: function onClick() { return onDelete(note.id); }, className: "note-action-btn" },
-              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-trash" })
+              { className: "note-action-btn", onClick: function onClick() { return onDelete(note.id); } },
+              /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-trash" })
             )
           )
         )
       );
     };
-    // Enhanced Kanban Column with Urgent Requests column
+    // Kanban Column Component
     var KanbanColumn = function KanbanColumn(_ref2) {
       var title = _ref2.title,
         notes = _ref2.notes,
@@ -1685,9 +1677,10 @@
         isMobile = _ref2.isMobile,
         handleOpenContextMenu = _ref2.handleOpenContextMenu,
         onArchiveAll = _ref2.onArchiveAll;
-      var _useState3 = useState(false),
-        isDragOver = _useState3[0],
-        setIsDragOver = _useState3[1];
+      var _useState2 = useState(false),
+        isDragOver = _useState2[0],
+        setIsDragOver = _useState2[1];
+      var columnRef = useRef(null);
       var handleDragOver = function handleDragOver(e) {
         e.preventDefault();
         setIsDragOver(true);
@@ -1698,71 +1691,78 @@
       var handleDrop = function handleDrop(e) {
         e.preventDefault();
         setIsDragOver(false);
-        var noteId = parseInt(e.dataTransfer.getData('noteId'));
-        onNoteDrop(noteId, status);
+        var noteId = e.dataTransfer.getData('noteId');
+        onNoteDrop(parseInt(noteId), status);
       };
-      var statusIcons = {
-        urgent: 'fa-exclamation-triangle',
-        todo: 'fa-clipboard-list',
-        inprogress: 'fa-spinner',
-        completed: 'fa-check-circle',
+      var handleTouchStart = (e) => {
+        if (isMobile) {
+          // Handle long press for column
+          const touch = e.touches[0];
+          longPressTimer.current = setTimeout(() => {
+            e.preventDefault();
+            handleOpenContextMenu(e, null, 'column-empty', status);
+          }, 400);
+        }
       };
-      const handleColumnContext = (e) => {
-        if (e.target === e.currentTarget) { // Clicked on empty space
-          handleOpenContextMenu(e, null, 'column-empty', status);
+      var handleTouchEnd = () => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
         }
       };
       return /*#__PURE__*/React.createElement(
         "div",
         {
-          className: "kanban-column ".concat(isDragOver ? 'drag-over' : '', " ").concat(status === 'urgent' ? 'urgent-requests-column' : ''),
-          "data-status": status
+          ref: columnRef,
+          className: "kanban-column ".concat(status === 'urgent' ? 'urgent-requests-column' : '', " ").concat(isDragOver ? 'drag-over' : ''),
+          "data-status": status,
+          onDragOver: handleDragOver,
+          onDragLeave: handleDragLeave,
+          onDrop: handleDrop,
+          onTouchStart: handleTouchStart,
+          onTouchEnd: handleTouchEnd,
+          onContextMenu: (e) => {
+            if (!isMobile) {
+              e.preventDefault();
+              if (notes.length === 0) {
+                handleOpenContextMenu(e, null, 'column-empty', status);
+              }
+            }
+          }
         },
         /*#__PURE__*/React.createElement(
           "div",
           { className: "column-header" },
           /*#__PURE__*/React.createElement(
-            "div",
+            "h3",
             { className: "column-title" },
-            /*#__PURE__*/React.createElement("i", { className: "fa-solid ".concat(statusIcons[status]) }),
+            /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-exclamation-triangle" }),
             title,
             status === 'urgent' && /*#__PURE__*/React.createElement(
-              "div",
-              { className: "live-indicator", style: { marginLeft: '8px' } },
-              /*#__PURE__*/React.createElement("div", { className: "live-dot" }),
-              "LIVE"
+              "span",
+              { className: "live-indicator" },
+              /*#__PURE__*/React.createElement("span", { className: "live-dot" }),
+              "Live"
             )
           ),
           /*#__PURE__*/React.createElement(
-            "div",
-            { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-            /*#__PURE__*/React.createElement(
-              "span",
-              { className: "column-count" },
-              notes.length
-            ),
-            status === 'completed' && notes.length > 0 && /*#__PURE__*/React.createElement(
-              "button",
-              { className: "btn btn-secondary", onClick: onArchiveAll },
-              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-archive" }),
-              "Archive All"
-            )
+            "span",
+            { className: "column-count" },
+            notes.length
+          ),
+          status === 'completed' && notes.length > 0 && /*#__PURE__*/React.createElement(
+            "button",
+            { className: "btn btn-secondary btn-small", onClick: onArchiveAll },
+            "Archive All"
           )
         ),
         /*#__PURE__*/React.createElement(
           "div",
-          {
-            className: "notes-list",
-            onDragOver: handleDragOver,
-            onDragLeave: handleDragLeave,
-            onDrop: handleDrop,
-            onContextMenu: handleColumnContext
-          },
+          { className: "notes-list" },
           notes.length === 0 ? /*#__PURE__*/React.createElement(
             "div",
             { className: "empty-state" },
-            /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-inbox" }),
-            /*#__PURE__*/React.createElement("p", null, "No items in this column")
+            /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-folder-open" }),
+            /*#__PURE__*/React.createElement("p", null, "No notes here yet")
           ) : notes.map(function (note) {
             return /*#__PURE__*/React.createElement(NoteCard, {
               key: note.id,
@@ -1778,187 +1778,80 @@
         )
       );
     };
-   
-   
-    // SMS Settings Modal
-    var SMSSettingsModal = function SMSSettingsModal(_ref3) {
+    // Create Note Modal
+    var CreateNoteModal = function CreateNoteModal(_ref3) {
       var isOpen = _ref3.isOpen,
         onClose = _ref3.onClose,
+        onSave = _ref3.onSave,
+        editingNote = _ref3.editingNote,
+        onDelete = _ref3.onDelete,
+        onArchive = _ref3.onArchive,
         currentUser = _ref3.currentUser;
-      var _useState5 = useState(currentUser.phone || ''),
-        phoneNumber = _useState5[0],
-        setPhoneNumber = _useState5[1];
-      var _useState6 = useState(currentUser.phoneVerified || false),
-        isVerified = _useState6[0],
-        setIsVerified = _useState6[1];
-      var handleVerify = function handleVerify() {
-        // Simulate phone verification
-        setTimeout(function () {
-          setIsVerified(true);
-          alert('Phone number verified! You will now receive SMS notifications for urgent requests.');
-        }, 1000);
-      };
-      if (!isOpen) return null;
-      return /*#__PURE__*/React.createElement(
-        "div",
-        { className: "modal-overlay" },
-        /*#__PURE__*/React.createElement(
-          "div",
-          { className: "modal" },
-          /*#__PURE__*/React.createElement(
-            "div",
-            { className: "modal-header" },
-            /*#__PURE__*/React.createElement(
-              "h2",
-              { className: "modal-title" },
-              "SMS Notification Settings"
-            ),
-            /*#__PURE__*/React.createElement(
-              "button",
-              { className: "modal-close", onClick: onClose },
-              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-times" })
-            )
-          ),
-          /*#__PURE__*/React.createElement(
-            "div",
-            { className: "form-group" },
-            /*#__PURE__*/React.createElement(
-              "label",
-              { className: "form-label" },
-              "Phone Number for SMS Alerts"
-            ),
-            /*#__PURE__*/React.createElement(
-              "div",
-              { className: "phone-input-group" },
-              /*#__PURE__*/React.createElement("input", {
-                type: "tel",
-                className: "phone-input",
-                value: phoneNumber,
-                onChange: function onChange(e) { return setPhoneNumber(e.target.value); },
-                placeholder: "+1 (555) 123-4567"
-              }),
-              isVerified ? /*#__PURE__*/React.createElement(
-                "div",
-                { className: "verified-badge" },
-                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-check" }),
-                "Verified"
-              ) : /*#__PURE__*/React.createElement(
-                "button",
-                { className: "verify-btn", onClick: handleVerify },
-                "Verify"
-              )
-            )
-          ),
-          /*#__PURE__*/React.createElement(
-            "div",
-            { className: "form-group" },
-            /*#__PURE__*/React.createElement(
-              "label",
-              { className: "form-label" },
-              "Notification Preferences"
-            ),
-            /*#__PURE__*/React.createElement(
-              "div",
-              { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
-              /*#__PURE__*/React.createElement(
-                "label",
-                { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                /*#__PURE__*/React.createElement("input", { type: "checkbox", defaultChecked: true }),
-                "Urgent Requests (All Categories)"
-              ),
-              /*#__PURE__*/React.createElement(
-                "label",
-                { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-                /*#__PURE__*/React.createElement("input", { type: "checkbox", defaultChecked: true }),
-                "Assigned Tasks"
-              )
-            )
-          ),
-          /*#__PURE__*/React.createElement(
-            "div",
-            { className: "form-actions" },
-            /*#__PURE__*/React.createElement(
-              "button",
-              { className: "btn btn-secondary", onClick: onClose },
-              "Close"
-            )
-          )
-        )
-      );
-    };
-    // Enhanced Create Note Modal with delete/archive buttons
-    var CreateNoteModal = function CreateNoteModal(_ref4) {
-      var isOpen = _ref4.isOpen,
-        onClose = _ref4.onClose,
-        onSave = _ref4.onSave,
-        editingNote = _ref4.editingNote,
-        onDelete = _ref4.onDelete,
-        onArchive = _ref4.onArchive,
-        currentUser = _ref4.currentUser;
-      var _useState7 = useState({
-          title: '',
-          content: '',
-          priority: 'medium',
-          dueDate: '',
-          dueTime: '',
-          assignee: currentUser.id,
-          category: 'admin',
-          sendSms: false
-        }),
-        formData = _useState7[0],
-        setFormData = _useState7[1];
+      var _useState3 = useState(editingNote ? editingNote.title : ''),
+        title = _useState3[0],
+        setTitle = _useState3[1];
+      var _useState4 = useState(editingNote ? editingNote.content : ''),
+        content = _useState4[0],
+        setContent = _useState4[1];
+      var _useState5 = useState(editingNote ? editingNote.priority : 'medium'),
+        priority = _useState5[0],
+        setPriority = _useState5[1];
+      var _useState6 = useState(editingNote ? editingNote.dueDate : ''),
+        dueDate = _useState6[0],
+        setDueDate = _useState6[1];
+      var _useState7 = useState(editingNote ? editingNote.dueTime : ''),
+        dueTime = _useState7[0],
+        setDueTime = _useState7[1];
+      var _useState8 = useState(editingNote ? editingNote.assignee : currentUser.id),
+        assignee = _useState8[0],
+        setAssignee = _useState8[1];
+      var _useState9 = useState(editingNote ? editingNote.category : 'admin'),
+        category = _useState9[0],
+        setCategory = _useState9[1];
+      var _useState10 = useState(false),
+        sendSms = _useState10[0],
+        setSendSms = _useState10[1];
       useEffect(function () {
         if (editingNote) {
-          setFormData(editingNote);
+          setTitle(editingNote.title);
+          setContent(editingNote.content);
+          setPriority(editingNote.priority);
+          setDueDate(editingNote.dueDate || '');
+          setDueTime(editingNote.dueTime || '');
+          setAssignee(editingNote.assignee);
+          setCategory(editingNote.category || 'admin');
+          setSendSms(editingNote.isSmsRequest || false);
         } else {
-          setFormData({
-            title: '',
-            content: '',
-            priority: 'medium',
-            dueDate: '',
-            dueTime: '',
-            assignee: currentUser.id,
-            category: 'admin',
-            sendSms: false
-          });
+          setTitle('');
+          setContent('');
+          setPriority('medium');
+          setDueDate('');
+          setDueTime('');
+          setAssignee(currentUser.id);
+          setCategory('admin');
+          setSendSms(false);
         }
-      }, [editingNote, currentUser]);
+      }, [editingNote, currentUser.id]);
       var handleSubmit = function handleSubmit(e) {
         e.preventDefault();
-        onSave(formData);
-      };
-      var handleInputChange = function handleInputChange(e) {
-        var _e$target = e.target,
-          name = _e$target.name,
-          value = _e$target.type === 'checkbox' ? _e$target.checked : _e$target.value;
-        setFormData(function (prev) {
-          return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, name, value));
+        onSave({
+          title: title,
+          content: content,
+          priority: priority,
+          dueDate: dueDate,
+          dueTime: dueTime,
+          assignee: assignee,
+          category: category,
+          sendSms: sendSms
         });
-      };
-      var handlePrioritySelect = function handlePrioritySelect(priority) {
-        setFormData(function (prev) {
-          return _objectSpread(_objectSpread({}, prev), {}, {
-            priority: priority
-          });
-        });
-      };
-      var handleDeleteClick = () => {
-        if (window.confirm('Are you sure you want to delete this note?')) {
-          onDelete(editingNote.id);
-          onClose();
-        }
-      };
-      var handleArchiveClick = () => {
-        onArchive(editingNote.id);
-        onClose();
       };
       if (!isOpen) return null;
       return /*#__PURE__*/React.createElement(
         "div",
-        { className: "modal-overlay" },
+        { className: "modal-overlay", onClick: onClose },
         /*#__PURE__*/React.createElement(
           "div",
-          { className: "modal" },
+          { className: "modal", onClick: function onClick(e) { return e.stopPropagation(); } },
           /*#__PURE__*/React.createElement(
             "div",
             { className: "modal-header" },
@@ -1970,7 +1863,7 @@
             /*#__PURE__*/React.createElement(
               "button",
               { className: "modal-close", onClick: onClose },
-              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-times" })
+              "×"
             )
           ),
           /*#__PURE__*/React.createElement(
@@ -1984,15 +1877,7 @@
                 { className: "form-label" },
                 "Title"
               ),
-              /*#__PURE__*/React.createElement("input", {
-                type: "text",
-                name: "title",
-                className: "form-input",
-                value: formData.title,
-                onChange: handleInputChange,
-                placeholder: "Enter note title...",
-                required: true
-              })
+              /*#__PURE__*/React.createElement("input", { className: "form-input", type: "text", value: title, onChange: function onChange(e) { return setTitle(e.target.value); }, required: true })
             ),
             /*#__PURE__*/React.createElement(
               "div",
@@ -2002,14 +1887,7 @@
                 { className: "form-label" },
                 "Content"
               ),
-              /*#__PURE__*/React.createElement("textarea", {
-                name: "content",
-                className: "form-textarea",
-                value: formData.content,
-                onChange: handleInputChange,
-                placeholder: "Describe the task or message...",
-                required: true
-              })
+              /*#__PURE__*/React.createElement("textarea", { className: "form-textarea", value: content, onChange: function onChange(e) { return setContent(e.target.value); }, required: true })
             ),
             /*#__PURE__*/React.createElement(
               "div",
@@ -2017,47 +1895,22 @@
               /*#__PURE__*/React.createElement(
                 "label",
                 { className: "form-label" },
-                "Priority Level"
+                "Priority"
               ),
               /*#__PURE__*/React.createElement(
                 "div",
                 { className: "priority-options" },
-                /*#__PURE__*/React.createElement(
-                  "div",
-                  {
-                    className: "priority-option urgent ".concat(formData.priority === 'urgent' ? 'selected' : ''),
-                    onClick: function onClick() { return handlePrioritySelect('urgent'); }
-                  },
-                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-exclamation-circle" }),
-                  /*#__PURE__*/React.createElement("div", null, "Urgent")
-                ),
-                /*#__PURE__*/React.createElement(
-                  "div",
-                  {
-                    className: "priority-option high ".concat(formData.priority === 'high' ? 'selected' : ''),
-                    onClick: function onClick() { return handlePrioritySelect('high'); }
-                  },
-                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-exclamation-triangle" }),
-                  /*#__PURE__*/React.createElement("div", null, "High")
-                ),
-                /*#__PURE__*/React.createElement(
-                  "div",
-                  {
-                    className: "priority-option medium ".concat(formData.priority === 'medium' ? 'selected' : ''),
-                    onClick: function onClick() { return handlePrioritySelect('medium'); }
-                  },
-                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-flag" }),
-                  /*#__PURE__*/React.createElement("div", null, "Medium")
-                ),
-                /*#__PURE__*/React.createElement(
-                  "div",
-                  {
-                    className: "priority-option low ".concat(formData.priority === 'low' ? 'selected' : ''),
-                    onClick: function onClick() { return handlePrioritySelect('low'); }
-                  },
-                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-check" }),
-                  /*#__PURE__*/React.createElement("div", null, "Low")
-                )
+                ['urgent', 'high', 'medium', 'low'].map(function (p) {
+                  return /*#__PURE__*/React.createElement(
+                    "div",
+                    {
+                      key: p,
+                      className: "priority-option ".concat(p, " ").concat(priority === p ? 'selected' : ''),
+                      onClick: function onClick() { return setPriority(p); }
+                    },
+                    p.charAt(0).toUpperCase() + p.slice(1)
+                  );
+                })
               )
             ),
             /*#__PURE__*/React.createElement(
@@ -2071,13 +1924,7 @@
                   { className: "form-label" },
                   "Due Date"
                 ),
-                /*#__PURE__*/React.createElement("input", {
-                  type: "date",
-                  name: "dueDate",
-                  className: "form-input",
-                  value: formData.dueDate,
-                  onChange: handleInputChange
-                })
+                /*#__PURE__*/React.createElement("input", { className: "form-input", type: "date", value: dueDate, onChange: function onChange(e) { return setDueDate(e.target.value); } })
               ),
               /*#__PURE__*/React.createElement(
                 "div",
@@ -2087,13 +1934,7 @@
                   { className: "form-label" },
                   "Due Time"
                 ),
-                /*#__PURE__*/React.createElement("input", {
-                  type: "time",
-                  name: "dueTime",
-                  className: "form-input",
-                  value: formData.dueTime,
-                  onChange: handleInputChange
-                })
+                /*#__PURE__*/React.createElement("input", { className: "form-input", type: "time", value: dueTime, onChange: function onChange(e) { return setDueTime(e.target.value); } })
               )
             ),
             /*#__PURE__*/React.createElement(
@@ -2102,23 +1943,16 @@
               /*#__PURE__*/React.createElement(
                 "label",
                 { className: "form-label" },
-                "Assign To"
+                "Assignee"
               ),
               /*#__PURE__*/React.createElement(
                 "select",
-                {
-                  name: "assignee",
-                  className: "form-select",
-                  value: formData.assignee,
-                  onChange: handleInputChange
-                },
+                { className: "form-select", value: assignee, onChange: function onChange(e) { return setAssignee(parseInt(e.target.value)); } },
                 mockUsers.map(function (user) {
                   return /*#__PURE__*/React.createElement(
                     "option",
                     { key: user.id, value: user.id },
-                    user.name,
-                    " - ",
-                    user.role
+                    user.name
                   );
                 })
               )
@@ -2133,16 +1967,11 @@
               ),
               /*#__PURE__*/React.createElement(
                 "select",
-                {
-                  name: "category",
-                  className: "form-select",
-                  value: formData.category,
-                  onChange: handleInputChange
-                },
+                { className: "form-select", value: category, onChange: function onChange(e) { return setCategory(e.target.value); } },
                 /*#__PURE__*/React.createElement(
                   "option",
-                  { value: "foh" },
-                  "Front of House"
+                  { value: "admin" },
+                  "Admin"
                 ),
                 /*#__PURE__*/React.createElement(
                   "option",
@@ -2151,8 +1980,8 @@
                 ),
                 /*#__PURE__*/React.createElement(
                   "option",
-                  { value: "admin" },
-                  "Admin"
+                  { value: "foh" },
+                  "Front of House"
                 ),
                 /*#__PURE__*/React.createElement(
                   "option",
@@ -2163,61 +1992,350 @@
                   "option",
                   { value: "maintenance" },
                   "Maintenance"
-                ),
-                /*#__PURE__*/React.createElement(
-                  "option",
-                  { value: "bottleshop" },
-                  "Bottle shop"
                 )
-              )
-            ),
-            !editingNote && /*#__PURE__*/React.createElement(
-              "div",
-              { className: "form-group" },
-              /*#__PURE__*/React.createElement(
-                "label",
-                { style: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' } },
-                /*#__PURE__*/React.createElement("input", {
-                  type: "checkbox",
-                  name: "sendSms",
-                  checked: formData.sendSms,
-                  onChange: handleInputChange
-                }),
-                "Send SMS notification to assignee"
               )
             ),
             /*#__PURE__*/React.createElement(
               "div",
-              { className: "form-actions", style: { justifyContent: 'space-between' } },
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: sendSms, onChange: function onChange(e) { return setSendSms(e.target.checked); } }),
+                " Send as SMS Urgent Request"
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-actions" },
               editingNote && /*#__PURE__*/React.createElement(
-                "div",
-                { style: { display: 'flex', gap: '12px' } },
+                "button",
+                { type: "button", className: "btn btn-danger", onClick: function onClick() { return onDelete(editingNote.id); } },
+                "Delete"
+              ),
+              editingNote && /*#__PURE__*/React.createElement(
+                "button",
+                { type: "button", className: "btn btn-secondary", onClick: function onClick() { return onArchive(editingNote.id); } },
+                "Archive"
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { type: "button", className: "btn btn-secondary", onClick: onClose },
+                "Cancel"
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { type: "submit", className: "btn btn-primary" },
+                "Save"
+              )
+            )
+          )
+        )
+      );
+    };
+    // SMS Settings Modal
+    var SMSSettingsModal = function SMSSettingsModal(_ref4) {
+      var isOpen = _ref4.isOpen,
+        onClose = _ref4.onClose,
+        currentUser = _ref4.currentUser;
+      var _useState11 = useState(currentUser.phone || ''),
+        phone = _useState11[0],
+        setPhone = _useState11[1];
+      var _useState12 = useState(currentUser.phoneVerified),
+        verified = _useState12[0],
+        setVerified = _useState12[1];
+      var handleVerify = function handleVerify() {
+        // Simulate verification
+        setVerified(true);
+        alert('Phone number verified!');
+      };
+      if (!isOpen) return null;
+      return /*#__PURE__*/React.createElement(
+        "div",
+        { className: "modal-overlay", onClick: onClose },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "modal", onClick: function onClick(e) { return e.stopPropagation(); } },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "modal-header" },
+            /*#__PURE__*/React.createElement(
+              "h2",
+              { className: "modal-title" },
+              "SMS Settings"
+            ),
+            /*#__PURE__*/React.createElement(
+              "button",
+              { className: "modal-close", onClick: onClose },
+              "×"
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "form-group" },
+            /*#__PURE__*/React.createElement(
+              "label",
+              { className: "form-label" },
+              "Phone Number for SMS Notifications"
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "phone-input-group" },
+              /*#__PURE__*/React.createElement("input", { className: "phone-input", type: "tel", value: phone, onChange: function onChange(e) { return setPhone(e.target.value); } }),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "verify-btn", onClick: handleVerify, disabled: verified },
+                verified ? 'Verified' : 'Verify'
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "form-actions" },
+            /*#__PURE__*/React.createElement(
+              "button",
+              { type: "button", className: "btn btn-secondary", onClick: onClose },
+              "Close"
+            )
+          )
+        )
+      );
+    };
+    // POC Overlay
+    var POCOverlay = function POCOverlay(_ref5) {
+      var open = _ref5.open,
+        onClose = _ref5.onClose;
+      if (!open) return null;
+      return /*#__PURE__*/React.createElement(
+        "div",
+        { className: "overlay open curved", onClick: onClose },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "sheet", onClick: function onClick(e) { return e.stopPropagation(); } },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "titlebar" },
+            /*#__PURE__*/React.createElement(
+              "h2",
+              null,
+              "SMS Urgent Request System"
+            ),
+            /*#__PURE__*/React.createElement(
+              "button",
+              { className: "btn ghost", onClick: onClose },
+              "Close"
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "section" },
+            /*#__PURE__*/React.createElement(
+              "h2",
+              { className: "section-title" },
+              "How it Works"
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "morphing-disclosure", id: "how-disclosure" },
+              /*#__PURE__*/React.createElement(
+                "details",
+                { name: "how" },
                 /*#__PURE__*/React.createElement(
-                  "button",
-                  { type: "button", className: "btn btn-danger", onClick: handleDeleteClick },
-                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-trash" }),
-                  "Delete"
+                  "summary",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM8.547 4.505a8.25 8.25 0 1011.672 8.25l-.592-.592a.75.75 0 00-1.06 1.06l.592.592A6.75 6.75 0 113 12l.592.592a.75.75 0 101.06-1.06l-.592-.592z", clipRule: "evenodd" })
+                  ),
+                  /*#__PURE__*/React.createElement("span", null, "Basic Workflow"),
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z", clipRule: "evenodd" })
+                  )
                 ),
                 /*#__PURE__*/React.createElement(
-                  "button",
-                  { type: "button", className: "btn btn-secondary", onClick: handleArchiveClick },
-                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-archive" }),
-                  "Archive"
+                  "div",
+                  { className: "content" },
+                  /*#__PURE__*/React.createElement("p", null, "Staff sends SMS to dedicated number • AI parses request & creates urgent note • Manager assigns/acknowledges • SMS updates to staff")
                 )
               ),
               /*#__PURE__*/React.createElement(
-                "div",
-                { style: { display: 'flex', gap: '12px' } },
+                "details",
+                { name: "how" },
                 /*#__PURE__*/React.createElement(
-                  "button",
-                  { type: "button", className: "btn btn-secondary", onClick: onClose },
-                  "Cancel"
+                  "summary",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM8.547 4.505a8.25 8.25 0 1011.672 8.25l-.592-.592a.75.75 0 00-1.06 1.06l.592.592A6.75 6.75 0 113 12l.592.592a.75.75 0 101.06-1.06l-.592-.592z", clipRule: "evenodd" })
+                  ),
+                  /*#__PURE__*/React.createElement("span", null, "Key Features"),
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z", clipRule: "evenodd" })
+                  )
                 ),
                 /*#__PURE__*/React.createElement(
-                  "button",
-                  { type: "submit", className: "btn btn-primary" },
-                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-save" }),
-                  editingNote ? 'Update Note' : 'Create Note'
+                  "div",
+                  { className: "content" },
+                  /*#__PURE__*/React.createElement("p", null, "Access SMS settings from sidebar • Urgent requests appear in dedicated column with live indicator"),
+                  /*#__PURE__*/React.createElement("p", null, "Verify phone for notifications • SMS requests show sender and timestamp • Pulse animation for urgent items")
+                )
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "section" },
+            /*#__PURE__*/React.createElement(
+              "h2",
+              { className: "section-title" },
+              "Proof of Concept Details"
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "morphing-disclosure", id: "poc-disclosure" },
+              /*#__PURE__*/React.createElement(
+                "details",
+                { name: "poc" },
+                /*#__PURE__*/React.createElement(
+                  "summary",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M4.5 3.75a3 3 0 00-3 3v10.5a3 3 0 003 3h15a3 3 0 003-3V6.75a3 3 0 00-3-3h-15zm4.125 3a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5zm-3.873 8.703a4.126 4.126 0 017.746 0 .75.75 0 01-.351.92A3.874 3.874 0 019.375 17.25a3.875 3.875 0 01-3.748-.855.75.75 0 01-.351-.92zM15 8.25a.75.75 0 000 1.5h3.75a.75.75 0 000-1.5H15zM14.25 12a.75.75 0 01.75-.75h3.75a.75.75 0 010 1.5H15a.75.75 0 01-.75-.75zm.75 2.25a.75.75 0 000 1.5h3.75a.75.75 0 000-1.5H15z", clipRule: "evenodd" })
+                  ),
+                  /*#__PURE__*/React.createElement("span", null, "SMS → Kanban Urgent Request System"),
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z", clipRule: "evenodd" })
+                  )
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  { className: "content" },
+                  /*#__PURE__*/React.createElement("p", null, "This panel outlines the concept, operational value, and cost context for implementing an SMS-based escalation system integrated directly into the Boathouse Kanban board.")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "details",
+                { name: "poc" },
+                /*#__PURE__*/React.createElement(
+                  "summary",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM8.547 4.505a8.25 8.25 0 1011.672 8.25l-.592-.592a.75.75 0 00-1.06 1.06l.592.592A6.75 6.75 0 113 12l.592.592a.75.75 0 101.06-1.06l-.592-.592z", clipRule: "evenodd" })
+                  ),
+                  /*#__PURE__*/React.createElement("span", null, "Operational Value"),
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z", clipRule: "evenodd" })
+                  )
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  { className: "content" },
+                  /*#__PURE__*/React.createElement(
+                    "ul",
+                    null,
+                    /*#__PURE__*/React.createElement("li", null, "Enables FOH & BOH staff to escalate urgent requests instantly via SMS"),
+                    /*#__PURE__*/React.createElement("li", null, "Managers receive immediate visibility and notifications"),
+                    /*#__PURE__*/React.createElement("li", null, "Reduces delays in handling allergies, VIPs, guest recovery, and special events"),
+                    /*#__PURE__*/React.createElement("li", null, "Centralizes all urgent requests into a structured workflow"),
+                    /*#__PURE__*/React.createElement("li", null, "Improves service reliability during high-volume periods")
+                  )
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "details",
+                { name: "poc" },
+                /*#__PURE__*/React.createElement(
+                  "summary",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M2.25 4.5A.75.75 0 013 3.75h14.25a.75.75 0 01.75.75v2.25a.75.75 0 01-.75.75H3a.75.75 0 01-.75-.75V4.5zm0 4.5A.75.75 0 013 8.25h9.75a.75.75 0 01.75.75v2.25a.75.75 0 01-.75.75H3a.75.75 0 01-.75-.75V9zm0 4.5a.75.75 0 01.75-.75h9.75a.75.75 0 01.75.75v2.25a.75.75 0 01-.75.75H3a.75.75 0 01-.75-.75v-2.25z", clipRule: "evenodd" })
+                  ),
+                  /*#__PURE__*/React.createElement("span", null, "Development Scope"),
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z", clipRule: "evenodd" })
+                  )
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  { className: "content" },
+                  /*#__PURE__*/React.createElement(
+                    "ul",
+                    null,
+                    /*#__PURE__*/React.createElement("li", null, "SMS gateway integration + employee validation"),
+                    /*#__PURE__*/React.createElement("li", null, "Database + backend API for urgent notes"),
+                    /*#__PURE__*/React.createElement("li", null, "Real-time updates into “Urgent Requests” board column"),
+                    /*#__PURE__*/React.createElement("li", null, "Toast notifications for management"),
+                    /*#__PURE__*/React.createElement("li", null, "Assignment workflow (claim, delegate, resolve)"),
+                    /*#__PURE__*/React.createElement("li", null, "Final QA, deployment, and documentation")
+                  )
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "details",
+                { name: "poc" },
+                /*#__PURE__*/React.createElement(
+                  "summary",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { d: "M12 1.5a10.5 10.5 0 100 21 10.5 10.5 0 000-21zM13.5 15v-3.75a.75.75 0 00-.75-.75h-1.5a.75.75 0 00-.75.75V15H9v-3.75A2.25 2.25 0 0111.25 9h1.5A2.25 2.25 0 0115 11.25V15h-1.5z" })
+                  ),
+                  /*#__PURE__*/React.createElement("span", null, "Cost Context"),
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z", clipRule: "evenodd" })
+                  )
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  { className: "content" },
+                  /*#__PURE__*/React.createElement("p", null, "A comparable contractor or agency implementation would typically fall in the $10–20k range, depending on depth of integration."),
+                  /*#__PURE__*/React.createElement("p", null, "Proposed internal development cost: $3–4k."),
+                  /*#__PURE__*/React.createElement("p", null, "This reflects a significantly reduced internal rate, streamlined development, and direct operational experience with the restaurant’s workflow.")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "details",
+                { name: "poc" },
+                /*#__PURE__*/React.createElement(
+                  "summary",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 2.25a.75.75 0 01.75.75v.756a49.106 49.106 0 019.152 1 .75.75 0 01-.152 1.488h-3.75a.75.75 0 00-.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 00-.75-.75h-3.75a.75.75 0 00-.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 00-.75-.75h-3.75a.75.75 0 00-.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 00-.75-.75h-3.75a.75.75 0 01-.152-1.488 49.105 49.105 0 019.152-1V3a.75.75 0 01.75-.75zm3 14.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 01.75-.75zm-6 0a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 01.75-.75zm3-6a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 01.75-.75z", clipRule: "evenodd" })
+                  ),
+                  /*#__PURE__*/React.createElement("span", null, "Purpose"),
+                  /*#__PURE__*/React.createElement(
+                    "svg",
+                    { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "currentColor" },
+                    /*#__PURE__*/React.createElement("path", { fillRule: "evenodd", d: "M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z", clipRule: "evenodd" })
+                  )
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  { className: "content" },
+                  /*#__PURE__*/React.createElement("p", null, "The intention is to provide a cost-effective, high-impact system designed to improve communication efficiency and service quality. This proposal surfaces realistic expectations while acknowledging internal investment and operational value returned to the business.")
                 )
               )
             )
@@ -2225,288 +2343,73 @@
         )
       );
     };
-    // POC Overlay
-    function POCOverlay({ open, onClose }) {
-  if (!open) return null;
-  const containerRef = useRef(null);
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    function initSpotlight(container) {
-      if (!container) return;
-      container.style.setProperty("--mouse-x", "50%");
-      container.style.setProperty("--mouse-y", "50%");
-      const onPointerMove = (e) => {
-        const el = document.elementFromPoint(e.clientX, e.clientY);
-        const detailsEl = el && el.closest("details");
-        if (!detailsEl) return;
-        const rect = detailsEl.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        detailsEl.style.setProperty("--mouse-x", `${x}px`);
-        detailsEl.style.setProperty("--mouse-y", `${y}px`);
-        container.style.setProperty("--mouse-x", `${e.clientX}px`);
-        container.style.setProperty("--mouse-y", `${e.clientY}px`);
-      };
-      container.addEventListener("pointermove", onPointerMove, { passive: true });
-      const detailsElements = container.querySelectorAll("details");
-      const onPointerLeave = (e) => {
-        e.currentTarget.style.setProperty("--mouse-x", "50%");
-        e.currentTarget.style.setProperty("--mouse-y", "50%");
-      };
-      detailsElements.forEach((d) => {
-        d.addEventListener("pointerleave", onPointerLeave);
-      });
-      return () => {
-        container.removeEventListener("pointermove", onPointerMove);
-        detailsElements.forEach((d) => {
-          d.removeEventListener("pointerleave", onPointerLeave);
-        });
-      };
-    }
-    const helpDisclosure = container.querySelector("#help-disclosure");
-    const pocDisclosure = container.querySelector("#poc-disclosure");
-    const cleanupHelp = initSpotlight(helpDisclosure);
-    const cleanupPoc = initSpotlight(pocDisclosure);
-    return () => {
-      cleanupHelp?.();
-      cleanupPoc?.();
-    };
-  }, [containerRef.current]);
-  return (
-    <div className="overlay open curved">
-      <div className="sheet" role="dialog" aria-modal="true" style={{ maxWidth: "1200px" }}>
-        <div className="titlebar">
-          <h2>Proof of Concept Overview</h2>
-          <button className="btn ghost" onClick={onClose}>Close</button>
-        </div>
-        <div className="container" ref={containerRef} style={{ overflowY: "auto", padding: "1rem" }}>
-          <div className="section">
-            <h2 className="section-title">App Controls & Navigation</h2>
-            <div className="morphing-disclosure" id="help-disclosure">
-              <details name="help">
-                <summary>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M11.25 4.533A9.707 9.707 0 006 3a9.735 9.735 0 00-3.25.555.75.75 0 00-.5.707v14.25a.75.75 0 001 .707A8.237 8.237 0 016 18.75c1.995 0 3.823.707 5.25 1.886V4.533zM12.75 20.636A8.214 8.214 0 0118 18.75c.966 0 1.89.166 2.75.47a.75.75 0 001-.708V4.262a.75.75 0 00-.5-.707A9.735 9.735 0 0018 3a9.707 9.707 0 00-5.25 1.533v16.103z" />
-                  </svg>
-                  <span>Navigation</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="content">
-                  <p><strong>Mouse:</strong> Drag notes between columns • Click note to edit • Right-click note or column for context menu • Mouse move for parallax effect</p>
-                  <p><strong>Touch:</strong> Drag notes to move • Tap note to edit • Long-press note or column for context menu</p>
-                </div>
-              </details>
-              <details name="help">
-                <summary>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M2.25 6a3 3 0 013-3h13.5a3 3 0 013 3v12a3 3 0 01-3 3H5.25a3 3 0 01-3-3V6zm3.97.97a.75.75 0 011.06 0l2.25 2.25a.75.75 0 010 1.06l-2.25 2.25a.75.75 0 01-1.06-1.06l1.72-1.72-1.72-1.72a.75.75 0 010-1.06zm4.28 4.28a.75.75 0 000 1.5h5.25a.75.75 0 000-1.5H10.5z" clipRule="evenodd" />
-                  </svg>
-                  <span>Keyboard Shortcuts</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="content">
-                  <p><kbd>N</kbd> New note • <kbd>?</kbd> or <kbd>H</kbd> Help dialog • <kbd>0</kbd> Reset parallax view</p>
-                </div>
-              </details>
-              <details name="help">
-                <summary>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z" clipRule="evenodd" />
-                  </svg>
-                  <span>View Controls</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="content">
-                  <p>Toggle sidebar with button • Use category tabs to switch views • Apply filters for priority, assignee, and sorting</p>
-                  <p>Horizontal scroll for columns on smaller screens • Parallax background effect on mouse move</p>
-                </div>
-              </details>
-              <details name="help">
-                <summary>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M7.502 6h7.128A3.375 3.375 0 0118 9.375v9.75a3 3 0 01-6.75 0 3 3 0 00-6.75 0v-9.75A3.375 3.375 0 017.502 6zM5.25 21.75a.75.75 0 01-.75-.75v-3.5a.75.75 0 01.471-.695l.75-.262a1.5 1.5 0 011.058 0l.75.263a.75.75 0 01.471.695v3.5a.75.75 0 01-.75.75h-1.5zm6.75 0a.75.75 0 01-.75-.75v-3.5a.75.75 0 01.471-.695l.75-.262a1.5 1.5 0 011.058 0l.75.263a.75.75 0 01.471.695v3.5a.75.75 0 01-.75.75h-1.5z" clipRule="evenodd" />
-                  </svg>
-                  <span>SMS & Urgent Features</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="content">
-                  <p>Access SMS settings from sidebar • Urgent requests appear in dedicated column with live indicator</p>
-                  <p>Verify phone for notifications • SMS requests show sender and timestamp • Pulse animation for urgent items</p>
-                </div>
-              </details>
-            </div>
-          </div>
-          <div className="section">
-            <h2 className="section-title">Proof of Concept Details</h2>
-            <div className="morphing-disclosure" id="poc-disclosure">
-              <details name="poc">
-                <summary>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.5 3.75a3 3 0 00-3 3v10.5a3 3 0 003 3h15a3 3 0 003-3V6.75a3 3 0 00-3-3h-15zm4.125 3a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5zm-3.873 8.703a4.126 4.126 0 017.746 0 .75.75 0 01-.351.92A3.874 3.874 0 019.375 17.25a3.875 3.875 0 01-3.748-.855.75.75 0 01-.351-.92zM15 8.25a.75.75 0 000 1.5h3.75a.75.75 0 000-1.5H15zM14.25 12a.75.75 0 01.75-.75h3.75a.75.75 0 010 1.5H15a.75.75 0 01-.75-.75zm.75 2.25a.75.75 0 000 1.5h3.75a.75.75 0 000-1.5H15z" clipRule="evenodd" />
-                  </svg>
-                  <span>SMS → Kanban Urgent Request System</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="content">
-                  <p>This panel outlines the concept, operational value, and cost context for implementing an SMS-based escalation system integrated directly into the Boathouse Kanban board.</p>
-                </div>
-              </details>
-              <details name="poc">
-                <summary>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM8.547 4.505a8.25 8.25 0 1011.672 8.25l-.592-.592a.75.75 0 00-1.06 1.06l.592.592A6.75 6.75 0 113 12l.592.592a.75.75 0 101.06-1.06l-.592-.592z" clipRule="evenodd" />
-                  </svg>
-                  <span>Operational Value</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="content">
-                  <ul>
-                    <li>Enables FOH & BOH staff to escalate urgent requests instantly via SMS</li>
-                    <li>Managers receive immediate visibility and notifications</li>
-                    <li>Reduces delays in handling allergies, VIPs, guest recovery, and special events</li>
-                    <li>Centralizes all urgent requests into a structured workflow</li>
-                    <li>Improves service reliability during high-volume periods</li>
-                  </ul>
-                </div>
-              </details>
-              <details name="poc">
-                <summary>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M2.25 4.5A.75.75 0 013 3.75h14.25a.75.75 0 01.75.75v2.25a.75.75 0 01-.75.75H3a.75.75 0 01-.75-.75V4.5zm0 4.5A.75.75 0 013 8.25h9.75a.75.75 0 01.75.75v2.25a.75.75 0 01-.75.75H3a.75.75 0 01-.75-.75V9zm0 4.5a.75.75 0 01.75-.75h9.75a.75.75 0 01.75.75v2.25a.75.75 0 01-.75.75H3a.75.75 0 01-.75-.75v-2.25z" clipRule="evenodd" />
-                  </svg>
-                  <span>Development Scope</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="content">
-                  <ul>
-                    <li>SMS gateway integration + employee validation</li>
-                    <li>Database + backend API for urgent notes</li>
-                    <li>Real-time updates into “Urgent Requests” board column</li>
-                    <li>Toast notifications for management</li>
-                    <li>Assignment workflow (claim, delegate, resolve)</li>
-                    <li>Final QA, deployment, and documentation</li>
-                  </ul>
-                </div>
-              </details>
-              <details name="poc">
-                <summary>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 1.5a10.5 10.5 0 100 21 10.5 10.5 0 000-21zM13.5 15v-3.75a.75.75 0 00-.75-.75h-1.5a.75.75 0 00-.75.75V15H9v-3.75A2.25 2.25 0 0111.25 9h1.5A2.25 2.25 0 0115 11.25V15h-1.5z" />
-                  </svg>
-                  <span>Cost Context</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="content">
-                  <p>A comparable contractor or agency implementation would typically fall in the $10–20k range, depending on depth of integration.</p>
-                  <p>Proposed internal development cost: $3–4k.</p>
-                  <p>This reflects a significantly reduced internal rate, streamlined development, and direct operational experience with the restaurant’s workflow.</p>
-                </div>
-              </details>
-              <details name="poc">
-                <summary>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 2.25a.75.75 0 01.75.75v.756a49.106 49.106 0 019.152 1 .75.75 0 01-.152 1.488h-3.75a.75.75 0 00-.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 00-.75-.75h-3.75a.75.75 0 00-.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 00-.75-.75h-3.75a.75.75 0 00-.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 00-.75-.75h-3.75a.75.75 0 01-.152-1.488 49.105 49.105 0 019.152-1V3a.75.75 0 01.75-.75zm3 14.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 01.75-.75zm-6 0a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 01.75-.75zm3-6a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0v-3.75a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                  <span>Purpose</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                    <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                  </svg>
-                </summary>
-                <div className="content">
-                  <p>The intention is to provide a cost-effective, high-impact system designed to improve communication efficiency and service quality. This proposal surfaces realistic expectations while acknowledging internal investment and operational value returned to the business.</p>
-                </div>
-              </details>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
     // Enhanced Main Application Component
-    var MainApp = function MainApp(_ref5) {
-      var currentUser = _ref5.currentUser,
-        onLogout = _ref5.onLogout;
-      var _useState8 = useState(() => {
+    var MainApp = function MainApp(_ref6) {
+      var currentUser = _ref6.currentUser,
+        onLogout = _ref6.onLogout;
+      var _useState13 = useState(() => {
         const storedNotes = localStorage.getItem('notes');
         return storedNotes ? JSON.parse(storedNotes) : mockNotes;
       }),
-        notes = _useState8[0],
-        setNotes = _useState8[1];
-      var _useState9 = useState([]),
-        archivedNotes = _useState9[0],
-        setArchivedNotes = _useState9[1];
-      var _useState10 = useState(false),
-        isModalOpen = _useState10[0],
-        setIsModalOpen = _useState10[1];
-      var _useState11 = useState(null),
-        editingNote = _useState11[0],
-        setEditingNote = _useState11[1];
-      var _useState12 = useState('board'),
-        activeView = _useState12[0],
-        setActiveView = _useState12[1];
-      var _useState13 = useState('all'),
-        filterPriority = _useState13[0],
-        setFilterPriority = _useState13[1];
-      var _useState14 = useState('all'),
-        filterAssignee = _useState14[0],
-        setFilterAssignee = _useState14[1];
-      var _useState15 = useState('date'),
-        sortBy = _useState15[0],
-        setSortBy = _useState15[1];
-      var _useState16 = useState(false),
-        sidebarOpen = _useState16[0],
-        setSidebarOpen = _useState16[1];
-      var _useState17 = useState(window.innerWidth <= 768),
-        isMobile = _useState17[0],
-        setIsMobile = _useState17[1];
-      var _useState18 = useState(false),
-        isFilterOpen = _useState18[0],
-        setIsFilterOpen = _useState18[1];
-      var _useState19 = useState(false),
-        isSmsModalOpen = _useState19[0],
-        setIsSmsModalOpen = _useState19[1];
-      var _useState20 = useState([]),
-        smsNotifications = _useState20[0],
-        setSmsNotifications = _useState20[1];
-      var _useState21 = useState({ visible: false, position: { x: 0, y: 0 }, note: null, contextType: null, status: null }),
-        contextMenu = _useState21[0],
-        setContextMenu = _useState21[1];
-      var menuRef = useRef(null);
-      var _useState22 = useState(false),
-        isPanelOpen = _useState22[0],
-        setIsPanelOpen = _useState22[1];
+        notes = _useState13[0],
+        setNotes = _useState13[1];
+      var _useState14 = useState([]),
+        archivedNotes = _useState14[0],
+        setArchivedNotes = _useState14[1];
+      var _useState15 = useState(false),
+        isModalOpen = _useState15[0],
+        setIsModalOpen = _useState15[1];
+      var _useState16 = useState(null),
+        editingNote = _useState16[0],
+        setEditingNote = _useState16[1];
+      var _useState17 = useState('board'),
+        activeView = _useState17[0],
+        setActiveView = _useState17[1];
+      var _useState18 = useState('all'),
+        filterPriority = _useState18[0],
+        setFilterPriority = _useState18[1];
+      var _useState19 = useState('all'),
+        filterAssignee = _useState19[0],
+        setFilterAssignee = _useState19[1];
+      var _useState20 = useState('date'),
+        sortBy = _useState20[0],
+        setSortBy = _useState20[1];
+      var _useState21 = useState(false),
+        sidebarOpen = _useState21[0],
+        setSidebarOpen = _useState21[1];
+      var _useState22 = useState(window.innerWidth <= 768),
+        isMobile = _useState22[0],
+        setIsMobile = _useState22[1];
       var _useState23 = useState(false),
-        isScrollable = _useState23[0],
-        setIsScrollable = _useState23[1];
+        isFilterOpen = _useState23[0],
+        setIsFilterOpen = _useState23[1];
+      var _useState24 = useState(false),
+        isSmsModalOpen = _useState24[0],
+        setIsSmsModalOpen = _useState24[1];
+      var _useState25 = useState([]),
+        smsNotifications = _useState25[0],
+        setSmsNotifications = _useState25[1];
+      var _useState26 = useState({ visible: false, position: { x: 0, y: 0 }, note: null, contextType: null, status: null }),
+        contextMenu = _useState26[0],
+        setContextMenu = _useState26[1];
+      var menuRef = useRef(null);
+      var _useState27 = useState(false),
+        isPanelOpen = _useState27[0],
+        setIsPanelOpen = _useState27[1];
+      var _useState28 = useState(false),
+        isScrollable = _useState28[0],
+        setIsScrollable = _useState28[1];
       var kanbanContainerRef = useRef(null);
       var kanbanBoardRef = useRef(null);
-      var _useState24 = useState({}),
-        categoryNotifications = _useState24[0],
-        setCategoryNotifications = _useState24[1];
-      var _useState25 = useState(''),
-        currentTime = _useState25[0],
-        setCurrentTime = _useState25[1];
-      var _useState26 = useState(parseInt(localStorage.getItem('archivePeriod')) || 12),
-        archivePeriodHours = _useState26[0],
-        setArchivePeriodHours = _useState26[1];
+      var _useState29 = useState({}),
+        categoryNotifications = _useState29[0],
+        setCategoryNotifications = _useState29[1];
+      var _useState30 = useState(''),
+        currentTime = _useState30[0],
+        setCurrentTime = _useState30[1];
+      var _useState31 = useState(parseInt(localStorage.getItem('archivePeriod')) || 12),
+        archivePeriodHours = _useState31[0],
+        setArchivePeriodHours = _useState31[1];
       var categories = [{
         id: 'foh',
         name: 'Front of House'
@@ -2526,9 +2429,9 @@
         id: 'bottleshop',
         name: 'Bottle shop'
       }];
-      var _useState27 = useState(categories[0].id),
-        currentCategory = _useState27[0],
-        setCurrentCategory = _useState27[1];
+      var _useState32 = useState(categories[0].id),
+        currentCategory = _useState32[0],
+        setCurrentCategory = _useState32[1];
       useEffect(function () {
         var handleResize = function handleResize() {
           setIsMobile(window.innerWidth <= 768);
@@ -2645,7 +2548,7 @@
               }
             });
             if (toArchive.length > 0) {
-              setArchivedNotes(prev => [...prev, ...toArchive]);
+              setArchivedNotes(prevArch => [...prevArch, ...toArchive]);
             }
             return newNotes;
           });
@@ -2678,7 +2581,8 @@
           const card = e.target.closest('.note-card');
           const notesList = e.target.closest('.notes-list');
           if (card) {
-            handleOpenContextMenu(e, JSON.parse(card.dataset.note), 'card');
+            const note = notes.find(n => n.id === parseInt(card.dataset.noteId));
+            handleOpenContextMenu(e, note, 'card');
           } else if (notesList && e.target === notesList) {
             const column = notesList.closest('.kanban-column');
             const status = column.dataset.status;
@@ -2689,7 +2593,7 @@
         };
         document.addEventListener('contextmenu', handleGlobalContextMenu);
         return () => document.removeEventListener('contextmenu', handleGlobalContextMenu);
-      }, [isMobile]);
+      }, [isMobile, notes]);
       var handleCreateNote = function handleCreateNote() {
         setEditingNote(null);
         setIsModalOpen(true);
