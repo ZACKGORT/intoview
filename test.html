@@ -1432,7 +1432,7 @@
 <script type="module">
 
   
-  import React, { useEffect, useMemo, useRef, useState, Suspense } from "https://esm.sh/react@18.3.1";
+  import React, { useEffect, useMemo, useRef, useState, useCallback, Suspense } from "https://esm.sh/react@18.3.1";
   import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
   import * as THREE from "https://esm.sh/three@0.160.1";
   import {
@@ -2741,19 +2741,12 @@
       const videoRef = useRef(null),
           streamRef = useRef(null),
           [error, setError] = useState("");
-      
       const isHttps = () => location.protocol === "https:" || location.hostname === "localhost";
-      
       const stop = () => {
-          if (streamRef.current) {
-              streamRef.current.getTracks().forEach(track => track.stop());
-              streamRef.current = null;
-          }
-          if (videoRef.current) {
-              videoRef.current.srcObject = null;
-          }
+          streamRef.current?.getTracks?.().forEach((t) => t.stop());
+          streamRef.current = null;
+          if (videoRef.current) videoRef.current.srcObject = null;
       };
-      
       const start = async () => {
           setError("");
           if (!isHttps()) {
@@ -2762,37 +2755,48 @@
           }
           const v = videoRef.current;
           if (!v) {
-              setError("Camera not available");
+              setError("Camera element not found. Please try again.");
               return !1;
           }
           try {
-              // Simplified constraints based on noted.html working version
-              const stream = await navigator.mediaDevices.getUserMedia({ 
-                  video: { facingMode: 'environment' }, 
-                  audio: false 
-              });
+              v.setAttribute("playsinline", "");
+              v.setAttribute("autoplay", "");
+              v.setAttribute("muted", "");
+              v.playsInline = !0;
+              v.muted = !0;
+              const constraints = {
+                  video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+                  audio: !1,
+              };
+              const stream = await navigator.mediaDevices.getUserMedia(constraints);
               streamRef.current = stream;
               v.srcObject = stream;
-              v.setAttribute("playsinline", "");
-              v.setAttribute("muted", "");
-              v.playsInline = true;
-              v.muted = true;
-              await v.play();
+              await new Promise((res) => {
+                  const onReady = () => {
+                      v.removeEventListener("loadedmetadata", onReady);
+                      res();
+                  };
+                  v.addEventListener("loadedmetadata", onReady);
+              });
+              await v.play().catch(() => {});
               return !0;
           } catch (e) {
               console.warn("Camera error:", e);
-              let msg = "Camera unavailable. You can import a photo instead.";
+              let msg = "Camera unavailable.";
               if (e?.name === "NotAllowedError") {
                   msg = "Camera permission denied. Check browser permissions.";
-              } else if (e?.name === "NotFoundError") {
-                  msg = "No camera found. You can import a photo instead.";
+              }
+              if (e?.name === "NotFoundError") {
+                  msg = "No suitable camera found.";
+              }
+              if (e?.name === "OverconstrainedError") {
+                  msg = "Camera constraints not supported on this device.";
               }
               setError(msg);
               stop();
               return !1;
           }
       };
-      
       return { videoRef, start, stop, error };
   }
   async function exportCardPNGFromCanvas(sourceCanvas, title, caption, gps = "") {
