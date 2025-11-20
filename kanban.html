@@ -3,19 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SMS Kanban - Urgent Request System</title>
+  <title>SMS Kanban - Paper & Pen Edition</title>
   <script crossorigin="" src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
   <script crossorigin="" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- Fixed incorrect CDN URL for CSS3DRenderer -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <!-- Removed Draggable.min.js script -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <style>
     :root {
+        /* DEFAULT DARK THEME (Cyber/Neon) */
         --primary-color: #3b82f6;
         --secondary-color: #8b5cf6;
         --success-color: #10b981;
@@ -34,6 +33,38 @@
         --sms-color: #10b981;
         --urgent-glow: rgba(239, 68, 68, 0.3);
         --vh: 1vh;
+        --body-gradient: linear-gradient(135deg, #1e3a8a 0%, #6d28d9 100%);
+        --font-heading: 'Inter', sans-serif;
+    }
+
+    /* PAPER & PEN LIGHT THEME */
+    body.light-theme {
+        --primary-color: #2563eb;   /* Royal Blue Ink */
+        --secondary-color: #7c3aed; /* Deep Purple Ink */
+        --success-color: #059669;   /* Green Ink */
+        --warning-color: #d97706;   /* Orange Marker */
+        --danger-color: #dc2626;    /* Red Pen */
+        
+        --dark-bg: #fdfbf7;         /* Warm Paper Background */
+        --light-bg: #ffffff;        /* Clean Paper */
+        --ui-bg: rgba(255, 255, 255, 0.85); /* Frosted Paper */
+        --card-bg: #ffffff;
+        
+        --text-primary: #1e293b;    /* Dark Ink */
+        --text-secondary: #64748b;  /* Graphite/Pencil */
+        
+        --border-color: #cbd5e1;    /* Light Pencil Line */
+        
+        /* Hard, crisp shadows for paper cutout feel */
+        --shadow-sm: 1px 1px 0px 0px rgba(0, 0, 0, 0.1);
+        --shadow-md: 3px 3px 0px 0px rgba(0, 0, 0, 0.1);
+        --shadow-lg: 6px 6px 0px 0px rgba(0, 0, 0, 0.08);
+        
+        --sms-color: #059669;
+        --urgent-glow: rgba(220, 38, 38, 0.1); /* Subtle red highlighter wash */
+        
+        --body-gradient: linear-gradient(135deg, #fdfbf7 0%, #f4f0e6 100%);
+        --font-heading: 'Playfair Display', serif; /* Serif for headings */
     }
     
     * {
@@ -44,10 +75,17 @@
     
     body {
         font-family: 'Inter', sans-serif;
-        background: linear-gradient(135deg, #1e3a8a 0%, #6d28d9 100%);
+        background: var(--body-gradient);
         min-height: calc(100 * var(--vh));
         color: var(--text-primary);
         overflow: hidden;
+        transition: background 0.5s ease, color 0.3s ease;
+    }
+
+    /* Paper Texture Overlay for Light Mode */
+    body.light-theme #vignette {
+        background: transparent;
+        background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
     }
     
     #three-container {
@@ -56,6 +94,7 @@
       left: 0;
       width: 100%;
       height: 100%;
+      transition: opacity 0.5s ease;
     }
     
     #vignette {
@@ -67,6 +106,37 @@
       pointer-events: none;
       background: radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.3) 100%);
       z-index: 10;
+      transition: background 0.5s ease;
+    }
+
+    /* Typography adjustments for Light Theme */
+    body.light-theme h1, 
+    body.light-theme h2, 
+    body.light-theme h3, 
+    body.light-theme .header-title,
+    body.light-theme .column-title {
+        font-family: var(--font-heading);
+        letter-spacing: -0.5px;
+    }
+
+    /* Theme Toggle Button */
+    .theme-toggle-btn {
+        background: var(--ui-bg);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 18px;
+    }
+    .theme-toggle-btn:hover {
+        transform: rotate(15deg) scale(1.1);
+        box-shadow: var(--shadow-md);
     }
 
     /* SMS-specific animations */
@@ -97,7 +167,7 @@
     }
 
     .sms-btn:hover {
-      background: #059669;
+      filter: brightness(1.1);
       transform: translateY(-1px);
       box-shadow: var(--shadow-md);
     }
@@ -106,6 +176,12 @@
     .urgent-requests-column {
       border: 2px solid var(--danger-color);
       background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+    }
+
+    /* Light theme specific urgent column - looks like red highlighter */
+    body.light-theme .urgent-requests-column {
+        background: rgba(254, 242, 242, 0.8);
+        border: 2px dashed var(--danger-color);
     }
 
     .urgent-requests-column .column-header {
@@ -241,10 +317,12 @@
         width: 280px;
         background: var(--ui-bg);
         backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
         color: var(--text-primary);
         padding: 30px 20px;
         overflow-y: auto;
-        transition: width 0.3s ease;
+        transition: width 0.3s ease, background 0.3s ease;
+        border-right: 1px solid var(--border-color);
     }
 
     .sidebar.collapsed {
@@ -278,12 +356,14 @@
         width: 50px;
         height: 50px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 600;
         font-size: 18px;
+        color: white;
+        box-shadow: var(--shadow-sm);
     }
 
     .user-info h3 {
@@ -320,8 +400,16 @@
 
     .nav-link:hover,
     .nav-link.active {
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(128, 128, 128, 0.1);
         color: var(--text-primary);
+        font-weight: 500;
+    }
+    
+    /* Light theme active nav link - looks like a marker stroke */
+    body.light-theme .nav-link.active {
+        background: rgba(37, 99, 235, 0.1);
+        color: var(--primary-color);
+        border: 1px solid rgba(37, 99, 235, 0.2);
     }
 
     .nav-link i {
@@ -340,12 +428,14 @@
     .header {
         background: var(--ui-bg);
         backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
         padding: 20px 30px;
         border-bottom: 1px solid var(--border-color);
         display: flex;
         justify-content: space-between;
         align-items: center;
         z-index: 50;
+        transition: background 0.3s ease, border-color 0.3s ease;
     }
 
     .header-title {
@@ -378,7 +468,7 @@
     }
 
     .btn-primary:hover {
-        background: #1d4ed8;
+        filter: brightness(1.1);
         transform: translateY(-1px);
         box-shadow: var(--shadow-md);
     }
@@ -390,7 +480,7 @@
     }
 
     .btn-secondary:hover {
-        background: var(--dark-bg);
+        background: var(--border-color);
     }
 
     .kanban-container {
@@ -398,10 +488,9 @@
         padding: 30px;
         overflow-x: auto;
         overflow-y: auto;
-        position: relative; /* Added for positioning scroll indicator */
+        position: relative;
     }
 
-    /* --- NEW CSS: Scroll indicator (right fade when scrollable) --- */
     .kanban-container.scrollable::after {
       content: '';
       position: absolute;
@@ -409,11 +498,10 @@
       top: 0;
       bottom: 0;
       width: 30px;
-      background: linear-gradient(to left, rgba(0,0,0,0.3), transparent);
+      background: linear-gradient(to left, rgba(0,0,0,0.1), transparent);
       pointer-events: none;
       z-index: 5;
     }
-    /* --- END NEW CSS --- */
 
     .kanban-board {
         display: flex;
@@ -426,9 +514,11 @@
         min-width: 300px;
         background: var(--ui-bg);
         backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
         border: 1px solid var(--border-color);
         border-radius: 12px;
         padding: 20px;
+        transition: background 0.3s ease, border-color 0.3s ease;
     }
 
     .kanban-column.drag-over {
@@ -479,10 +569,9 @@
         transition: all 0.3s ease;
         border-left: 4px solid var(--primary-color);
         opacity: 1 !important;
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
         user-select: none;
+        border: 1px solid var(--border-color); /* Added generic border for light mode visibility */
+        border-left-width: 4px; /* restore left border width */
     }
 
     .note-card:hover {
@@ -493,7 +582,7 @@
     .note-card.dragging {
         opacity: 0.5;
         transform: rotate(2deg) scale(1.05);
-        z-index: 10000; /* High z-index for dragged card */
+        z-index: 10000; 
     }
 
     .note-card.urgent {
@@ -573,17 +662,12 @@
     .note-meta {
         display: flex;
         gap: 12px;
-        color: #ffffff;
     }
 
     .note-meta span {
         display: flex;
         align-items: center;
         gap: 4px;
-    }
-
-    .note-meta i {
-        color: #ffffff;
     }
 
     .note-assignee {
@@ -596,7 +680,7 @@
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -621,7 +705,7 @@
     }
 
     .note-action-btn:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(128, 128, 128, 0.1);
         color: var(--text-primary);
     }
 
@@ -642,6 +726,7 @@
     .modal {
         background: var(--card-bg);
         backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
         border: 1px solid var(--border-color);
         border-radius: 16px;
         padding: 30px;
@@ -681,7 +766,7 @@
     }
 
     .modal-close:hover {
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(128, 128, 128, 0.1);
         color: var(--text-primary);
     }
 
@@ -789,6 +874,7 @@
     .filter-bar {
         background: var(--ui-bg);
         backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
         padding: 20px 30px;
         border-bottom: 1px solid var(--border-color);
         display: flex;
@@ -816,8 +902,6 @@
         position: relative;
     }
 
-    
-    
     .badge {
         position: absolute;
         top: -5px;
@@ -1068,7 +1152,6 @@
         .note-content {
             font-size: 12px;
         }
-
     
         .note-footer {
             font-size: 10px;
@@ -1093,7 +1176,7 @@
 
     
     
-    /* --- NEW STYLES FOR FAB AND RIGHT PANEL --- */
+    /* --- FAB AND RIGHT PANEL --- */
     .fab {
       position: fixed;
       bottom: 30px;
@@ -1139,6 +1222,7 @@
       height: 100%;
       background: var(--card-bg);
       backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-left: 1px solid var(--border-color);
       box-shadow: var(--shadow-lg);
       z-index: 1003;
@@ -1232,35 +1316,6 @@
       font-style: italic;
       color: var(--text-primary);
     }
-
-    .cost-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 20px 0;
-    }
-    
-    .cost-table th,
-    .cost-table td {
-      border: 1px solid var(--border-color);
-      padding: 10px 12px;
-      text-align: left;
-      font-size: 13px;
-    }
-    
-    .cost-table th {
-      background: var(--light-bg);
-      font-weight: 600;
-    }
-    
-    .cost-table td:last-child {
-      text-align: right;
-      font-weight: 500;
-    }
-
-    .cost-table strong {
-      color: var(--text-primary);
-      font-weight: 600;
-    }
     
     @media (max-width: 768px) {
       .fab {
@@ -1276,7 +1331,7 @@
       }
     }
 
-    /* New styles for context menu */
+    /* Context menu */
     .context-menu {
       position: absolute;
       background: var(--card-bg);
@@ -1301,7 +1356,7 @@
     }
 
     .context-menu li:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(128, 128, 128, 0.1);
     }
 
     .context-menu li.disabled {
@@ -1310,7 +1365,6 @@
       color: var(--text-secondary);
     }
 
-    /* New style for context menu overlay on mobile */
     .context-overlay {
       position: fixed;
       top: 0;
@@ -1318,130 +1372,8 @@
       width: 100%;
       height: 100%;
       background: var(--dark-bg);
-      opacity: 0.9;
+      opacity: 0.5;
       z-index: 999;
-    }
-
-    /* New styles for page templates */
-    .page-container {
-      padding: 30px;
-      height: 100%;
-      overflow-y: auto;
-    }
-
-    .page-title {
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 20px;
-    }
-
-    .notification-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .notification-item {
-      background: var(--card-bg);
-      padding: 16px;
-      border-radius: 12px;
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      font-size: 14px;
-    }
-
-    .notification-item i {
-      color: var(--sms-color);
-      font-size: 18px;
-    }
-
-    .notification-item div p {
-      margin: 0;
-      color: var(--text-primary);
-    }
-
-    .notification-item div span {
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .team-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-      gap: 20px;
-    }
-
-    .team-member-card {
-      background: var(--card-bg);
-      padding: 16px;
-      border-radius: 12px;
-      display: flex;
-      gap: 16px;
-      align-items: center;
-    }
-
-    .team-member-card h3 {
-      font-size: 16px;
-      margin: 0;
-    }
-
-    .team-member-card p {
-      font-size: 13px;
-      color: var(--text-secondary);
-      margin: 0;
-    }
-
-    .report-filters {
-      display: flex;
-      gap: 15px;
-      margin-bottom: 20px;
-      align-items: center;
-    }
-
-    .report-chart {
-      margin-bottom: 30px;
-    }
-
-    .report-table {
-      width: 100%;
-      border-collapse: collapse;
-      background: var(--card-bg);
-      border-radius: 12px;
-      overflow: hidden;
-    }
-
-    .report-table th, .report-table td {
-      border: 1px solid var(--border-color);
-      padding: 12px;
-      text-align: left;
-    }
-
-    .report-table th {
-      background: var(--light-bg);
-      font-weight: 600;
-    }
-
-    .report-table td {
-      font-size: 13px;
-    }
-
-    .settings-form .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .settings-form .form-group > div {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .settings-form label {
-      font-size: 14px;
-      font-weight: 500;
     }
   </style>
 </head>
@@ -1473,7 +1405,7 @@
       useRef = _React.useRef,
       useCallback = _React.useCallback;
     
-    // Enhanced Mock Data with SMS features
+    // Mock Data
     var mockUsers = [{
       id: 1,
       name: 'Wendy',
@@ -1511,7 +1443,6 @@
       phoneVerified: false
     }];
     
-    // Enhanced Notes Data with SMS integration
     var mockNotes = [{
       id: 1,
       title: 'Staff Meeting Tomorrow',
@@ -1611,7 +1542,6 @@
       isSmsRequest: false
     }];
 
-    // Enhanced Note Card with SMS features
     var NoteCard = function NoteCard(_ref) {
       var note = _ref.note,
         onEdit = _ref.onEdit,
@@ -1619,12 +1549,13 @@
         currentUser = _ref.currentUser,
         isMobile = _ref.isMobile,
         onNoteDrop = _ref.onNoteDrop,
-        handleOpenContextMenu = _ref.handleOpenContextMenu;
+        handleOpenContextMenu = _ref.handleOpenContextMenu,
+        smsEnabled = _ref.smsEnabled;
       var _useState = useState(false),
         isDragging = _useState[0],
         setIsDragging = _useState[1];
       var cardRef = useRef(null);
-      var longPressTimer = useRef(null); // Retained for mobile "right-click"
+      var longPressTimer = useRef(null);
 
       var handleDragStart = function handleDragStart(e) {
         setIsDragging(true);
@@ -1635,20 +1566,16 @@
       var handleDragEnd = function handleDragEnd() {
         setIsDragging(false);
       };
-
-      // Removed the GSAP Draggable.create() useEffect
       
-      // Kept the long-press logic for mobile context menu
       const handleTouchStart = (e) => {
         if (isMobile) {
           longPressTimer.current = setTimeout(() => {
-            // Prevent default context menu, if any
             e.preventDefault(); 
             const touch = e.touches[0] || e.changedTouches[0];
             const posX = touch.pageX;
             const posY = touch.pageY;
             handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
-          }, 400); // Reduced to 400ms
+          }, 400);
         }
       };
 
@@ -1675,66 +1602,64 @@
 
       var assignee = mockUsers.find(function (u) { return u.id === note.assignee; });
 
-      
-  useEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
+      useEffect(() => {
+        const card = cardRef.current;
+        if (!card) return;
 
-    const handleMove = (e) => {
-      const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-      const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-      if (!clientX || !clientY) return;
+        const handleMove = (e) => {
+          const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+          const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+          if (!clientX || !clientY) return;
 
-      const rect = card.getBoundingClientRect();
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
+          const rect = card.getBoundingClientRect();
+          const x = clientX - rect.left;
+          const y = clientY - rect.top;
+          const centerX = rect.width / 2;
+          const centerY = rect.height / 2;
 
-      const rotateX = (y - centerY) / centerY * 5; // Subtle: max 5 degrees
-      const rotateY = (centerX - x) / centerX * 5;
+          const rotateX = (y - centerY) / centerY * 5;
+          const rotateY = (centerX - x) / centerX * 5;
 
-      gsap.to(card, {
-        rotationX: rotateX,
-        rotationY: rotateY,
-        duration: 0.2,
-        ease: 'power2.out'
-      });
-    };
+          gsap.to(card, {
+            rotationX: rotateX,
+            rotationY: rotateY,
+            duration: 0.2,
+            ease: 'power2.out'
+          });
+        };
 
-    const handleLeave = () => {
-      gsap.to(card, {
-        rotationX: 0,
-        rotationY: 0,
-        duration: 0.3,
-        ease: 'power2.out'
-      });
-    };
+        const handleLeave = () => {
+          gsap.to(card, {
+            rotationX: 0,
+            rotationY: 0,
+            duration: 0.3,
+            ease: 'power2.out'
+          });
+        };
 
-    card.addEventListener('mousemove', handleMove);
-    card.addEventListener('mouseleave', handleLeave);
-    card.addEventListener('touchmove', handleMove);
-    card.addEventListener('touchend', handleLeave);
+        card.addEventListener('mousemove', handleMove);
+        card.addEventListener('mouseleave', handleLeave);
+        card.addEventListener('touchmove', handleMove);
+        card.addEventListener('touchend', handleLeave);
 
-    return () => {
-      card.removeEventListener('mousemove', handleMove);
-      card.removeEventListener('mouseleave', handleLeave);
-      card.removeEventListener('touchmove', handleMove);
-      card.removeEventListener('touchend', handleLeave);
-    };
-  }, []);
-
+        return () => {
+          card.removeEventListener('mousemove', handleMove);
+          card.removeEventListener('mouseleave', handleLeave);
+          card.removeEventListener('touchmove', handleMove);
+          card.removeEventListener('touchend', handleLeave);
+        };
+      }, []);
 
       return /*#__PURE__*/React.createElement(
         "div",
         {
           ref: cardRef,
-          className: "note-card ".concat(note.priority, " ").concat(isDragging ? 'dragging' : '', " ").concat(note.isSmsRequest ? 'sms-request-card urgent-sms-alert' : ''),
-          draggable: !isMobile, // Set to true for all devices
-          onDragStart: handleDragStart, // Enabled for all devices
-          onDragEnd: handleDragEnd, // Enabled for all devices
-          onContextMenu: (e) => handleOpenContextMenu(e, note), // Desktop right-click
-          onTouchStart: handleTouchStart, // Mobile long-press for context menu
+          className: "note-card ".concat(note.priority, " ").concat(isDragging ? 'dragging' : '', " ").concat(smsEnabled && note.isSmsRequest ? 'sms-request-card urgent-sms-alert' : ''),
+          draggable: !isMobile,
+          onDragStart: handleDragStart,
+          onDragEnd: handleDragEnd,
+          onContextMenu: (e) => handleOpenContextMenu(e, note),
+          onTouchStart: handleTouchStart,
           onTouchEnd: handleTouchEnd,
           onTouchCancel: handleTouchEnd
         },
@@ -1754,7 +1679,7 @@
               { className: "note-priority priority-".concat(note.priority) },
               note.priority
             ),
-            note.isSmsRequest && /*#__PURE__*/React.createElement(
+            smsEnabled && note.isSmsRequest && /*#__PURE__*/React.createElement(
               "span",
               { className: "sms-badge" },
               "SMS"
@@ -1766,7 +1691,7 @@
           { className: "note-content" },
           note.content
         ),
-        note.isSmsRequest && /*#__PURE__*/React.createElement(
+        smsEnabled && note.isSmsRequest && /*#__PURE__*/React.createElement(
           "div",
           { style: { fontSize: '11px', color: 'var(--sms-color)', marginBottom: '8px' } },
           /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
@@ -1823,7 +1748,6 @@
       );
     };
 
-    // Enhanced Kanban Column with Urgent Requests column
     var KanbanColumn = function KanbanColumn(_ref2) {
       var title = _ref2.title,
         notes = _ref2.notes,
@@ -1833,7 +1757,8 @@
         onDelete = _ref2.onDelete,
         currentUser = _ref2.currentUser,
         isMobile = _ref2.isMobile,
-        handleOpenContextMenu = _ref2.handleOpenContextMenu;
+        handleOpenContextMenu = _ref2.handleOpenContextMenu,
+        smsEnabled = _ref2.smsEnabled;
       var _useState3 = useState(false),
         isDragOver = _useState3[0],
         setIsDragOver = _useState3[1];
@@ -1875,7 +1800,7 @@
             { className: "column-title" },
             /*#__PURE__*/React.createElement("i", { className: "fa-solid ".concat(statusIcons[status]) }),
             title,
-            status === 'urgent' && /*#__PURE__*/React.createElement(
+            smsEnabled && status === 'urgent' && /*#__PURE__*/React.createElement(
               "div",
               { className: "live-indicator", style: { marginLeft: '8px' } },
               /*#__PURE__*/React.createElement("div", { className: "live-dot" }),
@@ -1910,19 +1835,20 @@
               currentUser: currentUser,
               isMobile: isMobile,
               onNoteDrop: onNoteDrop,
-              handleOpenContextMenu: handleOpenContextMenu
+              handleOpenContextMenu: handleOpenContextMenu,
+              smsEnabled: smsEnabled
             });
           })
         )
       );
     };
     
-
-    // SMS Settings Modal
     var SMSSettingsModal = function SMSSettingsModal(_ref3) {
       var isOpen = _ref3.isOpen,
         onClose = _ref3.onClose,
-        currentUser = _ref3.currentUser;
+        currentUser = _ref3.currentUser,
+        smsEnabled = _ref3.smsEnabled,
+        setSmsEnabled = _ref3.setSmsEnabled;
       var _useState5 = useState(currentUser.phone || ''),
         phoneNumber = _useState5[0],
         setPhoneNumber = _useState5[1];
@@ -1931,7 +1857,6 @@
         setIsVerified = _useState6[1];
 
       var handleVerify = function handleVerify() {
-        // Simulate phone verification
         setTimeout(function () {
           setIsVerified(true);
           alert('Phone number verified! You will now receive SMS notifications for urgent requests.');
@@ -1958,6 +1883,20 @@
               "button",
               { className: "modal-close", onClick: onClose },
               /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-times" })
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "form-group" },
+            /*#__PURE__*/React.createElement(
+              "label",
+              { style: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' } },
+              /*#__PURE__*/React.createElement("input", {
+                type: "checkbox",
+                checked: smsEnabled,
+                onChange: (e) => setSmsEnabled(e.target.checked)
+              }),
+              "Enable SMS Urgent Requests"
             )
           ),
           /*#__PURE__*/React.createElement(
@@ -1994,29 +1933,29 @@
       );
     };
 
-    // Create/Edit Note Modal
     var CreateNoteModal = function CreateNoteModal(_ref4) {
       var isOpen = _ref4.isOpen,
         onClose = _ref4.onClose,
         onSave = _ref4.onSave,
         editingNote = _ref4.editingNote,
-        currentUser = _ref4.currentUser;
+        currentUser = _ref4.currentUser,
+        smsEnabled = _ref4.smsEnabled;
       var _useState7 = useState({
-          title: '',
-          content: '',
-          priority: 'medium',
-          dueDate: '',
-          dueTime: '',
-          assignee: currentUser.id,
-          category: 'admin',
-          sendSms: false
-        }),
+        title: '',
+        content: '',
+        priority: 'medium',
+        dueDate: '',
+        dueTime: '',
+        assignee: currentUser.id,
+        category: 'admin',
+        sendSms: false
+      }),
         formData = _useState7[0],
         setFormData = _useState7[1];
 
       useEffect(function () {
         if (editingNote) {
-          setFormData(_objectSpread({}, editingNote));
+          setFormData(editingNote);
         } else {
           setFormData({
             title: '',
@@ -2273,7 +2212,7 @@
                 )
               )
             ),
-            !editingNote && /*#__PURE__*/React.createElement(
+            !editingNote && smsEnabled && /*#__PURE__*/React.createElement(
               "div",
               { className: "form-group" },
               /*#__PURE__*/React.createElement(
@@ -2308,328 +2247,6 @@
       );
     };
 
-    // Notifications Page Template
-    var NotificationsPage = function({ smsNotifications }) {
-      return /*#__PURE__*/React.createElement(
-        "div",
-        { className: "page-container" },
-        /*#__PURE__*/React.createElement(
-          "h2",
-          { className: "page-title" },
-          "Notifications"
-        ),
-        smsNotifications.length === 0 ? /*#__PURE__*/React.createElement(
-          "div",
-          { className: "empty-state" },
-          /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-bell-slash" }),
-          /*#__PURE__*/React.createElement("p", null, "No notifications yet")
-        ) : /*#__PURE__*/React.createElement(
-          "ul",
-          { className: "notification-list" },
-          smsNotifications.map(notif => /*#__PURE__*/React.createElement(
-            "li",
-            { key: notif.id, className: "notification-item" },
-            /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
-            /*#__PURE__*/React.createElement(
-              "div",
-              null,
-              /*#__PURE__*/React.createElement(
-                "p",
-                null,
-                notif.message
-              ),
-              /*#__PURE__*/React.createElement(
-                "span",
-                null,
-                new Date(notif.timestamp).toLocaleString()
-              )
-            )
-          ))
-        )
-      );
-    };
-
-    // Team Members Page Template
-    var TeamMembersPage = function() {
-      return /*#__PURE__*/React.createElement(
-        "div",
-        { className: "page-container" },
-        /*#__PURE__*/React.createElement(
-          "h2",
-          { className: "page-title" },
-          "Team Members"
-        ),
-        /*#__PURE__*/React.createElement(
-          "div",
-          { className: "team-list" },
-          mockUsers.map(user => /*#__PURE__*/React.createElement(
-            "div",
-            { key: user.id, className: "team-member-card" },
-            /*#__PURE__*/React.createElement(
-              "div",
-              { className: "user-avatar" },
-              user.initials
-            ),
-            /*#__PURE__*/React.createElement(
-              "div",
-              null,
-              /*#__PURE__*/React.createElement(
-                "h3",
-                null,
-                user.name
-              ),
-              /*#__PURE__*/React.createElement(
-                "p",
-                null,
-                user.role
-              ),
-              /*#__PURE__*/React.createElement(
-                "p",
-                null,
-                "Phone: ",
-                user.phone,
-                " ",
-                user.phoneVerified ? '(Verified)' : ''
-              )
-            )
-          ))
-        ),
-        /*#__PURE__*/React.createElement(
-          "button",
-          { className: "btn btn-primary" },
-          "Add New Member"
-        )
-      );
-    };
-
-    // Reports Page Template
-    var ReportsPage = function() {
-      return /*#__PURE__*/React.createElement(
-        "div",
-        { className: "page-container" },
-        /*#__PURE__*/React.createElement(
-          "h2",
-          { className: "page-title" },
-          "Reports"
-        ),
-        /*#__PURE__*/React.createElement(
-          "div",
-          { className: "report-filters" },
-          /*#__PURE__*/React.createElement(
-            "select",
-            { className: "form-select" },
-            /*#__PURE__*/React.createElement(
-              "option",
-              null,
-              "Daily"
-            ),
-            /*#__PURE__*/React.createElement(
-              "option",
-              null,
-              "Weekly"
-            ),
-            /*#__PURE__*/React.createElement(
-              "option",
-              null,
-              "Monthly"
-            )
-          ),
-          /*#__PURE__*/React.createElement(
-            "button",
-            { className: "btn btn-primary" },
-            "Generate Report"
-          )
-        ),
-        /*#__PURE__*/React.createElement(
-          "div",
-          { className: "report-chart" },
-          /*#__PURE__*/React.createElement(
-            "div",
-            { style: { height: '300px', background: 'var(--light-bg)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-            "Chart Placeholder"
-          )
-        ),
-        /*#__PURE__*/React.createElement(
-          "table",
-          { className: "report-table" },
-          /*#__PURE__*/React.createElement(
-            "thead",
-            null,
-            /*#__PURE__*/React.createElement(
-              "tr",
-              null,
-              /*#__PURE__*/React.createElement(
-                "th",
-                null,
-                "Category"
-              ),
-              /*#__PURE__*/React.createElement(
-                "th",
-                null,
-                "Urgent"
-              ),
-              /*#__PURE__*/React.createElement(
-                "th",
-                null,
-                "Completed"
-              )
-            )
-          ),
-          /*#__PURE__*/React.createElement(
-            "tbody",
-            null,
-            /*#__PURE__*/React.createElement(
-              "tr",
-              null,
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "Kitchen"
-              ),
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "5"
-              ),
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "12"
-              )
-            ),
-            /*#__PURE__*/React.createElement(
-              "tr",
-              null,
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "Front of House"
-              ),
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "3"
-              ),
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "8"
-              )
-            ),
-            /*#__PURE__*/React.createElement(
-              "tr",
-              null,
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "Bar"
-              ),
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "2"
-              ),
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "6"
-              )
-            ),
-            /*#__PURE__*/React.createElement(
-              "tr",
-              null,
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "Admin"
-              ),
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "4"
-              ),
-              /*#__PURE__*/React.createElement(
-                "td",
-                null,
-                "10"
-              )
-            )
-          )
-        )
-      );
-    };
-
-    // Settings Page Template
-    var SettingsPage = function() {
-      return /*#__PURE__*/React.createElement(
-        "div",
-        { className: "page-container" },
-        /*#__PURE__*/React.createElement(
-          "h2",
-          { className: "page-title" },
-          "Settings"
-        ),
-        /*#__PURE__*/React.createElement(
-          "form",
-          { className: "settings-form" },
-          /*#__PURE__*/React.createElement(
-            "div",
-            { className: "form-group" },
-            /*#__PURE__*/React.createElement(
-              "label",
-              null,
-              "Theme"
-            ),
-            /*#__PURE__*/React.createElement(
-              "select",
-              { className: "form-select" },
-              /*#__PURE__*/React.createElement(
-                "option",
-                null,
-                "Dark"
-              ),
-              /*#__PURE__*/React.createElement(
-                "option",
-                null,
-                "Light"
-              )
-            )
-          ),
-          /*#__PURE__*/React.createElement(
-            "div",
-            { className: "form-group" },
-            /*#__PURE__*/React.createElement(
-              "label",
-              null,
-              "Notifications"
-            ),
-            /*#__PURE__*/React.createElement(
-              "div",
-              null,
-              /*#__PURE__*/React.createElement(
-                "label",
-                null,
-                /*#__PURE__*/React.createElement("input", { type: "checkbox", defaultChecked: true }),
-                "Email Notifications"
-              ),
-              /*#__PURE__*/React.createElement(
-                "label",
-                null,
-                /*#__PURE__*/React.createElement("input", { type: "checkbox", defaultChecked: true }),
-                "Push Notifications"
-              )
-            )
-          ),
-          /*#__PURE__*/React.createElement(
-            "button",
-            { className: "btn btn-primary" },
-            "Save Settings"
-          )
-        )
-      );
-    };
-
-    // Enhanced Main Application Component
     var MainApp = function MainApp(_ref5) {
       var currentUser = _ref5.currentUser,
         onLogout = _ref5.onLogout;
@@ -2687,6 +2304,12 @@
       var _useState24 = useState(''),
         currentTime = _useState24[0],
         setCurrentTime = _useState24[1];
+      var _useState25 = useState(true),
+        smsEnabled = _useState25[0],
+        setSmsEnabled = _useState25[1];
+      var _useStateTheme = useState('dark'),
+        theme = _useStateTheme[0],
+        setTheme = _useStateTheme[1];
 
       var categories = [{
         id: 'foh',
@@ -2695,21 +2318,21 @@
         id: 'kitchen',
         name: 'Kitchen'
       }, {
-        id: 'admin',
-        name: 'Admin'
-      }, {
         id: 'bar',
         name: 'Bar'
+      }, {
+        id: 'bottleshop',
+        name: 'Bottle shop'
       }, {
         id: 'maintenance',
         name: 'Maintenance'
       }, {
-        id: 'bottleshop',
-        name: 'Bottle shop'
+        id: 'admin',
+        name: 'Admin'
       }];
-      var _useState25 = useState(categories[0].id),
-        currentCategory = _useState25[0],
-        setCurrentCategory = _useState25[1];
+      var _useState26 = useState(categories[0].id),
+        currentCategory = _useState26[0],
+        setCurrentCategory = _useState26[1];
 
       useEffect(function () {
         var handleResize = function handleResize() {
@@ -2728,15 +2351,23 @@
           setCurrentTime(`${time} ${day}, ${date}`);
         };
         updateTime();
-        const interval = setInterval(updateTime, 60000); // Update every minute
+        const interval = setInterval(updateTime, 60000);
         return () => clearInterval(interval);
       }, []);
+
+      // Apply theme to body
+      useEffect(() => {
+        if (theme === 'light') {
+            document.body.classList.add('light-theme');
+        } else {
+            document.body.classList.remove('light-theme');
+        }
+      }, [theme]);
 
       // Simulate incoming SMS requests
       useEffect(function () {
         var interval = setInterval(function () {
-          // Simulate random SMS urgent request
-          if (Math.random() > 0.8) {
+          if (smsEnabled && Math.random() > 0.8) {
             var smsRequest = {
               id: Date.now(),
               title: 'URGENT: Customer Complaint',
@@ -2745,7 +2376,7 @@
               dueDate: new Date().toISOString().split('T')[0],
               dueTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
               assignee: mockUsers[Math.floor(Math.random() * mockUsers.length)].id,
-              author: 6, // SMS system
+              author: 6,
               createdAt: new Date().toISOString(),
               status: 'urgent',
               category: categories[Math.floor(Math.random() * categories.length)].id,
@@ -2755,23 +2386,21 @@
             };
             setNotes(function (prev) { return [].concat(_toConsumableArray(prev), [smsRequest]); });
             
-            // Show notification
             setSmsNotifications(function (prev) { return [].concat(_toConsumableArray(prev), [{
               id: Date.now(),
               message: 'New urgent SMS request received!',
               timestamp: new Date().toISOString()
             }]); });
 
-            // Update category notification
             setCategoryNotifications(prev => ({
               ...prev,
               [smsRequest.category]: (prev[smsRequest.category] || 0) + 1
             }));
           }
-        }, 30000); // Every 30 seconds for demo
+        }, 30000);
 
         return function () { return clearInterval(interval); };
-      }, []);
+      }, [smsEnabled]);
 
       useEffect(() => {
         const checkScrollable = () => {
@@ -2783,7 +2412,7 @@
         checkScrollable();
         window.addEventListener('resize', checkScrollable);
         return () => window.removeEventListener('resize', checkScrollable);
-      }, [notes, currentCategory]);
+      }, [notes, currentCategory, smsEnabled]);
 
       useEffect(() => {
         const handleClickOutside = (event) => {
@@ -2800,7 +2429,6 @@
       }, [contextMenu.visible]);
 
       useEffect(() => {
-        // Reset category notification when switching categories
         if (categoryNotifications[currentCategory]) {
           setCategoryNotifications(prev => ({
             ...prev,
@@ -2844,7 +2472,6 @@
             return [].concat(_toConsumableArray(prev), [newNote]);
           });
 
-          // Update category notification for new notes
           setCategoryNotifications(prev => ({
             ...prev,
             [newNote.category]: (prev[newNote.category] || 0) + 1
@@ -2865,6 +2492,7 @@
       };
 
       var handleNoteDrop = function handleNoteDrop(noteId, newStatus) {
+        if (newStatus === 'urgent' && !smsEnabled) return;
         setNotes(function (prev) {
           return prev.map(function (note) {
             return note.id === noteId ? _objectSpread(_objectSpread({}, note), {}, {
@@ -2920,6 +2548,7 @@
 
       var filteredNotes = notes
         .filter(function (note) { return note.category === currentCategory; })
+        .filter(function (note) { return smsEnabled || !note.isSmsRequest; })
         .filter(function (note) {
           var priorityMatch = filterPriority === 'all' || note.priority === filterPriority;
           var assigneeMatch = filterAssignee === 'all' || note.assignee.toString() === filterAssignee;
@@ -2965,7 +2594,7 @@
           delay: 0.5,
           ease: 'power2.out',
         });
-      }, [notes, currentCategory]);
+      }, [notes, currentCategory, smsEnabled]);
 
       var toggleSidebar = function toggleSidebar() {
         setSidebarOpen(!sidebarOpen);
@@ -2973,6 +2602,17 @@
 
       var toggleFilter = function toggleFilter() {
         setIsFilterOpen(!isFilterOpen);
+      };
+
+      const handleSmsToggle = (enabled) => {
+        setSmsEnabled(enabled);
+        if (!enabled) {
+          setSmsNotifications([]);
+        }
+      };
+
+      const toggleTheme = () => {
+        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
       };
 
       return /*#__PURE__*/React.createElement(
@@ -3013,7 +2653,7 @@
                 { className: "nav-item" },
                 /*#__PURE__*/React.createElement(
                   "a",
-                  { className: `nav-link ${activeView === 'board' ? 'active' : ''}`, onClick: () => setActiveView('board') },
+                  { className: "nav-link active", onClick: function onClick() { return setActiveView('board'); } },
                   /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-th-large" }),
                   /*#__PURE__*/React.createElement("span", null, "Kanban Board")
                 )
@@ -3023,10 +2663,10 @@
                 { className: "nav-item" },
                 /*#__PURE__*/React.createElement(
                   "a",
-                  { className: `nav-link ${activeView === 'notifications' ? 'active' : ''}`, onClick: () => setActiveView('notifications') },
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('notifications'); } },
                   /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-bell" }),
                   /*#__PURE__*/React.createElement("span", null, "Notifications"),
-                  smsNotifications.length > 0 && /*#__PURE__*/React.createElement(
+                  smsEnabled && smsNotifications.length > 0 && /*#__PURE__*/React.createElement(
                     "span",
                     { className: "notification-badge" },
                     /*#__PURE__*/React.createElement(
@@ -3042,7 +2682,7 @@
                 { className: "nav-item" },
                 /*#__PURE__*/React.createElement(
                   "a",
-                  { className: "nav-link", onClick: () => setIsSmsModalOpen(true) },
+                  { className: "nav-link", onClick: function onClick() { return setIsSmsModalOpen(true); } },
                   /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
                   /*#__PURE__*/React.createElement("span", null, "SMS Settings")
                 )
@@ -3052,7 +2692,7 @@
                 { className: "nav-item" },
                 /*#__PURE__*/React.createElement(
                   "a",
-                  { className: `nav-link ${activeView === 'team' ? 'active' : ''}`, onClick: () => setActiveView('team') },
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('team'); } },
                   /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-users" }),
                   /*#__PURE__*/React.createElement("span", null, "Team Members")
                 )
@@ -3062,7 +2702,7 @@
                 { className: "nav-item" },
                 /*#__PURE__*/React.createElement(
                   "a",
-                  { className: `nav-link ${activeView === 'reports' ? 'active' : ''}`, onClick: () => setActiveView('reports') },
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('reports'); } },
                   /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-chart-bar" }),
                   /*#__PURE__*/React.createElement("span", null, "Reports")
                 )
@@ -3072,7 +2712,7 @@
                 { className: "nav-item" },
                 /*#__PURE__*/React.createElement(
                   "a",
-                  { className: `nav-link ${activeView === 'settings' ? 'active' : ''}`, onClick: () => setActiveView('settings') },
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('settings'); } },
                   /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-cog" }),
                   /*#__PURE__*/React.createElement("span", null, "Settings")
                 )
@@ -3110,234 +2750,238 @@
               { className: "header-actions" },
               /*#__PURE__*/React.createElement(
                 "button",
+                { 
+                    className: "theme-toggle-btn", 
+                    onClick: toggleTheme,
+                    title: theme === 'dark' ? 'Switch to Paper & Pen Mode' : 'Switch to Dark Mode'
+                },
+                /*#__PURE__*/React.createElement("i", { className: theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon' })
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
                 { className: "sidebar-toggle btn btn-secondary", onClick: toggleSidebar },
                 /*#__PURE__*/React.createElement("i", { className: sidebarOpen ? 'fa-solid fa-chevron-left' : 'fa-solid fa-chevron-right' })
               ),
               /*#__PURE__*/React.createElement(
                 "button",
-                { className: "sms-btn", onClick: () => setIsSmsModalOpen(true) },
+                { className: "sms-btn", onClick: function onClick() { return setIsSmsModalOpen(true); } },
                 /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
                 "SMS Setup"
               ),
-              activeView === 'board' && /*#__PURE__*/React.createElement(
-                React.Fragment,
-                null,
-                /*#__PURE__*/React.createElement(
-                  "button",
-                  { className: "btn btn-secondary", onClick: toggleFilter },
-                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-filter" }),
-                  isFilterOpen ? "Close Filters" : "Filters"
-                ),
-                /*#__PURE__*/React.createElement(
-                  "button",
-                  { className: "btn btn-primary", onClick: handleCreateNote },
-                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-plus" }),
-                  "New Note"
-                )
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "btn btn-secondary", onClick: toggleFilter },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-filter" }),
+                isFilterOpen ? "Close Filters" : "Filters"
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "btn btn-primary", onClick: handleCreateNote },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-plus" }),
+                "New Note"
               )
             )
           ),
-          activeView === 'board' && /*#__PURE__*/React.createElement(
-            React.Fragment,
-            null,
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "tabs" },
+            categories.map(function (cat) {
+              return /*#__PURE__*/React.createElement(
+                "button",
+                {
+                  key: cat.id,
+                  className: "tab-btn ".concat(currentCategory === cat.id ? 'active' : ''),
+                  onClick: function onClick() { return setCurrentCategory(cat.id); }
+                },
+                cat.name,
+                smsEnabled && (categoryNotifications[cat.id] || 0) > 0 && /*#__PURE__*/React.createElement(
+                  "span",
+                  { className: "tab-badge" },
+                  categoryNotifications[cat.id]
+                )
+              );
+            })
+          ),
+          isFilterOpen && /*#__PURE__*/React.createElement(
+            "div",
+            { className: "filter-bar" },
             /*#__PURE__*/React.createElement(
               "div",
-              { className: "tabs" },
-              categories.map(function (cat) {
-                return /*#__PURE__*/React.createElement(
-                  "button",
-                  {
-                    key: cat.id,
-                    className: "tab-btn ".concat(currentCategory === cat.id ? 'active' : ''),
-                    onClick: function onClick() { return setCurrentCategory(cat.id); }
-                  },
-                  cat.name,
-                  (categoryNotifications[cat.id] || 0) > 0 && /*#__PURE__*/React.createElement(
-                    "span",
-                    { className: "tab-badge" },
-                    categoryNotifications[cat.id]
-                  )
-                );
-              })
-            ),
-            isFilterOpen && /*#__PURE__*/React.createElement(
-              "div",
-              { className: "filter-bar" },
+              { className: "filter-group" },
               /*#__PURE__*/React.createElement(
-                "div",
-                { className: "filter-group" },
-                /*#__PURE__*/React.createElement(
-                  "label",
-                  { className: "filter-label" },
-                  "Priority:"
-                ),
-                /*#__PURE__*/React.createElement(
-                  "select",
-                  {
-                    className: "form-select",
-                    style: { width: '120px' },
-                    value: filterPriority,
-                    onChange: function onChange(e) { return setFilterPriority(e.target.value); }
-                  },
-                  /*#__PURE__*/React.createElement(
-                    "option",
-                    { value: "all" },
-                    "All"
-                  ),
-                  /*#__PURE__*/React.createElement(
-                    "option",
-                    { value: "urgent" },
-                    "Urgent"
-                  ),
-                  /*#__PURE__*/React.createElement(
-                    "option",
-                    { value: "high" },
-                    "High"
-                  ),
-                  /*#__PURE__*/React.createElement(
-                    "option",
-                    { value: "medium" },
-                    "Medium"
-                  ),
-                  /*#__PURE__*/React.createElement(
-                    "option",
-                    { value: "low" },
-                    "Low"
-                  )
-                )
+                "label",
+                { className: "filter-label" },
+                "Priority:"
               ),
               /*#__PURE__*/React.createElement(
-                "div",
-                { className: "filter-group" },
+                "select",
+                {
+                  className: "form-select",
+                  style: { width: '120px' },
+                  value: filterPriority,
+                  onChange: function onChange(e) { return setFilterPriority(e.target.value); }
+                },
                 /*#__PURE__*/React.createElement(
-                  "label",
-                  { className: "filter-label" },
-                  "Assignee:"
+                  "option",
+                  { value: "all" },
+                  "All"
                 ),
                 /*#__PURE__*/React.createElement(
-                  "select",
-                  {
-                    className: "form-select",
-                    style: { width: '150px' },
-                    value: filterAssignee,
-                    onChange: function onChange(e) { return setFilterAssignee(e.target.value); }
-                  },
-                  /*#__PURE__*/React.createElement(
-                    "option",
-                    { value: "all" },
-                    "Everyone"
-                  ),
-                  mockUsers.map(function (user) {
-                    return /*#__PURE__*/React.createElement(
-                      "option",
-                      { key: user.id, value: user.id },
-                      user.name
-                    );
-                  })
-                )
-              ),
-              /*#__PURE__*/React.createElement(
-                "div",
-                { className: "filter-group" },
-                /*#__PURE__*/React.createElement(
-                  "label",
-                  { className: "filter-label" },
-                  "Sort by:"
+                  "option",
+                  { value: "urgent" },
+                  "Urgent"
                 ),
                 /*#__PURE__*/React.createElement(
-                  "select",
-                  {
-                    className: "form-select",
-                    style: { width: '120px' },
-                    value: sortBy,
-                    onChange: function onChange(e) { return setSortBy(e.target.value); }
-                  },
-                  /*#__PURE__*/React.createElement(
-                    "option",
-                    { value: "date" },
-                    "Date"
-                  ),
-                  /*#__PURE__*/React.createElement(
-                    "option",
-                    { value: "priority" },
-                    "Priority"
-                  ),
-                  /*#__PURE__*/React.createElement(
-                    "option",
-                    { value: "dueDate" },
-                    "Due Date"
-                  )
+                  "option",
+                  { value: "high" },
+                  "High"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "medium" },
+                  "Medium"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "low" },
+                  "Low"
                 )
               )
             ),
             /*#__PURE__*/React.createElement(
               "div",
-              { className: "kanban-container ".concat(isScrollable ? 'scrollable' : ''), ref: kanbanContainerRef },
+              { className: "filter-group" },
               /*#__PURE__*/React.createElement(
-                "div",
-                { className: "kanban-board", ref: kanbanBoardRef },
-                /*#__PURE__*/React.createElement(KanbanColumn, {
-                  title: "Urgent Requests",
-                  notes: urgentNotes,
-                  status: "urgent",
-                  onNoteDrop: handleNoteDrop,
-                  onEdit: handleEditNote,
-                  onDelete: handleDeleteNote,
-                  currentUser: currentUser,
-                  isMobile: isMobile,
-                  handleOpenContextMenu: handleOpenContextMenu
-                }),
-                /*#__PURE__*/React.createElement(KanbanColumn, {
-                  title: "To Do",
-                  notes: todoNotes,
-                  status: "todo",
-                  onNoteDrop: handleNoteDrop,
-                  onEdit: handleEditNote,
-                  onDelete: handleDeleteNote,
-                  currentUser: currentUser,
-                  isMobile: isMobile,
-                  handleOpenContextMenu: handleOpenContextMenu
-                }),
-                /*#__PURE__*/React.createElement(KanbanColumn, {
-                  title: "In Progress",
-                  notes: inProgressNotes,
-                  status: "inprogress",
-                  onNoteDrop: handleNoteDrop,
-                  onEdit: handleEditNote,
-                  onDelete: handleDeleteNote,
-                  currentUser: currentUser,
-                  isMobile: isMobile,
-                  handleOpenContextMenu: handleOpenContextMenu
-                }),
-                /*#__PURE__*/React.createElement(KanbanColumn, {
-                  title: "Completed",
-                  notes: completedNotes,
-                  status: "completed",
-                  onNoteDrop: handleNoteDrop,
-                  onEdit: handleEditNote,
-                  onDelete: handleDeleteNote,
-                  currentUser: currentUser,
-                  isMobile: isMobile,
-                  handleOpenContextMenu: handleOpenContextMenu
+                "label",
+                { className: "filter-label" },
+                "Assignee:"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  className: "form-select",
+                  style: { width: '150px' },
+                  value: filterAssignee,
+                  onChange: function onChange(e) { return setFilterAssignee(e.target.value); }
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "all" },
+                  "Everyone"
+                ),
+                mockUsers.map(function (user) {
+                  return /*#__PURE__*/React.createElement(
+                    "option",
+                    { key: user.id, value: user.id },
+                    user.name
+                  );
                 })
               )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "filter-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "filter-label" },
+                "Sort by:"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  className: "form-select",
+                  style: { width: '120px' },
+                  value: sortBy,
+                  onChange: function onChange(e) { return setSortBy(e.target.value); }
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "date" },
+                  "Date"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "priority" },
+                  "Priority"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "dueDate" },
+                  "Due Date"
+                )
+              )
             )
           ),
-          activeView === 'notifications' && /*#__PURE__*/React.createElement(NotificationsPage, { smsNotifications: smsNotifications }),
-          activeView === 'team' && /*#__PURE__*/React.createElement(TeamMembersPage, null),
-          activeView === 'reports' && /*#__PURE__*/React.createElement(ReportsPage, null),
-          activeView === 'settings' && /*#__PURE__*/React.createElement(SettingsPage, null),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "kanban-container ".concat(isScrollable ? 'scrollable' : ''), ref: kanbanContainerRef },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "kanban-board", ref: kanbanBoardRef },
+              smsEnabled && /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "Urgent Requests",
+                notes: urgentNotes,
+                status: "urgent",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu,
+                smsEnabled: smsEnabled
+              }),
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "To Do",
+                notes: todoNotes,
+                status: "todo",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu,
+                smsEnabled: smsEnabled
+              }),
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "In Progress",
+                notes: inProgressNotes,
+                status: "inprogress",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu,
+                smsEnabled: smsEnabled
+              }),
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "Completed",
+                notes: completedNotes,
+                status: "completed",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu,
+                smsEnabled: smsEnabled
+              })
+            )
+          ),
           /*#__PURE__*/React.createElement(CreateNoteModal, {
             isOpen: isModalOpen,
             onClose: function onClose() { return setIsModalOpen(false); },
             onSave: handleSaveNote,
             editingNote: editingNote,
-            currentUser: currentUser
+            currentUser: currentUser,
+            smsEnabled: smsEnabled
           }),
           /*#__PURE__*/React.createElement(SMSSettingsModal, {
             isOpen: isSmsModalOpen,
             onClose: function onClose() { return setIsSmsModalOpen(false); },
-            currentUser: currentUser
+            currentUser: currentUser,
+            smsEnabled: smsEnabled,
+            setSmsEnabled: handleSmsToggle
           }),
           /*#__PURE__*/React.createElement(
             "button",
@@ -3387,7 +3031,7 @@
                 /*#__PURE__*/React.createElement(
                   "p",
                   null,
-                  "This panel outlines the concept, operational value, and cost context for implementing an SMS-based escalation system integrated directly into the Kanban board."
+                  "This panel outlines the concept, operational value, and cost context for implementing an SMS-based escalation system integrated directly into the Boathouse Kanban board."
                 ),
                 /*#__PURE__*/React.createElement(
                   "h4",
@@ -3499,7 +3143,7 @@
               )
             )
           ),
-          smsNotifications.map(function (notification) {
+          smsEnabled && smsNotifications.map(function (notification) {
             return /*#__PURE__*/React.createElement(
               "div",
               { key: notification.id, className: "sms-toast" },
@@ -3526,7 +3170,7 @@
               /*#__PURE__*/React.createElement(
                 "ul",
                 null,
-                /*#__PURE__*/React.createElement(
+                smsEnabled && /*#__PURE__*/React.createElement(
                   "li",
                   { onClick: function onClick() { return handleOptionSelect('urgent'); } },
                   "Urgent"
@@ -3560,7 +3204,7 @@
 
     // Main App Component
     var App = function App() {
-      var currentUser = useState(mockUsers[0])[0]; // Logged in as General Manager
+      var currentUser = useState(mockUsers[0])[0]; 
 
       var handleLogout = function handleLogout() {
         console.log('Logged out');
@@ -3572,7 +3216,6 @@
       });
     };
 
-    // Render the app
     const appContent = document.createElement('div');
     appContent.style.overflow = 'hidden';
     appContent.style.position = 'absolute';
@@ -3609,6 +3252,7 @@
         posArray[i] = (Math.random() - 0.5) * 2000;
       }
       particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+      
       const particlesMaterial = new THREE.PointsMaterial({
         size: 5,
         color: 0xffffff,
@@ -3624,18 +3268,54 @@
         new THREE.SphereGeometry(150, 32, 32),
         new THREE.TetrahedronGeometry(180, 0),
       ];
-      const meshes = geometries.map((geometry, index) => {
-        const material = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(0x3b82f6).lerp(new THREE.Color(0x8b5cf6), index / geometries.length),
-          wireframe: true,
-          transparent: true,
-          opacity: 0.4,
+      const meshes = [];
+      
+      // Function to update materials based on theme
+      const updateMaterials = (isLight) => {
+        // Update particles
+        particlesMaterial.color.setHex(isLight ? 0x2c3e50 : 0xffffff);
+        particlesMaterial.opacity = isLight ? 0.4 : 0.2;
+
+        // Update meshes - recreate them for simplicity or just update props if possible
+        meshes.forEach((mesh, index) => {
+            scene.remove(mesh);
         });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set((Math.random() - 0.5) * 2000, (Math.random() - 0.5) * 2000, (Math.random() - 0.5) * 2000 - 1000);
-        scene.add(mesh);
-        return mesh;
+        meshes.length = 0; // Clear array
+
+        geometries.forEach((geometry, index) => {
+            const color1 = isLight ? new THREE.Color(0x2563eb) : new THREE.Color(0x3b82f6);
+            const color2 = isLight ? new THREE.Color(0x7c3aed) : new THREE.Color(0x8b5cf6);
+            
+            const material = new THREE.MeshBasicMaterial({
+                color: color1.lerp(color2, index / geometries.length),
+                wireframe: true,
+                transparent: true,
+                opacity: isLight ? 0.15 : 0.4, // Lower opacity for light mode wireframes
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(
+                (Math.random() - 0.5) * 2000, 
+                (Math.random() - 0.5) * 2000, 
+                (Math.random() - 0.5) * 2000 - 1000
+            );
+            scene.add(mesh);
+            meshes.push(mesh);
+        });
+      };
+
+      // Initial setup
+      updateMaterials(false);
+
+      // Observe body class changes for theme toggle
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class') {
+                const isLight = document.body.classList.contains('light-theme');
+                updateMaterials(isLight);
+            }
+        });
       });
+      observer.observe(document.body, { attributes: true });
 
       // App content object
       appContent.style.width = width + 'px';
