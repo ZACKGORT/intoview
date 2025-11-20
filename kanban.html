@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SMS Kanban - Paper & Pen Edition</title>
+  <title>SMS Kanban - v1.4.2</title>
   <script crossorigin="" src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
   <script crossorigin="" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -80,6 +80,16 @@
         color: var(--text-primary);
         overflow: hidden;
         transition: background 0.5s ease, color 0.3s ease;
+    }
+
+    /* Confetti Particle Style */
+    .confetti-particle {
+      position: fixed;
+      width: 8px;
+      height: 8px;
+      border-radius: 2px; /* Slightly rounded squares */
+      pointer-events: none;
+      z-index: 9999;
     }
 
     /* Paper Texture Overlay for Light Mode */
@@ -1174,8 +1184,6 @@
         }
     }
 
-    
-    
     /* --- FAB AND RIGHT PANEL --- */
     .fab {
       position: fixed;
@@ -1404,6 +1412,50 @@
       useEffect = _React.useEffect,
       useRef = _React.useRef,
       useCallback = _React.useCallback;
+
+    // --- NEW CONFETTI UTILITY ---
+    const createConfettiExplosion = (x, y) => {
+      const isLight = document.body.classList.contains('light-theme');
+      const colors = isLight 
+        ? ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706'] // Ink/Paper colors
+        : ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']; // Neon/Dark colors
+      
+      const particleCount = 30;
+      
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.classList.add('confetti-particle');
+        
+        // Randomize color
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        
+        // Initial position
+        particle.style.left = x + 'px';
+        particle.style.top = y + 'px';
+        
+        document.body.appendChild(particle);
+        
+        // Physics for explosion
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 50 + Math.random() * 100; // spread
+        const tx = Math.cos(angle) * velocity;
+        const ty = Math.sin(angle) * velocity - 50; // slight upward bias
+        
+        // Animate with GSAP
+        gsap.to(particle, {
+          x: tx,
+          y: ty + 100, // gravity effect
+          opacity: 0,
+          rotation: Math.random() * 360 * 2,
+          scale: 0.5,
+          duration: 0.8 + Math.random() * 0.5,
+          ease: "power2.out",
+          onComplete: () => {
+            particle.remove();
+          }
+        });
+      }
+    };
     
     // Mock Data
     var mockUsers = [{
@@ -1775,6 +1827,12 @@
       var handleDrop = function handleDrop(e) {
         e.preventDefault();
         setIsDragOver(false);
+        
+        // --- TRIGGER CONFETTI ON COMPLETED ---
+        if (status === 'completed') {
+          createConfettiExplosion(e.clientX, e.clientY);
+        }
+        
         var noteId = parseInt(e.dataTransfer.getData('noteId'));
         onNoteDrop(noteId, status);
       };
