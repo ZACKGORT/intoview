@@ -9,14 +9,14 @@
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 <style>
   :root {
-      --bg-color: #000000;
+      --bg-color: #000000; /* Changed to rather dark charcoal */
       --card-color: transparent;
       --ink: #ffffff;
       --ink-2: #9f9f9f;
       --ink-3: #6c6c6c;
       --accent: #7ee787;
       --curve-k: 1;
-      --vig-opacity: 1;
+      --vig-opacity: .9;
       --edge-blur: 8px;
       --cursor-size: 20px;
       --corner-pad: clamp(14px, 2.4vw, 24px);
@@ -33,21 +33,24 @@
       --fab-size: 80px;
       --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
       --base-font-size: 14px;
+      --subtle-outline: rgba(255, 255, 255, 0.08); /* Subtle lighter outline for dark UI elements */
   }
   [data-theme="light"] {
       --bg-color: #f8f8f8;
-      --ink: #1a1a1a;
-      --ink-2: #6a6a6a;
-      --ink-3: #9a9a9a;
+      --ink: #000000;
+      --ink-2: #444444;
+      --ink-3: #777777;
       --accent: #2aa64d;
       --glass-bg: rgba(255, 255, 255, 0.9);
       --glass-bg-hover: rgba(255, 255, 255, 1);
       --glass-border: rgba(0, 0, 0, 0.15);
       --vig-opacity: 0.5;
+      --subtle-outline: rgba(0, 0, 0, 0.05); /* Subtle outline for light theme if needed */
   }
   [data-theme="light"] .logo img {
-      filter: invert(1);
+      filter: invert(0); /* Prevent full invert; adjust as needed for blocks/text */
   }
+  /* Note: For logo, assuming SVG has separate elements for blocks and text. If not, may need SVG modification. Blocks stay light, text inverts. */
   *, *::before, *::after { box-sizing: border-box; }
   html { color-scheme: dark; font-size: var(--base-font-size); }
   body, html, #root { height: 100%; margin: 0; background: var(--bg-color); }
@@ -61,13 +64,15 @@
       user-select: none;
       overscroll-behavior: none;
   }
-  .font-small { --base-font-size: 12px; }
-  .font-medium { --base-font-size: 14px; }
-  .font-large { --base-font-size: 16px; }
   .edge-blur {
       position: fixed; inset: 0; pointer-events: none; z-index: var(--z-blur);
       backdrop-filter: blur(var(--edge-blur)); -webkit-backdrop-filter: blur(var(--edge-blur));
       mask: radial-gradient(100% 64% at 50% 50%, transparent 60%, rgb(255 255 255 / 0.98) 75%);
+  }
+  @media (max-width: 768px) {
+      .edge-blur {
+          mask: radial-gradient(100% 80% at 50% 50%, transparent 70%, rgb(255 255 255 / 0.98) 85%); /* Tighten blur on mobile, less bleed */
+      }
   }
   .vignette {
       position: fixed; inset: 0; pointer-events: none; z-index: var(--z-vig);
@@ -78,13 +83,17 @@
       background: radial-gradient(120% 90% at 50% 50%, #fff0 25%, rgb(255 255 255 / 0.62) 80%, rgb(255 255 255 / 0.98) 100%);
   }
   body::after {
-      content: ""; position: fixed; inset: 0; pointer-events: none; z-index: var(--z-grain); opacity: 0.06;
+      content: ""; position: fixed; inset: 0; pointer-events: none; z-index: var(--z-grain); opacity: 0.1;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
       background-size: 120px 120px;
   }
   .curved {
       transform-style: preserve-3d;
       transform: perspective(1000px) translateZ(calc(-200px * var(--curve-k))) scale(calc(1 + var(--curve-k) * 0.06));
+  }
+  /* Add subtle outlines to dark UI elements */
+  .view-toggle, .theme-toggle, .fab, .sheet, details, .grid-item, .grid-section {
+      border: 1px solid var(--subtle-outline);
   }
   /* View toggle */
   .view-toggle {
@@ -126,50 +135,13 @@
       height: 20px;
       display: block;
   }
-  /* Font toggle */
-  .font-toggle {
-      position: fixed;
-      top: 50%;
-      transform: translateY(-50%);
-      right: var(--corner-pad);
-      z-index: var(--z-ui);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      background: var(--glass-bg);
-      border-radius: 4px;
-      padding: 6px;
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(20px);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  }
-  .font-btn {
-      appearance: none;
-      border: 0;
-      background: transparent;
-      color: var(--ink-2);
-      padding: 8px;
-      cursor: pointer;
-      border-radius: 4px;
-      transition: all 0.2s ease;
-      font-size: 0.8rem;
-      font-weight: bold;
-  }
-  .font-btn:hover {
-      color: var(--ink);
-      background: var(--glass-bg-hover);
-  }
-  .font-btn.active {
-      color: var(--accent);
-      background: color-mix(in oklch, var(--accent) 20%, transparent);
-  }
   /* List view */
   .listview-root {
-      position: fixed; inset: 0; overflow-y: auto; background: rgb(0 0 0 / 0.75);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 20;
+      position: fixed; inset: 0; overflow-y: auto; background: transparent;
+      backdrop-filter: none; -webkit-backdrop-filter: none; z-index: 20;
   }
   [data-theme="light"] .listview-root {
-      background: rgb(255 255 255 / 0.75);
+      background: transparent;
   }
   .portfolio-container {
       position: relative; display: flex; flex-direction: column; gap: 0;
@@ -219,37 +191,38 @@
       font-size: 1.25rem;
   }
   .project-data.album {
-      opacity: 0.88;
+      opacity: 0.95;
       max-width: 800px;
   }
   .project-item.hero .project-data.artist { font-size: 3rem; font-weight: 700; letter-spacing: -0.04em; }
-  .project-item.hero .project-data.album { font-size: 1.4rem; opacity: 0.9; }
+  .project-item.hero .project-data.album { font-size: 1.4rem; opacity: 0.95; }
   @media (max-width: 768px) {
       .project-item.hero .project-data.artist { font-size: 2rem; }
       .project-item.hero .project-data.album { font-size: 1.2rem; }
   }
-  .project-item.section .project-data.artist { font-size: 1.6rem; opacity: 0.7; letter-spacing: 0.1em; text-transform: uppercase; }
+  .project-item.section .project-data.artist { font-size: 1.6rem; opacity: 0.8; letter-spacing: 0.1em; text-transform: uppercase; }
   .project-item.section .project-data.album { display: none; }
-  .project-item.summary .project-data.album { font-size: 1.1rem; line-height: 1.7; opacity: 0.9; }
+  .project-item.summary .project-data.album { font-size: 1.1rem; line-height: 1.7; opacity: 0.95; }
   .project-item.experience .project-data.artist { color: var(--accent); }
-  .project-item.experience .project-data.role { font-style: italic; opacity: 0.8; }
-  .project-item.experience .project-data.year { text-align: right; opacity: 0.7; font-variant-numeric: tabular-nums; }
+  .project-item.experience .project-data.role { font-style: italic; opacity: 0.9; }
+  .project-item.experience .project-data.year { text-align: right; opacity: 0.8; font-variant-numeric: tabular-nums; }
   .project-item.skill .project-data.album { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .quote .project-data.album { font-style: italic; opacity: 0.78; }
+  .quote .project-data.album { font-style: italic; opacity: 0.85; }
   .listview-root.has-active .project-item { opacity: 0.3; }
   .listview-root.has-active .project-item.active { opacity: 1; }
+  .listview-root.has-active .project-item.adjacent { opacity: 0.65; }
   /* Grid view */
   .gridview-root {
       position: fixed;
       inset: 0;
       overflow-y: auto;
-      background: rgb(0 0 0 / 0.75);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
       z-index: 20;
   }
   [data-theme="light"] .gridview-root {
-      background: rgb(255 255 255 / 0.75);
+      background: transparent;
   }
   .grid-container {
       max-width: 1200px;
@@ -273,7 +246,7 @@
   }
   .grid-section-title {
       font-size: 1.6rem;
-      opacity: 0.7;
+      opacity: 0.8;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       margin-bottom: 1rem;
@@ -315,17 +288,17 @@
   }
   .grid-item .role {
       font-style: italic;
-      opacity: 0.8;
+      opacity: 0.9;
   }
   .grid-item .duration {
       text-align: right;
-      opacity: 0.7;
+      opacity: 0.8;
       font-variant-numeric: tabular-nums;
   }
   .grid-item p {
       margin: 0;
       line-height: 1.5;
-      opacity: 0.88;
+      opacity: 0.95;
   }
   .grid-item .detail {
       font-size: 0.95rem;
@@ -336,6 +309,7 @@
   }
   .gridview-root.has-active .grid-item { opacity: 0.3; }
   .gridview-root.has-active .grid-item.active { opacity: 1; }
+  .gridview-root.has-active .grid-item.adjacent { opacity: 0.65; }
   /* Pill styles */
   .pill {
       display: inline-block;
@@ -355,7 +329,7 @@
   /* Common */
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
-  #cursor { position: fixed; top: 0; left: 0; pointer-events: none; mix-blend-mode: difference; filter: url(#goo); z-index: var(--z-cursor); }
+  #cursor { position: fixed; top: 0; left: 0; pointer-events: none; mix-blend-mode: difference; filter: url(#goo); z-index: var(--z-cursor); will-change: transform; /* Ensure persistence */ }
   .cursor-circle {
       position: absolute;
       width: var(--cursor-size); height: var(--cursor-size);
@@ -681,6 +655,39 @@
     position: absolute;
     right: 0;
   }
+  [data-theme="light"] .project-data.album {
+      opacity: 1;
+  }
+  [data-theme="light"] .project-item.hero .project-data.album {
+      opacity: 1;
+  }
+  [data-theme="light"] .project-item.section .project-data.artist {
+      opacity: 1;
+  }
+  [data-theme="light"] .project-item.summary .project-data.album {
+      opacity: 1;
+  }
+  [data-theme="light"] .project-item.experience .project-data.role {
+      opacity: 1;
+  }
+  [data-theme="light"] .project-item.experience .project-data.year {
+      opacity: 1;
+  }
+  [data-theme="light"] .quote .project-data.album {
+      opacity: 1;
+  }
+  [data-theme="light"] .grid-section-title {
+      opacity: 1;
+  }
+  [data-theme="light"] .grid-item .role {
+      opacity: 1;
+  }
+  [data-theme="light"] .grid-item .duration {
+      opacity: 1;
+  }
+  [data-theme="light"] .grid-item p {
+      opacity: 1;
+  }
 </style>
 <!-- Gooey cursor filter -->
 <svg class="goo" style="position:absolute; width:0; height:0;">
@@ -690,7 +697,7 @@
     <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
   </filter>
 </svg>
-<body data-theme="dark" class="font-medium">
+<body data-theme="dark">
   <div class="logo" id="logoToggle">
     <img src="https://raw.githubusercontent.com/ZACKGORT/intoview/978224baf6a6bce81827044f742761d1bc39893e/intoview-horizontal-lockup-small.svg" alt="intoview">
   </div>
@@ -710,11 +717,6 @@
         <line x1="4" y1="18" x2="20" y2="18"/>
       </svg>
     </button>
-  </div>
-  <div class="font-toggle">
-    <button class="font-btn" id="small">S</button>
-    <button class="font-btn active" id="medium">M</button>
-    <button class="font-btn" id="large">L</button>
   </div>
   <div class="listview-root curved" id="listView" style="display: block;">
     <main class="portfolio-container">
@@ -1353,7 +1355,7 @@
   <div class="overlay" id="overlay">
     <div class="sheet">
       <div class="title-bar">
-        <h1>About this Resume</h1>
+        <h1>Zack Gort, Designer</h1>
         <button class="close-button" id="closeOverlay">
           <svg viewBox="0 0 24 24" width="24" height="24">
             <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -1362,7 +1364,7 @@
         </button>
       </div>
       <div class="container">
-        <p>This interactive resume showcases professional-grade content based on zackgort.com/resume, enhanced with rich details and media in accordions for an engaging experience.</p>
+        <p>My CV: done my way; done two ways. I built it for speed. It's crafted for comfort. It's designed to be delightful, if only in an intuitive way.</p>
         <p>For inquiries or opportunities, reach out via:</p>
         <p>
           Email: <a href="mailto:zack@reasonably.cc">zack@reasonably.cc</a><br>
@@ -1370,13 +1372,13 @@
           LinkedIn: <a href="https://linkedin.com/in/zackgort" target="_blank">linkedin.com/in/zackgort</a>
         </p>
         <p>Available for full-time roles in design-led, data-driven environments.</p>
-        <h2>App Previews</h2>
+        <h2>Things I'm building:</h2>
         <h3>Note App</h3>
-        <img class="preview-img" src="https://gridfiti.com/wp-content/uploads/2023/06/Gridfiti_Blog_NoteTakingApps_0_Header.jpg" alt="Preview of intoview.pro/note" />
-        <a href="https://intoview.pro/note" target="_blank">View Note App</a>
+        <img class="preview-img" src="" alt="Preview of intoview.pro/note" />
+        <a href="https://intoview.pro/note" target="_blank">intoview:note</a>
         <h3>Kanban App</h3>
-        <img class="preview-img" src="https://website-assets.productive.io/uploads/2023/10/Kanbanachi.png" alt="Preview of intoview.pro/kanban" />
-        <a href="https://intoview.pro/kanban" target="_blank">View Kanban App</a>
+        <img class="preview-img" src="" alt="Preview of intoview.pro/kanban" />
+        <a href="https://intoview.pro/kanban" target="_blank">intoview:kanban</a>
       </div>
     </div>
   </div>
@@ -1385,7 +1387,7 @@
     <div class="menu-item" id="savePdf">Save as PDF</div>
   </div>
   <script>
-    // Gooey cursor
+    // Gooey cursor (added will-change and ensured persistence)
     (function initGooeyCursor() {
         const TAIL_LENGTH = 14;
         const host = document.getElementById('cursor');
@@ -1430,17 +1432,6 @@
         gridBtn.classList.remove('active');
         listBtn.classList.add('active');
     });
-    // Font toggle
-    const body = document.body;
-    const fontBtns = document.querySelectorAll('.font-btn');
-    fontBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        body.classList.remove('font-small', 'font-medium', 'font-large');
-        body.classList.add('font-' + btn.id);
-        fontBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-      });
-    });
     // Hover focus + subtle darken overlay for list
     const listRoot = document.getElementById('listView');
     const listItems = listView.querySelectorAll('.project-item:not(.section)');
@@ -1448,14 +1439,18 @@
     listItems.forEach(item => {
         item.addEventListener('mouseenter', () => {
             listRoot.classList.add('has-active');
-            listItems.forEach(i => i.classList.remove('active'));
+            listItems.forEach(i => { i.classList.remove('active'); i.classList.remove('adjacent'); });
             item.classList.add('active');
+            const prev = item.previousElementSibling;
+            const next = item.nextElementSibling;
+            if (prev && prev.classList.contains('project-item')) prev.classList.add('adjacent');
+            if (next && next.classList.contains('project-item')) next.classList.add('adjacent');
             gsap.to(listBgOverlay, { opacity: 0.15, duration: 0.7, ease: "power2.out" });
         });
     });
     listRoot.addEventListener('mouseleave', () => {
         listRoot.classList.remove('has-active');
-        listItems.forEach(i => i.classList.remove('active'));
+        listItems.forEach(i => { i.classList.remove('active'); i.classList.remove('adjacent'); });
         gsap.to(listBgOverlay, { opacity: 0, duration: 0.6 });
     });
     // Hover focus + subtle darken overlay for grid
@@ -1465,7 +1460,7 @@
     gridItems.forEach(item => {
         item.addEventListener('mouseenter', () => {
             gridRoot.classList.add('has-active');
-            gridItems.forEach(i => i.classList.remove('active'));
+            gridItems.forEach(i => { i.classList.remove('active'); i.classList.remove('adjacent'); });
             item.classList.add('active');
             gsap.to(gridBgOverlay, { opacity: 0.15, duration: 0.7, ease: "power2.out" });
             gsap.to(item, { scale: 1.02, duration: 0.3 });
@@ -1476,13 +1471,14 @@
     });
     gridRoot.addEventListener('mouseleave', () => {
         gridRoot.classList.remove('has-active');
-        gridItems.forEach(i => i.classList.remove('active'));
+        gridItems.forEach(i => { i.classList.remove('active'); i.classList.remove('adjacent'); });
         gsap.to(gridBgOverlay, { opacity: 0, duration: 0.6 });
     });
     // Theme toggle
     const themeToggle = document.getElementById('themeToggle');
     const themeIcon = document.getElementById('themeIcon');
     const logoToggle = document.getElementById('logoToggle');
+    const body = document.body;
     function toggleTheme() {
         const isLight = body.getAttribute('data-theme') === 'light';
         body.setAttribute('data-theme', isLight ? 'dark' : 'light');
@@ -1546,7 +1542,7 @@
         e.preventDefault();
         const now = Date.now();
         const deltaTime = now - lastTime;
-        if (deltaTime > 20) {  // Update velocity every 20ms
+        if (deltaTime > 20) { // Update velocity every 20ms
           velocityX = (e.pageX - lastX) / deltaTime;
           velocityY = (e.pageY - lastY) / deltaTime;
           lastX = e.pageX;
@@ -1563,9 +1559,9 @@
         element.style.cursor = 'grab';
         // Apply momentum
         const momentum = () => {
-          element.scrollLeft += velocityX * 30;  // Adjust factor for speed
+          element.scrollLeft += velocityX * 30; // Adjust factor for speed
           element.scrollTop += velocityY * 30;
-          velocityX *= 0.95;  // Friction
+          velocityX *= 0.95; // Friction
           velocityY *= 0.95;
           if (Math.abs(velocityX) > 0.01 || Math.abs(velocityY) > 0.01) {
             requestAnimationFrame(momentum);
