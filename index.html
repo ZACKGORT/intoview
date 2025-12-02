@@ -353,6 +353,59 @@
         mask: radial-gradient(100% 80% at 50% 50%, transparent 50%, rgb(255 255 255 / 0.98) 70%);
       }
     }
+
+    .right-toggle-nav, .left-toggle-nav {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: var(--z-ui);
+      background: var(--glass-bg);
+      padding: 8px;
+      border: 1px solid var(--glass-border);
+      border-radius: 4px;
+      pointer-events: auto;
+      overflow-y: auto;
+      max-height: 80vh;
+    }
+
+    .left-toggle-nav {
+      left: var(--corner-pad);
+    }
+
+    .right-toggle-nav {
+      right: var(--corner-pad);
+    }
+
+    .right-toggle-nav button, .left-toggle-nav button {
+      padding: 8px 16px;
+      background: transparent;
+      border: none;
+      color: var(--ink);
+      cursor: pointer;
+      transition: background 0.2s ease;
+      display: flex;
+      align-items: center;
+    }
+
+    .right-toggle-nav button:hover, .left-toggle-nav button:hover {
+      background: var(--glass-bg-hover);
+    }
+
+    .right-toggle-nav button.active, .left-toggle-nav button.active {
+      background: var(--glass-bg-bright);
+    }
+
+    @media (max-width: 768px) {
+      .right-toggle-nav button .text, .left-toggle-nav button .text {
+        display: none;
+      }
+      .right-toggle-nav button .emoji, .left-toggle-nav button .emoji {
+        display: inline;
+      }
+    }
   </style>
 </head>
 <body data-theme="dark">
@@ -385,6 +438,17 @@
     <button id="melodyBtn"><span class="text">Melody</span><span class="emoji">🎶</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button>
     <button id="emdashBtn"><span class="text">Emdash</span><span class="emoji">📝</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button>
     <button id="portfolioBtn"><span class="text">Portfolio</span><span class="emoji">🖼️</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button>
+  </div>
+
+  <div class="left-toggle-nav">
+    <button id="smallGridBtn" title="4x8 grid"><span class="text">4x8</span><span class="emoji">🧱</span></button>
+    <button id="largeGridBtn" title="6x12 grid"><span class="text">6x12</span><span class="emoji">🏰</span></button>
+  </div>
+
+  <div class="right-toggle-nav">
+    <button id="jediBtn" title="Jedi: launch/touch radius allows more blocks to be influenced by a single click; maintains current influence"><span class="text">Jedi</span><span class="emoji">🪄</span></button>
+    <button id="kickBtn" title="Kick: use current settings"><span class="text">Kick</span><span class="emoji">⚽</span></button>
+    <button id="tapBtn" title="Tap: light, curious kick/tap; less influence"><span class="text">Tap</span><span class="emoji">👆</span></button>
   </div>
 
   <div class="fab-wrap">
@@ -566,10 +630,7 @@
     groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
     groundBody.position.set(0, -6, 0);
     world.addBody(groundBody);
-    const cubes = [];
-    const rows = 4;
-    const cols = 8;
-    const spacing = 3.333;
+    let cubes = [];
     const cubeSize = 3.33;
     const mirrorMaterial = new THREE.MeshStandardMaterial({
       envMap: cubeRenderTarget.texture,
@@ -577,35 +638,77 @@
       roughness: 0.05,
       color: 0xffffff
     });
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-        const materials = [
-          accentMaterial, // right
-          accentMaterial, // left
-          accentMaterial, // top
-          accentMaterial, // bottom
-          mirrorMaterial, // front
-          accentMaterial  // back
-        ];
-        const cube = new THREE.Mesh(cubeGeo, materials);
-        const x = (j - cols / 2) * spacing + spacing / 2;
-        const y = (i - rows / 2) * spacing + spacing / 2;
-        const z = -2;
-        cube.position.set(x, y, z);
-        cube.castShadow = true;
-        cube.receiveShadow = true;
-        scene.add(cube);
-        const shape = new CANNON.Box(new CANNON.Vec3(cubeSize / 2, cubeSize / 2, cubeSize / 2));
-        const body = new CANNON.Body({ mass: 2 });
-        body.addShape(shape);
-        body.position.set(x, y, z);
-        body.linearDamping = 0.01;
-        body.angularDamping = 0.3;
-        world.addBody(body);
-        cubes.push({ mesh: cube, body: body, initial: { x, y, z } });
+    function createCubes(rows, cols) {
+      const spacing = cubeSize;
+      const bottomY = -6 + cubeSize / 2;
+      const leftX = - (cols - 1) * spacing / 2;
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+          const materials = [
+            accentMaterial,
+            accentMaterial,
+            accentMaterial,
+            accentMaterial,
+            mirrorMaterial,
+            accentMaterial
+          ];
+          const cube = new THREE.Mesh(cubeGeo, materials);
+          const x = leftX + j * spacing;
+          const y = bottomY + i * spacing;
+          const z = 0;
+          cube.position.set(x, y, z);
+          cube.castShadow = true;
+          cube.receiveShadow = true;
+          scene.add(cube);
+          const shape = new CANNON.Box(new CANNON.Vec3(cubeSize / 2, cubeSize / 2, cubeSize / 2));
+          const body = new CANNON.Body({ mass: 2 });
+          body.addShape(shape);
+          body.position.set(x, y, z);
+          body.linearDamping = 0.01;
+          body.angularDamping = 0.3;
+          world.addBody(body);
+          cubes.push({ mesh: cube, body: body, initial: { x, y, z } });
+        }
       }
     }
+    function removeCubes() {
+      cubes.forEach(({ mesh, body }) => {
+        scene.remove(mesh);
+        world.remove(body);
+      });
+      cubes = [];
+    }
+    function settle() {
+      const fixedTimeStep = 1 / 60;
+      for (let i = 0; i < 100; i++) {
+        world.step(fixedTimeStep);
+      }
+      cubes.forEach(({ mesh, body }) => {
+        mesh.position.copy(body.position);
+        mesh.quaternion.copy(body.quaternion);
+      });
+    }
+    let currentGrid = 'small';
+    createCubes(4, 8);
+    settle();
+    document.getElementById('smallGridBtn').classList.add('active');
+    document.querySelectorAll('.left-toggle-nav button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const newGrid = btn.id === 'smallGridBtn' ? 'small' : 'large';
+        if (newGrid !== currentGrid) {
+          document.querySelectorAll('.left-toggle-nav button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          removeCubes();
+          currentGrid = newGrid;
+          const rows = currentGrid === 'small' ? 4 : 6;
+          const cols = currentGrid === 'small' ? 8 : 12;
+          createCubes(rows, cols);
+          settle();
+          camera.position.z = currentGrid === 'small' ? 11 : 16.5;
+        }
+      });
+    });
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     function onMouseClick(event) {
@@ -614,16 +717,40 @@
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(cubes.map(c => c.mesh));
       if (intersects.length > 0) {
-        const cube = cubes.find(c => c.mesh === intersects[0].object);
-        if (cube) {
-          const impulse = new CANNON.Vec3(0, 0, -50);
-          cube.body.applyImpulse(impulse, cube.body.position);
-          const torque = new CANNON.Vec3(
-            (Math.random() - 0.5) * 120,
-            (Math.random() - 0.5) * 120,
-            (Math.random() - 0.5) * 120
-          );
-          cube.body.angularVelocity.set(torque.x, torque.y, torque.z);
+        const intersect = intersects[0];
+        const point = intersect.point.clone();
+        let impulseStrength = 50;
+        if (mode === 'tap') {
+          impulseStrength = 5;
+        }
+        if (mode === 'jedi') {
+          const radius = 10;
+          cubes.forEach(cube => {
+            const dist = cube.mesh.position.distanceTo(point);
+            if (dist < radius) {
+              const factor = 1 - dist / radius;
+              const impulse = new CANNON.Vec3(0, 0, -impulseStrength * factor * 1.5);
+              cube.body.applyImpulse(impulse, cube.body.position);
+              const torque = new CANNON.Vec3(
+                (Math.random() - 0.5) * 420 * factor,
+                (Math.random() - 0.5) * 420 * factor,
+                (Math.random() - 0.5) * 420 * factor
+              );
+              cube.body.angularVelocity.vadd(torque, cube.body.angularVelocity);
+            }
+          });
+        } else {
+          const cube = cubes.find(c => c.mesh === intersect.object);
+          if (cube) {
+            const impulse = new CANNON.Vec3(0, 0, -impulseStrength);
+            cube.body.applyImpulse(impulse, cube.body.position);
+            const torque = new CANNON.Vec3(
+              (Math.random() - 0.5) * 120,
+              (Math.random() - 0.5) * 120,
+              (Math.random() - 0.5) * 120
+            );
+            cube.body.angularVelocity.set(torque.x, torque.y, torque.z);
+          }
         }
       }
     }
@@ -667,6 +794,22 @@
     }
     window.addEventListener('resize', onWindowResize);
     animate();
+
+    let mode = 'kick';
+    document.getElementById('kickBtn').classList.add('active');
+    document.querySelectorAll('.right-toggle-nav button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.right-toggle-nav button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        mode = btn.id.replace('Btn', '').toLowerCase();
+        if (mode === 'jedi') {
+          world.gravity.set(0, -5, 0);
+        } else {
+          world.gravity.set(0, -15, 0);
+        }
+      });
+    });
+
     const fabButton = document.getElementById('fabButton');
     const overlay = document.getElementById('overlay');
     const closeOverlayBtn = document.getElementById('closeOverlay');
@@ -713,6 +856,7 @@
         body.angularVelocity.set(0, 0, 0);
         body.quaternion.set(0, 0, 0, 1);
       });
+      settle();
     }
     document.getElementById('resetBtn').addEventListener('click', () => {
       resetCubes();
