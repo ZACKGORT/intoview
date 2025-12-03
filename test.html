@@ -677,10 +677,7 @@
 
     // Create mirror blocks
     let cubes = [];
-    const ROWS = 4;
-    const COLS = 10;
-    const BOX_SIZE = 2;
-    
+    let currentGrid = 'pedro';
     const sideMaterial = new THREE.MeshPhysicalMaterial({
       color: 0x921212,
       envMap: cubeRenderTarget.texture,
@@ -695,10 +692,13 @@
       color: 0x929292
     });
 
-    function createCubes() {
-      for (let i = 0; i < ROWS; i++) {
-        for (let j = 0; j < COLS; j++) {
-          const cubeGeo = new THREE.BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE);
+    function createCubes(rows, cols, boxSize) {
+      const spacing = boxSize;
+      const bottomY = -2 + boxSize / 2;
+      const leftX = - (cols - 1) * spacing / 2;
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          const cubeGeo = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
           const materials = [
             sideMaterial,
             sideMaterial,
@@ -708,62 +708,134 @@
             sideMaterial
           ];
           const cube = new THREE.Mesh(cubeGeo, materials);
-          
-          const x = -COLS + (j * BOX_SIZE);
-          const y = -1 + BOX_SIZE * i;
+          const x = leftX + j * spacing;
+          const y = bottomY + i * spacing;
           const z = 0;
-          
           cube.position.set(x, y, z);
           cube.castShadow = true;
           cube.receiveShadow = true;
           scene.add(cube);
-          
-          const shape = new CANNON.Box(new CANNON.Vec3(BOX_SIZE / 2, BOX_SIZE / 2, BOX_SIZE / 2));
-          const body = new CANNON.Body({ 
-            mass: 1,
-            material: new CANNON.Material({ friction: 1, restitution: 0 })
-          });
+          const shape = new CANNON.Box(new CANNON.Vec3(boxSize / 2, boxSize / 2, boxSize / 2));
+          const body = new CANNON.Body({ mass: 2 });
           body.addShape(shape);
           body.position.set(x, y, z);
           body.linearDamping = 0.01;
           body.angularDamping = 0.3;
           world.addBody(body);
-          
           cubes.push({ mesh: cube, body: body, initial: { x, y, z } });
         }
       }
     }
 
-    createCubes();
+    function removeCubes() {
+      cubes.forEach(({ mesh, body }) => {
+        scene.remove(mesh);
+        world.remove(body);
+      });
+      cubes = [];
+    }
+
+    function settle() {
+      const fixedTimeStep = 1 / 60;
+      for (let i = 0; i < 100; i++) {
+        world.step(fixedTimeStep);
+      }
+      cubes.forEach(({ mesh, body }) => {
+        mesh.position.copy(body.position);
+        mesh.quaternion.copy(body.quaternion);
+      });
+    }
+
+    createCubes(4, 10, 2);
+    settle();
+    document.getElementById('pedroGridBtn').classList.add('active');
+
+    document.querySelectorAll('.left-toggle-nav button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        let rows, cols, boxSize, cameraZ;
+        if (btn.id === 'smallGridBtn') {
+          rows = 4; cols = 8; boxSize = 3.33; cameraZ = 11;
+        } else if (btn.id === 'largeGridBtn') {
+          rows = 6; cols = 12; boxSize = 3.33; cameraZ = 16.5;
+        } else if (btn.id === 'pedroGridBtn') {
+          rows = 4; cols = 10; boxSize = 2; cameraZ = 5;
+        }
+        if (btn.id.replace('GridBtn', '') !== currentGrid) {
+          document.querySelectorAll('.left-toggle-nav button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          removeCubes();
+          currentGrid = btn.id.replace('GridBtn', '');
+          createCubes(rows, cols, boxSize);
+          settle();
+          camera.position.z = cameraZ;
+        }
+      });
+    });
 
     // Mouse interaction
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    
+    let mode = 'kick';
+    document.getElementById('kickBtn').classList.add('active');
+
     function onMouseClick(event) {
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-      
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(cubes.map(c => c.mesh));
-      
       if (intersects.length > 0) {
-        const cube = cubes.find(c => c.mesh === intersects[0].object);
-        if (cube) {
-          const impulse = new CANNON.Vec3(0, 0, -50);
-          cube.body.applyImpulse(impulse, cube.body.position);
-          
-          const torque = new CANNON.Vec3(
-            (Math.random() - 0.5) * 120,
-            (Math.random() - 0.5) * 120,
-            (Math.random() - 0.5) * 120
-          );
-          cube.body.angularVelocity.set(torque.x, torque.y, torque.z);
+        const intersect = intersects[0];
+        const point = intersect.point.clone();
+        let impulseStrength = 50;
+        if (mode === 'tap') {
+          impulseStrength = 5;
+        }
+        if (mode === 'jedi') {
+          const radius = 10;
+          cubes.forEach(cube => {
+            const dist = cube.mesh.position.distanceTo(point);
+            if (dist < radius) {
+              const factor = 1 - dist / radius;
+              const impulse = new CANNON.Vec3(0, 0, -impulseStrength * factor * 1.5);
+              cube.body.applyImpulse(impulse, cube.body.position);
+              const torque = new CANNON.Vec3(
+                (Math.random() - 0.5) * 420 * factor,
+                (Math.random() - 0.5) * 420 * factor,
+                (Math.random() - 0.5) * 420 * factor
+              );
+              cube.body.angularVelocity.vadd(torque, cube.body.angularVelocity);
+            }
+          });
+        } else {
+          const cube = cubes.find(c => c.mesh === intersect.object);
+          if (cube) {
+            const impulse = new CANNON.Vec3(0, 0, -impulseStrength);
+            cube.body.applyImpulse(impulse, cube.body.position);
+            const torque = new CANNON.Vec3(
+              (Math.random() - 0.5) * 120,
+              (Math.random() - 0.5) * 120,
+              (Math.random() - 0.5) * 120
+            );
+            cube.body.angularVelocity.set(torque.x, torque.y, torque.z);
+          }
         }
       }
     }
     
     window.addEventListener('click', onMouseClick);
+
+    document.querySelectorAll('.right-toggle-nav button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.right-toggle-nav button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        mode = btn.id.replace('Btn', '').toLowerCase();
+        if (mode === 'jedi') {
+          world.gravity.set(0, -5, 0);
+        } else {
+          world.gravity.set(0, -15, 0);
+        }
+      });
+    });
 
     // Mouse movement for rotation
     const targetRotation = { x: 0, y: 0 };
@@ -819,6 +891,156 @@
     window.addEventListener('resize', onWindowResize);
     
     animate();
+
+    function resetCubes() {
+      cubes.forEach(({ body, initial }) => {
+        body.position.set(initial.x, initial.y, initial.z);
+        body.velocity.set(0, 0, 0);
+        body.angularVelocity.set(0, 0, 0);
+        body.quaternion.set(0, 0, 0, 1);
+      });
+      settle();
+    }
+
+    document.getElementById('resetNavBtn').addEventListener('click', resetCubes);
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      resetCubes();
+      closeOverlayFn();
+    });
+
+    // Add FAB and overlay logic from BLOCK.html
+    const fabButton = document.getElementById('fabButton');
+    const overlay = document.getElementById('overlay');
+    const closeOverlayBtn = document.getElementById('closeOverlay');
+    let lastFocus = null;
+    function openOverlay() {
+      lastFocus = document.activeElement;
+      overlay.classList.add('open');
+      const sheet = overlay.querySelector('.sheet');
+      sheet.setAttribute('tabindex', '-1');
+      gsap.fromTo(sheet, 
+        { x: '100%', opacity: 0, scale: 0.95 },  
+        { x: '0%', opacity: 1, scale: 1, duration: 0.6, ease: 'power3.out' }  
+      );
+      sheet.focus();
+      overlay.setAttribute('aria-hidden', 'false');
+      fabButton.setAttribute('aria-expanded', 'true');
+      overlay.addEventListener('click', handleOutsideClick);
+    }
+    function closeOverlayFn() {
+      const sheet = overlay.querySelector('.sheet');
+      gsap.to(sheet, {
+        x: '100%', opacity: 0, scale: 0.95, duration: 0.4, ease: 'power2.in',
+        onComplete: () => {
+          overlay.classList.remove('open');
+          overlay.setAttribute('aria-hidden', 'true');
+          fabButton.setAttribute('aria-expanded', 'false');
+          if (lastFocus) lastFocus.focus();
+          overlay.removeEventListener('click', handleOutsideClick);
+        }
+      });
+    }
+    function handleOutsideClick(e) {
+      const sheet = overlay.querySelector('.sheet');
+      if (!sheet.contains(e.target)) {
+        closeOverlayFn();
+      }
+    }
+    fabButton.addEventListener('click', openOverlay);
+    closeOverlayBtn.addEventListener('click', closeOverlayFn);
+
+    // Add cursor trail from BLOCK.html
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const isFinePointer = window.matchMedia('(pointer: fine)').matches;
+    const shouldRunCursor = isFinePointer && !prefersReducedMotion;
+    (() => {
+      if (!shouldRunCursor) return;
+      const TAIL_LENGTH = innerWidth < 800 ? 6 : 14;
+      const host = document.getElementById('cursor');
+      if (!host) return;
+      for (let i = 0; i < TAIL_LENGTH; i++) {
+        const d = document.createElement('div');
+        d.className = 'cursor-circle';
+        host.appendChild(d);
+      }
+      const circles = host.querySelectorAll('.cursor-circle');
+      let mouseX = innerWidth / 2, mouseY = innerHeight / 2;
+      const history = Array(TAIL_LENGTH).fill(0).map(() => ({ x: mouseX, y: mouseY }));
+      window.addEventListener('pointermove', e => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      }, { passive: true });
+      function tick() {
+        history.shift();
+        history.push({ x: mouseX, y: mouseY });
+        circles.forEach((c, i) => {
+          const cur = history[i];
+          const next = history[i + 1] || history[TAIL_LENGTH - 1];
+          cur.x += (next.x - cur.x) * 0.35;
+          cur.y += (next.y - cur.y) * 0.35;
+          const s = Math.max(0.22, i / TAIL_LENGTH);
+          c.style.transform = `translate(calc(${cur.x}px - 50%), calc(${cur.y}px - 50%)) scale(${s})`;
+        });
+        requestAnimationFrame(tick);
+      }
+      tick();
+    })();
+
+    // Add context menu from BLOCK.html
+    const contextMenu = document.getElementById('contextMenu');
+    document.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      contextMenu.style.left = `${e.pageX}px`;
+      contextMenu.style.top = `${e.pageY}px`;
+      contextMenu.style.display = 'block';
+    });
+    document.addEventListener('click', (e) => {
+      if (!contextMenu.contains(e.target)) {
+        contextMenu.style.display = 'none';
+      }
+    });
+    document.getElementById('contextReset').addEventListener('click', () => {
+      resetCubes();
+      contextMenu.style.display = 'none';
+    });
+    document.getElementById('contextCopyResume').addEventListener('click', () => {
+      navigator.clipboard.writeText('https://intoview.pro/cv').then(() => {
+        alert('Resume link copied to clipboard!');
+      });
+      contextMenu.style.display = 'none';
+    });
+    document.getElementById('contextCopyPortfolio').addEventListener('click', () => {
+      navigator.clipboard.writeText('https://zackgort.com').then(() => {
+        alert('Portfolio link copied to clipboard!');
+      });
+      contextMenu.style.display = 'none';
+    });
+
+    // Add top nav links from BLOCK.html
+    document.getElementById('cvBtn').addEventListener('click', () => {
+      window.location.href = 'https://intoview.pro/cv';
+    });
+    document.getElementById('noteBtn').addEventListener('click', () => {
+      window.location.href = 'https://intoview.pro/note';
+    });
+    document.getElementById('kanbanBtn').addEventListener('click', () => {
+      window.location.href = 'https://intoview.pro/kanban';
+    });
+    document.getElementById('melodyBtn').addEventListener('click', () => {
+      window.location.href = 'https://intoview.pro/melody';
+    });
+    document.getElementById('emdashBtn').addEventListener('click', () => {
+      window.location.href = 'https://emdash.click/';
+    });
+    document.getElementById('portfolioBtn').addEventListener('click', () => {
+      window.location.href = 'https://zackgort.com';
+    });
+
+    // Add Pedro theme toggle (assuming it switches to pedro theme)
+    document.getElementById('pedroBtn').addEventListener('click', () => {
+      document.body.setAttribute('data-theme', 'pedro');
+      scene.background = new THREE.Color(0x921212);
+    });
   </script>
 </body>
 </html>
