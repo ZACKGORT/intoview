@@ -868,14 +868,33 @@
       });
     }
     let currentGrid = 'small';
-    function updateGrid() {
-      removeCubes();
-      const aspect = window.innerWidth / window.innerHeight;
+    function getCameraTargets() {
       const rows = currentGrid === 'small' ? 4 : 6;
+      const aspect = window.innerWidth / window.innerHeight;
       const baseCols = currentGrid === 'small' ? 8 : 12;
-      const cols = Math.round(baseCols * aspect);
+      const cols = Math.round(baseCols * aspect * 1.2);
+      const gridWidth = cols * cubeSize;
+      const isMobile = window.innerWidth < 768;
+      const targetCamY = currentGrid === 'small' ? -5 : 20;
+      let targetCamZ = currentGrid === 'small' ? gridWidth * 0.8 + 10 : gridWidth * 1.5 + 20;
+      targetCamZ *= (isMobile ? 0.7 : 1);
+      const targetRotX = currentGrid === 'small' ? 0.2 : -0.6;
+      return { y: targetCamY, z: targetCamZ, rotX: targetRotX, rows, cols };
+    }
+    function updateGrid(animateCamera = false) {
+      removeCubes();
+      const { rows, cols } = getCameraTargets();
       createCubes(rows, cols);
       settle();
+      if (animateCamera) {
+        const targets = getCameraTargets();
+        const duration = currentGrid === 'small' ? 0.8 : 2;
+        const posEase = currentGrid === 'small' ? 'back.out' : 'power1.inOut';
+        const rotEase = 'power1.inOut';
+        gsap.to(camera.position, { y: targets.y, z: targets.z, duration, ease: posEase });
+        gsap.to(camera.rotation, { x: targets.rotX, duration, ease: rotEase });
+        gsap.to(scene.rotation, { y: '+=0.5', duration: 1, ease: 'power2.out' });
+      }
     }
     updateGrid();
     document.getElementById('smallGridBtn').classList.add('active');
@@ -892,12 +911,7 @@
           btn.classList.add('active');
           btn.setAttribute('aria-pressed', 'true');
           currentGrid = newGrid;
-          updateGrid();
-          const targetCamY = currentGrid === 'small' ? 0 : 5;
-          const targetCamZ = currentGrid === 'small' ? 22 : 36;
-          const targetRotX = currentGrid === 'small' ? -0.1 : -0.3;
-          gsap.to(camera.position, { y: targetCamY, z: targetCamZ, duration: 1.2, ease: 'power2.inOut' });
-          gsap.to(camera.rotation, { x: targetRotX, duration: 1.2, ease: 'power2.inOut' });
+          updateGrid(true);
         }
       });
     });
@@ -983,7 +997,7 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      updateGrid();
+      updateGrid(true);
     }
     window.addEventListener('resize', onWindowResize);
     animate();
