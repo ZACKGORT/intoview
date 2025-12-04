@@ -16,7 +16,7 @@
     }
     
     body {
-      overflow: 0;
+      overflow: hidden;
       font-family: 'Arial', sans-serif;
       background: #0f1014; /* Dark Default */
     }
@@ -364,8 +364,6 @@
       background: var(--glass-bg-hover);
     }
 
-    }
-
     .vignette {
       position: fixed; inset: 0; pointer-events: none; z-index: var(--z-vig);
       background: radial-gradient(120% 90% at 50% 50%, #fff0 10%, rgb(15 16 20 / 0.8) 60%, rgb(15 16 20 / 1) 100%);
@@ -675,10 +673,8 @@
     
     const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
     const svgUrl = URL.createObjectURL(svgBlob);
-    
     const textureLoader = new THREE.TextureLoader();
     const logoTexture = textureLoader.load(svgUrl);
-    
     const logoPlaneGeo = new THREE.PlaneGeometry(80, 20);
     const logoPlaneMat = new THREE.MeshBasicMaterial({ 
       map: logoTexture,
@@ -686,10 +682,13 @@
       transparent: true
     });
     const logoPlane = new THREE.Mesh(logoPlaneGeo, logoPlaneMat);
-    logoPlane.position.z = -150;
+    logoPlane.position.set(0, 8, -222);
     scene.add(logoPlane);
-    
-    // Cube camera for reflections
+    const logoShape = new CANNON.Box(new CANNON.Vec3(40, 10, 0.1));
+    const logoBody = new CANNON.Body({ mass: 0 });
+    logoBody.addShape(logoShape);
+    logoBody.position.set(0, 0, -10);
+    world.addBody(logoBody);
     const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512, {
       format: THREE.RGBFormat,
       generateMipmaps: true,
@@ -697,34 +696,21 @@
     });
     const cubeCamera = new THREE.CubeCamera(0.1, 1000, cubeRenderTarget);
     scene.add(cubeCamera);
-    
-    // Ground
     const groundGeo = new THREE.PlaneGeometry(800, 800);
-    const groundMat = new THREE.ShadowMaterial({ opacity: 0.2 });
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0f1014, roughness: 1, metalness: 0 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -6;
     ground.receiveShadow = true;
     scene.add(ground);
-    
     const groundShape = new CANNON.Plane();
     const groundBody = new CANNON.Body({ mass: 0 });
     groundBody.addShape(groundShape);
     groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-    groundBody.position.set(0, -9, 0);
+    groundBody.position.set(0, -6, 0);
     world.addBody(groundBody);
-    
-    // Back wall collision
-    const wallShape = new CANNON.Plane();
-    const wallBody = new CANNON.Body({ mass: 0 });
-    wallBody.addShape(wallShape);
-    wallBody.position.set(0, 0, -111);
-    world.addBody(wallBody);
-    
-    // Create cube wall with mirror front face only - MUCH LARGER
     let cubes = [];
     let cubeSize = 3.33;
-    
     // Mirror material for front face
     const fresnelMap = new ThinFilmFresnelMap();
     const mirrorMaterial = new THREE.MeshStandardMaterial({
@@ -1040,14 +1026,11 @@
         body.angularVelocity.set(0, 0, 0);
         body.quaternion.set(0, 0, 0, 1);
       });
-      settle();
     }
 
-    document.getElementById('resetBtn').addEventListener('click', () => {
-      resetCubes();
-      closeOverlayFn();
-    });
-    document.getElementById('resetTopBtn').addEventListener('click', resetCubes);
+    document.getElementById('resetBtn').addEventListener('click', resetCubes);
+    document.getElementById('resetNavBtn').addEventListener('click', resetCubes);
+
 
     // Cursor Trail Logic
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1127,6 +1110,7 @@
       resetCubes();
       contextMenu.style.display = 'none';
     });
+
 
     document.getElementById('contextCopyResume').addEventListener('click', () => {
       navigator.clipboard.writeText('https://intoview.pro/cv').then(() => {
