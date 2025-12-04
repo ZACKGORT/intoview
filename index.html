@@ -451,7 +451,7 @@
 </head>
 <body data-theme="dark">
   <div class="logo">
-    <img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg.svg" alt="IntoView Logo">
+    <img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg" alt="IntoView Logo">
   </div>
 
   <div class="corner-reset">
@@ -490,9 +490,9 @@
   </div>
 
   <div class="right-toggle-nav">
-    <button id="jediBtn" title="Jedi: launch/touch radius allows more blocks to be influenced by a single click; maintains current influence"><span class="text">Jedi</span><span class="emoji">🪄</span></button>
+    <button id="jediBtn" title="Force: directional launch with radius influence"><span class="text">Force</span><span class="emoji">🪄</span></button>
     <button id="kickBtn" class="active" title="Kick: use current settings"><span class="text">Kick</span><span class="emoji">⚽</span></button>
-    <button id="tapBtn" title="Tap: light, curious kick/tap; less influence"><span class="text">Tap</span><span class="emoji">👆</span></button>
+    <button id="pewBtn" title="Pew: shoots the block straight back like a bullet"><span class="text">Pew</span><span class="emoji">🚀</span></button>
   </div>
 
   <div class="fab-wrap">
@@ -793,7 +793,10 @@
       cubes = [];
     }
     
-    function settle() {
+    function bounceAndSettle() {
+      cubes.forEach(({ body }) => {
+        body.position.y += 0.5; // Slight upward offset for bounce
+      });
       const fixedTimeStep = 1 / 50;
       const iterations = isMobileDevice ? 50 : 100;
       for (let i = 0; i < iterations; i++) {
@@ -834,7 +837,7 @@
       removeCubes();
       const { rows, cols } = getCameraTargets();
       createCubes(rows, cols);
-      settle();
+      bounceAndSettle();
       if (animateCamera) {
         const targets = getCameraTargets();
         const duration = currentGrid === 'micro' ? 0.8 : 2;
@@ -881,26 +884,14 @@
         const intersect = intersects[0];
         const point = intersect.point.clone();
         let impulseStrength = 50;
-        if (mode === 'tap') {
-          impulseStrength = 5;
-        }
-        if (mode === 'jedi') {
-          const radius = 10;
-          cubes.forEach(cube => {
-            const dist = cube.mesh.position.distanceTo(point);
-            if (dist < radius) {
-              const factor = 1 - dist / radius;
-              const impulse = new CANNON.Vec3(0, 0, -impulseStrength * factor * 1.5);
-              cube.body.applyImpulse(impulse, cube.body.position);
-              const torque = new CANNON.Vec3(
-                (Math.random() - 0.5) * 420 * factor,
-                (Math.random() - 0.5) * 420 * factor,
-                (Math.random() - 0.5) * 420 * factor
-              );
-              cube.body.angularVelocity.vadd(torque, cube.body.angularVelocity);
-            }
-          });
-        } else {
+        if (mode === 'pew') {
+          const cube = cubes.find(c => c.mesh === intersect.object);
+          if (cube) {
+            const impulse = new CANNON.Vec3(0, 0, -impulseStrength * 2);
+            cube.body.applyImpulse(impulse, cube.body.position);
+            // No torque for straight shot
+          }
+        } else if (mode === 'kick') {
           const cube = cubes.find(c => c.mesh === intersect.object);
           if (cube) {
             const impulse = new CANNON.Vec3(0, 0, -impulseStrength);
@@ -912,6 +903,26 @@
             );
             cube.body.angularVelocity.set(torque.x, torque.y, torque.z);
           }
+        } else if (mode === 'jedi') {
+          const radius = 10;
+          cubes.forEach(cube => {
+            const dist = cube.mesh.position.distanceTo(point);
+            if (dist < radius) {
+              const factor = 1 - dist / radius;
+              const direction = new CANNON.Vec3();
+              direction.copy(point);
+              direction.vsub(cube.body.position, direction);
+              direction.normalize();
+              direction.scale(-impulseStrength * factor * 1.5, direction);
+              cube.body.applyImpulse(direction, cube.body.position);
+              const torque = new CANNON.Vec3(
+                (Math.random() - 0.5) * 420 * factor,
+                (Math.random() - 0.5) * 420 * factor,
+                (Math.random() - 0.5) * 420 * factor
+              );
+              cube.body.angularVelocity.vadd(torque, cube.body.angularVelocity);
+            }
+          });
         }
       }
     }
@@ -1070,6 +1081,7 @@
         body.angularVelocity.set(0, 0, 0);
         body.quaternion.set(0, 0, 0, 1);
       });
+      bounceAndSettle();
     }
 
     document.getElementById('resetBtn').addEventListener('click', () => {
@@ -1077,6 +1089,14 @@
       closeOverlayFn();
     });
     document.getElementById('resetTopBtn').addEventListener('click', resetCubes);
+
+    // Spacebar for reset
+    document.addEventListener('keydown', (event) => {
+      if (event.key === ' ') {
+        event.preventDefault();
+        resetCubes();
+      }
+    });
 
 
     // Cursor Trail Logic
