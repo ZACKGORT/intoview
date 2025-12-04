@@ -753,7 +753,16 @@
       metalness: 0.222,
       roughness: 0.333
     });
-    accentLight.color = accentColor; 
+    accentLight.color = accentColor;
+    
+    // Pink material for clicked cubes
+    const pinkMaterial = new THREE.MeshStandardMaterial({
+      color: 0xFF8DA1, // Think Pink color
+      metalness: 0.3,
+      roughness: 0.4,
+      emissive: 0xFF8DA1,
+      emissiveIntensity: 0.1
+    }); 
     
     // Load IntoView logo SVG
     const svgString = `
@@ -900,7 +909,13 @@
           body.linearDamping = 0.3;
           body.angularDamping = 0.3;
           world.addBody(body);
-          cubes.push({ mesh: cube, body: body, initial: { x, y, z } });
+          cubes.push({ 
+            mesh: cube, 
+            body: body, 
+            initial: { x, y, z },
+            originalMaterials: [...materials], // Store original materials
+            isPink: false // Track pink state
+          });
         }
       }
     }
@@ -1068,6 +1083,37 @@
       body.angularDamping = 0.6;
     }
     
+    // Function to toggle cube color to pink
+    function toggleCubePink(cube) {
+      const pinkFaceMaterials = [
+        pinkMaterial,  // right
+        pinkMaterial,  // left
+        pinkMaterial,  // top
+        pinkMaterial,  // bottom
+        pinkMaterial,  // front
+        pinkMaterial   // back
+      ];
+      
+      if (cube.isPink) {
+        // Revert to original materials
+        cube.mesh.material = cube.originalMaterials;
+        cube.isPink = false;
+      } else {
+        // Apply pink materials
+        cube.mesh.material = pinkFaceMaterials;
+        cube.isPink = true;
+        
+        // Add a little glow effect
+        gsap.to(cube.mesh.scale, {
+          x: 1.1, y: 1.1, z: 1.1,
+          duration: 0.2,
+          ease: "back.out",
+          yoyo: true,
+          repeat: 1
+        });
+      }
+    }
+    
     function onMouseClick(event) {
       if (event.target.closest('button') || event.target.closest('.fab')) return;
       
@@ -1089,6 +1135,13 @@
         const intersect = intersects[0];
         const point = intersect.point.clone();
         let impulseStrength = 50;
+        
+        // Toggle pink color on clicked cube
+        const clickedCube = cubes.find(c => c.mesh === intersect.object);
+        if (clickedCube) {
+          toggleCubePink(clickedCube);
+        }
+        
         if (mode === 'pew') {
           const cube = cubes.find(c => c.mesh === intersect.object);
           if (cube) {
@@ -1116,7 +1169,7 @@
             capAngularVelocity(cube.body);
           }
         } else if (mode === 'jedi') {
-          const radius = 7;
+          const radius = 14;
           cubes.forEach(cube => {
             const dist = cube.mesh.position.distanceTo(point);
             if (dist < radius) {
@@ -1131,8 +1184,8 @@
               
               // FIX 2: Capped and scaled torque for jedi mode
               const torque = new CANNON.Vec3(
-                (Math.random() - 0.5) * 50 * factor, // Reduced from 333
-                (Math.random() - 0.5) * 35 * factor, // Reduced from 222
+                (Math.random() - 0.5) * 666 * factor, // Reduced from 333
+                (Math.random() - 0.5) * 333 * factor, // Reduced from 222
                 (Math.random() - 0.5) * 15 * factor  // Reduced from 50
               );
               cube.body.angularVelocity.vadd(torque, cube.body.angularVelocity);
@@ -1296,12 +1349,21 @@
     closeOverlayBtn.addEventListener('click', closeOverlayFn);
 
     function resetCubes() {
-      cubes.forEach(({ body, initial }) => {
+      cubes.forEach(({ body, initial, originalMaterials }) => {
         body.position.set(initial.x, initial.y, initial.z);
         body.velocity.set(0, 0, 0);
         body.angularVelocity.set(0, 0, 0);
         body.quaternion.set(0, 0, 0, 1);
         body.wakeUp();
+        
+        // Reset cube color to original materials
+        const cube = cubes.find(c => c.body === body);
+        if (cube && cube.isPink) {
+          cube.mesh.material = originalMaterials;
+          cube.isPink = false;
+          // Reset scale
+          cube.mesh.scale.set(1, 1, 1);
+        }
       });
       bounceAndSettle();
     }
@@ -1474,7 +1536,7 @@
       
       zoomTimeout = setTimeout(() => {
         isZooming = false;
-        zoomTimeout = null;
+        zoomTimeout = null;jedi
       }, 50);
     }
     
