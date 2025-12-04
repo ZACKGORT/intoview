@@ -541,6 +541,34 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
   
   <script>
+    class ThinFilmFresnelMap extends THREE.Texture {
+      constructor(thickness = 500) {
+        super();
+        this.thickness = thickness;
+        this.generate();
+      }
+
+      generate() {
+        const width = 512;
+        const height = 1;
+        const data = new Uint8Array(width * 4);
+        for (let i = 0; i < width; i++) {
+          const cosTheta = i / width;
+          const u = Math.pow(1 - cosTheta, 5);
+          data[i * 4] = Math.floor(255 * (0.04 + (1 - 0.04) * u) + Math.sin(this.thickness / 100 * i / width * 2 * Math.PI) * 0.5 + 0.5 * 255);
+          data[i * 4 + 1] = Math.floor(255 * u + Math.sin(this.thickness / 100 * i / width * 2 * Math.PI + 2 * Math.PI / 3) * 0.5 + 0.5 * 255);
+          data[i * 4 + 2] = Math.floor(255 * u + Math.sin(this.thickness / 100 * Math.PI * 2 * i / width + 4 * Math.PI / 3) * 0.5 + 0.5 * 255);
+          data[i * 4 + 3] = 255;
+        }
+        this.image = { data, width, height };
+        this.magFilter = THREE.LinearFilter;
+        this.minFilter = THREE.LinearFilter;
+        this.wrapS = THREE.ClampToEdgeWrapping;
+        this.wrapT = THREE.ClampToEdgeWrapping;
+        this.needsUpdate = true;
+      }
+    }
+
     const canvas = document.getElementById('canvas');
     const scene = new THREE.Scene();
     
@@ -683,7 +711,7 @@
     const groundBody = new CANNON.Body({ mass: 0 });
     groundBody.addShape(groundShape);
     groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-    groundBody.position.set(0, -6, 0);
+    groundBody.position.set(0, -9, 0);
     world.addBody(groundBody);
     
     // Back wall collision
@@ -694,13 +722,11 @@
     world.addBody(wallBody);
     
     // Create cube wall with mirror front face only - MUCH LARGER
-    const cubes = [];
-    const rows = 4;
-    const cols = 8;
-    const spacing = 3.333
-    const cubeSize = 3.33;
+    let cubes = [];
+    let cubeSize = 3.33;
     
     // Mirror material for front face
+    const fresnelMap = new ThinFilmFresnelMap();
     const mirrorMaterial = new THREE.MeshStandardMaterial({
       envMap: cubeRenderTarget.texture,
       metalness: 1,
@@ -708,47 +734,131 @@
       color: 0xffffff
     });
     
-    const initialPositions = [];
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-        
-        const materials = [
-          accentMaterial, // right
-          accentMaterial, // left
-          accentMaterial, // top
-          accentMaterial, // bottom
-          mirrorMaterial, // front (facing camera)
-          accentMaterial  // back
-        ];
-        
-        const cube = new THREE.Mesh(cubeGeo, materials);
-        
-        const x = (j - cols / 2) * spacing + spacing / 2;
-        const y = (i - rows / 2) * spacing + spacing / 2;
-        const z = -2;
-        
-        cube.position.set(x, y, z);
-        cube.castShadow = true;
-        cube.receiveShadow = true;
-        scene.add(cube);
-        
-        // Physics body
-        const shape = new CANNON.Box(new CANNON.Vec3(cubeSize / 2, cubeSize / 2, cubeSize / 2));
-        const body = new CANNON.Body({ mass: 2 });
-        body.addShape(shape);
-        body.position.set(x, y, z);
-        body.linearDamping = 0.3;
-        body.angularDamping = 0.3;
-        world.addBody(body);
-        
-        cubes.push({ mesh: cube, body: body, initial: { x, y, z } });
+    mirrorMaterial.onBeforeCompile = (shader) => {
+      shader.uniforms.fresnelMap = { value: fresnelMap };
+      shader.fragmentShader = 'uniform sampler2D fresnelMap;\n' + shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <normal_fragment_maps>',
+        '#include <normal_fragment_maps>\nvec3 viewDir = normalize( -vViewPosition );\nfloat dnv = saturate( dot( normal, viewDir ) );\nvec3 irid = texture2D( fresnelMap, vec2( dnv, 0.0 ) ).rgb;\nirid *= irid;\n'
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <lights_fragment_end>',
+        '#include <lights_fragment_end>\nreflectedLight.indirectSpecular *= irid;\nreflectedLight.directSpecular *= irid;\n'
+      );
+    };
+    
+    const gridGroup = new THREE.Group();
+    scene.add(gridGroup);
+    
+    function createCubes(rows, cols) {
+      const spacing = cubeSize;
+      const bottomY = -6 + cubeSize / 2;
+      const leftX = - (cols - 1) * spacing / 2;
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+          const materials = [
+            accentMaterial, // right
+            accentMaterial, // left
+            accentMaterial, // top
+            accentMaterial, // bottom
+            mirrorMaterial, // front (facing camera)
+            accentMaterial  // back
+          ];
+          const cube = new THREE.Mesh(cubeGeo, materials);
+          const x = leftX + j * spacing;
+          const y = bottomY + i * spacing;
+          const z = 0;
+          cube.position.set(x, y, z);
+          cube.castShadow = true;
+          cube.receiveShadow = true;
+          gridGroup.add(cube);
+          const shape = new CANNON.Box(new CANNON.Vec3(cubeSize / 2, cubeSize / 2, cubeSize / 2));
+          const body = new CANNON.Body({ mass: 2 });
+          body.addShape(shape);
+          body.position.set(x, y, z);
+          body.linearDamping = 0.3;
+          body.angularDamping = 0.3;
+          world.addBody(body);
+          cubes.push({ mesh: cube, body: body, initial: { x, y, z } });
+        }
       }
     }
+    
+    function removeCubes() {
+      cubes.forEach(({ mesh, body }) => {
+        gridGroup.remove(mesh);
+        world.remove(body);
+      });
+      cubes = [];
+    }
+    
+    function settle() {
+      const fixedTimeStep = 1 / 50;
+      for (let i = 0; i < 100; i++) {
+        world.step(fixedTimeStep);
+      }
+      cubes.forEach(({ mesh, body }) => {
+        mesh.position.copy(body.position);
+        mesh.quaternion.copy(body.quaternion);
+      });
+    }
+    
+    let currentGrid = 'macro';
+    function getCameraTargets() {
+      const rows = currentGrid === 'micro' ? 4 : 6;
+      const aspect = window.innerWidth / window.innerHeight;
+      const baseCols = currentGrid === 'micro' ? 6 : 12;
+      const cols = Math.round(baseCols * aspect * 1.2);
+      cubeSize = currentGrid === 'micro' ? 3.33 : 2.5;
+      const gridWidth = cols * cubeSize;
+      const isMobile = window.innerWidth < 768;
+      const targetCamY = -5;
+      let targetCamZ = currentGrid === 'micro' ? gridWidth * 0.8 + 10 : gridWidth * 1.2 + 10;
+      targetCamZ *= (isMobile ? 0.7 : .44);
+      const targetRotX = 0.2;
+      return { y: targetCamY, z: targetCamZ, rotX: targetRotX, rows, cols };
+    }
+    
+    function updateGrid(animateCamera = false) {
+      removeCubes();
+      const { rows, cols } = getCameraTargets();
+      createCubes(rows, cols);
+      settle();
+      if (animateCamera) {
+        const targets = getCameraTargets();
+        const duration = currentGrid === 'micro' ? 0.8 : 2;
+        const posEase = currentGrid === 'micro' ? 'back.out' : 'power1.inOut';
+        const rotEase = 'power1.inOut';
+        gsap.to(camera.position, { y: targets.y, z: targets.z, duration, ease: posEase });
+        gsap.to(camera.rotation, { x: targets.rotX, duration, ease: rotEase });
+        gsap.to(scene.rotation, { y: '+=0.5', duration: 1, ease: 'power2.out' });
+      }
+    }
+    
+    updateGrid();
+    
+    document.querySelectorAll('.left-toggle-nav button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const newGrid = btn.id === 'microBtn' ? 'micro' : 'macro';
+        if (newGrid !== currentGrid) {
+          document.querySelectorAll('.left-toggle-nav button').forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-pressed', 'false');
+          });
+          btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
+          currentGrid = newGrid;
+          updateGrid(true);
+        }
+      });
+    });
     
     // Raycaster for clicking
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
+    
+    let mode = 'kick';
     
     function onMouseClick(event) {
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -758,17 +868,40 @@
       const intersects = raycaster.intersectObjects(cubes.map(c => c.mesh));
       
       if (intersects.length > 0) {
-        const cube = cubes.find(c => c.mesh === intersects[0].object);
-        if (cube) {
-          const impulse = new CANNON.Vec3(0, 0, -50);
-          cube.body.applyImpulse(impulse, cube.body.position);
-          
-          const torque = new CANNON.Vec3(
-            (Math.random() - 0.5) * 120,
-            (Math.random() - 0.5) * 120,
-            (Math.random() - 0.5) * 120
-          );
-          cube.body.angularVelocity.set(torque.x, torque.y, torque.z);
+        const intersect = intersects[0];
+        const point = intersect.point.clone();
+        let impulseStrength = 50;
+        if (mode === 'tap') {
+          impulseStrength = 5;
+        }
+        if (mode === 'jedi') {
+          const radius = 10;
+          cubes.forEach(cube => {
+            const dist = cube.mesh.position.distanceTo(point);
+            if (dist < radius) {
+              const factor = 1 - dist / radius;
+              const impulse = new CANNON.Vec3(0, 0, -impulseStrength * factor * 1.5);
+              cube.body.applyImpulse(impulse, cube.body.position);
+              const torque = new CANNON.Vec3(
+                (Math.random() - 0.5) * 420 * factor,
+                (Math.random() - 0.5) * 420 * factor,
+                (Math.random() - 0.5) * 420 * factor
+              );
+              cube.body.angularVelocity.vadd(torque, cube.body.angularVelocity);
+            }
+          });
+        } else {
+          const cube = cubes.find(c => c.mesh === intersect.object);
+          if (cube) {
+            const impulse = new CANNON.Vec3(0, 0, -impulseStrength);
+            cube.body.applyImpulse(impulse, cube.body.position);
+            const torque = new CANNON.Vec3(
+              (Math.random() - 0.5) * 120,
+              (Math.random() - 0.5) * 120,
+              (Math.random() - 0.5) * 120
+            );
+            cube.body.angularVelocity.set(torque.x, torque.y, torque.z);
+          }
         }
       }
     }
@@ -830,11 +963,26 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      updateGrid(true);
     }
     
     window.addEventListener('resize', onWindowResize);
     
     animate();
+
+    // Right toggle modes
+    document.querySelectorAll('.right-toggle-nav button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.right-toggle-nav button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        mode = btn.id.replace('Btn', '').toLowerCase();
+        if (mode === 'jedi') {
+          world.gravity.set(0, -5, 0);
+        } else {
+          world.gravity.set(0, -15, 0);
+        }
+      });
+    });
 
     // FAB and Overlay Logic
     const fabButton = document.getElementById('fabButton');
@@ -892,10 +1040,14 @@
         body.angularVelocity.set(0, 0, 0);
         body.quaternion.set(0, 0, 0, 1);
       });
+      settle();
     }
 
-    document.getElementById('resetBtn').addEventListener('click', resetCubes);
-    document.getElementById('resetNavBtn').addEventListener('click', resetCubes);
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      resetCubes();
+      closeOverlayFn();
+    });
+    document.getElementById('resetTopBtn').addEventListener('click', resetCubes);
 
     // Cursor Trail Logic
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -904,7 +1056,7 @@
 
     (() => {
       if (!shouldRunCursor) return;
-      const TAIL_LENGTH = innerWidth < 800 ? 6 : 14;
+      const TAIL_LENGTH = window.innerWidth < 800 ? 6 : 14;
       const host = document.getElementById('cursor');
       if (!host) return;
       for (let i = 0; i < TAIL_LENGTH; i++) {
@@ -913,7 +1065,7 @@
         host.appendChild(d);
       }
       const circles = host.querySelectorAll('.cursor-circle');
-      let mouseX = innerWidth / 2, mouseY = innerHeight / 2;
+      let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
       const history = Array(TAIL_LENGTH).fill(0).map(() => ({ x: mouseX, y: mouseY }));
       window.addEventListener('pointermove', e => {
         mouseX = e.clientX;
@@ -935,20 +1087,25 @@
       tick();
     })();
 
-    // Top Toggle Nav Logic - Fixed IDs
-    const resumeBtn = document.getElementById('resumeBtn');
-    if (resumeBtn) {
-        resumeBtn.addEventListener('click', () => {
-        window.location.href = 'https://intoview.pro/cv';
-        });
-    }
-    
-    const portfolioBtn = document.getElementById('portfolioBtn');
-    if (portfolioBtn) {
-        portfolioBtn.addEventListener('click', () => {
-        window.location.href = 'https://zackgort.com';
-        });
-    }
+    // Top Toggle Nav Logic
+    document.getElementById('cvBtn').addEventListener('click', () => {
+      window.location.href = 'https://intoview.pro/cv';
+    });
+    document.getElementById('noteBtn').addEventListener('click', () => {
+      window.location.href = 'https://intoview.pro/note';
+    });
+    document.getElementById('kanbanBtn').addEventListener('click', () => {
+      window.location.href = 'https://intoview.pro/kanban';
+    });
+    document.getElementById('melodyBtn').addEventListener('click', () => {
+      window.location.href = 'https://intoview.pro/melody';
+    });
+    document.getElementById('emdashBtn').addEventListener('click', () => {
+      window.location.href = 'https://emdash.click/';
+    });
+    document.getElementById('portfolioBtn').addEventListener('click', () => {
+      window.location.href = 'https://zackgort.com';
+    });
 
     // Custom Context Menu Logic
     const contextMenu = document.getElementById('contextMenu');
