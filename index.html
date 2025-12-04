@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Click for clarity</title>
+  <title>intoview.pro</title>
   <link href="https://fonts.googleapis.com" rel="preconnect" crossorigin>
   <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -727,39 +727,84 @@
     // Detect if the device is mobile for performance optimizations
     const isMobileDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
-    // Get the canvas element for rendering
     const canvas = document.getElementById('canvas');
     const scene = new THREE.Scene();
-    
-    // Set initial scene background color to match dark theme
     scene.background = new THREE.Color(0x0f1014);
-    
-    // Configure the perspective camera
+
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 0, 11);
-    
-    // Set up WebGL renderer with mobile optimizations (disable antialias on mobile)
-    const renderer = new THREE.WebGLRenderer({ 
-      canvas, 
-      antialias: !isMobileDevice,
-      powerPreference: "high-performance"
-    });
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobileDevice, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    
-    // Initialize Cannon.js physics world with realistic gravity
+
     const world = new CANNON.World();
-    world.gravity.set(0, -9.81, 0); // Adjusted to Earth-like gravity for more realistic physics
+    world.gravity.set(0, -19.81, 0);
+    const normalGravityY = -19.81;       // ← we need this for the snowglobe feature
+    const lowGravityY = -22;                // ← nice slow-motion fall (feels like snowglobe fluid)
+    let snowTimeout = null;
+
     world.broadphase = new CANNON.NaiveBroadphase();
-    // Define default material for physics contacts
     const defaultMaterial = new CANNON.Material();
     const defaultContactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
       friction: 0.3,
       restitution: 0.5
     });
     world.addContactMaterial(defaultContactMaterial);
+
+    // lights, materials, ground, logo plane, etc. → unchanged
+
+    // <<< NEW: Snowglobe shake function >>>
+    function snowglobe() {
+      if (snowTimeout) clearTimeout(snowTimeout);
+
+      cubes.forEach(cube => {
+        const {body} = cube;
+        body.wakeUp();
+
+        // Strong upward + chaotic side impulses
+        const upward = 28 + Math.random() * 25;
+        const side   = (Math.random() - 0.5) * 40;
+        const forward = (Math.random() - 0.5) * 40;
+
+        body.applyImpulse(
+          new CANNON.Vec3(side, upward, forward),
+          body.position
+        );
+
+        // Nice chaotic spin
+        body.angularVelocity.vadd(
+          new CANNON.Vec3(
+            (Math.random() - 0.5) * 40,
+            (Math.random() - 0.5) * 40,
+            (Math.random() - 0.5) * 40
+          ),
+          body.angularVelocity
+        );
+      });
+
+      // Switch to snowglobe low gravity
+      world.gravity.set(0, lowGravityY, 0);
+
+      // Auto-restore normal gravity after 20 seconds (or next shake will reset timer)
+      snowTimeout = setTimeout(() => {
+        world.gravity.set(0, normalGravityY, 0);
+        snowTimeout = null;
+      }, 666);
+    }
+
+    // <<< Existing keydown handler extended with Shift snowglobe >>>
+    document.addEventListener('keydown', (event) => {
+      if (event.key === ' ') {
+        event.preventDefault();
+        resetCubes();
+      } else if (event.key === 'Shift') {   // works for both left & right Shift
+        event.preventDefault();
+        snowglobe();
+      }
+    });
     
     // Add ambient and point lights to the scene
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -877,7 +922,7 @@
       opacity: 0.9
     });
     const logoPlane = new THREE.Mesh(logoPlaneGeo, logoPlaneMat);
-    logoPlane.position.set(0, 16, -166);
+    logoPlane.position.set(0, 16, -111);
     scene.add(logoPlane);
     
     // Set up cube map for environment reflections
@@ -1043,7 +1088,7 @@
       if (isMobileDevice) {
         // Closer zoom on mobile for better visibility
         if (currentGrid === 'micro') {
-            targetCamZ = 19;
+            targetCamZ = 20;
         } else {
             targetCamZ = 28;
         }
@@ -1220,11 +1265,11 @@
               const impulse = new CANNON.Vec3(0, 0, -impulseStrength * factor);
               cube.body.applyImpulse(impulse, cube.body.position);
               // Apply controlled torque
-              const maxTorque = 30;
+              const maxTorque = 77;
               const torque = new CANNON.Vec3(
-                (Math.random() - 0.5) * maxTorque * factor,
-                (Math.random() - 0.5) * maxTorque * factor,
-                (Math.random() - 0.5) * maxTorque * factor
+                (Math.random() - 3.33) * maxTorque * factor,
+                (Math.random() - 2.22) * maxTorque * factor,
+                (Math.random() - 1.11) * maxTorque * factor
               );
               cube.body.angularVelocity.set(torque.x, torque.y, torque.z);
               capAngularVelocity(cube.body);
@@ -1232,22 +1277,23 @@
           });
         } else if (mode === 'force') {
           // Force: Forward push (negative Z) with moderate radius influence
-          const radius = 14; // Moderate radius
+          const radius = 4; // Low radius
           cubes.forEach(cube => {
             const dist = cube.mesh.position.distanceTo(point);
             if (dist < radius) {
               cube.body.wakeUp();
               const factor = 1 - dist / radius;
-              const impulse = new CANNON.Vec3(0, 0, -impulseStrength * factor * 3.5);
+              const impulse = new CANNON.Vec3(0, 0, -impulseStrength * factor);
               cube.body.applyImpulse(impulse, cube.body.position);
-              // Apply torque for rotation
+              // Apply controlled torque
+              const maxTorque = 77;
               const torque = new CANNON.Vec3(
-                (Math.random() - 0.5) * 666 * factor,
-                (Math.random() - 0.5) * 333 * factor,
-                (Math.random() - 0.5) * 15 * factor
+                (Math.random() - 3.33) * maxTorque * factor,
+                (Math.random() - 2.22) * maxTorque * factor,
+                (Math.random() - 1.11) * maxTorque * factor
               );
-              cube.body.angularVelocity.vadd(torque, cube.body.angularVelocity);
-              capAngularVelocity(cube.body, 20);
+              cube.body.angularVelocity.set(torque.x, torque.y, torque.z);
+              capAngularVelocity(cube.body);
             }
           });
         }
