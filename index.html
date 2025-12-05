@@ -838,9 +838,9 @@
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     const world = new CANNON.World();
-    world.gravity.set(0, -33, 0);
-    const normalGravityY = -33;
-    const lowGravityY = -11;
+    world.gravity.set(0, -19.81, 0);
+    const normalGravityY = -9.81;
+    const lowGravityY = -22;
     let snowTimeout = null;
 
     world.broadphase = new CANNON.NaiveBroadphase();
@@ -858,7 +858,7 @@
         const {body} = cube;
         body.wakeUp();
 
-        const upward = 28 + Math.random() * 66;
+        const upward = 28 + Math.random() * 25;
         const side   = (Math.random() - 0.5) * 40;
         const forward = (Math.random() - 0.5) * 40;
 
@@ -1193,7 +1193,7 @@
       
       if (currentGrid === 'micro') {
         sizeMultiplier = isMobileDevice ? 2.22 : 1; 
-        rows = isMobileDevice ? 4 : 4;
+        rows = isMobileDevice ? 5 : 4;
         cols = Math.round( (isMobileDevice ? 5 : 4) * aspect * 1.5 );
       } else {
         sizeMultiplier = isMobileDevice ? 1.11 : 1;
@@ -1215,9 +1215,9 @@
 
       let targetCamZ;
       if (isMobileDevice) {
-        targetCamZ = currentGrid === 'micro' ? 21 : 28;
+        targetCamZ = currentGrid === 'micro' ? 21 : 34; 
       } else {
-        targetCamZ = currentGrid === 'micro' ? gridWidth * 0.8 + 10 : gridWidth * 1.2 + 10;
+        targetCamZ = currentGrid === 'micro' ? gridWidth * 0.8 + 10 : gridWidth * 1.45 + 10;
         targetCamZ *= 0.44;
       }
       
@@ -1308,7 +1308,9 @@
       const msgEl = document.getElementById('topToastMsg');
       const actionBtn = document.getElementById('topToastAction');
       
-      const suggestion = Math.random() > 0.5 ? 'pull' : 'force';
+      const modes = ['push', 'pull', 'force'];
+      const availableModes = modes.filter(m => m !== mode);
+      const suggestion = availableModes[Math.floor(Math.random() * availableModes.length)];
       
       if (suggestion === 'pull') {
         msgEl.textContent = "Some folks are pushy. Others, picky?";
@@ -1319,12 +1321,21 @@
           resetCubes();
           closeTopToast();
         };
-      } else {
+      } else if (suggestion === 'force') {
         msgEl.textContent = "You're clearly a trooper, but you could be a Jedi.";
         actionBtn.textContent = "Use Force";
         actionBtn.onclick = () => {
           mode = 'force';
           updateModeUI('forceBtn');
+          resetCubes();
+          closeTopToast();
+        };
+      } else {
+        msgEl.textContent = "Sometimes you just need to kick the door down.";
+        actionBtn.textContent = "Try Push";
+        actionBtn.onclick = () => {
+          mode = 'push';
+          updateModeUI('pushBtn');
           resetCubes();
           closeTopToast();
         };
@@ -1348,19 +1359,17 @@
     function onMouseClick(event) {
       if (event.target.closest('button') || event.target.closest('.fab')) return;
       
-      if (mode === 'push') {
-        const now = Date.now();
-        if (now - lastSpamClickTime < SPAM_TIME_WINDOW) {
-          spamClickCount++;
-        } else {
-          spamClickCount = 1;
-        }
-        lastSpamClickTime = now;
+      const now = Date.now();
+      if (now - lastSpamClickTime < SPAM_TIME_WINDOW) {
+        spamClickCount++;
+      } else {
+        spamClickCount = 1;
+      }
+      lastSpamClickTime = now;
 
-        if (spamClickCount >= SPAM_THRESHOLD) {
-          triggerSpamSuggestion();
-          spamClickCount = 0;
-        }
+      if (spamClickCount >= SPAM_THRESHOLD) {
+        triggerSpamSuggestion();
+        spamClickCount = 0;
       }
 
       let clientX = event.clientX;
@@ -1379,7 +1388,13 @@
       if (intersects.length > 0) {
         const intersect = intersects[0];
         const point = intersect.point.clone();
-        let impulseStrength = 50;
+        
+        const isMicro = currentGrid === 'micro';
+        
+        const forceMultiplier = isMicro ? 0.6 : 1.0;
+        const radiusMultiplier = isMicro ? 0.7 : 1.0;
+        
+        let impulseStrength = 50 * forceMultiplier;
         
         const clickedCube = cubes.find(c => c.mesh === intersect.object);
         if (clickedCube) {
@@ -1392,7 +1407,7 @@
             cube.body.wakeUp();
             const impulse = new CANNON.Vec3(0, 0, impulseStrength * 10); 
             cube.body.applyImpulse(impulse, cube.body.position);
-            const maxTorque = 150;
+            const maxTorque = 150 * forceMultiplier;
             const torque = new CANNON.Vec3(
               (Math.random() - 0.5) * maxTorque,
               (Math.random() - 0.5) * maxTorque,
@@ -1402,7 +1417,7 @@
             capAngularVelocity(cube.body, 50);
           }
         } else if (mode === 'push') {
-          const radius = 6;
+          const radius = 6 * radiusMultiplier;
           cubes.forEach(cube => {
             const dist = cube.mesh.position.distanceTo(point);
             if (dist < radius) {
@@ -1410,7 +1425,7 @@
               const factor = 1 - dist / radius;
               const impulse = new CANNON.Vec3(0, 0, -impulseStrength * factor * 1.5);
               cube.body.applyImpulse(impulse, cube.body.position);
-              const maxTorque = 80; 
+              const maxTorque = 80 * forceMultiplier; 
               const torque = new CANNON.Vec3(
                 (Math.random() - 0.5) * maxTorque * factor,
                 (Math.random() - 0.5) * maxTorque * factor,
@@ -1421,7 +1436,7 @@
             }
           });
         } else if (mode === 'force') {
-          const radius = 10;
+          const radius = 10 * radiusMultiplier;
           const upwardLift = 2.0;
           cubes.forEach(cube => {
             const dist = cube.mesh.position.distanceTo(point);
