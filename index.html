@@ -586,6 +586,69 @@
       transform: translateY(0);
     }
 
+    /* Top Toast Logic */
+    .top-toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-150%);
+      background: rgba(15, 16, 20, 0.95);
+      border: 1px solid var(--glass-border);
+      padding: 12px 24px;
+      border-radius: 30px;
+      z-index: 310;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .top-toast.visible {
+      transform: translateX(-50%) translateY(60px);
+    }
+
+    .top-toast p {
+      font-size: 13px;
+      font-weight: 500;
+      margin: 0;
+      color: var(--ink);
+    }
+
+    .toast-action-btn {
+      background: var(--glass-bg-bright);
+      border: 1px solid var(--glass-border);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .toast-action-btn:hover {
+      background: var(--glass-bg-hover);
+      transform: scale(1.05);
+    }
+
+    .toast-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--ink-2);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    
+    .toast-close-btn:hover {
+      color: var(--ink);
+    }
+
     .tiny-text {
       font-size: 0.8em;
       opacity: 0.7;
@@ -603,6 +666,15 @@
 
       .tiny-text {
         font-size: 0.7em;
+      }
+      
+      .top-toast {
+        width: 90%;
+        justify-content: space-between;
+      }
+      
+      .top-toast p {
+        font-size: 11px;
       }
     }
   </style>
@@ -711,7 +783,13 @@
     <p>{ intoview:pro ~ bring your best into view }</p>
     <p class="tiny-text">Scroll • Left/right-click • Spam-fire • Long-press • Toggle & switch • & Enjoy!  </p>
     <button id="yoloToastBtn" class="reset-btn">Got it — Let's go! </button>
-  </div>
+</div>
+
+<div id="topToast" class="top-toast">
+  <p id="topToastMsg">Recommendation message here...</p>
+  <button id="topToastAction" class="toast-action-btn">Action</button>
+  <button id="topToastClose" class="toast-close-btn">×</button>
+</div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
@@ -1247,11 +1325,76 @@
         });
       }
     }
+
+    // SPAM DETECTION LOGIC
+    let spamClickCount = 0;
+    let lastSpamClickTime = 0;
+    const SPAM_THRESHOLD = 5; // number of clicks to trigger warning
+    const SPAM_TIME_WINDOW = 600; // ms between clicks to count as spam
+
+    function triggerSpamSuggestion() {
+      const topToast = document.getElementById('topToast');
+      const msgEl = document.getElementById('topToastMsg');
+      const actionBtn = document.getElementById('topToastAction');
+      
+      // Determine which suggestion to show randomly (Force or Pull)
+      const suggestion = Math.random() > 0.5 ? 'pull' : 'force';
+      
+      if (suggestion === 'pull') {
+        msgEl.textContent = "Some folks are pushy. Others, picky?";
+        actionBtn.textContent = "Try Pull";
+        actionBtn.onclick = () => {
+          mode = 'pull';
+          updateModeUI('pullBtn');
+          resetCubes(); // <--- Trigger the reset:
+          closeTopToast();
+        };
+      } else {
+        msgEl.textContent = "You're clearly a trooper, but you could be a Jedi.";
+        actionBtn.textContent = "Use Force";
+        actionBtn.onclick = () => {
+          mode = 'force';
+          updateModeUI('forceBtn');
+          resetCubes(); // <--- Trigger the reset:
+          closeTopToast();
+        };
+      }
+      
+      topToast.classList.add('visible');
+    }
+
+    function closeTopToast() {
+      const topToast = document.getElementById('topToast');
+      topToast.classList.remove('visible');
+    }
+    
+    document.getElementById('topToastClose').addEventListener('click', closeTopToast);
+
+    function updateModeUI(activeBtnId) {
+      document.querySelectorAll('.right-toggle-nav button').forEach(b => b.classList.remove('active'));
+      document.getElementById(activeBtnId).classList.add('active');
+    }
     
     // Handle mouse click or touch for cube interaction
     function onMouseClick(event) {
       if (event.target.closest('button') || event.target.closest('.fab')) return;
       
+      // SPAM CHECK
+      if (mode === 'push') {
+        const now = Date.now();
+        if (now - lastSpamClickTime < SPAM_TIME_WINDOW) {
+          spamClickCount++;
+        } else {
+          spamClickCount = 1;
+        }
+        lastSpamClickTime = now;
+
+        if (spamClickCount >= SPAM_THRESHOLD) {
+          triggerSpamSuggestion();
+          spamClickCount = 0; // Reset counter
+        }
+      }
+
       // Handle both mouse and touch input
       let clientX = event.clientX;
       let clientY = event.clientY;
