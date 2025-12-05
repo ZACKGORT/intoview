@@ -1331,7 +1331,7 @@
           closeTopToast();
         };
       } else {
-        msgEl.textContent = "Sometimes you just need to kick the door down.";
+        msgEl.textContent = "FYI: a single click burns 1.4 calories";
         actionBtn.textContent = "Try Push";
         actionBtn.onclick = () => {
           mode = 'push';
@@ -1356,9 +1356,10 @@
       document.getElementById(activeBtnId).classList.add('active');
     }
     
-    function onMouseClick(event) {
+        function onMouseClick(event) {
       if (event.target.closest('button') || event.target.closest('.fab')) return;
       
+      // --- SPAM DETECTION (Applied to all modes) ---
       const now = Date.now();
       if (now - lastSpamClickTime < SPAM_TIME_WINDOW) {
         spamClickCount++;
@@ -1371,6 +1372,7 @@
         triggerSpamSuggestion();
         spamClickCount = 0;
       }
+      // ---------------------------------------------
 
       let clientX = event.clientX;
       let clientY = event.clientY;
@@ -1389,12 +1391,15 @@
         const intersect = intersects[0];
         const point = intersect.point.clone();
         
+        // --- PHYSICS SCALING ---
         const isMicro = currentGrid === 'micro';
         
-        const forceMultiplier = isMicro ? 0.6 : 1.0;
-        const radiusMultiplier = isMicro ? 0.7 : 1.0;
+        // Dial back Micro: 60% strength, 70% radius influence
+        const forceMultiplier = isMicro ? 2 : 1.0;
+        const radiusMultiplier = isMicro ? 1 : 1.0;
         
         let impulseStrength = 50 * forceMultiplier;
+        // -----------------------
         
         const clickedCube = cubes.find(c => c.mesh === intersect.object);
         if (clickedCube) {
@@ -1405,8 +1410,10 @@
           const cube = cubes.find(c => c.mesh === intersect.object);
           if (cube) {
             cube.body.wakeUp();
+            // Pull needs a bit more base strength to fight gravity/friction
             const impulse = new CANNON.Vec3(0, 0, impulseStrength * 10); 
             cube.body.applyImpulse(impulse, cube.body.position);
+            
             const maxTorque = 150 * forceMultiplier;
             const torque = new CANNON.Vec3(
               (Math.random() - 0.5) * maxTorque,
@@ -1423,8 +1430,10 @@
             if (dist < radius) {
               cube.body.wakeUp();
               const factor = 1 - dist / radius;
+              // Push strength
               const impulse = new CANNON.Vec3(0, 0, -impulseStrength * factor * 1.5);
               cube.body.applyImpulse(impulse, cube.body.position);
+              
               const maxTorque = 80 * forceMultiplier; 
               const torque = new CANNON.Vec3(
                 (Math.random() - 0.5) * maxTorque * factor,
@@ -1443,12 +1452,15 @@
             if (dist < radius) {
               cube.body.wakeUp();
               const factor = 1 - dist / radius;
+              // Force strength
               const impulse = new CANNON.Vec3(0, impulseStrength * factor * upwardLift, -impulseStrength * factor * 2.5);
               cube.body.applyImpulse(impulse, cube.body.position);
+              
+              const maxTorque = 5 * forceMultiplier; // Force is more controlled, less spin
               const torque = new CANNON.Vec3(
-                (Math.random() - 0.5) * 5 * factor,
-                (Math.random() - 0.5) * 5 * factor,
-                (Math.random() - 0.5) * 5 * factor
+                (Math.random() - 0.5) * maxTorque * factor,
+                (Math.random() - 0.5) * maxTorque * factor,
+                (Math.random() - 0.5) * maxTorque * factor
               );
               cube.body.angularVelocity.vadd(torque, cube.body.angularVelocity);
               capAngularVelocity(cube.body, 5);
