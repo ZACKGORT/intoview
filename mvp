@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM : HUD</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1014;
+      --glass: rgba(255, 255, 255, 0.05);
+      --border: rgba(255, 255, 255, 0.1);
+      --neon-green: #39FF14;
+      --neon-red: #FF1447;
+      --neon-orange: #FF8D14;
+      --text: #fff;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow: hidden; margin: 0; }
+    
+    /* Layout */
+    .hud-container {
+      display: grid;
+      grid-template-columns: 1fr;
+      height: 100vh;
+    }
+
+    /* Main View (The Matrix) */
+    .matrix {
+      padding: 40px;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      align-content: start;
+    }
+
+    /* Account Card - NODE Format */
+    .node-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      cursor: pointer;
+      overflow: hidden;
+    }
+    
+    .node-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.3); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    
+    /* Card Header */
+    .card-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .provider-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Status Indicators */
+    .status-dot { 
+      width: 12px; 
+      height: 12px; 
+      border-radius: 50%; 
+      box-shadow: 0 0 10px currentColor;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .status-active { background: var(--neon-green); }
+    .status-cooldown { background: var(--neon-orange); }
+    .status-burnt { background: var(--neon-red); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    .provider-tag { 
+      font-family: 'JetBrains Mono'; 
+      font-size: 0.85rem; 
+      opacity: 0.9; 
+      text-transform: uppercase; 
+      letter-spacing: 1px; 
+      font-weight: 700;
+    }
+
+    .reset-badge {
+      font-family: 'JetBrains Mono';
+      font-size: 0.7rem;
+      padding: 4px 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      opacity: 0.7;
+    }
+
+    /* Card Body */
+    .card-body {
+      padding: 20px;
+    }
+
+    .email { 
+      font-weight: 700; 
+      font-size: 1rem; 
+      overflow: hidden; 
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 15px;
+      color: #fff;
+    }
+
+    /* Actions */
+    .actions { 
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    
+    .action-btn { 
+      padding: 10px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.75rem;
+      border-radius: 6px;
+      transition: all 0.2s;
+      font-family: 'JetBrains Mono';
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .action-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
+    
+    .btn-limit { 
+      color: var(--neon-orange); 
+      border: 1px solid var(--neon-orange); 
+      background: transparent; 
+      grid-column: 1 / -1;
+    }
+    .btn-limit:hover { background: var(--neon-orange); color: #000; }
+
+    .btn-delete {
+      color: var(--neon-red);
+      border-color: var(--neon-red);
+      background: transparent;
+    }
+    .btn-delete:hover { background: var(--neon-red); color: #000; }
+
+    /* Cooldown Overlay */
+    .cooldown-overlay {
+      position: absolute; 
+      inset: 0; 
+      background: rgba(0,0,0,0.95);
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      border-radius: 12px; 
+      backdrop-filter: blur(10px);
+      opacity: 0; 
+      pointer-events: none; 
+      transition: opacity 0.3s;
+    }
+    .node-card.cooling .cooldown-overlay { opacity: 1; pointer-events: auto; }
+    .timer { font-family: 'JetBrains Mono'; font-size: 2rem; color: var(--neon-orange); font-weight: 700; }
+
+    /* FAB */
+    .fab {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: var(--neon-green);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      color: #000;
+      box-shadow: 0 4px 20px rgba(57, 255, 20, 0.4);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 1000;
+    }
+    .fab:hover {
+      transform: scale(1.1) rotate(90deg);
+      box-shadow: 0 6px 30px rgba(57, 255, 20, 0.6);
+    }
+    .fab.active {
+      transform: rotate(45deg);
+    }
+
+    /* FAB Overlay */
+    .fab-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .fab-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .fab-panel {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 500px;
+      width: 90%;
+      transform: scale(0.9);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .fab-overlay.active .fab-panel {
+      transform: scale(1);
+    }
+
+    .fab-panel h2 {
+      margin-top: 0;
+      color: var(--neon-green);
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+    }
+
+    .fab-panel p {
+      font-size: 0.85rem;
+      opacity: 0.6;
+      margin-bottom: 30px;
+    }
+
+    .input-group { margin-bottom: 20px; }
+    label { 
+      display: block; 
+      font-size: 0.75rem; 
+      color: #888; 
+      margin-bottom: 8px; 
+      font-family: 'JetBrains Mono';
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    input, select { 
+      width: 100%; 
+      background: var(--glass); 
+      border: 1px solid var(--border); 
+      color: #fff; 
+      padding: 12px; 
+      border-radius: 6px; 
+      font-family: 'JetBrains Mono';
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--neon-green);
+    }
+
+    .fab-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+    }
+
+    .btn-main {
+      flex: 1;
+      background: var(--neon-green); 
+      color: #000; 
+      border: none; 
+      padding: 14px; 
+      font-weight: bold; 
+      cursor: pointer; 
+      text-transform: uppercase;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono';
+      letter-spacing: 1px;
+      transition: all 0.2s;
+    }
+    .btn-main:hover {
+      background: #2ee012;
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      flex: 1;
+      background: transparent;
+      color: #fff;
+      border: 1px solid var(--border);
+      padding: 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono';
+      letter-spacing: 1px;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    /* Empty State */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 20px;
+      opacity: 0.5;
+    }
+    .empty-state h3 {
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+      color: var(--neon-green);
+    }
+    .empty-state p {
+      font-family: 'JetBrains Mono';
+      font-size: 0.9rem;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="hud-container">
+    <div class="matrix" id="matrixGrid">
+    </div>
+  </div>
+
+  <!-- FAB Button -->
+  <button class="fab" onclick="toggleFab()">+</button>
+
+  <!-- FAB Overlay -->
+  <div class="fab-overlay" id="fabOverlay" onclick="closeFabOnBackdrop(event)">
+    <div class="fab-panel" onclick="event.stopPropagation()">
+      <h2>Deploy New Node</h2>
+      <p>Add an LLM account to the management grid</p>
+      
+      <div class="input-group">
+        <label>Provider</label>
+        <select id="providerInput">
+          <option value="ChatGPT">OpenAI (ChatGPT)</option>
+          <option value="Claude">Anthropic (Claude)</option>
+          <option value="Gemini">Google (Gemini)</option>
+          <option value="Grok">xAI (Grok)</option>
+          <option value="Perplexity">Perplexity</option>
+          <option value="DeepSeek">DeepSeek</option>
+        </select>
+      </div>
+      
+      <div class="input-group">
+        <label>Email / Username</label>
+        <input type="text" id="emailInput" placeholder="design.ninja.01@gmail.com">
+      </div>
+      
+      <div class="input-group">
+        <label>Password</label>
+        <input type="password" id="passInput" placeholder="••••••••">
+      </div>
+      
+      <div class="input-group">
+        <label>Cooldown (Hours)</label>
+        <input type="number" id="resetInput" value="3" min="1" max="24">
+      </div>
+
+      <div class="fab-actions">
+        <button class="btn-secondary" onclick="toggleFab()">Cancel</button>
+        <button class="btn-main" onclick="addAccount()">Add Node</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // STATE MANAGEMENT
+    let accounts = JSON.parse(localStorage.getItem('llm_accounts')) || [];
+
+    function save() {
+      localStorage.setItem('llm_accounts', JSON.stringify(accounts));
+      render();
+    }
+
+    // FAB CONTROLS
+    function toggleFab() {
+      const overlay = document.getElementById('fabOverlay');
+      const fab = document.querySelector('.fab');
+      overlay.classList.toggle('active');
+      fab.classList.toggle('active');
+    }
+
+    function closeFabOnBackdrop(event) {
+      if (event.target.id === 'fabOverlay') {
+        toggleFab();
+      }
+    }
+
+    // CORE LOGIC
+    function addAccount() {
+      const provider = document.getElementById('providerInput').value;
+      const email = document.getElementById('emailInput').value;
+      const pass = document.getElementById('passInput').value;
+      const resetHours = document.getElementById('resetInput').value;
+
+      if(!email) return alert("Email/Username required");
+
+      const newAccount = {
+        id: Date.now(),
+        provider,
+        email,
+        pass,
+        resetHours: parseFloat(resetHours),
+        status: 'active',
+        cooldownEnd: null
+      };
+
+      accounts.push(newAccount);
+      document.getElementById('emailInput').value = '';
+      document.getElementById('passInput').value = '';
+      document.getElementById('resetInput').value = '3';
+      toggleFab();
+      save();
+    }
+
+    function triggerCooldown(id) {
+      const acc = accounts.find(a => a.id === id);
+      acc.status = 'cooling';
+      acc.cooldownEnd = Date.now() + (acc.resetHours * 60 * 60 * 1000);
+      save();
+    }
+
+    function restoreAccount(id) {
+      const acc = accounts.find(a => a.id === id);
+      acc.status = 'active';
+      acc.cooldownEnd = null;
+      save();
+    }
+
+    function deleteAccount(id) {
+      if(confirm('Delete this node?')) {
+        accounts = accounts.filter(a => a.id !== id);
+        save();
+      }
+    }
+
+    function copyToClip(text) {
+      navigator.clipboard.writeText(text);
+    }
+
+    // RENDER LOOP
+    function render() {
+      const grid = document.getElementById('matrixGrid');
+      grid.innerHTML = '';
+
+      if (accounts.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <h3>No Nodes Deployed</h3>
+            <p>Click the + button to add your first LLM account</p>
+          </div>
+        `;
+        return;
+      }
+
+      accounts.sort((a, b) => (a.status === 'cooling') - (b.status === 'cooling'));
+
+      accounts.forEach(acc => {
+        const isCooling = acc.status === 'cooling';
+        let timeLeft = '';
+        
+        if (isCooling) {
+            const now = Date.now();
+            if (now > acc.cooldownEnd) {
+                restoreAccount(acc.id);
+                return;
+            }
+            const diff = acc.cooldownEnd - now;
+            const h = Math.floor(diff / (1000 * 60 * 60));
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            timeLeft = `${h}h ${m}m`;
+        }
+
+        const card = document.createElement('div');
+        card.className = `node-card ${isCooling ? 'cooling' : ''}`;
+        
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="provider-info">
+              <span class="status-dot ${isCooling ? 'status-cooldown' : 'status-active'}"></span>
+              <span class="provider-tag">${acc.provider}</span>
+            </div>
+            <span class="reset-badge">${acc.resetHours}h reset</span>
+          </div>
+
+          <div class="card-body">
+            <div class="email" title="${acc.email}">${acc.email}</div>
+
+            <div class="actions">
+              <button class="action-btn" onclick="copyToClip('${acc.email}')">Copy ID</button>
+              <button class="action-btn" onclick="copyToClip('${acc.pass}')">Copy PW</button>
+              <button class="action-btn btn-limit" onclick="triggerCooldown(${acc.id})">Hit Limit</button>
+              <button class="action-btn btn-delete" onclick="deleteAccount(${acc.id})">Delete</button>
+            </div>
+          </div>
+
+          <div class="cooldown-overlay">
+            <div style="text-align:center">
+                <div style="font-size:0.8rem; margin-bottom:10px; color:#888; text-transform: uppercase; letter-spacing: 1px;">Resetting In</div>
+                <div class="timer">${timeLeft}</div>
+                <button class="btn-main" style="margin-top:20px; font-size:0.7rem; padding:8px 16px;" onclick="restoreAccount(${acc.id})">Force Restore</button>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    // TICKER
+    setInterval(render, 60000);
+    render();
+
+  </script>
+</body>
+</html>
