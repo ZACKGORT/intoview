@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
-  <title>IntoView:Node v2.5.4</title>
+  <title>intoview:n.o.d.e</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -157,8 +157,6 @@
     }
     .scatter-canvas { 
         width: 100%; height: 100%; position: relative; 
-        cursor: grab; 
-        will-change: transform; 
     }
     .scatter-card {
       position: absolute;
@@ -421,7 +419,7 @@
       position: absolute; display: none; 
       background: var(--card-bg); border: 1px solid var(--glass-border);
       border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-      z-index: 1000; width: 180px; overflow: hidden;
+      z-index: 1000; width: 260px; overflow: hidden;
       backdrop-filter: blur(12px);
     }
     .context-menu.active { display: block; animation: fadeIn 0.1s ease; }
@@ -468,8 +466,6 @@
 
   <div class="scatter-controls" id="scatterControls">
     <button class="control-btn" onclick="autoArrange()" id="wandBtn" title="Auto-Arrange">🪄</button>
-    <button class="control-btn" onclick="adjustZoom(0.1)">+</button>
-    <button class="control-btn" onclick="adjustZoom(-0.1)">-</button>
   </div>
 
   <div id="contextMenu" class="context-menu"></div>
@@ -593,9 +589,9 @@
               <ul style="list-style-type: none; padding: 0;">
                 <li><strong style="color: var(--accent);">Tap Card (Grid/Scatter):</strong> Open Edit Modal (View Details).</li>
                 <li><strong style="color: var(--accent);">Right-Click / Long-Press Card:</strong> Quick Action Menu (Hit Limit / Restore / View Details).</li>
-                <li><strong style="color: var(--accent);">Drag Card (Scatter Mode):</strong> Move the node freely. **(FIXED FOR TOUCH)**</li>
-                <li><strong style="color: var(--accent);">Drag Background (Scatter Mode):</strong> **Pan** the view (move camera).</li>
-                <li><strong style="color: var(--accent);">Scroll Wheel / Pinch (Scatter Mode):** **Zoom** the view.</li>
+                <li><strong style="color: var(--accent);">Right-Click / Long-Press Background (Scatter Mode):</strong> Arrangement & Sorting menu.</li>
+                <li><strong style="color: var(--accent);">Drag Card (Scatter Mode):</strong> Move the node freely. **(DRAG-ONLY)**</li>
+                <li><strong style="color: var(--accent);">Drag Background / Scroll / Pinch (Scatter Mode):** Does nothing.</li>
                 <li><strong style="color: var(--accent);">Right-Click / Long-Press Provider Pill:</strong> Rename/Delete Provider.</li>
                 <li><strong style="color: var(--accent);">Theme Toggle:</strong> Switches between Light and Dark mode.</li>
                 <li><strong style="color: var(--accent);">Status Pill (Bottom Right):</strong> Cycles the global filter (All -> Active -> Cooldown -> Burnt).</li>
@@ -625,7 +621,7 @@
       
       <a href="https://emdash.click" target="_blank" style="display: block; text-align: center; margin-top: 30px; text-decoration: none;">
          <button class="btn-block btn-secondary" style="background: var(--glass-border); color: var(--ink-dim);">
-            <span style="font-weight: 400;">A Product of </span><strong style="color: var(--ink); font-weight: 700;">emdash.click</strong>
+            <span style="font-weight: 400;">Something useful @</span><strong style="color: var(--ink); font-weight: 700;"> emdash.click</strong>
          </button>
       </a>
 
@@ -650,14 +646,9 @@
       theme: localStorage.getItem('iv_theme') || 'dark'
     };
     
-    // Scatter State
+    // Scatter State (Simplified - only tracking card drag)
     let scatter = {
-      zoom: 1,
-      pan: {x: 0, y: 0},
       dragging: false, // For card dragging
-      panning: false, // For canvas dragging/panning
-      pinchStart: null, // For pinch-to-zoom
-      pointers: [], // FIX: Initialize the pointer array for touch/multi-touch tracking
     };
     
     let pendingAction = null; 
@@ -670,6 +661,14 @@
     updateFilterPillUI(); 
     switchView(config.view);
     setInterval(updateTimers, 1000);
+
+    // NEW: Add context menu listener for scatter canvas background
+    document.getElementById('scatterCanvas').addEventListener('contextmenu', (e) => {
+        // Only show menu if the user right-clicks the canvas itself, not a card.
+        if(config.view === 'scatter' && e.target.id === 'scatterCanvas') {
+            handleContextMenu(e, 'scatter-bg');
+        }
+    });
 
     // --- Core Functions ---
 
@@ -857,7 +856,7 @@
 
         </div>
       `).join('');
-      applyScatterTransform();
+      // No applyScatterTransform() needed for static background
       updateTimers();
     }
 
@@ -940,13 +939,95 @@
         }
     }
 
-    // --- Context Menu Logic ---
+    // --- Scatter Arrangement Logic (UPDATED) ---
+
+    // Arranges items in a grid/list fashion. (Old autoArrange)
+    function autoArrangeList() {
+       const cols = Math.floor(window.innerWidth / 240); 
+       const startX = 20;
+       const startY = 80;
+       const gapX = 240;
+       const gapY = 180;
+       const visibleItems = filterItems();
+       
+       visibleItems.forEach((item, index) => {
+          const col = index % cols;
+          const row = Math.floor(index / cols);
+          item.pos.x = startX + (col * gapX);
+          item.pos.y = startY + (row * gapY);
+       });
+       save();
+       renderScatter();
+    }
+
+    // Arranges items grouped by Provider in stacks.
+    function autoArrangeStack() {
+       const startX = 50;
+       const startY = 80;
+       const cardHeight = 160; 
+       const cardWidth = 220; 
+       const visibleItems = filterItems();
+       
+       // Group by provider
+       const groups = {};
+       visibleItems.forEach(item => {
+           if (!groups[item.provider]) groups[item.provider] = [];
+           groups[item.provider].push(item);
+       });
+
+       let currentY = startY;
+       let currentX = startX;
+       const maxGroupHeight = 4; // Max visible cards in stack before starting next column
+       const groupArr = Object.values(groups);
+       
+       groupArr.forEach((group, groupIndex) => {
+           // Reset X for each new group
+           group.forEach((item, index) => {
+               // Stack cards slightly offset
+               const xOffset = index < maxGroupHeight ? index * 10 : (maxGroupHeight - 1) * 10;
+               const yOffset = index < maxGroupHeight ? index * 10 : (maxGroupHeight - 1) * 10;
+               
+               item.pos.x = currentX + xOffset;
+               item.pos.y = currentY + yOffset;
+           });
+           
+           // Move to the next stack's starting position below the current stack group
+           currentY += cardHeight + (maxGroupHeight * 10) + 40;
+           
+           // Simple column break logic: after 3 groups, start a new column (if the screen is wide enough)
+           if (groupIndex > 0 && (groupIndex + 1) % 3 === 0) {
+              currentX += cardWidth + (maxGroupHeight * 10) + 50;
+              currentY = startY; 
+           }
+       });
+
+       save();
+       renderScatter();
+    }
     
-    document.addEventListener('contextmenu', (e) => {
-       if(config.view === 'scatter' && e.target.id === 'scatterCanvas') {
-          handleContextMenu(e, 'scatter-bg');
+    // Main Arrangement function, called by wand and context menu
+    function autoArrange(arrangement = 'list') {
+        if (arrangement === 'stack') {
+            autoArrangeStack();
+        } else { // default to list
+            autoArrangeList();
+        }
+    }
+
+    // Sorts the items array and applies the List arrangement.
+    function sortScatter(criteria) {
+       if(criteria === 'provider') items.sort((a,b) => a.provider.localeCompare(b.provider));
+       if(criteria === 'status') {
+           const statusOrder = { 'active': 1, 'cooldown': 2, 'burnt': 3 };
+           items.sort((a,b) => statusOrder[a.status] - statusOrder[b.status]);
        }
-    });
+       if(criteria === 'date') items.sort((a,b) => b.lastUsed - a.lastUsed);
+       
+       // Apply the sorted layout
+       autoArrange('list'); 
+    }
+
+    // --- Context Menu Logic (UPDATED) ---
 
     document.addEventListener('click', () => {
        document.getElementById('contextMenu').classList.remove('active');
@@ -972,41 +1053,21 @@
          html += `<div class="ctx-item" onclick="confirmHitLimit(null, ${payload})">🔥 Hit Limit</div>`;
          html += `<div class="ctx-item" onclick="confirmForceRestore(null, ${payload})">🔄 Force Restore</div>`;
       } 
-      else if (type === 'scatter-bg' || type === 'scatter-card') {
-         html += `<div class="ctx-header">Scatter View</div>`;
-         html += `<div class="ctx-item" onclick="autoArrange()">🪄 Auto-Arrange</div>`;
-         html += `<div class="ctx-item" onclick="sortScatter('provider')">Sort: Provider</div>`;
-         html += `<div class="ctx-item" onclick="sortScatter('status')">Sort: Status</div>`;
-         html += `<div class="ctx-item" onclick="sortScatter('date')">Sort: Recent</div>`;
+      else if (type === 'scatter-bg') { // SCATTER BACKGROUND MENU
+         html += `<div class="ctx-header">Arrangement</div>`;
+         html += `<div class="ctx-item" onclick="autoArrange('list')">Auto Arrange: List</div>`;
+         html += `<div class="ctx-item" onclick="autoArrange('stack')">Auto Arrange: Stack</div>`;
+         
+         html += `<div class="ctx-header" style="margin-top: 5px;">Sort By & List</div>`;
+         html += `<div class="ctx-item" onclick="sortScatter('status')">Status (Active, Cool, Burnt)</div>`;
+         html += `<div class="ctx-item" onclick="sortScatter('provider')">Provider Name</div>`;
+         html += `<div class="ctx-item" onclick="sortScatter('date')">Last Used Date</div>`;
       }
 
-      menu.innerHTML = html;
-      menu.classList.add('active');
-    }
-
-    function sortScatter(criteria) {
-       if(criteria === 'provider') items.sort((a,b) => a.provider.localeCompare(b.provider));
-       if(criteria === 'status') items.sort((a,b) => a.status.localeCompare(b.status));
-       if(criteria === 'date') items.sort((a,b) => b.lastUsed - a.lastUsed);
-       autoArrange(); 
-    }
-
-    function autoArrange() {
-       const cols = Math.floor(window.innerWidth / 240); 
-       const startX = 20;
-       const startY = 80;
-       const gapX = 240;
-       const gapY = 180;
-       const visibleItems = filterItems();
-       
-       visibleItems.forEach((item, index) => {
-          const col = index % cols;
-          const row = Math.floor(index / cols);
-          item.pos.x = startX + (col * gapX);
-          item.pos.y = startY + (row * gapY);
-       });
-       save();
-       renderScatter();
+      if (html) {
+          menu.innerHTML = html;
+          menu.classList.add('active');
+      }
     }
 
     // --- Timer Logic ---
@@ -1278,188 +1339,15 @@
         });
     });
 
-    // --- Scatter Physics (Pan/Zoom/Drag) ---
+    // --- Scatter Card Dragging (Simplified) ---
     
-    function applyScatterTransform() {
-      const canvas = document.getElementById('scatterCanvas');
-      // Apply pan (translate) and zoom (scale)
-      canvas.style.transform = `translate(${scatter.pan.x}px, ${scatter.pan.y}px) scale(${scatter.zoom})`;
-    }
-
-    function adjustZoom(delta, clientX, clientY) {
-      const oldZoom = scatter.zoom;
-      const newZoom = Math.max(0.5, Math.min(2.5, scatter.zoom + delta));
-      
-      if (clientX === undefined) {
-         scatter.zoom = newZoom;
-         applyScatterTransform();
-         return;
-      }
-
-      const canvasRect = document.getElementById('scatterCanvas').getBoundingClientRect();
-      const zoomPointX = (clientX - canvasRect.left - scatter.pan.x) / oldZoom;
-      const zoomPointY = (clientY - canvasRect.top - scatter.pan.y) / oldZoom;
-
-      scatter.pan.x -= zoomPointX * (newZoom - oldZoom);
-      scatter.pan.y -= zoomPointY * (newZoom - oldZoom);
-      
-      scatter.zoom = newZoom;
-      saveScatterState();
-      applyScatterTransform();
-    }
-    
-    // Mouse Wheel Zoom
-    document.getElementById('scatterContainer').addEventListener('wheel', (e) => {
-        if (config.view !== 'scatter') return;
-        e.preventDefault();
-        const delta = e.deltaY * -0.001; 
-        adjustZoom(delta, e.clientX, e.clientY);
-    });
-    
-    // Pan and Pinch-to-Zoom Logic
-    document.getElementById('scatterCanvas').addEventListener('pointerdown', startScatterInteraction);
-    
-    function startScatterInteraction(e) {
-      if (config.view !== 'scatter') return;
-      
-      // Card Dragging takes precedence
-      if (e.target.closest('.scatter-card')) {
-         return;
-      }
-      
-      e.preventDefault(); 
-      e.currentTarget.setPointerCapture(e.pointerId);
-      
-      const isTouch = e.pointerType === 'touch' || e.pointerType === 'pen';
-
-      // Ensure the pointer is tracked
-      const isNewPointer = !scatter.pointers.some(p => p.pointerId === e.pointerId);
-      if (isNewPointer) {
-          scatter.pointers.push(e);
-      }
-      
-      if (scatter.pointers.length === 1) {
-          // Single pointer/mouse: Start Panning
-          scatter.panning = true;
-          const startX = e.clientX;
-          const startY = e.clientY;
-          const startPanX = scatter.pan.x;
-          const startPanY = scatter.pan.y;
-
-          function movePan(eMove) {
-              if (!scatter.panning || scatter.pointers.length > 1) return;
-              eMove.preventDefault();
-              const dx = eMove.clientX - startX;
-              const dy = eMove.clientY - startY;
-
-              scatter.pan.x = startPanX + dx;
-              scatter.pan.y = startPanY + dy;
-              
-              applyScatterTransform();
-          }
-
-          function endPan() {
-              document.removeEventListener('pointermove', movePan);
-              document.removeEventListener('pointerup', endPan);
-              document.removeEventListener('pointercancel', endPan);
-              scatter.panning = false;
-              // Remove pointer from array
-              scatter.pointers = scatter.pointers.filter(p => p.pointerId !== e.pointerId);
-              saveScatterState();
-          }
-
-          document.addEventListener('pointermove', movePan);
-          document.addEventListener('pointerup', endPan);
-          document.addEventListener('pointercancel', endPan);
-
-      } else if (scatter.pointers.length === 2 && isTouch) {
-          // Two pointers (Touch): Start Pinch-to-Zoom
-          // Use current pointer positions for pinch start state
-          scatter.pinchStart = getPinchInfo(scatter.pointers);
-          scatter.panning = false; 
-          
-          function movePinch(eMove) {
-              // Update pointer list
-              const idx = scatter.pointers.findIndex(p => p.pointerId === eMove.pointerId);
-              if (idx > -1) scatter.pointers[idx] = eMove;
-
-              if (scatter.pointers.length !== 2) return;
-              eMove.preventDefault(); 
-              
-              const pinchCurrent = getPinchInfo(scatter.pointers);
-              
-              // 1. Zoom (Scale)
-              const scaleChange = pinchCurrent.distance / scatter.pinchStart.distance;
-              const newZoom = scatter.pinchStart.zoom * scaleChange;
-              
-              const oldZoom = scatter.zoom;
-              const finalZoom = Math.max(0.5, Math.min(2.5, newZoom));
-              
-              // 2. Pan (To keep center fixed)
-              // Center point on canvas before zoom/pan
-              const zoomPointX = (scatter.pinchStart.centerX - scatter.pan.x) / oldZoom;
-              const zoomPointY = (scatter.pinchStart.centerY - scatter.pan.y) / oldZoom;
-              
-              // Pan to keep center fixed
-              scatter.pan.x = pinchCurrent.centerX - (zoomPointX * finalZoom);
-              scatter.pan.y = pinchCurrent.centerY - (zoomPointY * finalZoom);
-
-              scatter.zoom = finalZoom;
-              applyScatterTransform();
-          }
-
-          function endPinch(eUp) {
-              // Remove the pointer that went up
-              scatter.pointers = scatter.pointers.filter(p => p.pointerId !== eUp.pointerId);
-              
-              if (scatter.pointers.length < 2) {
-                  document.removeEventListener('pointermove', movePinch);
-                  document.removeEventListener('pointerup', endPinch);
-                  document.removeEventListener('pointercancel', endPinch);
-                  scatter.pinchStart = null;
-                  saveScatterState();
-              }
-          }
-
-          document.addEventListener('pointermove', movePinch);
-          document.addEventListener('pointerup', endPinch);
-          document.addEventListener('pointercancel', endPinch);
-      }
-    }
-    
-    function getPinchInfo(pointers) {
-        // Find the actual active pointers from the event objects
-        const p1 = pointers[0];
-        const p2 = pointers[1];
-        
-        const canvasRect = document.getElementById('scatterCanvas').getBoundingClientRect();
-
-        const distance = Math.sqrt(Math.pow(p2.clientX - p1.clientX, 2) + Math.pow(p2.clientY - p1.clientY, 2));
-        const centerX = (p1.clientX + p2.clientX) / 2;
-        const centerY = (p1.clientY + p2.clientY) / 2;
-        
-        return {
-            distance: distance,
-            centerX: centerX - canvasRect.left, // Relative to canvas top-left
-            centerY: centerY - canvasRect.top,
-            zoom: scatter.zoom
-        };
-    }
-    
-    function saveScatterState() {
-        // In a real app, you might persist scatter.pan and scatter.zoom here
-    }
-
-
     function startDrag(e, id) {
       if(e.button === 2) return; 
       e.stopPropagation(); 
+      e.preventDefault(); // Prevent default browser drag on desktop/touch
       
       const card = document.getElementById(`scatter-${id}`);
       if(!card) return;
-      
-      // Prevent card drag if multi-touch is active for pan/zoom
-      if(scatter.pointers.length > 0) return;
       
       scatter.dragging = true;
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -1475,8 +1363,10 @@
       function move(eMove) {
         // Only move if the same pointer is moving
         if (eMove.pointerId !== e.pointerId) return;
-        const dx = (eMove.clientX - startX) / scatter.zoom;
-        const dy = (eMove.clientY - startY) / scatter.zoom;
+        
+        // Simple screen-to-card movement (no zoom/pan calculation needed)
+        const dx = eMove.clientX - startX;
+        const dy = eMove.clientY - startY;
         
         const newX = startItemX + dx;
         const newY = startItemY + dy;
@@ -1492,6 +1382,7 @@
         document.removeEventListener('pointerup', end);
         document.removeEventListener('pointercancel', end);
         card.style.zIndex = '';
+        
         // Use a timeout to prevent card click handler from firing immediately
         setTimeout(() => scatter.dragging = false, 100); 
         save();
