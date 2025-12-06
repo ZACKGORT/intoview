@@ -36,6 +36,7 @@
       /* Z-index layers */
       --z-ui: 220;
       --z-overlay: 250;
+      --z-menu: 300;
     }
 
     [data-theme="light"] {
@@ -50,20 +51,17 @@
       --shadow-soft: 0 10px 30px -10px rgba(0,0,0,0.1);
     }
 
-    /* --- ROSE / POP ART THEME --- */
     [data-theme="rose"] {
       --bg-color: #EA426F; 
       --ink: #000000;
       --ink-2: #222222;
       --ink-3: #444444;
       --accent: #000000;
-      
-      /* Pop Art Overrides - "Card" style */
       --glass-bg: #ffffff;
-      --glass-bg-hover: #FFF500; /* Yellow highlight on hover */
+      --glass-bg-hover: #FFF500;
       --glass-border: #000000;
-      --glass-blur: 0px; /* No blur in pop art */
-      --shadow-soft: 6px 6px 0px #000000; /* Hard shadow */
+      --glass-blur: 0px;
+      --shadow-soft: 6px 6px 0px #000000;
     }
 
     /* ---------------------------
@@ -115,8 +113,12 @@
     .grid-container.active{opacity:1;pointer-events:auto;}
     .grid-wrapper{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;padding:20px;max-width:1600px;margin:0 auto;}
     
-    .card{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:12px;padding:20px;cursor:pointer;transition:all 0.25s var(--ease-out);min-height:180px;display:flex;flex-direction:column;box-shadow:var(--shadow-soft);backdrop-filter:blur(var(--glass-blur));}
+    .card{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:12px;padding:20px;cursor:pointer;transition:all 0.25s var(--ease-out);min-height:180px;display:flex;flex-direction:column;box-shadow:var(--shadow-soft);backdrop-filter:blur(var(--glass-blur));position:relative; overflow:hidden;}
+    /* Active effect for click-to-copy */
+    .card:active { transform: scale(0.98); }
+    /* Hover effect */
     .card:hover{transform:translateY(-4px);box-shadow:0 20px 60px -10px rgba(0,0,0,0.4);border-color:var(--accent);}
+    
     .card-header{display:flex;justify-content:space-between;align-items:start;margin-bottom:15px}
     .card-provider{font-size:20px;font-weight:700;color:var(--accent)}
     .card-status{padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;border:1px solid var(--glass-border);background:var(--glass-bg);}
@@ -124,6 +126,15 @@
     .card-footer{margin-top:auto;padding-top:15px;border-top:1px solid var(--glass-border)}
     .card-label{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:8px}
     .card-label strong{color:var(--ink);font-weight:600}
+
+    /* Copy Feedback Overlay */
+    .copy-feedback {
+      position: absolute; inset: 0; background: var(--accent); color: #000;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 18px; opacity: 0; pointer-events: none;
+      transition: opacity 0.2s; z-index: 10;
+    }
+    .copy-feedback.show { opacity: 0.9; }
 
     /* Status colors */
     .status-active .card-status{background:rgba(34,197,94,0.15);color:#22c55e;border-color:#22c55e;}
@@ -138,6 +149,8 @@
     .scatter-card:active{cursor:grabbing}
     .scatter-card.dragging{box-shadow:0 16px 48px rgba(0,0,0,.6);border-color:var(--accent);z-index:2000}
     .scatter-card.magnetic{transition:transform .15s cubic-bezier(.2,.9,.3,1);}
+    /* Smooth transition for sorting */
+    .scatter-card.sorting { transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
 
     /* Modal */
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:var(--z-overlay);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
@@ -154,10 +167,64 @@
     .close-modal{position:absolute;top:20px;right:20px;background:transparent;border:0;color:var(--ink);font-size:32px;cursor:pointer;opacity:.7;transition:opacity 0.2s;}
     .close-modal:hover{opacity:1;}
 
+    /* Context Menu */
+    .context-menu {
+      position: fixed;
+      background: var(--bg-color);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 6px;
+      min-width: 180px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      z-index: var(--z-menu);
+      opacity: 0; pointer-events: none;
+      transform: scale(0.95);
+      transition: opacity 0.1s, transform 0.1s;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .context-menu.active { opacity: 1; pointer-events: auto; transform: scale(1); }
+    
+    .ctx-item {
+      padding: 10px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 500;
+      display: flex; justify-content: space-between; align-items: center;
+      position: relative;
+    }
+    .ctx-item:hover { background: var(--glass-bg-hover); color: var(--accent); }
+    .ctx-divider { height: 1px; background: var(--glass-border); margin: 4px 0; }
+    
+    /* Submenu */
+    .ctx-submenu {
+      position: absolute; left: 100%; top: -4px;
+      background: var(--bg-color);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px; padding: 6px; min-width: 160px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      opacity: 0; pointer-events: none; transform: translateX(-10px);
+      transition: all 0.2s;
+    }
+    .ctx-item:hover .ctx-submenu { opacity: 1; pointer-events: auto; transform: translateX(0); }
+
+    /* Magnet Indicator */
     .magnet-indicator{position:fixed;width:120px;height:120px;border:3px solid var(--accent);border-radius:50%;pointer-events:none;z-index:calc(var(--z-ui) + 5);opacity:0;display:flex;align-items:center;justify-content:center;transition:opacity 0.15s;box-shadow:0 0 30px var(--accent);}
     .magnet-indicator.active{opacity:.7;animation:pulse 1.5s ease-in-out infinite;}
     @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
     .magnet-indicator::before{content:'🧲';font-size:48px}
+
+    /* Toast Notification */
+    .toast {
+      position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--accent); color: #000; font-weight: 700;
+      padding: 12px 24px; border-radius: 30px;
+      opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: var(--z-overlay); pointer-events: none;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     ::-webkit-scrollbar{width:8px}
     ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:4px}
@@ -173,14 +240,14 @@
     <div class="label" id="indicatorLabel">New Item</div>
   </div>
 
-  <!-- Theme Toggle - Top Right -->
+  <div id="toast" class="toast">Action Complete</div>
+
   <div class="theme-toggle" role="toolbar" aria-label="Theme selector">
     <button class="theme-btn active" data-theme="dark" title="Dark Theme">🌙</button>
     <button class="theme-btn" data-theme="light" title="Light Theme">☀️</button>
     <button class="theme-btn" data-theme="rose" title="Rose Theme">🌹</button>
   </div>
 
-  <!-- Top Nav - All Providers -->
   <div class="top-nav" role="toolbar" aria-label="Provider filter">
     <button class="nav-btn active" data-provider="all">All</button>
     <button class="nav-btn" data-provider="ChatGPT">ChatGPT</button>
@@ -192,7 +259,7 @@
 
   <div class="left-nav" role="tablist" aria-label="View switch">
     <button class="nav-btn active" data-view="grid">Grid</button>
-    <button class="nav-btn" data-view="scatter">Scatter</button>
+    <button class="nav-btn" data-view="scatter">List/Scatter</button>
   </div>
 
   <div class="right-nav" role="toolbar" aria-label="Status filter">
@@ -202,19 +269,17 @@
     <button class="nav-btn" data-status="burnt">Burnt</button>
   </div>
 
-  <!-- Zoom Controls - Bottom Left -->
   <div class="zoom-controls" id="zoomControls">
     <button class="zoom-btn" id="zoomIn" aria-label="Zoom in">+</button>
     <button class="zoom-btn" id="zoomReset" aria-label="Reset zoom">⟲</button>
     <button class="zoom-btn" id="zoomOut" aria-label="Zoom out">−</button>
   </div>
 
-  <!-- FAB - Bottom Center -->
   <div class="fab-wrap">
     <button class="fab" id="fabBtn" title="New Item (N)" aria-label="Create new item">
       <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"></path></svg>
     </button>
-    <div class="fab-label">Add Node</div>
+    <div class="fab-label">Add Contact</div>
   </div>
 
   <div class="container">
@@ -229,13 +294,17 @@
 
   <div class="magnet-indicator" id="magnetIndicator"></div>
 
+  <div id="contextMenu" class="context-menu">
+    </div>
+
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
       <button class="close-modal" id="closeModal">&times;</button>
-      <h2>Add New Item</h2>
+      <h2 id="modalTitle">Add New Contact</h2>
       <form id="addForm">
+        <input type="hidden" id="formId">
         <div class="form-group">
-          <label for="formProvider">Provider</label>
+          <label for="formProvider">Provider / Group</label>
           <select id="formProvider" required>
             <option value="ChatGPT">OpenAI (ChatGPT)</option>
             <option value="Claude">Anthropic (Claude)</option>
@@ -249,8 +318,8 @@
           <input id="formEmail" type="email" required>
         </div>
         <div class="form-group">
-          <label for="formPassword">Password</label>
-          <input id="formPassword" type="password" required>
+          <label for="formPassword">Password (Notes)</label>
+          <input id="formPassword" type="text" required>
         </div>
         <div class="form-group">
           <label for="formResetHours">Reset Hours</label>
@@ -264,7 +333,7 @@
             <option value="burnt">Burnt/Expired</option>
           </select>
         </div>
-        <button type="submit" class="btn-submit">Create Item</button>
+        <button type="submit" class="btn-submit" id="submitBtn">Save Contact</button>
       </form>
     </div>
   </div>
@@ -282,7 +351,7 @@
     let isMagnetic = false;
     let magnetPos = { x: 0, y: 0 };
     let magneticAnimationFrame = null;
-    let magneticDelayTimer = null;
+    let contextTargetId = null;
 
     function generateMockData() {
       const providers = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot'];
@@ -312,8 +381,6 @@
       });
       localStorage.setItem('preferred-theme', theme);
     }
-
-    // Load saved theme
     const savedTheme = localStorage.getItem('preferred-theme') || 'dark';
     setTheme(savedTheme);
 
@@ -328,6 +395,14 @@
       document.getElementById('indicatorLabel').textContent = label;
       indicator.classList.add('show');
       setTimeout(() => indicator.classList.remove('show'), 800);
+    }
+
+    // Toast
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
     }
 
     document.addEventListener('keydown', (e) => {
@@ -354,8 +429,33 @@
       renderView();
     }
 
-    // Modal
-    function openModal() {
+    // Modal Handling
+    function openModal(itemId = null) {
+      const modalTitle = document.getElementById('modalTitle');
+      const submitBtn = document.getElementById('submitBtn');
+      const form = document.getElementById('addForm');
+      
+      if (itemId) {
+        // Edit Mode
+        const item = items.find(i => i.id === Number(itemId));
+        if (item) {
+          modalTitle.textContent = "Edit Contact";
+          submitBtn.textContent = "Update Contact";
+          document.getElementById('formId').value = item.id;
+          document.getElementById('formProvider').value = item.provider;
+          document.getElementById('formEmail').value = item.email;
+          document.getElementById('formPassword').value = item.password;
+          document.getElementById('formResetHours').value = item.resetHours;
+          document.getElementById('formStatus').value = item.status;
+        }
+      } else {
+        // New Mode
+        modalTitle.textContent = "Add New Contact";
+        submitBtn.textContent = "Create Contact";
+        form.reset();
+        document.getElementById('formId').value = "";
+      }
+
       document.getElementById('modalOverlay').classList.add('active');
       document.body.style.overflow = 'hidden';
     }
@@ -363,9 +463,10 @@
     function closeModal() {
       document.getElementById('modalOverlay').classList.remove('active');
       document.body.style.overflow = '';
+      hideContextMenu();
     }
 
-    document.getElementById('fabBtn').addEventListener('click', openModal);
+    document.getElementById('fabBtn').addEventListener('click', () => openModal());
     document.getElementById('closeModal').addEventListener('click', closeModal);
     document.getElementById('modalOverlay').addEventListener('click', (e) => {
       if (e.target === e.currentTarget) closeModal();
@@ -385,11 +486,15 @@
       }[m]));
     }
 
+    /* ----------------------------------------------------
+       GRID VIEW IMPLEMENTATION
+       ---------------------------------------------------- */
     function renderGrid() {
       const wrapper = document.getElementById('gridWrapper');
       const filtered = getFilteredItems();
       wrapper.innerHTML = filtered.map(item => `
-        <div class="card status-${item.status}" data-id="${item.id}">
+        <div class="card status-${item.status}" data-id="${item.id}" oncontextmenu="handleCardContext(event, ${item.id})">
+          <div class="copy-feedback">Copied!</div>
           <div class="card-header">
             <div class="card-provider">${escapeHtml(item.provider)}</div>
             <div class="card-status">${escapeHtml(item.status)}</div>
@@ -403,8 +508,28 @@
           </div>
         </div>
       `).join('');
+
+      // Attach Left-Click Copy Handler
+      wrapper.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          // Prevent copy if clicking buttons or specific interactive elements
+          const id = card.dataset.id;
+          const item = items.find(i => i.id == id);
+          if (item) {
+            navigator.clipboard.writeText(item.email).then(() => {
+              const feedback = card.querySelector('.copy-feedback');
+              feedback.classList.add('show');
+              setTimeout(() => feedback.classList.remove('show'), 800);
+              showToast("Email Copied to Clipboard");
+            });
+          }
+        });
+      });
     }
 
+    /* ----------------------------------------------------
+       SCATTER / LIST VIEW IMPLEMENTATION
+       ---------------------------------------------------- */
     function renderScatter() {
       const canvas = document.getElementById('scatterCanvas');
       const filtered = getFilteredItems();
@@ -423,7 +548,10 @@
       canvas.innerHTML = filtered.map(item => {
         const pos = posMap.get(item.id) || item.position;
         return `
-          <div class="scatter-card status-${item.status}" data-id="${item.id}" style="transform:translate3d(${pos.x}px,${pos.y}px,0)">
+          <div class="scatter-card status-${item.status}" 
+               data-id="${item.id}" 
+               style="transform:translate3d(${pos.x}px,${pos.y}px,0)"
+               oncontextmenu="handleCardContext(event, ${item.id})">
             <div class="card-header">
               <div class="card-provider">${escapeHtml(item.provider)}</div>
               <div class="card-status">${escapeHtml(item.status)}</div>
@@ -446,8 +574,11 @@
     }
 
     function startDrag(e) {
+      // Prevent drag on right click
       if (e.button === 2) return;
+      
       draggedCard = e.currentTarget;
+      draggedCard.classList.remove('sorting'); // Remove sort transition while dragging
       isDragging = true;
       draggedCard.classList.add('dragging');
       const rect = draggedCard.getBoundingClientRect();
@@ -456,16 +587,166 @@
       e.preventDefault();
     }
 
+    /* ----------------------------------------------------
+       CONTEXT MENU LOGIC
+       ---------------------------------------------------- */
+    const contextMenu = document.getElementById('contextMenu');
+
+    // Close menu on global click
+    document.addEventListener('click', (e) => {
+      if (!contextMenu.contains(e.target)) hideContextMenu();
+    });
+
+    // Prevent default context menu on cards
+    function handleCardContext(e, id) {
+      e.preventDefault();
+      e.stopPropagation();
+      contextTargetId = id;
+      showContextMenu(e.clientX, e.clientY);
+    }
+
+    function showContextMenu(x, y) {
+      const isGrid = currentView === 'grid';
+      
+      // Build Menu HTML
+      let html = '';
+      
+      if (!isGrid) {
+        // Scatter/List View Options
+        html += `
+          <div class="ctx-item">
+            <span>Sort by...</span>
+            <span>▸</span>
+            <div class="ctx-submenu">
+              <div class="ctx-item" onclick="handleSort('provider')">Name (Provider)</div>
+              <div class="ctx-item" onclick="handleSort('status')">Status</div>
+              <div class="ctx-item" onclick="handleSort('reset')">Reset (Random)</div>
+            </div>
+          </div>
+          <div class="ctx-divider"></div>
+        `;
+      }
+      
+      // Common Options
+      html += `
+        <div class="ctx-item" onclick="triggerEdit()">Edit Contact</div>
+        <div class="ctx-item" onclick="triggerDelete()" style="color:#ef4444">Delete Contact</div>
+      `;
+
+      contextMenu.innerHTML = html;
+      contextMenu.style.left = `${Math.min(x, window.innerWidth - 200)}px`;
+      contextMenu.style.top = `${Math.min(y, window.innerHeight - 150)}px`;
+      contextMenu.classList.add('active');
+    }
+
+    function hideContextMenu() {
+      contextMenu.classList.remove('active');
+      contextTargetId = null;
+    }
+
+    // Context Actions
+    function triggerEdit() {
+      if (contextTargetId) openModal(contextTargetId);
+      hideContextMenu();
+    }
+
+    function triggerDelete() {
+      if (contextTargetId) {
+        if(confirm("Are you sure you want to delete this contact?")) {
+          items = items.filter(i => i.id !== contextTargetId);
+          renderView();
+          showToast("Contact Deleted");
+        }
+      }
+      hideContextMenu();
+    }
+
+    // Sorting Logic for Scatter View
+    function handleSort(criteria) {
+      hideContextMenu();
+      if (currentView !== 'scatter') return;
+
+      const filtered = getFilteredItems();
+      const canvasWidth = window.innerWidth;
+      
+      // Sort the array locally
+      let sorted = [...filtered];
+      if (criteria === 'provider') {
+        sorted.sort((a, b) => a.provider.localeCompare(b.provider));
+      } else if (criteria === 'status') {
+        sorted.sort((a, b) => a.status.localeCompare(b.status));
+      } else if (criteria === 'reset') {
+        // Randomize mock positions
+         items.forEach(item => {
+            item.position = {
+               x: Math.random() * Math.max(0, window.innerWidth - 260),
+               y: Math.random() * Math.max(0, window.innerHeight - 220)
+            };
+         });
+         renderView();
+         return;
+      }
+
+      // Arrange in a grid formation on the scatter canvas
+      const cols = Math.floor(canvasWidth / 260);
+      const startX = 50;
+      const startY = 50;
+      const gapX = 260;
+      const gapY = 200;
+
+      sorted.forEach((item, index) => {
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        const newX = startX + (col * gapX);
+        const newY = startY + (row * gapY);
+
+        // Update Data
+        const realItem = items.find(i => i.id === item.id);
+        if (realItem) realItem.position = { x: newX, y: newY };
+
+        // Update DOM with Animation
+        const card = document.querySelector(`.scatter-card[data-id="${item.id}"]`);
+        if (card) {
+          card.classList.add('sorting');
+          card.style.transform = `translate3d(${newX}px, ${newY}px, 0)`;
+          // Remove sorting class after animation
+          setTimeout(() => card.classList.remove('sorting'), 500);
+        }
+      });
+    }
+
+    /* ----------------------------------------------------
+       POINTER & MAGNET LOGIC
+       ---------------------------------------------------- */
+    
     document.addEventListener('pointermove', (e) => {
-      if (!isDragging || !draggedCard) return;
-      const canvas = document.getElementById('scatterCanvas');
-      const canvasRect = canvas.getBoundingClientRect();
-      const x = (e.clientX - canvasRect.left - dragOffset.x) / scatterZoom;
-      const y = (e.clientY - canvasRect.top - dragOffset.y) / scatterZoom;
-      draggedCard.style.transform = `translate3d(${x}px,${y}px,0)`;
-      const id = Number(draggedCard.dataset.id);
-      const item = items.find(i => i.id === id);
-      if (item) item.position = { x, y };
+      // 1. Handle Dragging
+      if (isDragging && draggedCard) {
+        const canvas = document.getElementById('scatterCanvas');
+        const canvasRect = canvas.getBoundingClientRect();
+        const x = (e.clientX - canvasRect.left - dragOffset.x) / scatterZoom;
+        const y = (e.clientY - canvasRect.top - dragOffset.y) / scatterZoom;
+        draggedCard.style.transform = `translate3d(${x}px,${y}px,0)`;
+        const id = Number(draggedCard.dataset.id);
+        const item = items.find(i => i.id === id);
+        if (item) item.position = { x, y };
+      }
+
+      // 2. Handle Magnet (Shift + Move)
+      magnetPos = { x: e.clientX, y: e.clientY };
+      
+      if (currentView === 'scatter') {
+        if (e.shiftKey) {
+          // Trigger Magnet Mode
+          if (!isMagnetic) startMagneticEffect();
+          const indicator = document.getElementById('magnetIndicator');
+          indicator.style.left = `${e.clientX - 60}px`;
+          indicator.style.top = `${e.clientY - 60}px`;
+        } else {
+          // Stop Magnet Mode
+          if (isMagnetic) stopMagneticEffect();
+        }
+      }
     });
 
     document.addEventListener('pointerup', () => {
@@ -474,52 +755,15 @@
       draggedCard = null;
     });
 
-    // Magnetic gathering with smooth animation loop
-    document.addEventListener('contextmenu', (e) => {
-      if (currentView === 'scatter') e.preventDefault();
+    // Ensure magnet stops if shift is released even without movement
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') stopMagneticEffect();
     });
 
     function startMagneticEffect() {
+      if (isMagnetic) return;
       isMagnetic = true;
       document.getElementById('magnetIndicator').classList.add('active');
-      
-      // Animation loop for smooth magnetic pull
-      function magnetLoop() {
-        if (!isMagnetic) return;
-        
-        const cards = document.querySelectorAll('.scatter-card');
-        cards.forEach(card => {
-          card.classList.add('magnetic');
-          const rect = card.getBoundingClientRect();
-          const cardCenterX = rect.left + rect.width / 2;
-          const cardCenterY = rect.top + rect.height / 2;
-          
-          const dx = magnetPos.x - cardCenterX;
-          const dy = magnetPos.y - cardCenterY;
-          const dist = Math.hypot(dx, dy);
-          
-          if (dist > 60) {
-            const pull = Math.min(0.35, 150 / Math.max(1, dist));
-            const transform = card.style.transform;
-            const match = transform.match(/translate3d\(([^p]+)px,\s*([^p]+)px/);
-            
-            if (match) {
-              const currentX = parseFloat(match[1]);
-              const currentY = parseFloat(match[2]);
-              const newX = currentX + dx * pull;
-              const newY = currentY + dy * pull;
-              card.style.transform = `translate3d(${newX}px,${newY}px,0)`;
-              
-              const id = Number(card.dataset.id);
-              const item = items.find(i => i.id === id);
-              if (item) item.position = { x: newX, y: newY };
-            }
-          }
-        });
-        
-        magneticAnimationFrame = requestAnimationFrame(magnetLoop);
-      }
-      
       magnetLoop();
     }
 
@@ -533,64 +777,44 @@
       }
     }
 
-    document.addEventListener('pointerdown', (e) => {
-      if (e.button === 2 && currentView === 'scatter') {
-        clearTimeout(magneticDelayTimer);
-        magneticDelayTimer = setTimeout(() => {
-          startMagneticEffect();
-        }, 200); // 200ms delay to prevent accidental activation
-      }
-    });
-
-    document.addEventListener('pointerup', (e) => {
-      if (e.button === 2) {
-        clearTimeout(magneticDelayTimer);
-        stopMagneticEffect();
-      }
-    });
-
-    document.addEventListener('pointermove', (e) => {
-      magnetPos = { x: e.clientX, y: e.clientY };
+    function magnetLoop() {
+      if (!isMagnetic) return;
       
-      if (isMagnetic && currentView === 'scatter') {
-        const indicator = document.getElementById('magnetIndicator');
-        indicator.style.left = `${e.clientX - 60}px`;
-        indicator.style.top = `${e.clientY - 60}px`;
-      }
-    });
+      const cards = document.querySelectorAll('.scatter-card');
+      cards.forEach(card => {
+        // Don't pull card being dragged
+        if (card.classList.contains('dragging')) return;
 
-    // Touch hold for magnet on mobile
-    let touchHoldTimer;
-    document.addEventListener('touchstart', (e) => {
-      if (currentView === 'scatter' && e.touches.length === 1) {
-        const touch = e.touches[0];
-        magnetPos = { x: touch.clientX, y: touch.clientY };
+        card.classList.add('magnetic');
+        const rect = card.getBoundingClientRect();
+        const cardCenterX = rect.left + rect.width / 2;
+        const cardCenterY = rect.top + rect.height / 2;
         
-        touchHoldTimer = setTimeout(() => {
-          startMagneticEffect();
-          const indicator = document.getElementById('magnetIndicator');
-          indicator.style.left = `${touch.clientX - 60}px`;
-          indicator.style.top = `${touch.clientY - 60}px`;
-        }, 500);
-      }
-    });
-
-    document.addEventListener('touchmove', (e) => {
-      if (isMagnetic && currentView === 'scatter' && e.touches.length === 1) {
-        const touch = e.touches[0];
-        magnetPos = { x: touch.clientX, y: touch.clientY };
+        const dx = magnetPos.x - cardCenterX;
+        const dy = magnetPos.y - cardCenterY;
+        const dist = Math.hypot(dx, dy);
         
-        const indicator = document.getElementById('magnetIndicator');
-        indicator.style.left = `${touch.clientX - 60}px`;
-        indicator.style.top = `${touch.clientY - 60}px`;
-        e.preventDefault();
-      }
-    });
-
-    document.addEventListener('touchend', () => {
-      clearTimeout(touchHoldTimer);
-      stopMagneticEffect();
-    });
+        if (dist > 60) {
+          const pull = Math.min(0.35, 150 / Math.max(1, dist));
+          const transform = card.style.transform;
+          const match = transform.match(/translate3d\(([^p]+)px,\s*([^p]+)px/);
+          
+          if (match) {
+            const currentX = parseFloat(match[1]);
+            const currentY = parseFloat(match[2]);
+            const newX = currentX + dx * pull;
+            const newY = currentY + dy * pull;
+            card.style.transform = `translate3d(${newX}px,${newY}px,0)`;
+            
+            const id = Number(card.dataset.id);
+            const item = items.find(i => i.id === id);
+            if (item) item.position = { x: newX, y: newY };
+          }
+        }
+      });
+      
+      magneticAnimationFrame = requestAnimationFrame(magnetLoop);
+    }
 
     // Zoom controls
     function updateZoom(delta) {
@@ -612,34 +836,6 @@
       }
     }, { passive: false });
 
-    // Pinch zoom
-    let initialPinchDistance = 0;
-    document.getElementById('scatterContainer').addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2) {
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        initialPinchDistance = Math.hypot(
-          touch2.clientX - touch1.clientX,
-          touch2.clientY - touch1.clientY
-        );
-      }
-    });
-
-    document.getElementById('scatterContainer').addEventListener('touchmove', (e) => {
-      if (e.touches.length === 2) {
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        const currentDistance = Math.hypot(
-          touch2.clientX - touch1.clientX,
-          touch2.clientY - touch1.clientY
-        );
-        const delta = (currentDistance - initialPinchDistance) * 0.01;
-        updateZoom(delta);
-        initialPinchDistance = currentDistance;
-        e.preventDefault();
-      }
-    });
-
     // View switching
     function switchView(view) {
       currentView = view;
@@ -647,6 +843,10 @@
       const scatter = document.getElementById('scatterContainer');
       const zoom = document.getElementById('zoomControls');
       
+      // Reset magnet
+      stopMagneticEffect();
+      hideContextMenu();
+
       if (view === 'grid') {
         grid.classList.add('active');
         scatter.classList.remove('active');
@@ -691,11 +891,15 @@
       });
     });
 
-    // Form submission
+    // Form submission (Create or Update)
     document.getElementById('addForm').addEventListener('submit', (e) => {
       e.preventDefault();
+      
+      const idVal = document.getElementById('formId').value;
+      const isEdit = idVal !== "";
+
       const newItem = {
-        id: Date.now(),
+        id: isEdit ? Number(idVal) : Date.now(),
         provider: document.getElementById('formProvider').value,
         email: document.getElementById('formEmail').value,
         password: document.getElementById('formPassword').value,
@@ -706,7 +910,22 @@
           y: Math.random() * Math.max(0, window.innerHeight - 220)
         }
       };
-      items.push(newItem);
+
+      if (isEdit) {
+        // Update existing
+        const idx = items.findIndex(i => i.id === newItem.id);
+        if (idx > -1) {
+          // Preserve position if editing
+          newItem.position = items[idx].position; 
+          items[idx] = newItem;
+          showToast("Contact Updated");
+        }
+      } else {
+        // Create new
+        items.push(newItem);
+        showToast("Contact Created");
+      }
+
       closeModal();
       e.target.reset();
       renderView();
