@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
-  <title>IntoView:Node</title>
+  <title>IntoView:Node v2.2</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -22,7 +22,7 @@
       --glass-blur: 16px;
       
       --nav-height: 80px;
-      --header-height: 60px;
+      --header-height: 100px;
       --font-mono: 'JetBrains Mono', monospace;
       --font-sans: 'Inter', sans-serif;
     }
@@ -47,15 +47,38 @@
     /* --- Layout Structure --- */
     .app-header {
       position: fixed; top: 0; left: 0; right: 0; height: var(--header-height);
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 0 20px; z-index: 100;
-      background: linear-gradient(to bottom, var(--bg-color) 20%, transparent);
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 10px 0; z-index: 100;
+      background: linear-gradient(to bottom, var(--bg-color) 40%, transparent);
       pointer-events: none;
     }
-    .app-header > * { pointer-events: auto; }
+    .header-top { display: flex; justify-content: space-between; align-items: center; padding: 0 20px; width: 100%; pointer-events: auto; }
     
-    .logo { font-weight: 800; font-size: 18px; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
-    .logo::before { content:''; display:block; width:12px; height:12px; background:var(--accent); border-radius:50%; }
+    .logo { display: flex; align-items: center; height: 32px; }
+    #logoImg { height: 100%; width: auto; }
+
+    .theme-btn {
+        background: transparent; border: none; color: var(--ink-dim);
+        cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center;
+    }
+    .theme-btn:active { background: var(--glass-border); color: var(--ink); }
+
+    /* --- Provider Toggle Bar --- */
+    /* Centered content */
+    .provider-bar {
+      display: flex; gap: 8px; overflow-x: auto; padding: 10px 20px;
+      pointer-events: auto; scrollbar-width: none;
+      justify-content: center; /* Centering */
+    }
+    .provider-bar::-webkit-scrollbar { display: none; }
+    
+    .pill {
+      padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      background: var(--glass-bg); border: 1px solid var(--glass-border);
+      color: var(--ink-dim); white-space: nowrap; cursor: pointer; transition: all 0.2s;
+    }
+    .pill.active { background: var(--ink); color: var(--bg-color); border-color: var(--ink); }
+    .pill.add-btn { border-style: dashed; }
 
     .view-container {
       position: absolute; inset: 0;
@@ -92,7 +115,7 @@
 
     .card-timer {
       font-family: var(--font-mono);
-      font-size: 2.4rem; /* Prominent Large Format */
+      font-size: 2.4rem;
       font-weight: 700;
       text-align: center;
       letter-spacing: -1px;
@@ -101,7 +124,14 @@
 
     .card-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--ink-dim); border-top: 1px solid var(--glass-border); padding-top: 12px; }
     .card-email { font-family: var(--font-mono); opacity: 0.8; }
-    .reset-badge { background: var(--glass-border); padding: 4px 8px; border-radius: 6px; }
+    
+    .card-actions { display: flex; gap: 8px; }
+    .action-icon { 
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; 
+      border-radius: 6px; background: rgba(255,255,255,0.05); cursor: pointer;
+      color: var(--ink-dim); transition: 0.2s;
+    }
+    .action-icon:hover { background: var(--accent); color: #000; }
 
     /* --- Scatter View --- */
     .scatter-canvas { width: 100%; height: 100%; position: relative; cursor: grab; transform-origin: 0 0; }
@@ -114,10 +144,11 @@
       padding: 12px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.3);
       display: flex; flex-direction: column; align-items: center;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .scatter-card .card-timer { font-size: 1.4rem; margin: 4px 0; }
     .scatter-card .card-provider { font-size: 11px; }
+    .scatter-card .card-actions { margin-top: 8px; border-top: 1px solid var(--glass-border); padding-top: 8px; width: 100%; justify-content: center; }
 
     /* --- Bottom Navigation (Dock) --- */
     .bottom-nav {
@@ -129,7 +160,7 @@
       border: 1px solid var(--glass-border);
       border-radius: 32px;
       display: flex; justify-content: space-between; align-items: center;
-      padding: 0 8px;
+      padding: 0 8px 0 16px; 
       box-shadow: 0 20px 40px rgba(0,0,0,0.5);
       z-index: 200;
     }
@@ -150,11 +181,30 @@
     .nav-btn.primary { background: var(--accent); color: #000; transform: scale(1.1); box-shadow: 0 0 15px var(--accent); }
     .nav-btn.primary:active { transform: scale(1.0); }
 
+    /* Status Filter Pill (Bottom Right) */
+    .filter-pill-btn {
+        background: var(--glass-border);
+        height: 40px;
+        width: 120px; /* FIXED WIDTH to prevent nav movement */
+        padding: 0 16px;
+        border-radius: 20px;
+        border: 1px solid var(--glass-border);
+        color: var(--ink);
+        display: flex; align-items: center; justify-content: flex-start; /* Left align inside pill */
+        gap: 8px;
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+        margin-right: 8px; cursor: pointer;
+        transition: all 0.2s;
+    }
+    .filter-pill-btn:active { transform: scale(0.95); }
+    .filter-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-dim); box-shadow: 0 0 5px currentColor; flex-shrink: 0; }
+
+
     /* --- Modals & Overlays --- */
     .overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(8px);
       z-index: 300; opacity: 0; pointer-events: none; transition: opacity 0.3s;
-      display: flex; align-items: flex-end; /* Bottom sheet on mobile */
+      display: flex; align-items: flex-end;
     }
     .overlay.active { opacity: 1; pointer-events: auto; }
     @media(min-width: 600px) { .overlay { align-items: center; justify-content: center; } }
@@ -173,8 +223,32 @@
       .overlay.active .modal-sheet { transform: scale(1); }
     }
 
+    /* --- Confirmation Dialogue (System style) --- */
+    .confirm-dialog {
+        background: var(--card-bg); border: 1px solid var(--glass-border);
+        padding: 24px; border-radius: 16px; width: 90%; max-width: 320px;
+        text-align: center;
+        margin-bottom: 40vh; /* Lift up on mobile */
+    }
+    @media(min-width: 600px) { .confirm-dialog { margin-bottom: 0; } }
+    
+    .confirm-title { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+    .confirm-text { font-size: 13px; color: var(--ink-dim); margin-bottom: 20px; }
+    .confirm-actions { display: flex; gap: 10px; }
+
     .form-group { margin-bottom: 16px; }
     label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); margin-bottom: 6px; text-transform: uppercase; }
+    
+    /* Input with Icon Wrapper */
+    .input-wrapper { position: relative; width: 100%; }
+    .input-wrapper input { padding-right: 40px; }
+    .input-icon-btn {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--ink-dim); cursor: pointer;
+      padding: 4px; border-radius: 4px;
+    }
+    .input-icon-btn:hover { color: var(--accent); background: rgba(255,255,255,0.1); }
+
     input, select {
       width: 100%; padding: 16px;
       background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
@@ -185,11 +259,16 @@
     
     .btn-block { width: 100%; padding: 16px; border-radius: 12px; font-weight: 700; border: none; font-size: 14px; text-transform: uppercase; cursor: pointer; }
     .btn-primary { background: var(--accent); color: #000; }
+    .btn-secondary { background: var(--glass-border); color: var(--ink); margin-top: 12px; }
     .btn-danger { background: rgba(239,68,68,0.2); color: var(--neon-red); margin-top: 12px; border: 1px solid rgba(239,68,68,0.5); }
+    
+    .btn-half { flex: 1; padding: 12px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer; }
+    .btn-cancel { background: transparent; color: var(--ink-dim); border: 1px solid var(--glass-border); }
+    .btn-confirm { background: var(--accent); color: #000; }
 
     /* --- Utilities --- */
     .toast {
-      position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px);
+      position: fixed; top: 120px; left: 50%; transform: translateX(-50%) translateY(-20px);
       background: var(--accent); color: #000; padding: 10px 20px; border-radius: 20px;
       font-weight: 700; font-size: 12px; opacity: 0; pointer-events: none; transition: all 0.3s; z-index: 500;
     }
@@ -202,51 +281,74 @@
     .scatter-controls.visible { display: flex; }
     .control-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--glass-bg); border: 1px solid var(--glass-border); color: var(--ink); font-size: 16px; backdrop-filter: blur(10px); }
 
+    /* --- Context Menu --- */
+    .context-menu {
+      position: absolute; display: none; 
+      background: var(--card-bg); border: 1px solid var(--glass-border);
+      border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      z-index: 1000; width: 180px; overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+    .context-menu.active { display: block; animation: fadeIn 0.1s ease; }
+    .ctx-header { padding: 8px 12px; font-size: 10px; text-transform: uppercase; color: var(--ink-dim); border-bottom: 1px solid var(--glass-border); letter-spacing: 1px; }
+    .ctx-item { 
+      padding: 12px 16px; font-size: 14px; color: var(--ink); cursor: pointer; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+    }
+    .ctx-item:hover { background: var(--accent); color: #000; }
+    .ctx-item:last-child { border-bottom: none; }
+    
+    @keyframes fadeIn { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
+
   </style>
 </head>
 <body data-theme="dark">
 
   <header class="app-header">
-    <div class="logo">IntoView:NODE</div>
-    <div id="filterDisplay" style="font-size: 12px; font-weight:600; color: var(--ink-dim);">All Items</div>
+    <div class="header-top">
+      <div class="logo">
+        <img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg.svg" alt="IntoView Logo">
+      </div>
+      <button class="theme-btn" onclick="toggleTheme()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"></path></svg>
+      </button>
+    </div>
+    
+    <div class="provider-bar" id="providerBar"></div>
   </header>
 
   <div id="gridContainer" class="view-container active">
-    <div class="grid-wrapper" id="gridWrapper">
-      </div>
+    <div class="grid-wrapper" id="gridWrapper"></div>
   </div>
 
   <div id="scatterContainer" class="view-container">
-    <div class="scatter-canvas" id="scatterCanvas">
-      </div>
+    <div class="scatter-canvas" id="scatterCanvas"></div>
   </div>
 
   <div class="scatter-controls" id="scatterControls">
-    <button class="control-btn" onclick="toggleMagnet()" id="magnetBtn">🧲</button>
+    <button class="control-btn" onclick="autoArrange()" id="wandBtn" title="Auto-Arrange">🪄</button>
     <button class="control-btn" onclick="adjustZoom(0.1)">+</button>
     <button class="control-btn" onclick="adjustZoom(-0.1)">-</button>
   </div>
 
+  <div id="contextMenu" class="context-menu"></div>
+
   <nav class="bottom-nav">
     <div class="nav-group">
-      <button class="nav-btn active" data-view="grid" onclick="switchView('grid')">
+      <button class="nav-btn active" data-view="grid" onclick="switchView('grid')" title="Grid View">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-6v12h-6V4z"></path></svg>
       </button>
-      <button class="nav-btn" data-view="scatter" onclick="switchView('scatter')">
+      <button class="nav-btn" data-view="scatter" onclick="switchView('scatter')" title="Free Form">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"></circle><circle cx="19" cy="5" r="2"></circle><circle cx="5" cy="19" r="2"></circle><circle cx="5" cy="5" r="2"></circle><circle cx="19" cy="19" r="2"></circle></svg>
       </button>
     </div>
 
     <button class="nav-btn primary" onclick="openModal()">+</button>
 
-    <div class="nav-group">
-      <button class="nav-btn" onclick="cycleStatusFilter()" id="statusFilterBtn">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"></path></svg>
-      </button>
-      <button class="nav-btn" onclick="toggleTheme()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"></path></svg>
-      </button>
-    </div>
+    <button class="filter-pill-btn" onclick="cycleStatusFilter()" id="statusPill" title="All • Active • Cooling • Burnt">
+      <div class="filter-dot" id="filterDot"></div>
+      <span id="filterLabel">All</span>
+    </button>
   </nav>
 
   <div class="overlay" id="modalOverlay">
@@ -260,7 +362,12 @@
         </div>
         <div class="form-group">
           <label>Email / Identity</label>
-          <input type="text" id="inpEmail" required autocomplete="off">
+          <div class="input-wrapper">
+            <input type="text" id="inpEmail" required autocomplete="off">
+            <button type="button" class="input-icon-btn" onclick="copyInput('inpEmail')">
+               <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+          </div>
         </div>
         <div class="form-group">
           <label>Reset Cycle (Hours)</label>
@@ -275,10 +382,27 @@
           </select>
         </div>
         <button type="submit" class="btn-block btn-primary">Save Node</button>
+        
+        <div id="editActions" style="display:none; margin-top:12px; display:flex; gap:10px;">
+           <button type="button" class="btn-block btn-secondary" onclick="confirmHitLimit(null)">🔥 Hit Limit</button>
+           <button type="button" class="btn-block btn-secondary" onclick="confirmForceRestore(null)">🔄 Restore</button>
+        </div>
+
         <button type="button" class="btn-block btn-danger" id="btnDelete" style="display:none" onclick="deleteNode()">Delete Node</button>
         <div style="height:20px"></div>
       </form>
     </div>
+  </div>
+
+  <div class="overlay" id="confirmOverlay">
+     <div class="confirm-dialog">
+        <div class="confirm-title" id="confirmTitle">Confirm Action</div>
+        <div class="confirm-text" id="confirmText">Are you sure?</div>
+        <div class="confirm-actions">
+           <button class="btn-half btn-cancel" onclick="closeConfirm()">Cancel</button>
+           <button class="btn-half btn-confirm" id="btnConfirmAction">Confirm</button>
+        </div>
+     </div>
   </div>
 
   <div class="toast" id="toast">Copied to Clipboard</div>
@@ -292,7 +416,8 @@
     // Config State
     let config = {
       view: localStorage.getItem('iv_view') || 'grid',
-      filter: 'all', // all, active, cooldown, burnt
+      filterStatus: 'all', 
+      filterProvider: 'all',
       theme: localStorage.getItem('iv_theme') || 'dark'
     };
     
@@ -301,17 +426,17 @@
       zoom: 1,
       pan: {x: 0, y: 0},
       dragging: false,
-      magnet: false,
-      lastPos: {x:0, y:0}
     };
+    
+    let pendingAction = null; // Stores function for confirmation
 
     // --- Init ---
     if(items.length === 0) seedMockData();
     applyTheme();
     updateProviderSelect();
+    renderProviderFilter();
+    updateFilterPillUI(); 
     switchView(config.view);
-    
-    // Start the global timer loop (Crucial for the 00:00:00 logic)
     setInterval(updateTimers, 1000);
 
     // --- Core Functions ---
@@ -324,7 +449,7 @@
         email: `account_${i+1}@llm.com`,
         status: statuses[i % 3],
         resetHours: 3,
-        lastUsed: Date.now() - (Math.random() * 10000000), // Random time in past
+        lastUsed: Date.now() - (Math.random() * 10000000), 
         pos: { x: Math.random() * 300, y: Math.random() * 400 }
       }));
       save();
@@ -339,7 +464,6 @@
       config.view = viewName;
       localStorage.setItem('iv_view', viewName);
       
-      // Update Tab UI
       document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === viewName));
       document.querySelectorAll('.view-container').forEach(c => c.classList.remove('active'));
       
@@ -355,18 +479,81 @@
     }
 
     function filterItems() {
-      if (config.filter === 'all') return items;
-      return items.filter(i => i.status === config.filter);
+      let res = items;
+      if (config.filterStatus !== 'all') {
+        res = res.filter(i => i.status === config.filterStatus);
+      }
+      if (config.filterProvider !== 'all') {
+        res = res.filter(i => i.provider === config.filterProvider);
+      }
+      return res;
     }
 
-    // --- Grid Render ---
+    // --- UI Render ---
+
+    function renderProviderFilter() {
+      const bar = document.getElementById('providerBar');
+      let html = `<div class="pill ${config.filterProvider === 'all' ? 'active' : ''}" onclick="setProviderFilter('all')">All</div>`;
+      
+      providers.forEach(p => {
+        html += `<div class="pill ${config.filterProvider === p ? 'active' : ''}" 
+                      onclick="setProviderFilter('${p}')"
+                      oncontextmenu="handleContextMenu(event, 'provider', '${p}')"
+                 >${p}</div>`;
+      });
+      
+      html += `<div class="pill add-btn" onclick="addProvider()">+</div>`;
+      bar.innerHTML = html;
+    }
+
+    function setProviderFilter(p) {
+      config.filterProvider = p;
+      renderProviderFilter();
+      config.view === 'grid' ? renderGrid() : renderScatter();
+    }
+
+    function addProvider() {
+      const newP = prompt("Enter new provider name:");
+      if(newP && !providers.includes(newP)) {
+        providers.push(newP);
+        save();
+        updateProviderSelect();
+        renderProviderFilter();
+      }
+    }
+
+    function renameProvider(oldName) {
+       const newName = prompt("Rename Provider:", oldName);
+       if(newName && newName !== oldName) {
+           const idx = providers.indexOf(oldName);
+           if(idx !== -1) providers[idx] = newName;
+           items.forEach(i => {
+               if(i.provider === oldName) i.provider = newName;
+           });
+           if(config.filterProvider === oldName) config.filterProvider = newName;
+           save();
+           updateProviderSelect();
+           renderProviderFilter();
+           config.view === 'grid' ? renderGrid() : renderScatter();
+       }
+    }
+
+    function deleteProvider(name) {
+       if(!confirm(`Delete provider "${name}"? Items will keep this tag.`)) return;
+       providers = providers.filter(p => p !== name);
+       if(config.filterProvider === name) config.filterProvider = 'all';
+       save();
+       updateProviderSelect();
+       renderProviderFilter();
+       config.view === 'grid' ? renderGrid() : renderScatter();
+    }
 
     function renderGrid() {
       const wrapper = document.getElementById('gridWrapper');
       const filtered = filterItems();
       
       wrapper.innerHTML = filtered.map(item => `
-        <div class="card" onclick="editNode(${item.id})">
+        <div class="card" onclick="editNode(${item.id})" oncontextmenu="handleContextMenu(event, 'grid-card', ${item.id})">
           <div class="card-top">
             <span class="card-provider">${item.provider}</span>
             <div class="status-dot ${getStatusColorClass(item.status)}"></div>
@@ -378,15 +565,15 @@
 
           <div class="card-meta">
             <span class="card-email" onclick="copyText(event, '${item.email}')">${item.email}</span>
-            <span class="reset-badge">${item.resetHours}h Reset</span>
+            <div class="card-actions">
+               <div class="action-icon" onclick="confirmHitLimit(event, ${item.id})" title="Hit Limit">🔥</div>
+               <div class="action-icon" onclick="confirmForceRestore(event, ${item.id})" title="Restore">🔄</div>
+            </div>
           </div>
         </div>
       `).join('');
-      
-      updateTimers(); // Immediate update so numbers don't jump
+      updateTimers();
     }
-
-    // --- Scatter Render ---
 
     function renderScatter() {
       const canvas = document.getElementById('scatterCanvas');
@@ -397,55 +584,201 @@
              id="scatter-${item.id}"
              style="transform: translate(${item.pos.x}px, ${item.pos.y}px)"
              onpointerdown="startDrag(event, ${item.id})"
-             onclick="if(!scatter.dragging) editNode(${item.id})">
+             onclick="if(!scatter.dragging) editNode(${item.id})"
+             oncontextmenu="handleContextMenu(event, 'scatter-card', ${item.id})">
           <div class="status-dot ${getStatusColorClass(item.status)}" style="margin-bottom:8px"></div>
           <div class="card-timer ${getStatusColorClass(item.status)}" data-id="${item.id}" style="font-size:1.5rem">
             00:00:00
           </div>
           <div class="card-provider">${item.provider}</div>
+          <div class="card-actions">
+               <div class="action-icon" onpointerdown="stopProp(event)" onclick="confirmHitLimit(event, ${item.id})" title="Hit Limit">🔥</div>
+               <div class="action-icon" onpointerdown="stopProp(event)" onclick="confirmForceRestore(event, ${item.id})" title="Restore">🔄</div>
+          </div>
         </div>
       `).join('');
-      
       applyScatterTransform();
       updateTimers();
     }
 
-    // --- Timer Logic (The "Brain") ---
+    // --- Action & Confirmation Logic ---
+    
+    // Wrapper to trigger modal
+    function confirmHitLimit(e, id) {
+       if(e) e.stopPropagation();
+       // If called from form, id might be null, get from field
+       if(!id) id = Number(document.getElementById('nodeId').value);
+       
+       pendingAction = () => executeHitLimit(id);
+       showConfirm("Hit Limit", "Mark this node as cooldown?");
+    }
+
+    function confirmForceRestore(e, id) {
+       if(e) e.stopPropagation();
+       if(!id) id = Number(document.getElementById('nodeId').value);
+
+       pendingAction = () => executeForceRestore(id);
+       showConfirm("Force Restore", "Reset timer and mark active?");
+    }
+
+    // Modal UI Logic
+    function showConfirm(title, text) {
+       document.getElementById('confirmTitle').textContent = title;
+       document.getElementById('confirmText').textContent = text;
+       document.getElementById('confirmOverlay').classList.add('active');
+       document.getElementById('btnConfirmAction').onclick = () => {
+           if(pendingAction) pendingAction();
+           closeConfirm();
+       };
+    }
+
+    function closeConfirm() {
+       document.getElementById('confirmOverlay').classList.remove('active');
+       pendingAction = null;
+    }
+    
+    // Safety listeners
+    document.addEventListener('keydown', (e) => {
+        if(!document.getElementById('confirmOverlay').classList.contains('active')) return;
+        if(e.key === 'Escape') closeConfirm();
+        if(e.key === 'Enter') document.getElementById('btnConfirmAction').click();
+    });
+    
+    document.getElementById('confirmOverlay').addEventListener('click', (e) => {
+        if(e.target === e.currentTarget) closeConfirm();
+    });
+
+    // Actual Logic Execution
+    function executeHitLimit(id) {
+      const idx = items.findIndex(i => i.id === id);
+      if(idx > -1) {
+        items[idx].status = 'cooldown';
+        items[idx].lastUsed = Date.now(); 
+        save();
+        updateTimers();
+        refreshViews();
+        showToast("Node Cooldown Started");
+      }
+    }
+
+    function executeForceRestore(id) {
+      const idx = items.findIndex(i => i.id === id);
+      if(idx > -1) {
+        items[idx].status = 'active';
+        save();
+        updateTimers();
+        refreshViews();
+        showToast("Node Restored");
+      }
+    }
+
+    function refreshViews() {
+        config.view === 'grid' ? renderGrid() : renderScatter();
+        updateFilterPillUI();
+        // If modal is open, sync form
+        const idVal = document.getElementById('nodeId').value;
+        if(idVal) {
+            const item = items.find(i => i.id == idVal);
+            if(item) document.getElementById('inpStatus').value = item.status;
+        }
+    }
+
+    function stopProp(e) { e.stopPropagation(); }
+
+    // --- Context Menu Logic ---
+    
+    document.addEventListener('contextmenu', (e) => {
+       if(config.view === 'scatter' && e.target.id === 'scatterCanvas') {
+          handleContextMenu(e, 'scatter-bg');
+       }
+    });
+
+    document.addEventListener('click', () => {
+       document.getElementById('contextMenu').classList.remove('active');
+    });
+
+    function handleContextMenu(e, type, payload = null) {
+      e.preventDefault();
+      const menu = document.getElementById('contextMenu');
+      menu.style.left = e.pageX + 'px';
+      menu.style.top = e.pageY + 'px';
+      
+      let html = '';
+      
+      if (type === 'provider') {
+         html += `<div class="ctx-header">Provider: ${payload}</div>`;
+         html += `<div class="ctx-item" onclick="renameProvider('${payload}')">Edit Name</div>`;
+         html += `<div class="ctx-item" onclick="deleteProvider('${payload}')">Delete</div>`;
+         html += `<div class="ctx-item" onclick="addProvider()">Add New</div>`;
+      }
+      else if (type === 'grid-card' || type === 'scatter-card') {
+         html += `<div class="ctx-header">Node Actions</div>`;
+         html += `<div class="ctx-item" onclick="confirmHitLimit(null, ${payload})">🔥 Hit Limit</div>`;
+         html += `<div class="ctx-item" onclick="confirmForceRestore(null, ${payload})">🔄 Force Restore</div>`;
+      } 
+      else if (type === 'scatter-bg' || type === 'scatter-card') {
+         html += `<div class="ctx-header">Scatter View</div>`;
+         html += `<div class="ctx-item" onclick="autoArrange()">🪄 Auto-Arrange</div>`;
+         html += `<div class="ctx-item" onclick="sortScatter('provider')">Sort: Provider</div>`;
+         html += `<div class="ctx-item" onclick="sortScatter('status')">Sort: Status</div>`;
+         html += `<div class="ctx-item" onclick="sortScatter('date')">Sort: Recent</div>`;
+      }
+
+      menu.innerHTML = html;
+      menu.classList.add('active');
+    }
+
+    function sortScatter(criteria) {
+       if(criteria === 'provider') items.sort((a,b) => a.provider.localeCompare(b.provider));
+       if(criteria === 'status') items.sort((a,b) => a.status.localeCompare(b.status));
+       if(criteria === 'date') items.sort((a,b) => b.lastUsed - a.lastUsed);
+       autoArrange(); 
+    }
+
+    function autoArrange() {
+       const cols = Math.floor(window.innerWidth / 240); 
+       const startX = 20;
+       const startY = 80;
+       const gapX = 240;
+       const gapY = 180;
+       const visibleItems = filterItems();
+       
+       visibleItems.forEach((item, index) => {
+          const col = index % cols;
+          const row = Math.floor(index / cols);
+          item.pos.x = startX + (col * gapX);
+          item.pos.y = startY + (row * gapY);
+       });
+       save();
+       renderScatter();
+    }
+
+    // --- Timer Logic ---
 
     function updateTimers() {
       const now = Date.now();
-      
       items.forEach(item => {
-        // Update both Grid and Scatter elements if they exist
         const elements = document.querySelectorAll(`[data-id="${item.id}"]`);
-        
         elements.forEach(el => {
           if (!el.classList.contains('card-timer')) return;
-
           if (item.status === 'burnt') {
             el.textContent = "DEFUNCT";
             el.className = `card-timer text-red`;
             return;
           }
-
           if (item.status === 'active') {
             el.textContent = "00:00:00";
             el.className = `card-timer text-green`;
             return;
           }
-
-          // Cooldown Logic
           const cooldownMs = item.resetHours * 60 * 60 * 1000;
           const targetTime = item.lastUsed + cooldownMs;
           const diff = targetTime - now;
 
           if (diff <= 0) {
-            // Timer finished -> Automatically visually show 00:00:00 (implies ready)
-            // Optional: Auto-update status to active? For now, we just show 00:00:00
             el.textContent = "00:00:00";
             el.className = `card-timer text-green`;
           } else {
-            // Ticking
             const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             const s = Math.floor((diff % (1000 * 60)) / 1000);
@@ -469,6 +802,7 @@
       document.getElementById('nodeForm').reset();
       document.getElementById('nodeId').value = '';
       document.getElementById('btnDelete').style.display = 'none';
+      document.getElementById('editActions').style.display = 'none';
       document.getElementById('modalTitle').textContent = "New Node";
       document.getElementById('modalOverlay').classList.add('active');
     }
@@ -483,6 +817,7 @@
       document.getElementById('inpStatus').value = item.status;
       
       document.getElementById('btnDelete').style.display = 'block';
+      document.getElementById('editActions').style.display = 'flex'; 
       document.getElementById('modalTitle').textContent = "Edit Node";
       document.getElementById('modalOverlay').classList.add('active');
     }
@@ -491,31 +826,29 @@
       e.preventDefault();
       const idVal = document.getElementById('nodeId').value;
       const isNew = !idVal;
-      
+      let existing = idVal ? items.find(i => i.id == idVal) : null;
+
       const payload = {
         id: isNew ? Date.now() : Number(idVal),
         provider: document.getElementById('inpProvider').value,
         email: document.getElementById('inpEmail').value,
         resetHours: parseFloat(document.getElementById('inpReset').value),
         status: document.getElementById('inpStatus').value,
-        // If status is cooldown and it wasn't before (or is new), reset lastUsed to NOW
-        lastUsed: Date.now() // Simple logic: any edit resets timer anchor for simplicity in this demo
+        lastUsed: existing ? existing.lastUsed : Date.now(),
+        pos: existing ? existing.pos : {x: 50 + Math.random()*200, y: 100 + Math.random()*200}
       };
       
       if(isNew) {
-        payload.pos = {x: 50 + Math.random()*200, y: 100 + Math.random()*200};
         items.push(payload);
       } else {
         const idx = items.findIndex(i => i.id == idVal);
-        payload.pos = items[idx].pos; // preserve pos
-        // Preserve lastUsed if status didn't change to cooldown to avoid accidental resets?
-        // For this demo: Resetting timer on Edit is usually desired behavior.
         items[idx] = payload;
       }
       
       save();
       closeModal();
       config.view === 'grid' ? renderGrid() : renderScatter();
+      updateFilterPillUI();
     });
 
     function deleteNode() {
@@ -541,23 +874,42 @@
     }
 
     function copyText(e, text) {
-      e.stopPropagation();
+      if(e) e.stopPropagation();
       navigator.clipboard.writeText(text);
+      showToast("Copied to Clipboard");
+    }
+    
+    function copyInput(id) {
+       const val = document.getElementById(id).value;
+       copyText(null, val);
+    }
+    
+    function showToast(msg) {
       const t = document.getElementById('toast');
+      t.textContent = msg;
       t.classList.add('show');
       setTimeout(() => t.classList.remove('show'), 2000);
     }
 
     function cycleStatusFilter() {
       const states = ['all', 'active', 'cooldown', 'burnt'];
-      const currIdx = states.indexOf(config.filter);
-      config.filter = states[(currIdx + 1) % states.length];
+      const currIdx = states.indexOf(config.filterStatus);
+      config.filterStatus = states[(currIdx + 1) % states.length];
       
-      // Update Filter Display Text
-      const label = config.filter === 'all' ? 'All Items' : config.filter.toUpperCase();
-      document.getElementById('filterDisplay').textContent = label;
-      
+      updateFilterPillUI();
       config.view === 'grid' ? renderGrid() : renderScatter();
+    }
+
+    function updateFilterPillUI() {
+       const lbl = document.getElementById('filterLabel');
+       const dot = document.getElementById('filterDot');
+       
+       lbl.textContent = config.filterStatus;
+       
+       dot.style.backgroundColor = 'var(--ink-dim)'; 
+       if(config.filterStatus === 'active') dot.style.backgroundColor = 'var(--neon-green)';
+       if(config.filterStatus === 'cooldown') dot.style.backgroundColor = 'var(--neon-orange)';
+       if(config.filterStatus === 'burnt') dot.style.backgroundColor = 'var(--neon-red)';
     }
 
     function toggleTheme() {
@@ -570,7 +922,7 @@
       document.body.setAttribute('data-theme', config.theme);
     }
 
-    // --- Scatter Physics & Logic ---
+    // --- Scatter Physics ---
     
     function applyScatterTransform() {
       document.getElementById('scatterCanvas').style.transform = 
@@ -583,25 +935,23 @@
     }
 
     function startDrag(e, id) {
-      e.stopPropagation(); // prevent clicking card
+      if(e.button === 2) return; 
+      e.stopPropagation(); 
       const card = document.getElementById(`scatter-${id}`);
       if(!card) return;
       
-      // Basic Drag Implementation
       scatter.dragging = true;
       const startX = e.clientX || e.touches[0].clientX;
       const startY = e.clientY || e.touches[0].clientY;
-      
-      // Get current transform translation
       const item = items.find(i => i.id === id);
       const startItemX = item.pos.x;
       const startItemY = item.pos.y;
+      
+      card.style.zIndex = 100;
 
       function move(eMove) {
         const cx = eMove.clientX || eMove.touches[0].clientX;
         const cy = eMove.clientY || eMove.touches[0].clientY;
-        
-        // Calculate delta considering zoom level
         const dx = (cx - startX) / scatter.zoom;
         const dy = (cy - startY) / scatter.zoom;
         
@@ -617,6 +967,7 @@
         document.removeEventListener('touchmove', move);
         document.removeEventListener('mouseup', end);
         document.removeEventListener('touchend', end);
+        card.style.zIndex = '';
         setTimeout(() => scatter.dragging = false, 100);
         save();
       }
@@ -626,28 +977,6 @@
       document.addEventListener('mouseup', end);
       document.addEventListener('touchend', end);
     }
-
-    function toggleMagnet() {
-      scatter.magnet = !scatter.magnet;
-      document.getElementById('magnetBtn').style.background = scatter.magnet ? 'var(--accent)' : 'var(--glass-bg)';
-      if(scatter.magnet) runMagnet();
-    }
-
-    function runMagnet() {
-      if(!scatter.magnet) return;
-      // Simple magnet: pull active cards to center
-      const center = {x: window.innerWidth/2, y: window.innerHeight/2};
-      items.forEach(item => {
-        if(item.status === 'active') {
-           // Move 5% closer to center
-           item.pos.x += (center.x/2 - item.pos.x) * 0.05;
-           item.pos.y += (center.y/2 - item.pos.y) * 0.05;
-        }
-      });
-      renderScatter();
-      requestAnimationFrame(runMagnet);
-    }
-
   </script>
 </body>
 </html>
