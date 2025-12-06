@@ -50,7 +50,7 @@
       --glass-border: rgba(0, 0, 0, 0.08);
       --shadow-soft: 0 10px 30px -10px rgba(0,0,0,0.1);
     }
-
+    /* ---------------------------
     [data-theme="rose"] {
       --bg-color: #EA426F; 
       --ink: #000000;
@@ -63,6 +63,25 @@
       --glass-blur: 0px;
       --shadow-soft: 6px 6px 0px #000000;
     }
+       --------------------------- */
+
+
+       .logo {
+           position: fixed;
+
+           top: var(--corner-top, 2em);
+           left: var(--corner-pad);
+           z-index: var(--z-ui);
+           pointer-events: none;
+       }
+
+        .logo img {
+          height: 32px;
+          width: auto;
+          display: block;
+          transition: opacity 0.2s ease;
+        }
+
 
     /* ---------------------------
        Base / layout
@@ -79,7 +98,7 @@
 
     /* Nav controls */
     .top-nav,.right-nav,.left-nav{position:fixed;z-index:calc(var(--z-ui) + 2);background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));border:1px solid var(--glass-border);border-radius:12px;display:flex;gap:8px;padding:8px;box-shadow:var(--shadow-soft);transition:all 0.3s var(--ease-out);}
-    .top-nav{top:var(--corner-pad);left:50%;transform:translateX(-50%)}
+    .top-nav{top:var(--corner-pad);left:50%;transform:translateX(-50%); max-width: 80vw; overflow-x: auto;}
     .left-nav{left:var(--corner-pad);top:50%;transform:translateY(-50%);flex-direction:column}
     .right-nav{right:var(--corner-pad);top:50%;transform:translateY(-50%);flex-direction:column}
     .nav-btn{padding:10px 18px;background:transparent;border:0;color:var(--ink);cursor:pointer;border-radius:8px;font-weight:600;white-space:nowrap;font-size:14px;transition:all 0.2s var(--ease-out);}
@@ -234,6 +253,10 @@
   </style>
 </head>
 <body data-theme="dark">
+    <div class="logo">
+        <img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg.svg" alt="IntoView Logo">
+        </div>
+
 
   <div id="keyboardIndicator" class="keyboard-indicator" aria-hidden="true">
     <div class="key" id="indicatorKey">N</div>
@@ -245,17 +268,12 @@
   <div class="theme-toggle" role="toolbar" aria-label="Theme selector">
     <button class="theme-btn active" data-theme="dark" title="Dark Theme">🌙</button>
     <button class="theme-btn" data-theme="light" title="Light Theme">☀️</button>
-    <button class="theme-btn" data-theme="rose" title="Rose Theme">🌹</button>
   </div>
+<!--<button class="theme-btn" data-theme="rose" title="Rose Theme">🌹</button>-->
 
-  <div class="top-nav" role="toolbar" aria-label="Provider filter">
-    <button class="nav-btn active" data-provider="all">All</button>
-    <button class="nav-btn" data-provider="ChatGPT">ChatGPT</button>
-    <button class="nav-btn" data-provider="Claude">Claude</button>
-    <button class="nav-btn" data-provider="Gemini">Gemini</button>
-    <button class="nav-btn" data-provider="Grok">Grok</button>
-    <button class="nav-btn" data-provider="Copilot">Copilot</button>
-  </div>
+
+  <div class="top-nav" id="topNav" role="toolbar" aria-label="Provider filter">
+    </div>
 
   <div class="left-nav" role="tablist" aria-label="View switch">
     <button class="nav-btn active" data-view="grid">Grid</button>
@@ -283,11 +301,11 @@
   </div>
 
   <div class="container">
-    <div class="grid-container active" id="gridContainer">
+    <div class="grid-container active" id="gridContainer" oncontextmenu="handleBackgroundContext(event)">
       <div class="grid-wrapper" id="gridWrapper"></div>
     </div>
 
-    <div class="scatter-container" id="scatterContainer">
+    <div class="scatter-container" id="scatterContainer" oncontextmenu="handleBackgroundContext(event)">
       <div class="scatter-canvas" id="scatterCanvas"></div>
     </div>
   </div>
@@ -306,12 +324,7 @@
         <div class="form-group">
           <label for="formProvider">Provider / Group</label>
           <select id="formProvider" required>
-            <option value="ChatGPT">OpenAI (ChatGPT)</option>
-            <option value="Claude">Anthropic (Claude)</option>
-            <option value="Gemini">Google (Gemini)</option>
-            <option value="Grok">xAI (Grok)</option>
-            <option value="Copilot">Microsoft (Copilot)</option>
-          </select>
+            </select>
         </div>
         <div class="form-group">
           <label for="formEmail">Email / Username</label>
@@ -339,6 +352,7 @@
   </div>
 
   <script>
+    let providers = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot'];
     let items = [];
     let currentView = 'grid';
     let currentProviderFilter = 'all';
@@ -351,10 +365,9 @@
     let isMagnetic = false;
     let magnetPos = { x: 0, y: 0 };
     let magneticAnimationFrame = null;
-    let contextTargetId = null;
+    let contextTargetId = null; // Can hold ID (number) or Provider Name (string)
 
     function generateMockData() {
-      const providers = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot'];
       const statuses = ['active', 'cooldown', 'burnt'];
       return Array.from({ length: 15 }, (_, i) => ({
         id: Date.now() + i,
@@ -371,6 +384,32 @@
     }
 
     items = generateMockData();
+
+    // Render Top Nav Dynamically
+    function renderTopNav() {
+      const nav = document.getElementById('topNav');
+      let html = `<button class="nav-btn ${currentProviderFilter === 'all' ? 'active' : ''}" onclick="setProviderFilter('all')">All</button>`;
+      
+      providers.forEach(p => {
+        const isActive = currentProviderFilter === p ? 'active' : '';
+        // Add oncontextmenu handler for providers
+        html += `<button class="nav-btn ${isActive}" onclick="setProviderFilter('${p}')" oncontextmenu="handleProviderContext(event, '${p}')">${p}</button>`;
+      });
+
+      nav.innerHTML = html;
+      updateModalProviders();
+    }
+
+    function setProviderFilter(p) {
+      currentProviderFilter = p;
+      renderTopNav();
+      renderView();
+    }
+
+    function updateModalProviders() {
+      const select = document.getElementById('formProvider');
+      select.innerHTML = providers.map(p => `<option value="${p}">${p}</option>`).join('');
+    }
 
     // Theme handling
     function setTheme(theme) {
@@ -494,7 +533,7 @@
       const filtered = getFilteredItems();
       wrapper.innerHTML = filtered.map(item => `
         <div class="card status-${item.status}" data-id="${item.id}" oncontextmenu="handleCardContext(event, ${item.id})">
-          <div class="copy-feedback">Copied!</div>
+          <div class="copy-feedback">@ Copied!</div>
           <div class="card-header">
             <div class="card-provider">${escapeHtml(item.provider)}</div>
             <div class="card-status">${escapeHtml(item.status)}</div>
@@ -597,41 +636,82 @@
       if (!contextMenu.contains(e.target)) hideContextMenu();
     });
 
-    // Prevent default context menu on cards
+    // 1. CARD Context Menu
     function handleCardContext(e, id) {
       e.preventDefault();
-      e.stopPropagation();
+      e.stopPropagation(); // Stop bubbling to background
       contextTargetId = id;
-      showContextMenu(e.clientX, e.clientY);
+      showContextMenu(e.clientX, e.clientY, 'card');
     }
 
-    function showContextMenu(x, y) {
+    // 2. PROVIDER NAV Context Menu
+    function handleProviderContext(e, providerName) {
+      e.preventDefault();
+      e.stopPropagation();
+      contextTargetId = providerName;
+      showContextMenu(e.clientX, e.clientY, 'provider');
+    }
+
+    // 3. BACKGROUND Context Menu
+    function handleBackgroundContext(e) {
+      if(e.target !== e.currentTarget) return; // Only trigger if clicking actual background
+      e.preventDefault();
+      contextTargetId = null;
+      showContextMenu(e.clientX, e.clientY, 'background');
+    }
+
+    function showContextMenu(x, y, type) {
       const isGrid = currentView === 'grid';
-      
-      // Build Menu HTML
       let html = '';
-      
-      if (!isGrid) {
-        // Scatter/List View Options
-        html += `
-          <div class="ctx-item">
-            <span>Sort by...</span>
-            <span>▸</span>
-            <div class="ctx-submenu">
-              <div class="ctx-item" onclick="handleSort('provider')">Name (Provider)</div>
-              <div class="ctx-item" onclick="handleSort('status')">Status</div>
-              <div class="ctx-item" onclick="handleSort('reset')">Reset (Random)</div>
+
+      if (type === 'card') {
+        // --- CARD OPTIONS ---
+        if (!isGrid) {
+          // List View Card options
+          html += `
+            <div class="ctx-item">
+              <span>Sort by...</span>
+              <span>▸</span>
+              <div class="ctx-submenu">
+                <div class="ctx-item" onclick="handleSort('provider')">Name (Provider)</div>
+                <div class="ctx-item" onclick="handleSort('status')">Status</div>
+                <div class="ctx-item" onclick="handleSort('reset')">Reset (Random)</div>
+              </div>
             </div>
-          </div>
-          <div class="ctx-divider"></div>
+            <div class="ctx-divider"></div>
+          `;
+        }
+        // Common Card options
+        html += `
+          <div class="ctx-item" onclick="triggerEdit()">Edit Contact</div>
+          <div class="ctx-item" onclick="triggerDelete()" style="color:#ef4444">Delete Contact</div>
         `;
+      } else if (type === 'provider') {
+        // --- PROVIDER NAV OPTIONS ---
+        html += `<div class="ctx-item" onclick="triggerEditProvider()">Edit Provider</div>`;
+        html += `<div class="ctx-item" onclick="triggerDeleteProvider()" style="color:#ef4444">Delete Provider</div>`;
+
+      } else {
+        // --- BACKGROUND OPTIONS ---
+        html += `<div class="ctx-item" onclick="handleAddProvider()">Add Provider +</div>`;
+        html += `<div class="ctx-item" onclick="openModal()">Add Contact (N)</div>`;
+        
+        // List Background specific
+        if (!isGrid) {
+          html += `<div class="ctx-divider"></div>`;
+          html += `
+            <div class="ctx-item">
+              <span>Sort by...</span>
+              <span>▸</span>
+              <div class="ctx-submenu">
+                <div class="ctx-item" onclick="handleSort('provider')">Name (Provider)</div>
+                <div class="ctx-item" onclick="handleSort('status')">Status</div>
+                <div class="ctx-item" onclick="handleSort('reset')">Reset (Random)</div>
+              </div>
+            </div>
+          `;
+        }
       }
-      
-      // Common Options
-      html += `
-        <div class="ctx-item" onclick="triggerEdit()">Edit Contact</div>
-        <div class="ctx-item" onclick="triggerDelete()" style="color:#ef4444">Delete Contact</div>
-      `;
 
       contextMenu.innerHTML = html;
       contextMenu.style.left = `${Math.min(x, window.innerWidth - 200)}px`;
@@ -644,7 +724,7 @@
       contextTargetId = null;
     }
 
-    // Context Actions
+    // Context Actions - Cards
     function triggerEdit() {
       if (contextTargetId) openModal(contextTargetId);
       hideContextMenu();
@@ -659,6 +739,62 @@
         }
       }
       hideContextMenu();
+    }
+
+    // Context Actions - Providers
+    function triggerEditProvider() {
+      const oldName = contextTargetId;
+      const newName = prompt("Rename Provider:", oldName);
+      if (newName && newName.trim() !== "" && newName !== oldName) {
+         if (providers.includes(newName.trim())) {
+           showToast("Provider name already exists");
+           hideContextMenu();
+           return;
+         }
+         // Update provider list
+         const idx = providers.indexOf(oldName);
+         if (idx !== -1) providers[idx] = newName.trim();
+         
+         // Update Items
+         items.forEach(item => {
+           if (item.provider === oldName) item.provider = newName.trim();
+         });
+         
+         // Update Filter
+         if (currentProviderFilter === oldName) currentProviderFilter = newName.trim();
+
+         renderTopNav();
+         renderView();
+         showToast("Provider Renamed");
+      }
+      hideContextMenu();
+    }
+
+    function triggerDeleteProvider() {
+      const pName = contextTargetId;
+      if (confirm(`Delete provider category "${pName}"? Contacts will remain but the category will be removed.`)) {
+         providers = providers.filter(p => p !== pName);
+         if (currentProviderFilter === pName) currentProviderFilter = 'all';
+         renderTopNav();
+         renderView();
+         showToast("Provider Category Deleted");
+      }
+      hideContextMenu();
+    }
+
+    // Context Actions - Background
+    function handleAddProvider() {
+      hideContextMenu();
+      const name = prompt("Enter new Provider name:");
+      if (name && name.trim()) {
+        if (!providers.includes(name.trim())) {
+          providers.push(name.trim());
+          renderTopNav();
+          showToast(`Provider "${name}" Added`);
+        } else {
+          showToast("Provider already exists");
+        }
+      }
     }
 
     // Sorting Logic for Scatter View
@@ -690,7 +826,8 @@
       // Arrange in a grid formation on the scatter canvas
       const cols = Math.floor(canvasWidth / 260);
       const startX = 50;
-      const startY = 50;
+      // Positioned below the top toggle/nav to avoid obfuscation
+      const startY = 140; 
       const gapX = 260;
       const gapY = 200;
 
@@ -873,15 +1010,6 @@
       });
     });
 
-    document.querySelectorAll('.top-nav .nav-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.top-nav .nav-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentProviderFilter = btn.dataset.provider;
-        renderView();
-      });
-    });
-
     document.querySelectorAll('.right-nav .nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.right-nav .nav-btn').forEach(b => b.classList.remove('active'));
@@ -932,6 +1060,7 @@
     });
 
     // Initialize
+    renderTopNav(); // Initial render for nav
     renderView();
     window.addEventListener('resize', () => {
       if (currentView === 'grid') renderGrid();
