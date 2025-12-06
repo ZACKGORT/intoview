@@ -54,17 +54,21 @@
     }
     .header-top { display: flex; justify-content: space-between; align-items: center; padding: 0 20px; width: 100%; pointer-events: auto; }
     
-    .logo { display: flex; align-items: center; height: 32px; }
+    /* Updated Logo Styling */
+    .logo { 
+        display: flex; align-items: center; height: 32px; 
+        position: absolute; left: 50%; transform: translateX(-50%);
+    }
     #logoImg { height: 100%; width: auto; }
 
     .theme-btn {
         background: transparent; border: none; color: var(--ink-dim);
         cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center;
+        margin-left: auto; /* Pushes to the right */
     }
     .theme-btn:active { background: var(--glass-border); color: var(--ink); }
 
     /* --- Provider Toggle Bar --- */
-    /* Centered content */
     .provider-bar {
       display: flex; gap: 8px; overflow-x: auto; padding: 10px 20px;
       pointer-events: auto; scrollbar-width: none;
@@ -230,6 +234,7 @@
         text-align: center;
         margin-bottom: 40vh; /* Lift up on mobile */
     }
+    .overlay.active .confirm-dialog { animation: fadeIn 0.1s ease; }
     @media(min-width: 600px) { .confirm-dialog { margin-bottom: 0; } }
     
     .confirm-title { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
@@ -428,7 +433,7 @@
       dragging: false,
     };
     
-    let pendingAction = null; // Stores function for confirmation
+    let pendingAction = null; 
 
     // --- Init ---
     if(items.length === 0) seedMockData();
@@ -603,10 +608,8 @@
 
     // --- Action & Confirmation Logic ---
     
-    // Wrapper to trigger modal
     function confirmHitLimit(e, id) {
        if(e) e.stopPropagation();
-       // If called from form, id might be null, get from field
        if(!id) id = Number(document.getElementById('nodeId').value);
        
        pendingAction = () => executeHitLimit(id);
@@ -621,12 +624,12 @@
        showConfirm("Force Restore", "Reset timer and mark active?");
     }
 
-    // Modal UI Logic
     function showConfirm(title, text) {
        document.getElementById('confirmTitle').textContent = title;
        document.getElementById('confirmText').textContent = text;
        document.getElementById('confirmOverlay').classList.add('active');
-       document.getElementById('btnConfirmAction').onclick = () => {
+       document.getElementById('btnConfirmAction').onclick = (e) => {
+           e.stopPropagation();
            if(pendingAction) pendingAction();
            closeConfirm();
        };
@@ -637,7 +640,6 @@
        pendingAction = null;
     }
     
-    // Safety listeners
     document.addEventListener('keydown', (e) => {
         if(!document.getElementById('confirmOverlay').classList.contains('active')) return;
         if(e.key === 'Escape') closeConfirm();
@@ -648,7 +650,6 @@
         if(e.target === e.currentTarget) closeConfirm();
     });
 
-    // Actual Logic Execution
     function executeHitLimit(id) {
       const idx = items.findIndex(i => i.id === id);
       if(idx > -1) {
@@ -675,7 +676,6 @@
     function refreshViews() {
         config.view === 'grid' ? renderGrid() : renderScatter();
         updateFilterPillUI();
-        // If modal is open, sync form
         const idVal = document.getElementById('nodeId').value;
         if(idVal) {
             const item = items.find(i => i.id == idVal);
@@ -904,7 +904,9 @@
        const lbl = document.getElementById('filterLabel');
        const dot = document.getElementById('filterDot');
        
-       lbl.textContent = config.filterStatus;
+       // Update text: capitalize first letter for display
+       lbl.textContent = config.filterStatus.charAt(0).toUpperCase() + config.filterStatus.slice(1);
+       if (config.filterStatus === 'all') lbl.textContent = 'All';
        
        dot.style.backgroundColor = 'var(--ink-dim)'; 
        if(config.filterStatus === 'active') dot.style.backgroundColor = 'var(--neon-green)';
