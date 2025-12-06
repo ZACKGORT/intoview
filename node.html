@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5.0,user-scalable=yes" />
+  <title>intoview:NODE</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    /* ---------------------------
+       THEME / ROOT
+       --------------------------- */
+    :root {
+      /* --- CORE THEME VARIABLES --- */
+      --bg-color: #0f1014;
+      --ink: #ffffff;
+      --ink-2: #a1a1aa;
+      --ink-3: #52525b;
+      --accent: #FFED29;
+      
+      /* UI Dimensions */
+      --corner-pad: clamp(16px, 3vw, 32px);
+      --fab-size: 64px;
+      
+      /* Glassmorphism Logic */
+      --glass-bg: rgba(20, 20, 25, 0.6);
+      --glass-bg-hover: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.1);
+      --glass-blur: 16px;
+      
+      /* Depth */
+      --shadow-soft: 0 10px 40px -10px rgba(0,0,0,0.5);
+      
+      /* Transitions */
+      --ease-out: cubic-bezier(0.215, 0.61, 0.355, 1);
+      
+      /* Z-index layers */
+      --z-ui: 220;
+      --z-overlay: 250;
+      --z-menu: 300;
+    }
+
+    [data-theme="light"] {
+      --bg-color: #f4f4f5;
+      --ink: #18181b;
+      --ink-2: #52525b;
+      --ink-3: #a1a1aa;
+      --accent: #FF296D;
+      --glass-bg: rgba(255, 255, 255, 0.7);
+      --glass-bg-hover: rgba(0, 0, 0, 0.04);
+      --glass-border: rgba(0, 0, 0, 0.08);
+      --shadow-soft: 0 10px 30px -10px rgba(0,0,0,0.1);
+    }
+    /* ---------------------------
+    [data-theme="rose"] {
+      --bg-color: #EA426F; 
+      --ink: #000000;
+      --ink-2: #222222;
+      --ink-3: #444444;
+      --accent: #000000;
+      --glass-bg: #ffffff;
+      --glass-bg-hover: #FFF500;
+      --glass-border: #000000;
+      --glass-blur: 0px;
+      --shadow-soft: 6px 6px 0px #000000;
+    }
+       --------------------------- */
+
+
+       .logo {
+           position: fixed;
+
+           top: var(--corner-top, 2em);
+           left: var(--corner-pad);
+           z-index: var(--z-ui);
+           pointer-events: none;
+       }
+
+        .logo img {
+          height: 32px;
+          width: auto;
+          display: block;
+          transition: opacity 0.2s ease;
+        }
+
+
+    /* ---------------------------
+       Base / layout
+       --------------------------- */
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+    html,body{height:100%; font-family:'Inter',sans-serif; font-size:14px; background:var(--bg-color); color:var(--ink); transition: background 0.3s var(--ease-out), color 0.3s var(--ease-out);}
+    body{overflow:hidden}
+
+    /* Keyboard indicator */
+    .keyboard-indicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));border:2px solid var(--accent);padding:30px 40px;border-radius:12px;z-index:var(--z-overlay);pointer-events:none;transition:transform .18s,opacity .18s;opacity:0;box-shadow:var(--shadow-soft);}
+    .keyboard-indicator.show{transform:translate(-50%,-50%) scale(1);opacity:1}
+    .keyboard-indicator .key{font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:700;color:var(--accent);text-align:center;margin-bottom:10px}
+    .keyboard-indicator .label{font-size:14px;color:var(--ink-2);text-transform:uppercase;letter-spacing:1px;text-align:center}
+
+    /* Nav controls */
+    .top-nav,.right-nav,.left-nav{position:fixed;z-index:calc(var(--z-ui) + 2);background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));border:1px solid var(--glass-border);border-radius:12px;display:flex;gap:8px;padding:8px;box-shadow:var(--shadow-soft);transition:all 0.3s var(--ease-out);}
+    .top-nav{top:var(--corner-pad);left:50%;transform:translateX(-50%); max-width: 80vw; overflow-x: auto;}
+    .left-nav{left:var(--corner-pad);top:50%;transform:translateY(-50%);flex-direction:column}
+    .right-nav{right:var(--corner-pad);top:50%;transform:translateY(-50%);flex-direction:column}
+    .nav-btn{padding:10px 18px;background:transparent;border:0;color:var(--ink);cursor:pointer;border-radius:8px;font-weight:600;white-space:nowrap;font-size:14px;transition:all 0.2s var(--ease-out);}
+    .nav-btn:hover{background:var(--glass-bg-hover)}
+    .nav-btn.active{background:var(--accent);color:#000;font-weight:700;}
+
+    /* Theme Toggle - Top Right */
+    .theme-toggle{position:fixed;top:var(--corner-pad);right:var(--corner-pad);z-index:calc(var(--z-ui) + 10);background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));border:1px solid var(--glass-border);border-radius:12px;padding:8px;display:flex;gap:6px;box-shadow:var(--shadow-soft);transition:all 0.3s var(--ease-out);}
+    .theme-btn{width:40px;height:40px;border-radius:8px;background:transparent;border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;transition:all 0.2s var(--ease-out);}
+    .theme-btn:hover{background:var(--glass-bg-hover);transform:scale(1.05);}
+    .theme-btn.active{background:var(--accent);}
+
+    /* Zoom Controls - Bottom Left */
+    .zoom-controls{position:fixed;bottom:var(--corner-pad);left:var(--corner-pad);z-index:calc(var(--z-ui) + 10);display:flex;gap:8px;opacity:0;pointer-events:none;transition:opacity 0.3s var(--ease-out);}
+    .zoom-controls.active{opacity:1;pointer-events:auto;}
+    .zoom-btn{width:48px;height:48px;border-radius:12px;background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;font-size:20px;color:var(--ink);box-shadow:var(--shadow-soft);transition:all 0.2s var(--ease-out);}
+    .zoom-btn:hover{transform:translateY(-3px);background:var(--glass-bg-hover);}
+
+    /* FAB */
+    .fab-wrap{position:fixed;bottom:var(--corner-pad);left:50%;transform:translateX(-50%);z-index:calc(var(--z-ui) + 5);display:flex;align-items:center;gap:14px;pointer-events:none;}
+    .fab{pointer-events:auto;width:var(--fab-size);height:var(--fab-size);border-radius:50%;background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow-soft);transition:all 0.2s var(--ease-out);}
+    .fab:hover{transform:scale(1.08);background:var(--glass-bg-hover);}
+    .fab svg{width:calc(var(--fab-size) * 0.4);height:calc(var(--fab-size) * 0.4);fill:var(--accent);transition:fill 0.3s var(--ease-out);}
+    .fab-label{pointer-events:none;font-weight:700;color:var(--ink);font-size:14px;opacity:0;transform:translateY(6px);transition:opacity .18s,transform .18s;white-space:nowrap;}
+    @media (min-width:900px){
+      .fab-label{opacity:1;transform:none;}
+    }
+
+    /* Container + grid */
+    .grid-container{position:absolute;inset:80px 20px 20px 20px;overflow-y:auto;overflow-x:hidden;opacity:0;pointer-events:none;transition:opacity 0.3s var(--ease-out);}
+    .grid-container.active{opacity:1;pointer-events:auto;}
+    .grid-wrapper{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;padding:20px;max-width:1600px;margin:0 auto;}
+    
+    .card{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:12px;padding:20px;cursor:pointer;transition:all 0.25s var(--ease-out);min-height:180px;display:flex;flex-direction:column;box-shadow:var(--shadow-soft);backdrop-filter:blur(var(--glass-blur));position:relative; overflow:hidden;}
+    /* Active effect for click-to-copy */
+    .card:active { transform: scale(0.98); }
+    /* Hover effect */
+    .card:hover{transform:translateY(-4px);box-shadow:0 20px 60px -10px rgba(0,0,0,0.4);border-color:var(--accent);}
+    
+    .card-header{display:flex;justify-content:space-between;align-items:start;margin-bottom:15px}
+    .card-provider{font-size:20px;font-weight:700;color:var(--accent)}
+    .card-status{padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;border:1px solid var(--glass-border);background:var(--glass-bg);}
+    .card-info{flex:1;display:flex;flex-direction:column;gap:8px}
+    .card-footer{margin-top:auto;padding-top:15px;border-top:1px solid var(--glass-border)}
+    .card-label{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:8px}
+    .card-label strong{color:var(--ink);font-weight:600}
+
+    /* Copy Feedback Overlay */
+    .copy-feedback {
+      position: absolute; inset: 0; background: var(--accent); color: #000;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 18px; opacity: 0; pointer-events: none;
+      transition: opacity 0.2s; z-index: 10;
+    }
+    .copy-feedback.show { opacity: 0.9; }
+
+    /* Status colors */
+    .status-active .card-status{background:rgba(34,197,94,0.15);color:#22c55e;border-color:#22c55e;}
+    .status-cooldown .card-status{background:rgba(251,146,60,0.15);color:#fb923c;border-color:#fb923c;}
+    .status-burnt .card-status{background:rgba(239,68,68,0.15);color:#ef4444;border-color:#ef4444;}
+
+    /* Scatter */
+    .scatter-container{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .3s;overflow:hidden}
+    .scatter-container.active{opacity:1;pointer-events:auto}
+    .scatter-canvas{width:100%;height:100%;position:relative;transform-origin:center center;transition:transform .12s ease-out}
+    .scatter-card{position:absolute;background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));border:1px solid var(--glass-border);border-radius:12px;padding:16px;cursor:grab;transition:box-shadow .18s,border-color .18s;width:240px;user-select:none;touch-action:none;box-shadow:var(--shadow-soft);}
+    .scatter-card:active{cursor:grabbing}
+    .scatter-card.dragging{box-shadow:0 16px 48px rgba(0,0,0,.6);border-color:var(--accent);z-index:2000}
+    .scatter-card.magnetic{transition:transform .15s cubic-bezier(.2,.9,.3,1);}
+    /* Smooth transition for sorting */
+    .scatter-card.sorting { transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+    /* Modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:var(--z-overlay);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
+    .modal-overlay.active{opacity:1;pointer-events:auto}
+    .modal{background:var(--bg-color);border:1px solid var(--glass-border);border-radius:16px;padding:40px;max-width:560px;width:92%;max-height:90vh;overflow-y:auto;transform:scale(.96);transition:transform .22s;box-shadow:0 25px 50px -12px rgba(0,0,0,0.7);}
+    .modal-overlay.active .modal{transform:scale(1)}
+    .modal h2{color:var(--accent);margin-bottom:24px;font-family:'JetBrains Mono',monospace;font-size:24px;}
+    .form-group{margin-bottom:20px}
+    label{display:block;margin-bottom:8px;font-size:14px;color:var(--ink-2);font-weight:600}
+    input,select{width:100%;padding:14px;background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--ink);border-radius:8px;font-size:14px;transition:border-color 0.2s var(--ease-out);}
+    input:focus,select:focus{outline:none;border-color:var(--accent);}
+    .btn-submit{width:100%;padding:16px;background:var(--accent);color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;font-size:14px;transition:all 0.2s var(--ease-out);}
+    .btn-submit:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,0.3);}
+    .close-modal{position:absolute;top:20px;right:20px;background:transparent;border:0;color:var(--ink);font-size:32px;cursor:pointer;opacity:.7;transition:opacity 0.2s;}
+    .close-modal:hover{opacity:1;}
+
+    /* Context Menu */
+    .context-menu {
+      position: fixed;
+      background: var(--bg-color);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 6px;
+      min-width: 180px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      z-index: var(--z-menu);
+      opacity: 0; pointer-events: none;
+      transform: scale(0.95);
+      transition: opacity 0.1s, transform 0.1s;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .context-menu.active { opacity: 1; pointer-events: auto; transform: scale(1); }
+    
+    .ctx-item {
+      padding: 10px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 500;
+      display: flex; justify-content: space-between; align-items: center;
+      position: relative;
+    }
+    .ctx-item:hover { background: var(--glass-bg-hover); color: var(--accent); }
+    .ctx-divider { height: 1px; background: var(--glass-border); margin: 4px 0; }
+    
+    /* Submenu */
+    .ctx-submenu {
+      position: absolute; left: 100%; top: -4px;
+      background: var(--bg-color);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px; padding: 6px; min-width: 160px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      opacity: 0; pointer-events: none; transform: translateX(-10px);
+      transition: all 0.2s;
+    }
+    .ctx-item:hover .ctx-submenu { opacity: 1; pointer-events: auto; transform: translateX(0); }
+
+    /* Magnet Indicator */
+    .magnet-indicator{position:fixed;width:120px;height:120px;border:3px solid var(--accent);border-radius:50%;pointer-events:none;z-index:calc(var(--z-ui) + 5);opacity:0;display:flex;align-items:center;justify-content:center;transition:opacity 0.15s;box-shadow:0 0 30px var(--accent);}
+    .magnet-indicator.active{opacity:.7;animation:pulse 1.5s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+    .magnet-indicator::before{content:'🧲';font-size:48px}
+
+    /* Toast Notification */
+    .toast {
+      position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--accent); color: #000; font-weight: 700;
+      padding: 12px 24px; border-radius: 30px;
+      opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: var(--z-overlay); pointer-events: none;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    ::-webkit-scrollbar{width:8px}
+    ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:4px}
+    ::-webkit-scrollbar-track{background:transparent}
+
+    @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  </style>
+</head>
+<body data-theme="dark">
+    <div class="logo">
+        <img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg.svg" alt="IntoView Logo">
+        </div>
+
+
+  <div id="keyboardIndicator" class="keyboard-indicator" aria-hidden="true">
+    <div class="key" id="indicatorKey">N</div>
+    <div class="label" id="indicatorLabel">New Item</div>
+  </div>
+
+  <div id="toast" class="toast">Action Complete</div>
+
+  <div class="theme-toggle" role="toolbar" aria-label="Theme selector">
+    <button class="theme-btn active" data-theme="dark" title="Dark Theme">🌙</button>
+    <button class="theme-btn" data-theme="light" title="Light Theme">☀️</button>
+  </div>
+<!--<button class="theme-btn" data-theme="rose" title="Rose Theme">🌹</button>-->
+
+
+  <div class="top-nav" id="topNav" role="toolbar" aria-label="Provider filter">
+    </div>
+
+  <div class="left-nav" role="tablist" aria-label="View switch">
+    <button class="nav-btn active" data-view="grid">Grid</button>
+    <button class="nav-btn" data-view="scatter">List/Scatter</button>
+  </div>
+
+  <div class="right-nav" role="toolbar" aria-label="Status filter">
+    <button class="nav-btn active" data-status="all">All</button>
+    <button class="nav-btn" data-status="active">Active</button>
+    <button class="nav-btn" data-status="cooldown">Cooldown</button>
+    <button class="nav-btn" data-status="burnt">Burnt</button>
+  </div>
+
+  <div class="zoom-controls" id="zoomControls">
+    <button class="zoom-btn" id="zoomIn" aria-label="Zoom in">+</button>
+    <button class="zoom-btn" id="zoomReset" aria-label="Reset zoom">⟲</button>
+    <button class="zoom-btn" id="zoomOut" aria-label="Zoom out">−</button>
+  </div>
+
+  <div class="fab-wrap">
+    <button class="fab" id="fabBtn" title="New Item (N)" aria-label="Create new item">
+      <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"></path></svg>
+    </button>
+    <div class="fab-label">Add Contact</div>
+  </div>
+
+  <div class="container">
+    <div class="grid-container active" id="gridContainer" oncontextmenu="handleBackgroundContext(event)">
+      <div class="grid-wrapper" id="gridWrapper"></div>
+    </div>
+
+    <div class="scatter-container" id="scatterContainer" oncontextmenu="handleBackgroundContext(event)">
+      <div class="scatter-canvas" id="scatterCanvas"></div>
+    </div>
+  </div>
+
+  <div class="magnet-indicator" id="magnetIndicator"></div>
+
+  <div id="contextMenu" class="context-menu">
+    </div>
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <button class="close-modal" id="closeModal">&times;</button>
+      <h2 id="modalTitle">Add New Contact</h2>
+      <form id="addForm">
+        <input type="hidden" id="formId">
+        <div class="form-group">
+          <label for="formProvider">Provider / Group</label>
+          <select id="formProvider" required>
+            </select>
+        </div>
+        <div class="form-group">
+          <label for="formEmail">Email / Username</label>
+          <input id="formEmail" type="email" required>
+        </div>
+        <div class="form-group">
+          <label for="formPassword">Password (Notes)</label>
+          <input id="formPassword" type="text" required>
+        </div>
+        <div class="form-group">
+          <label for="formResetHours">Reset Hours</label>
+          <input id="formResetHours" type="number" value="3" min="0.5" step="0.5" required>
+        </div>
+        <div class="form-group">
+          <label for="formStatus">Status</label>
+          <select id="formStatus" required>
+            <option value="active">Active</option>
+            <option value="cooldown">Cooldown</option>
+            <option value="burnt">Burnt/Expired</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-submit" id="submitBtn">Save Contact</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let providers = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot'];
+    let items = [];
+    let currentView = 'grid';
+    let currentProviderFilter = 'all';
+    let currentStatusFilter = 'all';
+    let currentTheme = 'dark';
+    let scatterZoom = 1;
+    let isDragging = false;
+    let draggedCard = null;
+    let dragOffset = { x: 0, y: 0 };
+    let isMagnetic = false;
+    let magnetPos = { x: 0, y: 0 };
+    let magneticAnimationFrame = null;
+    let contextTargetId = null; // Can hold ID (number) or Provider Name (string)
+
+    function generateMockData() {
+      const statuses = ['active', 'cooldown', 'burnt'];
+      return Array.from({ length: 15 }, (_, i) => ({
+        id: Date.now() + i,
+        provider: providers[i % providers.length],
+        email: `user${i + 1}@example.com`,
+        password: `password${i + 1}`,
+        resetHours: 3 + (i % 4),
+        status: statuses[i % statuses.length],
+        position: {
+          x: Math.random() * Math.max(0, window.innerWidth - 260),
+          y: Math.random() * Math.max(0, window.innerHeight - 220)
+        }
+      }));
+    }
+
+    items = generateMockData();
+
+    // Render Top Nav Dynamically
+    function renderTopNav() {
+      const nav = document.getElementById('topNav');
+      let html = `<button class="nav-btn ${currentProviderFilter === 'all' ? 'active' : ''}" onclick="setProviderFilter('all')">All</button>`;
+      
+      providers.forEach(p => {
+        const isActive = currentProviderFilter === p ? 'active' : '';
+        // Add oncontextmenu handler for providers
+        html += `<button class="nav-btn ${isActive}" onclick="setProviderFilter('${p}')" oncontextmenu="handleProviderContext(event, '${p}')">${p}</button>`;
+      });
+
+      nav.innerHTML = html;
+      updateModalProviders();
+    }
+
+    function setProviderFilter(p) {
+      currentProviderFilter = p;
+      renderTopNav();
+      renderView();
+    }
+
+    function updateModalProviders() {
+      const select = document.getElementById('formProvider');
+      select.innerHTML = providers.map(p => `<option value="${p}">${p}</option>`).join('');
+    }
+
+    // Theme handling
+    function setTheme(theme) {
+      currentTheme = theme;
+      document.body.setAttribute('data-theme', theme);
+      document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === theme);
+      });
+      localStorage.setItem('preferred-theme', theme);
+    }
+    const savedTheme = localStorage.getItem('preferred-theme') || 'dark';
+    setTheme(savedTheme);
+
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+      btn.addEventListener('click', () => setTheme(btn.dataset.theme));
+    });
+
+    // Keyboard shortcuts
+    function showKeyboardIndicator(key, label) {
+      const indicator = document.getElementById('keyboardIndicator');
+      document.getElementById('indicatorKey').textContent = key;
+      document.getElementById('indicatorLabel').textContent = label;
+      indicator.classList.add('show');
+      setTimeout(() => indicator.classList.remove('show'), 800);
+    }
+
+    // Toast
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        showKeyboardIndicator('N', 'New Item');
+        openModal();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        showKeyboardIndicator('SPACE', 'Toggle Filters');
+        toggleFilters();
+      }
+    });
+
+    function toggleFilters() {
+      const statuses = ['all', 'active', 'cooldown', 'burnt'];
+      const idx = statuses.indexOf(currentStatusFilter);
+      currentStatusFilter = statuses[(idx + 1) % statuses.length];
+      document.querySelectorAll('.right-nav .nav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.status === currentStatusFilter);
+      });
+      renderView();
+    }
+
+    // Modal Handling
+    function openModal(itemId = null) {
+      const modalTitle = document.getElementById('modalTitle');
+      const submitBtn = document.getElementById('submitBtn');
+      const form = document.getElementById('addForm');
+      
+      if (itemId) {
+        // Edit Mode
+        const item = items.find(i => i.id === Number(itemId));
+        if (item) {
+          modalTitle.textContent = "Edit Contact";
+          submitBtn.textContent = "Update Contact";
+          document.getElementById('formId').value = item.id;
+          document.getElementById('formProvider').value = item.provider;
+          document.getElementById('formEmail').value = item.email;
+          document.getElementById('formPassword').value = item.password;
+          document.getElementById('formResetHours').value = item.resetHours;
+          document.getElementById('formStatus').value = item.status;
+        }
+      } else {
+        // New Mode
+        modalTitle.textContent = "Add New Contact";
+        submitBtn.textContent = "Create Contact";
+        form.reset();
+        document.getElementById('formId').value = "";
+      }
+
+      document.getElementById('modalOverlay').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('active');
+      document.body.style.overflow = '';
+      hideContextMenu();
+    }
+
+    document.getElementById('fabBtn').addEventListener('click', () => openModal());
+    document.getElementById('closeModal').addEventListener('click', closeModal);
+    document.getElementById('modalOverlay').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    function getFilteredItems() {
+      return items.filter(item => {
+        const p = currentProviderFilter === 'all' || item.provider === currentProviderFilter;
+        const s = currentStatusFilter === 'all' || item.status === currentStatusFilter;
+        return p && s;
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    /* ----------------------------------------------------
+       GRID VIEW IMPLEMENTATION
+       ---------------------------------------------------- */
+    function renderGrid() {
+      const wrapper = document.getElementById('gridWrapper');
+      const filtered = getFilteredItems();
+      wrapper.innerHTML = filtered.map(item => `
+        <div class="card status-${item.status}" data-id="${item.id}" oncontextmenu="handleCardContext(event, ${item.id})">
+          <div class="copy-feedback">@ Copied!</div>
+          <div class="card-header">
+            <div class="card-provider">${escapeHtml(item.provider)}</div>
+            <div class="card-status">${escapeHtml(item.status)}</div>
+          </div>
+          <div class="card-info">
+            <div style="color:var(--ink-2);font-size:14px;margin-bottom:10px">Reset: ${item.resetHours}h</div>
+          </div>
+          <div class="card-footer">
+            <div class="card-label"><strong>Provider:</strong> ${escapeHtml(item.provider)}</div>
+            <div class="card-label"><strong>Email:</strong> ${escapeHtml(item.email)}</div>
+          </div>
+        </div>
+      `).join('');
+
+      // Attach Left-Click Copy Handler
+      wrapper.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          // Prevent copy if clicking buttons or specific interactive elements
+          const id = card.dataset.id;
+          const item = items.find(i => i.id == id);
+          if (item) {
+            navigator.clipboard.writeText(item.email).then(() => {
+              const feedback = card.querySelector('.copy-feedback');
+              feedback.classList.add('show');
+              setTimeout(() => feedback.classList.remove('show'), 800);
+              showToast("Email Copied to Clipboard");
+            });
+          }
+        });
+      });
+    }
+
+    /* ----------------------------------------------------
+       SCATTER / LIST VIEW IMPLEMENTATION
+       ---------------------------------------------------- */
+    function renderScatter() {
+      const canvas = document.getElementById('scatterCanvas');
+      const filtered = getFilteredItems();
+      const existing = Array.from(canvas.querySelectorAll('.scatter-card'));
+      const posMap = new Map();
+      
+      existing.forEach(card => {
+        const id = Number(card.dataset.id);
+        const transform = card.style.transform;
+        const match = transform.match(/translate3d\((.+)px,\s*(.+)px/);
+        if (match) {
+          posMap.set(id, { x: parseFloat(match[1]), y: parseFloat(match[2]) });
+        }
+      });
+
+      canvas.innerHTML = filtered.map(item => {
+        const pos = posMap.get(item.id) || item.position;
+        return `
+          <div class="scatter-card status-${item.status}" 
+               data-id="${item.id}" 
+               style="transform:translate3d(${pos.x}px,${pos.y}px,0)"
+               oncontextmenu="handleCardContext(event, ${item.id})">
+            <div class="card-header">
+              <div class="card-provider">${escapeHtml(item.provider)}</div>
+              <div class="card-status">${escapeHtml(item.status)}</div>
+            </div>
+            <div class="card-footer" style="border:none;padding-top:10px">
+              <div class="card-label"><strong>${escapeHtml(item.provider)}</strong></div>
+              <div class="card-label" style="font-size:11px">${escapeHtml(item.email)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      attachScatterHandlers();
+    }
+
+    function attachScatterHandlers() {
+      document.querySelectorAll('.scatter-card').forEach(card => {
+        card.addEventListener('pointerdown', startDrag);
+      });
+    }
+
+    function startDrag(e) {
+      // Prevent drag on right click
+      if (e.button === 2) return;
+      
+      draggedCard = e.currentTarget;
+      draggedCard.classList.remove('sorting'); // Remove sort transition while dragging
+      isDragging = true;
+      draggedCard.classList.add('dragging');
+      const rect = draggedCard.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+      e.preventDefault();
+    }
+
+    /* ----------------------------------------------------
+       CONTEXT MENU LOGIC
+       ---------------------------------------------------- */
+    const contextMenu = document.getElementById('contextMenu');
+
+    // Close menu on global click
+    document.addEventListener('click', (e) => {
+      if (!contextMenu.contains(e.target)) hideContextMenu();
+    });
+
+    // 1. CARD Context Menu
+    function handleCardContext(e, id) {
+      e.preventDefault();
+      e.stopPropagation(); // Stop bubbling to background
+      contextTargetId = id;
+      showContextMenu(e.clientX, e.clientY, 'card');
+    }
+
+    // 2. PROVIDER NAV Context Menu
+    function handleProviderContext(e, providerName) {
+      e.preventDefault();
+      e.stopPropagation();
+      contextTargetId = providerName;
+      showContextMenu(e.clientX, e.clientY, 'provider');
+    }
+
+    // 3. BACKGROUND Context Menu
+    function handleBackgroundContext(e) {
+      if(e.target !== e.currentTarget) return; // Only trigger if clicking actual background
+      e.preventDefault();
+      contextTargetId = null;
+      showContextMenu(e.clientX, e.clientY, 'background');
+    }
+
+    function showContextMenu(x, y, type) {
+      const isGrid = currentView === 'grid';
+      let html = '';
+
+      if (type === 'card') {
+        // --- CARD OPTIONS ---
+        if (!isGrid) {
+          // List View Card options
+          html += `
+            <div class="ctx-item">
+              <span>Sort by...</span>
+              <span>▸</span>
+              <div class="ctx-submenu">
+                <div class="ctx-item" onclick="handleSort('provider')">Name (Provider)</div>
+                <div class="ctx-item" onclick="handleSort('status')">Status</div>
+                <div class="ctx-item" onclick="handleSort('reset')">Reset (Random)</div>
+              </div>
+            </div>
+            <div class="ctx-divider"></div>
+          `;
+        }
+        // Common Card options
+        html += `
+          <div class="ctx-item" onclick="triggerEdit()">Edit Contact</div>
+          <div class="ctx-item" onclick="triggerDelete()" style="color:#ef4444">Delete Contact</div>
+        `;
+      } else if (type === 'provider') {
+        // --- PROVIDER NAV OPTIONS ---
+        html += `<div class="ctx-item" onclick="triggerEditProvider()">Edit Provider</div>`;
+        html += `<div class="ctx-item" onclick="triggerDeleteProvider()" style="color:#ef4444">Delete Provider</div>`;
+
+      } else {
+        // --- BACKGROUND OPTIONS ---
+        html += `<div class="ctx-item" onclick="handleAddProvider()">Add Provider +</div>`;
+        html += `<div class="ctx-item" onclick="openModal()">Add Contact (N)</div>`;
+        
+        // List Background specific
+        if (!isGrid) {
+          html += `<div class="ctx-divider"></div>`;
+          html += `
+            <div class="ctx-item">
+              <span>Sort by...</span>
+              <span>▸</span>
+              <div class="ctx-submenu">
+                <div class="ctx-item" onclick="handleSort('provider')">Name (Provider)</div>
+                <div class="ctx-item" onclick="handleSort('status')">Status</div>
+                <div class="ctx-item" onclick="handleSort('reset')">Reset (Random)</div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      contextMenu.innerHTML = html;
+      contextMenu.style.left = `${Math.min(x, window.innerWidth - 200)}px`;
+      contextMenu.style.top = `${Math.min(y, window.innerHeight - 150)}px`;
+      contextMenu.classList.add('active');
+    }
+
+    function hideContextMenu() {
+      contextMenu.classList.remove('active');
+      contextTargetId = null;
+    }
+
+    // Context Actions - Cards
+    function triggerEdit() {
+      if (contextTargetId) openModal(contextTargetId);
+      hideContextMenu();
+    }
+
+    function triggerDelete() {
+      if (contextTargetId) {
+        if(confirm("Are you sure you want to delete this contact?")) {
+          items = items.filter(i => i.id !== contextTargetId);
+          renderView();
+          showToast("Contact Deleted");
+        }
+      }
+      hideContextMenu();
+    }
+
+    // Context Actions - Providers
+    function triggerEditProvider() {
+      const oldName = contextTargetId;
+      const newName = prompt("Rename Provider:", oldName);
+      if (newName && newName.trim() !== "" && newName !== oldName) {
+         if (providers.includes(newName.trim())) {
+           showToast("Provider name already exists");
+           hideContextMenu();
+           return;
+         }
+         // Update provider list
+         const idx = providers.indexOf(oldName);
+         if (idx !== -1) providers[idx] = newName.trim();
+         
+         // Update Items
+         items.forEach(item => {
+           if (item.provider === oldName) item.provider = newName.trim();
+         });
+         
+         // Update Filter
+         if (currentProviderFilter === oldName) currentProviderFilter = newName.trim();
+
+         renderTopNav();
+         renderView();
+         showToast("Provider Renamed");
+      }
+      hideContextMenu();
+    }
+
+    function triggerDeleteProvider() {
+      const pName = contextTargetId;
+      if (confirm(`Delete provider category "${pName}"? Contacts will remain but the category will be removed.`)) {
+         providers = providers.filter(p => p !== pName);
+         if (currentProviderFilter === pName) currentProviderFilter = 'all';
+         renderTopNav();
+         renderView();
+         showToast("Provider Category Deleted");
+      }
+      hideContextMenu();
+    }
+
+    // Context Actions - Background
+    function handleAddProvider() {
+      hideContextMenu();
+      const name = prompt("Enter new Provider name:");
+      if (name && name.trim()) {
+        if (!providers.includes(name.trim())) {
+          providers.push(name.trim());
+          renderTopNav();
+          showToast(`Provider "${name}" Added`);
+        } else {
+          showToast("Provider already exists");
+        }
+      }
+    }
+
+    // Sorting Logic for Scatter View
+    function handleSort(criteria) {
+      hideContextMenu();
+      if (currentView !== 'scatter') return;
+
+      const filtered = getFilteredItems();
+      const canvasWidth = window.innerWidth;
+      
+      // Sort the array locally
+      let sorted = [...filtered];
+      if (criteria === 'provider') {
+        sorted.sort((a, b) => a.provider.localeCompare(b.provider));
+      } else if (criteria === 'status') {
+        sorted.sort((a, b) => a.status.localeCompare(b.status));
+      } else if (criteria === 'reset') {
+        // Randomize mock positions
+         items.forEach(item => {
+            item.position = {
+               x: Math.random() * Math.max(0, window.innerWidth - 260),
+               y: Math.random() * Math.max(0, window.innerHeight - 220)
+            };
+         });
+         renderView();
+         return;
+      }
+
+      // Arrange in a grid formation on the scatter canvas
+      const cols = Math.floor(canvasWidth / 260);
+      const startX = 50;
+      // Positioned below the top toggle/nav to avoid obfuscation
+      const startY = 140; 
+      const gapX = 260;
+      const gapY = 200;
+
+      sorted.forEach((item, index) => {
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        const newX = startX + (col * gapX);
+        const newY = startY + (row * gapY);
+
+        // Update Data
+        const realItem = items.find(i => i.id === item.id);
+        if (realItem) realItem.position = { x: newX, y: newY };
+
+        // Update DOM with Animation
+        const card = document.querySelector(`.scatter-card[data-id="${item.id}"]`);
+        if (card) {
+          card.classList.add('sorting');
+          card.style.transform = `translate3d(${newX}px, ${newY}px, 0)`;
+          // Remove sorting class after animation
+          setTimeout(() => card.classList.remove('sorting'), 500);
+        }
+      });
+    }
+
+    /* ----------------------------------------------------
+       POINTER & MAGNET LOGIC
+       ---------------------------------------------------- */
+    
+    document.addEventListener('pointermove', (e) => {
+      // 1. Handle Dragging
+      if (isDragging && draggedCard) {
+        const canvas = document.getElementById('scatterCanvas');
+        const canvasRect = canvas.getBoundingClientRect();
+        const x = (e.clientX - canvasRect.left - dragOffset.x) / scatterZoom;
+        const y = (e.clientY - canvasRect.top - dragOffset.y) / scatterZoom;
+        draggedCard.style.transform = `translate3d(${x}px,${y}px,0)`;
+        const id = Number(draggedCard.dataset.id);
+        const item = items.find(i => i.id === id);
+        if (item) item.position = { x, y };
+      }
+
+      // 2. Handle Magnet (Shift + Move)
+      magnetPos = { x: e.clientX, y: e.clientY };
+      
+      if (currentView === 'scatter') {
+        if (e.shiftKey) {
+          // Trigger Magnet Mode
+          if (!isMagnetic) startMagneticEffect();
+          const indicator = document.getElementById('magnetIndicator');
+          indicator.style.left = `${e.clientX - 60}px`;
+          indicator.style.top = `${e.clientY - 60}px`;
+        } else {
+          // Stop Magnet Mode
+          if (isMagnetic) stopMagneticEffect();
+        }
+      }
+    });
+
+    document.addEventListener('pointerup', () => {
+      if (draggedCard) draggedCard.classList.remove('dragging');
+      isDragging = false;
+      draggedCard = null;
+    });
+
+    // Ensure magnet stops if shift is released even without movement
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') stopMagneticEffect();
+    });
+
+    function startMagneticEffect() {
+      if (isMagnetic) return;
+      isMagnetic = true;
+      document.getElementById('magnetIndicator').classList.add('active');
+      magnetLoop();
+    }
+
+    function stopMagneticEffect() {
+      isMagnetic = false;
+      document.getElementById('magnetIndicator').classList.remove('active');
+      document.querySelectorAll('.scatter-card').forEach(c => c.classList.remove('magnetic'));
+      if (magneticAnimationFrame) {
+        cancelAnimationFrame(magneticAnimationFrame);
+        magneticAnimationFrame = null;
+      }
+    }
+
+    function magnetLoop() {
+      if (!isMagnetic) return;
+      
+      const cards = document.querySelectorAll('.scatter-card');
+      cards.forEach(card => {
+        // Don't pull card being dragged
+        if (card.classList.contains('dragging')) return;
+
+        card.classList.add('magnetic');
+        const rect = card.getBoundingClientRect();
+        const cardCenterX = rect.left + rect.width / 2;
+        const cardCenterY = rect.top + rect.height / 2;
+        
+        const dx = magnetPos.x - cardCenterX;
+        const dy = magnetPos.y - cardCenterY;
+        const dist = Math.hypot(dx, dy);
+        
+        if (dist > 60) {
+          const pull = Math.min(0.35, 150 / Math.max(1, dist));
+          const transform = card.style.transform;
+          const match = transform.match(/translate3d\(([^p]+)px,\s*([^p]+)px/);
+          
+          if (match) {
+            const currentX = parseFloat(match[1]);
+            const currentY = parseFloat(match[2]);
+            const newX = currentX + dx * pull;
+            const newY = currentY + dy * pull;
+            card.style.transform = `translate3d(${newX}px,${newY}px,0)`;
+            
+            const id = Number(card.dataset.id);
+            const item = items.find(i => i.id === id);
+            if (item) item.position = { x: newX, y: newY };
+          }
+        }
+      });
+      
+      magneticAnimationFrame = requestAnimationFrame(magnetLoop);
+    }
+
+    // Zoom controls
+    function updateZoom(delta) {
+      scatterZoom = Math.max(0.5, Math.min(3, scatterZoom + delta));
+      document.getElementById('scatterCanvas').style.transform = `scale(${scatterZoom})`;
+    }
+
+    document.getElementById('zoomIn').addEventListener('click', () => updateZoom(0.2));
+    document.getElementById('zoomOut').addEventListener('click', () => updateZoom(-0.2));
+    document.getElementById('zoomReset').addEventListener('click', () => {
+      scatterZoom = 1;
+      document.getElementById('scatterCanvas').style.transform = 'scale(1)';
+    });
+
+    document.getElementById('scatterContainer').addEventListener('wheel', (e) => {
+      if (currentView === 'scatter') {
+        e.preventDefault();
+        updateZoom(e.deltaY > 0 ? -0.1 : 0.1);
+      }
+    }, { passive: false });
+
+    // View switching
+    function switchView(view) {
+      currentView = view;
+      const grid = document.getElementById('gridContainer');
+      const scatter = document.getElementById('scatterContainer');
+      const zoom = document.getElementById('zoomControls');
+      
+      // Reset magnet
+      stopMagneticEffect();
+      hideContextMenu();
+
+      if (view === 'grid') {
+        grid.classList.add('active');
+        scatter.classList.remove('active');
+        zoom.classList.remove('active');
+      } else {
+        grid.classList.remove('active');
+        scatter.classList.add('active');
+        zoom.classList.add('active');
+      }
+      renderView();
+    }
+
+    function renderView() {
+      if (currentView === 'grid') renderGrid();
+      else renderScatter();
+    }
+
+    // Navigation
+    document.querySelectorAll('.left-nav .nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.left-nav .nav-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        switchView(btn.dataset.view);
+      });
+    });
+
+    document.querySelectorAll('.right-nav .nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.right-nav .nav-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentStatusFilter = btn.dataset.status;
+        renderView();
+      });
+    });
+
+    // Form submission (Create or Update)
+    document.getElementById('addForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const idVal = document.getElementById('formId').value;
+      const isEdit = idVal !== "";
+
+      const newItem = {
+        id: isEdit ? Number(idVal) : Date.now(),
+        provider: document.getElementById('formProvider').value,
+        email: document.getElementById('formEmail').value,
+        password: document.getElementById('formPassword').value,
+        resetHours: parseFloat(document.getElementById('formResetHours').value),
+        status: document.getElementById('formStatus').value,
+        position: {
+          x: Math.random() * Math.max(0, window.innerWidth - 260),
+          y: Math.random() * Math.max(0, window.innerHeight - 220)
+        }
+      };
+
+      if (isEdit) {
+        // Update existing
+        const idx = items.findIndex(i => i.id === newItem.id);
+        if (idx > -1) {
+          // Preserve position if editing
+          newItem.position = items[idx].position; 
+          items[idx] = newItem;
+          showToast("Contact Updated");
+        }
+      } else {
+        // Create new
+        items.push(newItem);
+        showToast("Contact Created");
+      }
+
+      closeModal();
+      e.target.reset();
+      renderView();
+    });
+
+    // Initialize
+    renderTopNav(); // Initial render for nav
+    renderView();
+    window.addEventListener('resize', () => {
+      if (currentView === 'grid') renderGrid();
+      else renderScatter();
+    });
+  </script>
+</body>
+</html>
