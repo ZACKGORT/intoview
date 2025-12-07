@@ -9,6 +9,7 @@
     :root {
       --bg-color: #050505;
       --card-bg: #111111;
+      --card-bg-rgb: 17, 17, 17;
       --ink: #ffffff;
       --ink-dim: #888888;
       --accent: #FFED29;
@@ -21,7 +22,6 @@
       --glass-bg: rgba(20, 20, 20, 0.85);
       --glass-border: rgba(255, 255, 255, 0.1);
       --glass-blur: 16px;
-      --edge-blur: 6.6px;
       
       --nav-height: 80px;
       --header-height: 100px;
@@ -32,6 +32,7 @@
     [data-theme="light"] {
       --bg-color: #f0f0f0;
       --card-bg: #ffffff;
+      --card-bg-rgb: 255, 255, 255;
       --ink: #111111;
       --ink-dim: #666666;
       --glass-bg: rgba(255, 255, 255, 0.9);
@@ -71,7 +72,7 @@
         display: flex; align-items: center; height: 32px; 
     }
     /* Logo Image Sizing */
-    .logo img {
+    .logo svg {
         height: 32px; /* Enforce size for the SVG */
         width: auto;
     }
@@ -88,29 +89,6 @@
     .logo-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 10px var(--accent); }
 
     .header-buttons { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-
-
-    .edge-blur {
-        position: fixed; inset: 0; pointer-events: none; z-index: var(--z-blur);
-        backdrop-filter: blur(var(--edge-blur)); -webkit-backdrop-filter: blur(var(--edge-blur));
-        mask: radial-gradient(100% 64% at 50% 50%, transparent 60%, rgb(255 255 255 / 0.98) 75%);
-        z-index:10;
-      }
-      @media (max-width: 768px) {
-        .edge-blur {
-          mask: radial-gradient(100% 80% at 50% 50%, transparent 70%, rgb(255 255 255 / 0.98) 85%);
-        }
-      }
-      .vignette {
-        position: fixed; inset: 0; pointer-events: none; z-index: var(--z-vig);
-        background: radial-gradient(120% 90% at 50% 50%, #fff0 25%, rgb(0 0 0 / 0.62) 80%, rgb(0 0 0 / 0.98) 100%);
-        opacity: var(--vig-opacity);
-      }
-
-
-
-
-
 
     .theme-btn {
         background: transparent; border: none; color: var(--ink-dim);
@@ -160,10 +138,16 @@
       padding: 20px;
       position: relative;
       display: flex; flex-direction: column; gap: 12px;
-      transition: transform 0.2s, background 0.2s;
+      transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
       cursor: pointer; /* Clickable */
     }
-    .card:active { transform: scale(0.98); background: var(--glass-border); }
+    .card:active { transform: scale(0.98); background: var(--glass-border); color: var(--ink); }
+
+    #gridContainer .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      border-color: var(--accent);
+    }
 
     .card-top { display: flex; justify-content: space-between; align-items: center; }
     .card-provider { font-weight: 600; font-size: 14px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; }
@@ -185,10 +169,11 @@
     /* Edit Icon Style */
     .card-edit-icon {
       color: var(--ink-dim); padding: 4px; border-radius: 4px;
-      transition: color 0.2s, background 0.2s;
+      transition: color 0.2s, background 0.2s, opacity 0.2s, transform 0.2s;
       margin-left: 8px;
+      opacity: 0.5;
     }
-    .card-edit-icon:hover { color: var(--ink); background: rgba(255,255,255,0.1); }
+    .card-edit-icon:hover { color: var(--ink); background: rgba(255,255,255,0.1); opacity: 1; transform: scale(1.1); }
 
     .card-timer {
       font-family: var(--font-mono);
@@ -250,15 +235,25 @@
     .scatter-card {
       position: absolute;
       width: 220px;
-      background: var(--card-bg);
+      background: rgba(var(--card-bg-rgb), 0.85);
       border: 1px solid var(--glass-border);
       border-radius: 12px;
       padding: 12px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.3);
       display: flex; flex-direction: column; align-items: center;
       user-select: none;
-      transition: box-shadow 0.2s;
+      transition: box-shadow 0.2s, opacity 0.2s;
       cursor: pointer;
+      backdrop-filter: blur(8px);
+      opacity: 0.85;
+    }
+    .scatter-card:hover {
+      opacity: 0.95;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+    }
+    .scatter-card.dimmed {
+      opacity: 0.15;
+      filter: grayscale(1) blur(2px);
     }
     .scatter-card.is-dragging {
         box-shadow: 0 20px 50px rgba(0,0,0,0.6);
@@ -503,7 +498,20 @@
 <header class="app-header">
 <div class="header-top">
 <div class="logo">
-<img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg.svg" alt="IntoView Logo" style="height: 32px;">
+<svg width="150" height="32" viewBox="0 0 150 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="blurVignette" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1" result="blur"/>
+      <feFlood flood-color="black" flood-opacity="0.3" result="vignetteColor"/>
+      <feComposite in="vignetteColor" in2="blur" operator="atop" result="vignette"/>
+      <feMerge>
+        <feMergeNode in="vignette"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <text x="0" y="25" font-family="var(--font-mono)" font-size="28" font-weight="800" letter-spacing="-1" fill="currentColor" filter="url(#blurVignette)">intoview</text>
+</svg>
 </div>
       
       <div class="header-buttons">
@@ -534,12 +542,6 @@
   </div>
 
   <div id="contextMenu" class="context-menu"></div>
-
-<!-- Edge Blur -->
-<div class="edge-blur"></div>
-
-<!-- Vignette -->
-<div class="vignette"></div>
 
   <nav class="bottom-nav">
     <div class="nav-group">
@@ -946,11 +948,6 @@ function toggleTheme() {
   const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
   document.body.setAttribute('data-theme', newTheme);
   localStorage.setItem('iv_theme', newTheme);
-
-  const logo = document.getElementById('logoImg');
-  if (logo) {
-    logo.src = newTheme === 'light' ? 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-dark.svg' : 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg';
-  }
 }
 
 function toggleAccordion(header) {
@@ -1232,15 +1229,8 @@ function renderScatter() {
   const filteredItems = filterItems();
   const existingIds = Array.from(canvas.children).map(c => c.dataset.id);
 
-  // 1. Remove cards that are no longer needed
-  existingIds.forEach(id => {
-    if (!filteredItems.find(i => i.id == id)) {
-      document.getElementById(`scatter-card-${id}`).remove();
-    }
-  });
-
-  // 2. Add/Update cards
-  filteredItems.forEach(item => {
+  // Create/Update all cards, dim non-filtered
+  items.forEach(item => {
     let card = document.getElementById(`scatter-card-${item.id}`);
 
     if (!card) {
@@ -1299,6 +1289,20 @@ function renderScatter() {
     card.style.left = `${item.pos.x}px`;
     card.style.top = `${item.pos.y}px`;
     card.style.zIndex = item.status === 'active' ? 5 : 1;
+
+    // Apply dimmed class if not in filter
+    if (filteredItems.some(f => f.id === item.id)) {
+      card.classList.remove('dimmed');
+    } else {
+      card.classList.add('dimmed');
+    }
+  });
+
+  // Remove cards if somehow extra (though unlikely)
+  existingIds.forEach(id => {
+    if (!items.find(i => i.id == id)) {
+      document.getElementById(`scatter-card-${id}`).remove();
+    }
   });
 
   applyScatterTransform();
@@ -2101,10 +2105,6 @@ function init() {
   const storedTheme = localStorage.getItem('iv_theme');
   if (storedTheme) {
     document.body.setAttribute('data-theme', storedTheme);
-    const logo = document.getElementById('logoImg');
-    if (logo) {
-      logo.src = storedTheme === 'light' ? 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-dark.svg' : 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg';
-    }
   }
 
   // Ensure the correct view is active on load
