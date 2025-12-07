@@ -438,7 +438,7 @@
   <header class="app-header">
     <div class="header-top">
     <div class="logo">
-    <img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg.svg" alt="IntoView Logo" style="height: 32px;">
+    <img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg" alt="IntoView Logo" style="height: 32px;">
   </div>
       
       <div class="header-buttons">
@@ -557,6 +557,18 @@
       <div class="confirm-actions">
          <button class="btn-half btn-cancel" onclick="closeConfirm()">Cancel</button>
          <button class="btn-half btn-confirm" id="btnConfirmAction">Confirm</button>
+      </div>
+   </div>
+</div>
+
+<div class="overlay" id="actionOverlay">
+   <div class="confirm-dialog">
+      <div class="confirm-title" id="actionTitle">Activate Node</div>
+      <div class="confirm-text">Email copied to clipboard:</div>
+      <input type="text" id="actionEmail" readonly style="margin-bottom:20px; text-align:center;">
+      <div class="confirm-actions">
+         <button class="btn-half btn-cancel" onclick="closeActionOverlay()">Cancel</button>
+         <button class="btn-half btn-confirm" id="btnActivateNode">Activate</button>
       </div>
    </div>
 </div>
@@ -1282,8 +1294,7 @@
         const newX = startItemX + (currentCanvasX - startCanvasX);
         const newY = startItemY + (currentCanvasY - startCanvasY);
         
-        card.style.transform = `translate(${newX}px, ${newY}px)`;
-        item.pos = {x: newX, y: newY};
+        card.style.transform = `translate(${newX - startItemX}px, ${newY - startItemY}px)`;
       }
 
       function end(eEnd) {
@@ -1295,6 +1306,18 @@
         card.classList.remove('is-dragging');
         // FIX: Reset zIndex after drag is complete to fix timer/overlap issues
         card.style.zIndex = item.status === 'active' ? 5 : 1; 
+        const currentClientX = eEnd.clientX - containerRect.left;
+        const currentClientY = eEnd.clientY - containerRect.top;
+        
+        const currentCanvasX = (currentClientX - scatter.transform.x) * invScale;
+        const currentCanvasY = (currentClientY - scatter.transform.y) * invScale;
+        
+        const newX = startItemX + (currentCanvasX - startCanvasX);
+        const newY = startItemY + (currentCanvasY - startCanvasY);
+        item.pos = {x: newX, y: newY};
+        card.style.left = `${newX}px`;
+        card.style.top = `${newY}px`;
+        card.style.transform = '';
         setTimeout(() => scatter.dragging = false, 50); // Small delay to prevent immediate click
         save();
       }
@@ -1433,6 +1456,33 @@
             document.removeEventListener('contextmenu', hide);
         };
         setTimeout(() => document.addEventListener('click', hide), 10);
+    }
+    
+    function showBackgroundContextMenu(e) {
+      const menu = document.getElementById('contextMenu');
+      menu.innerHTML = `
+          <div class="ctx-header">Scatter Options</div>
+          <div class="ctx-item" onclick="autoArrange()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 11h7V4H4v7zm0 9h7v-7H4v7zm9 0h7v-7h-7v7zm0-16v7h7V4h-7z"></path></svg>
+              <span>Auto Arrange</span>
+          </div>
+      `;
+      
+      menu.style.left = `${e.clientX}px`;
+      menu.style.top = `${e.clientY}px`;
+      menu.classList.add('active');
+      
+      // Hide menu on next click
+      const hide = () => {
+          menu.classList.remove('active');
+          document.removeEventListener('click', hide);
+          document.removeEventListener('contextmenu', hide);
+      };
+      setTimeout(() => document.addEventListener('click', hide), 10);
+    }
+
+    function closeContextMenu() {
+      document.getElementById('contextMenu').classList.remove('active');
     }
     
     // Hide context menu if clicking outside of it (already handled by hide function, but just in case)
@@ -1722,6 +1772,7 @@
         const item = items.find(i => i.id == nodeId);
         if (!item || item.status !== 'ready') return;
         
+        document.getElementById('actionTitle').textContent = `Activate ${item.provider}`;
         document.getElementById('actionEmail').value = item.email;
         copyToClipboard(item.email);
         
@@ -1782,6 +1833,15 @@
       
       // Initial render
       renderAll();
+
+      // Add background context menu for scatter
+      const canvas = document.getElementById('scatterCanvas');
+      canvas.oncontextmenu = (e) => {
+        if (!e.target.closest('.scatter-card')) {
+          e.preventDefault();
+          showBackgroundContextMenu(e);
+        }
+      };
     }
 
     window.addEventListener('load', init);
