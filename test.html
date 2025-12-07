@@ -16,6 +16,7 @@
       --neon-green: #22c55e;
       --neon-orange: #f97316;
       --neon-red: #ef4444;
+      --neon-blue: #3b82f6;
       
       --glass-bg: rgba(20, 20, 20, 0.85);
       --glass-border: rgba(255, 255, 255, 0.1);
@@ -39,10 +40,17 @@
     * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
     html, body { height: 100%; font-family: var(--font-sans); background: var(--bg-color); color: var(--ink); overflow: hidden; }
 
+    /* --- Custom Scrollbar Design --- */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--ink-dim); }
+
     /* --- Typography & Utilities --- */
     .text-green { color: var(--neon-green); }
     .text-orange { color: var(--neon-orange); }
     .text-red { color: var(--neon-red); }
+    .text-blue { color: var(--neon-blue); }
     
     /* --- Layout Structure --- */
     .app-header {
@@ -57,23 +65,14 @@
         padding: 0 20px; width: 100%; pointer-events: auto; 
     }
     
-    /* Logo Styling */
-    .logo { 
-        display: flex; align-items: center; height: 32px; 
+    /* Text Logo Fallback */
+    .logo-text {
+      font-family: var(--font-mono); font-weight: 800; font-size: 20px;
+      letter-spacing: -1px; color: var(--ink); display: flex; align-items: center; gap: 8px;
     }
-    /* Logo Image Sizing */
-    .logo img {
-        height: 32px; /* Enforce size for the SVG */
-        width: auto;
-    }
+    .logo-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 10px var(--accent); }
 
-    /* Right-side button container */
-    .header-buttons {
-        display: flex;
-        align-items: center;
-        gap: 8px; 
-        margin-left: auto;
-    }
+    .header-buttons { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
     .theme-btn {
         background: transparent; border: none; color: var(--ink-dim);
@@ -100,14 +99,14 @@
 
     .view-container {
       position: absolute; inset: 0;
-      top: var(--header-height); bottom: var(--nav-height);
+      top: var(--header-height); bottom: 0;
       overflow: hidden; opacity: 0; pointer-events: none;
       transition: opacity 0.3s ease;
     }
     .view-container.active { opacity: 1; pointer-events: auto; }
 
     /* --- Grid View --- */
-    #gridContainer { overflow-y: auto; padding: 10px 16px 40px 16px; }
+    #gridContainer { overflow-y: auto; padding: 10px 16px 120px 16px; }
     .grid-wrapper {
       display: grid; 
       grid-template-columns: 1fr; 
@@ -124,12 +123,21 @@
       position: relative;
       display: flex; flex-direction: column; gap: 12px;
       transition: transform 0.2s, background 0.2s;
+      cursor: pointer; /* Clickable */
     }
     .card:active { transform: scale(0.98); background: var(--glass-border); }
 
     .card-top { display: flex; justify-content: space-between; align-items: center; }
     .card-provider { font-weight: 600; font-size: 14px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+
+    /* Edit Icon Style */
+    .card-edit-icon {
+      color: var(--ink-dim); padding: 4px; border-radius: 4px;
+      transition: color 0.2s, background 0.2s;
+      margin-left: 8px;
+    }
+    .card-edit-icon:hover { color: var(--ink); background: rgba(255,255,255,0.1); }
 
     .card-timer {
       font-family: var(--font-mono);
@@ -154,12 +162,13 @@
     /* --- Scatter View --- */
     #scatterContainer { 
         overflow: hidden; 
+        background-image: radial-gradient(var(--glass-border) 1px, transparent 1px);
+        background-size: 40px 40px;
     }
     .scatter-canvas { 
         width: 100%; height: 100%; position: relative; 
-        /* Enable hardware acceleration for smooth transform */
         will-change: transform; 
-        transition: transform 0.05s linear; 
+        touch-action: none; 
     }
     .scatter-card {
       position: absolute;
@@ -170,8 +179,14 @@
       padding: 12px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.3);
       display: flex; flex-direction: column; align-items: center;
-      transition: border-color 0.2s, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
       user-select: none;
+      transition: box-shadow 0.2s;
+      cursor: pointer;
+    }
+    .scatter-card.is-dragging {
+        box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+        z-index: 1000 !important;
+        cursor: grabbing;
     }
     .scatter-card .card-timer { font-size: 1.4rem; margin: 4px 0; }
     .scatter-card .card-provider { font-size: 11px; }
@@ -185,7 +200,6 @@
         padding-top: 8px; 
         width: 100%; 
     }
-
 
     /* --- Bottom Navigation (Dock) --- */
     .bottom-nav {
@@ -218,7 +232,6 @@
     .nav-btn.primary { background: var(--accent); color: #000; transform: scale(1.1); box-shadow: 0 0 15px var(--accent); }
     .nav-btn.primary:active { transform: scale(1.0); }
 
-    /* Status Filter Pill (Bottom Right) */
     .filter-pill-btn {
         background: var(--glass-border);
         height: 40px;
@@ -235,7 +248,6 @@
     }
     .filter-pill-btn:active { transform: scale(0.95); }
     .filter-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-dim); box-shadow: 0 0 5px currentColor; flex-shrink: 0; }
-
 
     /* --- Modals & Overlays --- */
     .overlay {
@@ -264,13 +276,12 @@
     .close-btn { 
        position: absolute; top: 16px; right: 16px; 
        background: transparent; border: none; color: var(--ink-dim); 
-       cursor: pointer; padding: 8px; border-radius: 50%; 
-       z-index: 10;
+       cursor: pointer; padding: 8px; border-radius: 50%; z-index: 10;
        transition: color 0.2s;
     }
     .close-btn:hover { color: var(--ink); }
 
-    /* --- Confirmation Dialogue (System style) --- */
+    /* --- Dialogs (Confirm & Action) --- */
     .confirm-dialog {
         background: var(--card-bg); border: 1px solid var(--glass-border);
         padding: 24px; border-radius: 16px; width: 90%; max-width: 320px;
@@ -287,7 +298,6 @@
     .form-group { margin-bottom: 16px; }
     label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); margin-bottom: 6px; text-transform: uppercase; }
     
-    /* Input with Icon Wrapper */
     .input-wrapper { position: relative; width: 100%; }
     .input-wrapper input { padding-right: 40px; }
     .input-icon-btn {
@@ -301,26 +311,18 @@
       width: 100%; padding: 16px;
       background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
       border-radius: 12px; color: var(--ink); font-size: 16px;
-      font-family: var(--font-sans);
-      padding-right: 32px; 
-      -webkit-appearance: none;
-      -moz-appearance: none;
-      appearance: none;
+      font-family: var(--font-sans); padding-right: 32px; 
+      -webkit-appearance: none; -moz-appearance: none; appearance: none;
     }
     input:focus, select:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.1); }
     
-    /* Custom Chevron for Select */
     .form-group select {
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23888' d='M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: right 12px center;
         background-size: 16px;
     }
-    [data-theme="light"] .form-group select {
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23666' d='M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z'/%3E%3C/svg%3E");
-    }
 
-    /* Redesigned Form Fields */
     .status-toggles { display: flex; gap: 8px; }
     .btn-toggle {
        flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; border: 1px solid var(--glass-border); 
@@ -328,7 +330,8 @@
        line-height: 1;
     }
     .btn-toggle.selected { color: var(--bg-color); border-color: currentColor; }
-    .btn-toggle[data-status="active"].selected { background: var(--neon-green); color: #000; border-color: var(--neon-green); }
+    .btn-toggle[data-status="active"].selected { background: var(--accent); color: #000; border-color: var(--accent); }
+    .btn-toggle[data-status="ready"].selected { background: var(--neon-green); color: #000; border-color: var(--neon-green); }
     .btn-toggle[data-status="cooldown"].selected { background: var(--neon-orange); color: #000; border-color: var(--neon-orange); }
     .btn-toggle[data-status="burnt"].selected { background: var(--neon-red); color: #000; border-color: var(--neon-red); }
 
@@ -350,7 +353,7 @@
     .btn-cancel { background: transparent; color: var(--ink-dim); border: 1px solid var(--glass-border); }
     .btn-confirm { background: var(--accent); color: #000; }
 
-    /* --- Accordion Styles (NEW) --- */
+    /* --- Accordion Styles --- */
     .accordion-item {
         border: 1px solid var(--glass-border);
         border-radius: 12px;
@@ -372,35 +375,13 @@
         justify-content: space-between;
         align-items: center;
     }
-    .accordion-header:hover {
-        background: rgba(255, 255, 255, 0.05);
-    }
-    .accordion-icon {
-        transition: transform 0.3s ease;
-    }
-    .accordion-item.open .accordion-icon {
-        transform: rotate(180deg);
-    }
-    .accordion-content {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease-out;
-    }
-    .accordion-content-inner {
-        padding: 0 16px 16px 16px;
-        font-size: 14px;
-        color: var(--ink-dim);
-        line-height: 1.6;
-    }
-    .accordion-content-inner ul {
-        list-style-type: '—  ';
-        margin-left: 20px;
-        padding-left: 0;
-    }
-    .accordion-content-inner li {
-        margin-bottom: 6px;
-        padding: 4px 0;
-    }
+    .accordion-header:hover { background: rgba(255, 255, 255, 0.05); }
+    .accordion-icon { transition: transform 0.3s ease; }
+    .accordion-item.open .accordion-icon { transform: rotate(180deg); }
+    .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+    .accordion-content-inner { padding: 0 16px 16px 16px; font-size: 14px; color: var(--ink-dim); line-height: 1.6; }
+    .accordion-content-inner ul { list-style-type: '—  '; margin-left: 20px; padding-left: 0; }
+    .accordion-content-inner li { margin-bottom: 6px; padding: 4px 0; }
     
     /* --- Utilities --- */
     .toast {
@@ -415,14 +396,14 @@
       position: fixed; bottom: 100px; right: 20px; display: none; flex-direction: column; gap: 10px; z-index: 150;
     }
     .scatter-controls.visible { display: flex; }
-    .control-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--glass-bg); border: 1px solid var(--glass-border); color: var(--ink); font-size: 16px; backdrop-filter: blur(10px); }
+    .control-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--glass-bg); border: 1px solid var(--glass-border); color: var(--ink); font-size: 16px; backdrop-filter: blur(10px); cursor: pointer; }
 
     /* --- Context Menu --- */
     .context-menu {
-      position: absolute; display: none; 
+      position: fixed; display: none; 
       background: var(--card-bg); border: 1px solid var(--glass-border);
       border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-      z-index: 1000; width: 260px; overflow: hidden;
+      z-index: 1000; width: 220px; overflow: hidden;
       backdrop-filter: blur(12px);
     }
     .context-menu.active { display: block; animation: fadeIn 0.1s ease; }
@@ -443,7 +424,10 @@
   <header class="app-header">
     <div class="header-top">
       <div class="logo">
-        <img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg.svg" alt="IntoView Logo" style="height: 32px;">
+        <div class="logo-text">
+            <div class="logo-dot"></div>
+            intoview
+        </div>
       </div>
       
       <div class="header-buttons">
@@ -469,8 +453,8 @@
 
   <div class="scatter-controls" id="scatterControls">
     <button class="control-btn" onclick="autoArrange()" id="wandBtn" title="Auto-Arrange">🪄</button>
-    <button class="control-btn" onclick="zoom(1, window.innerWidth/2, window.innerHeight/2)" title="Zoom In">+</button>
-    <button class="control-btn" onclick="zoom(-1, window.innerWidth/2, window.innerHeight/2)" title="Zoom Out">-</button>
+    <button class="control-btn" onclick="zoom(0.1, window.innerWidth/2, window.innerHeight/2)" title="Zoom In">+</button>
+    <button class="control-btn" onclick="zoom(-0.1, window.innerWidth/2, window.innerHeight/2)" title="Zoom Out">-</button>
   </div>
 
   <div id="contextMenu" class="context-menu"></div>
@@ -487,7 +471,7 @@
 
     <button class="nav-btn primary" onclick="openModal()">+</button>
 
-    <button class="filter-pill-btn" onclick="cycleStatusFilter()" id="statusPill" title="All • Active • Cooling • Burnt">
+    <button class="filter-pill-btn" onclick="cycleStatusFilter()" id="statusPill" title="Active • Ready • Cooling • Burnt">
       <div class="filter-dot" id="filterDot"></div>
       <span id="filterLabel">All</span>
     </button>
@@ -521,11 +505,12 @@
         <div class="form-group">
           <label>Current Status</label>
           <div class="status-toggles">
-            <button type="button" data-status="active" class="btn-toggle text-green" onclick="selectStatusButton('active')">Active</button>
+            <button type="button" data-status="active" class="btn-toggle text-blue" onclick="selectStatusButton('active')">Active</button>
+            <button type="button" data-status="ready" class="btn-toggle text-green" onclick="selectStatusButton('ready')">Ready</button>
             <button type="button" data-status="cooldown" class="btn-toggle text-orange" onclick="selectStatusButton('cooldown')">Cooldown</button>
             <button type="button" data-status="burnt" class="btn-toggle text-red" onclick="selectStatusButton('burnt')">Burnt</button>
           </div>
-          <input type="hidden" id="inpStatus" value="active">
+          <input type="hidden" id="inpStatus" value="ready">
         </div>
         
         <div class="form-group">
@@ -544,7 +529,7 @@
 
         <div id="editActions" style="display:none; margin-top:12px; display:flex; gap:10px;">
            <button type="button" class="btn-block btn-secondary" onclick="confirmHitLimit(null)">🔥 Hit Limit</button>
-           <button type="button" class="btn-block btn-secondary" onclick="confirmForceRestore(null)">🔄 Restore</button>
+           <button type="button" class="btn-block btn-secondary" onclick="confirmForceRestore(null)">🔄 Reset to Ready</button>
         </div>
 
         <button type="submit" class="btn-block btn-primary" style="margin-top: 12px;">Save Node</button>
@@ -566,6 +551,25 @@
      </div>
   </div>
 
+  <div class="overlay" id="actionOverlay">
+     <div class="confirm-dialog">
+        <div class="confirm-title">Use Node</div>
+        <div class="form-group" style="margin-top: 16px;">
+            <div class="input-wrapper">
+                <input type="text" id="actionEmail" readonly style="text-align:center; font-family:var(--font-mono); font-size:14px;">
+                <button type="button" class="input-icon-btn" onclick="copyInput('actionEmail')">
+                   <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
+            </div>
+        </div>
+        <div class="confirm-text" style="margin-bottom:20px;">Copy email and mark as active?</div>
+        <div class="confirm-actions">
+           <button class="btn-half btn-cancel" onclick="closeActionOverlay()">Cancel</button>
+           <button class="btn-half btn-confirm" id="btnActivateNode">Active</button>
+        </div>
+     </div>
+  </div>
+
   <div class="overlay" id="infoOverlay">
     <div class="modal-sheet">
       <button class="close-btn" onclick="closeInfoModal()">
@@ -573,17 +577,13 @@
       </button>
       
       <h2 style="margin-bottom:20px; font-family:var(--font-mono)">fyi:</h2>
-
       <div style="margin-bottom: 24px; padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.05);">
         <h3 style="font-weight: 700; font-size: 16px; color: var(--ink:); margin-bottom: 8px;">The Node Manifesto:</h3>
-        <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;">
-        <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;"><strong></p><p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;">You are an infinite machine</strong> in a <em>finite prompt cycle</em>; but do not yield for here is a tool for the commonwealth of the commonfolk. <br><br>
+        <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;"><strong>You are an infinite machine</strong> in a <em>finite prompt cycle</em>; but do not yield for here is a tool for the commonwealth of the commonfolk. <br><br>
           Use the timer not as a limiter, but as a catalyst to creation.<br><br>Let each cooldown be a reset, every burnt node a lesson, and each new node a launchpad.</p>
       </div>
 
-
       <div id="accordionContainer">
-        
         <div class="accordion-item">
           <button class="accordion-header" onclick="toggleAccordion(this)">
             <span>Interaction & Shortcuts</span>
@@ -592,49 +592,21 @@
           <div class="accordion-content">
             <div class="accordion-content-inner">
               <ul style="list-style-type: none; padding: 0;">
-                <li><strong style="color: var(--accent);">Tap Card (Grid/Scatter):</strong> Open Edit Modal (View Details).</li>
-                <li><strong style="color: var(--accent);">Right-Click / Long-Press Card:</strong> Quick Action Menu (Hit Limit / Restore / View Details).</li>
-                <li><strong style="color: var(--accent);">Right-Click / Long-Press Background (Scatter Mode):</strong> Arrangement & Sorting menu.</li>
-                <li><strong style="color: var(--accent);">Drag Card (Scatter Mode):</strong> Move the node freely. **(DRAG-ONLY)**</li>
-                <li><strong style="color: var(--accent);">Drag Background (Scatter Mode):</strong> Pan the view.</li>
-                <li><strong style="color: var(--accent);">Scroll / Pinch (Scatter Mode):</strong> Zoom in/out, zeroed to the cursor position.</li>
-                <li><strong style="color: var(--accent);">Right-Click / Long-Press Provider Pill:</strong> Rename/Delete Provider.</li>
-                <li><strong style="color: var(--accent);">Theme Toggle:</strong> Switches between Light and Dark mode.</li>
-                <li><strong style="color: var(--accent);">Status Pill (Bottom Right):</strong> Cycles the global filter (All -> Active -> Cooldown -> Burnt).</li>
+                <li><strong style="color: var(--accent);">Tap Card:</strong> Open Quick Action (Copy Email & Activate).</li>
+                <li><strong style="color: var(--accent);">Pencil Icon:</strong> Edit full node details.</li>
+                <li><strong style="color: var(--accent);">Right-Click / Long-Press Card:</strong> Quick Context Menu.</li>
+                <li><strong style="color: var(--accent);">Right-Click Background (Scatter):</strong> Arrangement & Sorting.</li>
+                <li><strong style="color: var(--accent);">Drag Card (Scatter):</strong> Move node freely.</li>
+                <li><strong style="color: var(--accent);">Status Pill:</strong> Cycles filter (All -> Active -> Ready -> Cooling -> Burnt).</li>
+                <li><strong style="color: var(--accent);">ESC Key:</strong> Close any open overlay.</li>
               </ul>
             </div>
           </div>
         </div>
-
-        <div class="accordion-item">
-          <button class="accordion-header" onclick="toggleAccordion(this)">
-            <span>Status & Timing</span>
-            <svg class="accordion-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path></svg>
-          </button>
-          <div class="accordion-content">
-            <div class="accordion-content-inner">
-              <ul>
-                <li style="color: var(--neon-green);">**Active:** Ready to use. Timer shows 00:00:00.</li>
-                <li style="color: var(--neon-orange);">**Cooldown:** In use, waiting for the limit to reset. Timer shows time remaining (based on *Reset Cycle*).</li>
-                <li style="color: var(--neon-red);">**Burnt:** Permanently defunct or retired.</li>
-                <li style="margin-top: 12px; color: var(--ink-dim); font-size: 13px; list-style-type: none;">*The timer counts down from the last "Hit Limit" event to the set "Reset Cycle" duration.*</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
       </div>
-      
-      <a href="https://emdash.click" target="_blank" style="display: block; text-align: center; margin-top: 30px; text-decoration: none;">
-         <button class="btn-block btn-secondary" style="background: var(--glass-border); color: var(--ink-dim);">
-            <span style="font-weight: 400;">Something useful @</span><strong style="color: var(--ink); font-weight: 700;"> emdash.click</strong>
-         </button>
-      </a>
-
       <div style="height:20px"></div>
     </div>
   </div>
-
 
   <div class="toast" id="toast">Copied to Clipboard</div>
 
@@ -652,13 +624,14 @@
       theme: localStorage.getItem('iv_theme') || 'dark'
     };
     
-    // Scatter State (Updated)
+    // Scatter State 
     let scatter = {
-      dragging: false, // For card dragging
+      dragging: false, 
       transform: JSON.parse(localStorage.getItem('iv_scatterTransform')) || { scale: 1.0, x: 0, y: 0 }
     };
     
     let pendingAction = null; 
+    let activeNodeId = null;
 
     // --- Init ---
     if(items.length === 0) seedMockData();
@@ -669,42 +642,50 @@
     switchView(config.view);
     setInterval(updateTimers, 1000);
 
-    // NEW: Setup mousewheel zoom and canvas pan listeners
-    // Use passive: false to allow e.preventDefault() for smooth scrolling
-    document.getElementById('scatterContainer').addEventListener('wheel', handleWheelZoom, { passive: false });
+    // Event Listeners
+    const scatterContainer = document.getElementById('scatterContainer');
+    scatterContainer.addEventListener('wheel', handleWheelZoom, { passive: false });
     document.getElementById('scatterCanvas').addEventListener('pointerdown', startCanvasDrag);
 
-    // NEW: Add context menu listener for scatter canvas background
     document.getElementById('scatterCanvas').addEventListener('contextmenu', (e) => {
-        // Only show menu if the user right-clicks the canvas itself, not a card.
         if(config.view === 'scatter' && e.target.id === 'scatterCanvas') {
             handleContextMenu(e, 'scatter-bg');
         }
+    });
+
+    // Global ESC key listener to close overlays
+    document.addEventListener('keydown', (e) => {
+        if(e.key === 'Escape') {
+            closeModal();
+            closeConfirm();
+            closeInfoModal();
+            closeActionOverlay();
+            document.getElementById('contextMenu').classList.remove('active');
+        }
+    });
+
+    // Universal Click-Outside for Overlays
+    document.querySelectorAll('.overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                overlay.classList.remove('active');
+            }
+        });
     });
 
     // --- Core Functions ---
 
     function seedMockData() {
       const allProviders = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot', 'Perplexity', 'Bard Archive', 'Llama Hub'];
-      const statuses = ['active', 'cooldown', 'burnt'];
-      const resetHours = [3, 6, 12, 24, 48, 72];
-      
       const mockData = [
-          { provider: 'ChatGPT', email: 'gpt_3.5_fast@openai.com', status: 'cooldown', resetHours: 3, lastUsedOffset: 1.5 },
+          { provider: 'ChatGPT', email: 'gpt_3.5_fast@openai.com', status: 'ready', resetHours: 3, lastUsedOffset: 5 },
           { provider: 'ChatGPT', email: 'gpt_4_turbo@openai.com', status: 'active', resetHours: 6, lastUsedOffset: 0 },
           { provider: 'Claude', email: 'claude_opus@anthropic.ai', status: 'cooldown', resetHours: 24, lastUsedOffset: 12.5 },
-          { provider: 'Claude', email: 'claude_haiku@anthropic.ai', status: 'active', resetHours: 3, lastUsedOffset: 0 },
           { provider: 'Gemini', email: 'gemini_pro_01@google.com', status: 'cooldown', resetHours: 12, lastUsedOffset: 5.1 },
-          { provider: 'Gemini', email: 'gemini_advanced@google.com', status: 'burnt', resetHours: 72, lastUsedOffset: 50 },
-          { provider: 'Grok', email: 'grok_premium@x.com', status: 'active', resetHours: 48, lastUsedOffset: 0 },
-          { provider: 'Copilot', email: 'copilot_plus@microsoft.com', status: 'cooldown', resetHours: 6, lastUsedOffset: 4 },
-          { provider: 'Copilot', email: 'copilot_legacy@microsoft.com', status: 'burnt', resetHours: 24, lastUsedOffset: 10 },
+          { provider: 'Grok', email: 'grok_premium@x.com', status: 'ready', resetHours: 48, lastUsedOffset: 50 },
+          { provider: 'Copilot', email: 'copilot_plus@microsoft.com', status: 'active', resetHours: 6, lastUsedOffset: 4 },
           { provider: 'Perplexity', email: 'pplx_turbo@perplexity.ai', status: 'cooldown', resetHours: 3, lastUsedOffset: 2.9 },
-          { provider: 'Perplexity', email: 'pplx_fast@perplexity.ai', status: 'active', resetHours: 12, lastUsedOffset: 0 },
-          { provider: 'Bard Archive', email: 'bard_01@archive.net', status: 'burnt', resetHours: 72, lastUsedOffset: 60 },
-          { provider: 'Llama Hub', email: 'llama_70b@meta.ai', status: 'active', resetHours: 6, lastUsedOffset: 0 },
-          { provider: 'Llama Hub', email: 'llama_8b@meta.ai', status: 'cooldown', resetHours: 12, lastUsedOffset: 10 },
-          { provider: 'ChatGPT', email: 'gpt_team_a@openai.com', status: 'active', resetHours: 12, lastUsedOffset: 0 },
+          { provider: 'Llama Hub', email: 'llama_70b@meta.ai', status: 'ready', resetHours: 6, lastUsedOffset: 10 },
       ];
       
       items = mockData.map((data, i) => {
@@ -716,10 +697,10 @@
           status: data.status,
           resetHours: data.resetHours,
           lastUsed: lastUsedMs,
-          pos: { x: 50 + (i % 5) * 250, y: 100 + Math.floor(i / 5) * 180 }
+          pos: { x: 50 + (i % 3) * 250, y: 100 + Math.floor(i / 3) * 180 }
         };
       });
-      providers = allProviders; // Ensure all mock providers are in the list
+      providers = allProviders; 
       save();
     }
 
@@ -728,7 +709,7 @@
       localStorage.setItem('iv_providers', JSON.stringify(providers));
       localStorage.setItem('iv_filterStatus', config.filterStatus);
       localStorage.setItem('iv_filterProvider', config.filterProvider);
-      localStorage.setItem('iv_scatterTransform', JSON.stringify(scatter.transform)); // NEW: Save transform
+      localStorage.setItem('iv_scatterTransform', JSON.stringify(scatter.transform));
     }
 
     function switchView(viewName) {
@@ -824,18 +805,19 @@
       const filtered = filterItems();
       
       wrapper.innerHTML = filtered.map(item => `
-        <div class="card" onclick="editNode(${item.id})" oncontextmenu="handleContextMenu(event, 'grid-card', ${item.id})">
+        <div class="card" onclick="openActionOverlay(${item.id})" oncontextmenu="handleContextMenu(event, 'grid-card', ${item.id})">
           <div class="card-top">
             <span class="card-provider">${item.provider}</span>
-            <div class="status-dot ${getStatusColorClass(item.status)}"></div>
+            <div style="display:flex; align-items:center">
+              <div class="status-dot ${getStatusColorClass(item.status)}"></div>
+              <div class="card-edit-icon" onclick="editNode(event, ${item.id})">
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+              </div>
+            </div>
           </div>
-          
-          <div class="card-timer ${getStatusColorClass(item.status)}" id="timer-${item.id}" data-id="${item.id}">
-            --:--:--
-          </div>
-
+          <div class="card-timer ${getStatusColorClass(item.status)}" id="timer-${item.id}" data-id="${item.id}">--:--:--</div>
           <div class="card-meta">
-            <span class="card-email" onclick="copyText(event, '${item.email}')">${item.email}</span>
+            <span class="card-email">${item.email}</span>
             <div class="card-actions">
                <div class="action-icon" onclick="confirmHitLimit(event, ${item.id})" title="Hit Limit">🔥</div>
                <div class="action-icon" onclick="confirmForceRestore(event, ${item.id})" title="Restore">🔄</div>
@@ -855,30 +837,56 @@
              id="scatter-${item.id}"
              style="transform: translate(${item.pos.x}px, ${item.pos.y}px)"
              onpointerdown="startDrag(event, ${item.id})"
-             onclick="if(!scatter.dragging) editNode(${item.id})"
+             onclick="if(!scatter.dragging) openActionOverlay(${item.id})"
              oncontextmenu="handleContextMenu(event, 'scatter-card', ${item.id})">
-          <div class="status-dot ${getStatusColorClass(item.status)}" style="margin-bottom:8px"></div>
-          <div class="card-timer ${getStatusColorClass(item.status)}" data-id="${item.id}" style="font-size:1.5rem">
-            00:00:00
+          <div style="width:100%; display:flex; justify-content:space-between; margin-bottom:4px;">
+              <div class="status-dot ${getStatusColorClass(item.status)}"></div>
+              <div class="card-edit-icon" onclick="editNode(event, ${item.id})" style="margin:0">
+                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+              </div>
           </div>
+          <div class="card-timer ${getStatusColorClass(item.status)}" data-id="${item.id}" style="font-size:1.5rem">00:00:00</div>
           <div class="card-provider">${item.provider}</div>
-          
           <div class="card-meta">
-            <span class="card-email" style="cursor: pointer; font-family: var(--font-mono); font-size: 11px;" onclick="copyText(event, '${item.email}')">${item.email}</span>
+            <span class="card-email" style="font-family: var(--font-mono); font-size: 11px;">${item.email}</span>
           </div>
-
         </div>
       `).join('');
-      applyScatterTransform(); // Apply current transform on render
+      applyScatterTransform(); 
       updateTimers();
     }
 
     // --- Action & Confirmation Logic ---
+
+    // New "Quick Action" Overlay logic
+    function openActionOverlay(id) {
+        const item = items.find(i => i.id === id);
+        if(!item) return;
+        
+        activeNodeId = id;
+        document.getElementById('actionEmail').value = item.email;
+        document.getElementById('actionOverlay').classList.add('active');
+        
+        document.getElementById('btnActivateNode').onclick = () => {
+             const idx = items.findIndex(i => i.id === activeNodeId);
+             if(idx > -1) {
+                 items[idx].status = 'active';
+                 save();
+                 updateTimers();
+                 refreshViews();
+             }
+             closeActionOverlay();
+        };
+    }
+    
+    function closeActionOverlay() {
+        document.getElementById('actionOverlay').classList.remove('active');
+        activeNodeId = null;
+    }
     
     function confirmHitLimit(e, id) {
        if(e) e.stopPropagation();
        if(!id) id = Number(document.getElementById('nodeId').value);
-       
        pendingAction = () => executeHitLimit(id);
        showConfirm("Hit Limit", "Mark this node as cooldown?");
     }
@@ -886,9 +894,8 @@
     function confirmForceRestore(e, id) {
        if(e) e.stopPropagation();
        if(!id) id = Number(document.getElementById('nodeId').value);
-
        pendingAction = () => executeForceRestore(id);
-       showConfirm("Force Restore", "Reset timer and mark active?");
+       showConfirm("Force Restore", "Reset timer to Ready?");
     }
 
     function showConfirm(title, text) {
@@ -907,16 +914,6 @@
        pendingAction = null;
     }
     
-    document.addEventListener('keydown', (e) => {
-        if(!document.getElementById('confirmOverlay').classList.contains('active')) return;
-        if(e.key === 'Escape') closeConfirm();
-        if(e.key === 'Enter') document.getElementById('btnConfirmAction').click();
-    });
-    
-    document.getElementById('confirmOverlay').addEventListener('click', (e) => {
-        if(e.target === e.currentTarget) closeConfirm();
-    });
-
     function executeHitLimit(id) {
       const idx = items.findIndex(i => i.id === id);
       if(idx > -1) {
@@ -932,29 +929,26 @@
     function executeForceRestore(id) {
       const idx = items.findIndex(i => i.id === id);
       if(idx > -1) {
-        items[idx].status = 'active';
+        items[idx].status = 'ready'; // Reset to ready
         save();
         updateTimers();
         refreshViews();
-        showToast("Node Restored");
+        showToast("Node Ready");
       }
     }
 
     function refreshViews() {
-        config.view === 'grid' ? renderGrid() : renderScatter() : renderScatter();
+        config.view === 'grid' ? renderGrid() : renderScatter();
         updateFilterPillUI();
         const idVal = document.getElementById('nodeId').value;
         if(idVal) {
             const item = items.find(i => i.id == idVal);
-            if(item) {
-              selectStatusButton(item.status);
-            }
+            if(item) selectStatusButton(item.status);
         }
     }
 
-    // --- Scatter Arrangement Logic (UPDATED) ---
+    // --- Scatter Arrangement Logic ---
 
-    // Arranges items in a grid/list fashion. (Old autoArrange)
     function autoArrangeList() {
        const cols = Math.floor(window.innerWidth / 240); 
        const startX = 20;
@@ -973,7 +967,6 @@
        renderScatter();
     }
 
-    // Arranges items grouped by Provider in stacks.
     function autoArrangeStack() {
        const startX = 50;
        const startY = 80;
@@ -981,7 +974,6 @@
        const cardWidth = 220; 
        const visibleItems = filterItems();
        
-       // Group by provider
        const groups = {};
        visibleItems.forEach(item => {
            if (!groups[item.provider]) groups[item.provider] = [];
@@ -990,24 +982,18 @@
 
        let currentY = startY;
        let currentX = startX;
-       const maxGroupHeight = 4; // Max visible cards in stack before starting next column
+       const maxGroupHeight = 4; 
        const groupArr = Object.values(groups);
        
        groupArr.forEach((group, groupIndex) => {
-           // Reset X for each new group
            group.forEach((item, index) => {
-               // Stack cards slightly offset
                const xOffset = index < maxGroupHeight ? index * 10 : (maxGroupHeight - 1) * 10;
                const yOffset = index < maxGroupHeight ? index * 10 : (maxGroupHeight - 1) * 10;
-               
                item.pos.x = currentX + xOffset;
                item.pos.y = currentY + yOffset;
            });
-           
-           // Move to the next stack's starting position below the current stack group
            currentY += cardHeight + (maxGroupHeight * 10) + 40;
            
-           // Simple column break logic: after 3 groups, start a new column (if the screen is wide enough)
            if (groupIndex > 0 && (groupIndex + 1) % 3 === 0) {
               currentX += cardWidth + (maxGroupHeight * 10) + 50;
               currentY = startY; 
@@ -1018,33 +1004,28 @@
        renderScatter();
     }
     
-    // Main Arrangement function, called by wand and context menu
     function autoArrange(arrangement = 'list') {
         if (arrangement === 'stack') {
             autoArrangeStack();
-        } else { // default to list
+        } else { 
             autoArrangeList();
         }
-        // Reset transform to default when rearranging
         scatter.transform = { scale: 1.0, x: 0, y: 0 };
         applyScatterTransform();
         save();
     }
 
-    // Sorts the items array and applies the List arrangement.
     function sortScatter(criteria) {
        if(criteria === 'provider') items.sort((a,b) => a.provider.localeCompare(b.provider));
        if(criteria === 'status') {
-           const statusOrder = { 'active': 1, 'cooldown': 2, 'burnt': 3 };
+           const statusOrder = { 'active': 0, 'ready': 1, 'cooldown': 2, 'burnt': 3 };
            items.sort((a,b) => statusOrder[a.status] - statusOrder[b.status]);
        }
        if(criteria === 'date') items.sort((a,b) => b.lastUsed - a.lastUsed);
-       
-       // Apply the sorted layout
        autoArrange('list'); 
     }
 
-    // --- Context Menu Logic (UPDATED) ---
+    // --- Context Menu Logic ---
 
     document.addEventListener('click', () => {
        document.getElementById('contextMenu').classList.remove('active');
@@ -1053,8 +1034,17 @@
     function handleContextMenu(e, type, payload = null) {
       e.preventDefault();
       const menu = document.getElementById('contextMenu');
-      menu.style.left = e.pageX + 'px';
-      menu.style.top = e.pageY + 'px';
+      
+      let posX = e.pageX;
+      let posY = e.pageY;
+      const menuWidth = 220; 
+      const menuHeight = 250; 
+      
+      if(posX + menuWidth > window.innerWidth) posX = window.innerWidth - menuWidth - 20;
+      if(posY + menuHeight > window.innerHeight) posY = window.innerHeight - menuHeight - 20;
+
+      menu.style.left = posX + 'px';
+      menu.style.top = posY + 'px';
       
       let html = '';
       
@@ -1066,17 +1056,17 @@
       }
       else if (type === 'grid-card' || type === 'scatter-card') {
          html += `<div class="ctx-header">Node Actions</div>`;
-         html += `<div class="ctx-item" onclick="editNode(${payload})">View Details / Edit</div>`;
+         html += `<div class="ctx-item" onclick="openActionOverlay(${payload})">Use (Copy & Active)</div>`;
+         html += `<div class="ctx-item" onclick="editNode(null, ${payload})">Edit Details</div>`;
          html += `<div class="ctx-item" onclick="confirmHitLimit(null, ${payload})">🔥 Hit Limit</div>`;
-         html += `<div class="ctx-item" onclick="confirmForceRestore(null, ${payload})">🔄 Force Restore</div>`;
+         html += `<div class="ctx-item" onclick="confirmForceRestore(null, ${payload})">🔄 Force Ready</div>`;
       } 
-      else if (type === 'scatter-bg') { // SCATTER BACKGROUND MENU
+      else if (type === 'scatter-bg') {
          html += `<div class="ctx-header">Arrangement</div>`;
          html += `<div class="ctx-item" onclick="autoArrange('list')">Auto Arrange: List</div>`;
          html += `<div class="ctx-item" onclick="autoArrange('stack')">Auto Arrange: Stack</div>`;
-         
          html += `<div class="ctx-header" style="margin-top: 5px;">Sort By & List</div>`;
-         html += `<div class="ctx-item" onclick="sortScatter('status')">Status (Active, Cool, Burnt)</div>`;
+         html += `<div class="ctx-item" onclick="sortScatter('status')">Status</div>`;
          html += `<div class="ctx-item" onclick="sortScatter('provider')">Provider Name</div>`;
          html += `<div class="ctx-item" onclick="sortScatter('date')">Last Used Date</div>`;
       }
@@ -1087,59 +1077,46 @@
       }
     }
     
-    // --- Zoom and Pan Logic (NEW) ---
+    // --- Zoom and Pan Logic ---
 
     function applyScatterTransform() {
       const canvas = document.getElementById('scatterCanvas');
       const {x, y, scale} = scatter.transform;
       canvas.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-      save(); // Save transform whenever applied
+      save(); 
     }
     
     function zoom(delta, clientX, clientY) {
-      const zoomSpeed = 0.1;
+      const factor = delta > 0 ? 1.1 : 0.9;
       const oldScale = scatter.transform.scale;
-      let newScale = oldScale + (delta * zoomSpeed);
+      let newScale = oldScale * factor;
       
-      // Clamp scale
-      newScale = Math.max(0.2, Math.min(2.5, newScale));
-      
+      newScale = Math.max(0.2, Math.min(4.0, newScale));
       if (newScale === oldScale) return;
       
-      // Get the point on the canvas (relative to the viewport)
-      const rect = document.getElementById('scatterCanvas').getBoundingClientRect();
-      // Calculate the point relative to the scatterContainer (viewport)
-      const containerRect = document.getElementById('scatterContainer').getBoundingClientRect();
-      const pointX = clientX - containerRect.left;
-      const pointY = clientY - containerRect.top;
+      const rect = document.getElementById('scatterContainer').getBoundingClientRect();
+      const pointX = clientX - rect.left;
+      const pointY = clientY - rect.top;
 
-      // Calculate the offset change needed to keep the point under the cursor
-      // Formula: new_offset = current_offset - (point_relative_to_canvas / old_scale) * (new_scale - old_scale)
       const offsetX = (pointX - scatter.transform.x) / oldScale;
       const offsetY = (pointY - scatter.transform.y) / oldScale;
       
-      scatter.transform.x -= offsetX * (newScale - oldScale);
-      scatter.transform.y -= offsetY * (newScale - oldScale);
+      scatter.transform.x = pointX - offsetX * newScale;
+      scatter.transform.y = pointY - offsetY * newScale;
       scatter.transform.scale = newScale;
       
       applyScatterTransform();
     }
     
     function handleWheelZoom(e) {
-      // Only process wheel events in scatter view
       if (config.view !== 'scatter') return;
       e.preventDefault(); 
-      
-      // Use deltaY for zoom direction: negative for zoom in, positive for zoom out
       const delta = -Math.sign(e.deltaY); 
       zoom(delta, e.clientX, e.clientY);
     }
     
     function startCanvasDrag(e) {
-      // Only allow panning in scatter view, and if not right-click (context menu)
       if (config.view !== 'scatter' || e.button === 2) return;
-      
-      // If the target is a card, let the card drag handler take over
       if (e.target.closest('.scatter-card')) return;
       
       e.preventDefault();
@@ -1150,35 +1127,24 @@
       const startTransformX = scatter.transform.x;
       const startTransformY = scatter.transform.y;
       
-      let moved = false;
-      
       function move(eMove) {
         if (eMove.pointerId !== e.pointerId) return;
-        
-        const dx = eMove.clientX - startX;
-        const dy = eMove.clientY - startY;
-        
-        scatter.transform.x = startTransformX + dx;
-        scatter.transform.y = startTransformY + dy;
-        
+        scatter.transform.x = startTransformX + (eMove.clientX - startX);
+        scatter.transform.y = startTransformY + (eMove.clientY - startY);
         applyScatterTransform();
-        moved = true;
       }
 
       function end(eEnd) {
         if (eEnd.pointerId !== e.pointerId) return;
-        
         document.removeEventListener('pointermove', move);
         document.removeEventListener('pointerup', end);
-        document.removeEventListener('pointercancel', end);
       }
 
       document.addEventListener('pointermove', move);
       document.addEventListener('pointerup', end);
-      document.addEventListener('pointercancel', end);
     }
 
-    // --- Timer Logic ---
+    // --- Timer Logic (Updated) ---
 
     function updateTimers() {
       const now = Date.now();
@@ -1186,24 +1152,33 @@
         const elements = document.querySelectorAll(`[data-id="${item.id}"]`);
         elements.forEach(el => {
           if (!el.classList.contains('card-timer')) return;
+          
           if (item.status === 'burnt') {
             el.textContent = "DEFUNCT";
             el.className = `card-timer text-red`;
             return;
           }
           if (item.status === 'active') {
-            el.textContent = "00:00:00";
+            el.textContent = "ACTIVE";
+            el.className = `card-timer text-blue`; // Using blue for Active status
+            return;
+          }
+          if (item.status === 'ready') {
+            el.textContent = "READY";
             el.className = `card-timer text-green`;
             return;
           }
+          
+          // Cooldown Logic
           const cooldownMs = item.resetHours * 60 * 60 * 1000;
           const targetTime = item.lastUsed + cooldownMs;
           const diff = targetTime - now;
 
           if (diff <= 0) {
-            item.status = 'active'; // Auto-restore if time runs out
+            // Timer hit 0 -> Move to Ready
+            item.status = 'ready'; 
             save();
-            el.textContent = "00:00:00";
+            el.textContent = "READY";
             el.className = `card-timer text-green`;
             refreshViews();
           } else {
@@ -1219,7 +1194,8 @@
 
     function pad(n) { return n < 10 ? '0'+n : n; }
     function getStatusColorClass(s) {
-      if(s === 'active') return 'text-green';
+      if(s === 'ready') return 'text-green';
+      if(s === 'active') return 'text-blue';
       if(s === 'cooldown') return 'text-orange';
       return 'text-red';
     }
@@ -1235,26 +1211,19 @@
 
     function selectResetHours(hours) {
       document.getElementById('inpReset').value = hours;
-      
       const pills = document.querySelectorAll('.pill-option');
       let pillSelected = false;
-
       pills.forEach(pill => {
           const isSelected = Number(pill.dataset.hours) === hours;
           pill.classList.toggle('selected', isSelected);
           if (isSelected) pillSelected = true;
       });
-
-      if (pillSelected) {
-          document.getElementById('inpResetCustom').value = '';
-      }
+      if (pillSelected) document.getElementById('inpResetCustom').value = '';
     }
 
     document.getElementById('inpResetCustom').addEventListener('input', (e) => {
         const hours = parseFloat(e.target.value);
-        if(!isNaN(hours) && hours > 0) {
-            document.getElementById('inpReset').value = hours;
-        }
+        if(!isNaN(hours) && hours > 0) document.getElementById('inpReset').value = hours;
         document.querySelectorAll('.pill-option').forEach(p => p.classList.remove('selected'));
     });
 
@@ -1263,28 +1232,23 @@
       document.getElementById('nodeId').value = '';
       document.getElementById('btnDelete').style.display = 'none';
       document.getElementById('editActions').style.display = 'none';
-      
       document.getElementById('inpResetCustom').value = ''; 
-      
-      selectStatusButton('active'); 
+      selectStatusButton('ready'); 
       selectResetHours(3); 
-
       document.getElementById('modalTitle').textContent = "New Node";
       document.getElementById('modalOverlay').classList.add('active');
     }
 
-    function editNode(id) {
+    function editNode(e, id) {
+      if(e) e.stopPropagation();
       const item = items.find(i => i.id === id);
       if(!item) return;
       document.getElementById('nodeId').value = item.id;
       document.getElementById('inpProvider').value = item.provider;
       document.getElementById('inpEmail').value = item.email;
-      
       selectStatusButton(item.status);
-      
       const hours = item.resetHours;
       const pillOptions = [3, 6, 12, 24, 48, 72];
-      
       if (pillOptions.includes(hours)) {
           selectResetHours(hours);
       } else {
@@ -1292,7 +1256,6 @@
           document.getElementById('inpResetCustom').value = hours;
           document.getElementById('inpReset').value = hours;
       }
-      
       document.getElementById('btnDelete').style.display = 'block';
       document.getElementById('editActions').style.display = 'flex'; 
       document.getElementById('modalTitle').textContent = "Edit Node";
@@ -1315,15 +1278,15 @@
         pos: existing ? existing.pos : {x: 50 + Math.random()*200, y: 100 + Math.random()*200}
       };
       
+      // If setting to cooling, reset the timer start
+      if (!isNew && existing && payload.status === 'cooldown' && existing.status !== 'cooldown') {
+          payload.lastUsed = Date.now();
+      }
+      
       if(isNew) {
         items.push(payload);
       } else {
         const idx = items.findIndex(i => i.id == idVal);
-        if (items[idx].status !== payload.status && payload.status === 'cooldown') {
-            payload.lastUsed = Date.now();
-        } else {
-            payload.lastUsed = items[idx].lastUsed;
-        }
         items[idx] = payload;
       }
       
@@ -1345,10 +1308,10 @@
     function closeModal() {
       document.getElementById('modalOverlay').classList.remove('active');
     }
-
-    document.getElementById('modalOverlay').addEventListener('click', (e) => {
-      if(e.target === e.currentTarget) closeModal();
-    });
+    
+    function closeInfoModal() {
+        document.getElementById('infoOverlay').classList.remove('active');
+    }
 
     function updateProviderSelect() {
       const sel = document.getElementById('inpProvider');
@@ -1374,11 +1337,10 @@
     }
 
     function cycleStatusFilter() {
-      const states = ['all', 'active', 'cooldown', 'burnt'];
+      const states = ['all', 'active', 'ready', 'cooldown', 'burnt'];
       const currIdx = states.indexOf(config.filterStatus);
       config.filterStatus = states[(currIdx + 1) % states.length];
       save(); 
-      
       updateFilterPillUI();
       config.view === 'grid' ? renderGrid() : renderScatter();
     }
@@ -1386,12 +1348,12 @@
     function updateFilterPillUI() {
        const lbl = document.getElementById('filterLabel');
        const dot = document.getElementById('filterDot');
-       
        lbl.textContent = config.filterStatus.charAt(0).toUpperCase() + config.filterStatus.slice(1);
        if (config.filterStatus === 'all') lbl.textContent = 'All';
        
        dot.style.backgroundColor = 'var(--ink-dim)'; 
-       if(config.filterStatus === 'active') dot.style.backgroundColor = 'var(--neon-green)';
+       if(config.filterStatus === 'active') dot.style.backgroundColor = 'var(--neon-blue)';
+       if(config.filterStatus === 'ready') dot.style.backgroundColor = 'var(--neon-green)';
        if(config.filterStatus === 'cooldown') dot.style.backgroundColor = 'var(--neon-orange)';
        if(config.filterStatus === 'burnt') dot.style.backgroundColor = 'var(--neon-red)';
     }
@@ -1406,27 +1368,16 @@
       document.body.setAttribute('data-theme', config.theme);
     }
 
-    // --- Info Modal & Accordion Logic ---
-    function openInfoModal() {
-        document.getElementById('infoOverlay').classList.add('active');
-    }
-
-    function closeInfoModal() {
-        document.getElementById('infoOverlay').classList.remove('active');
-    }
-
     function toggleAccordion(headerElement) {
         const item = headerElement.closest('.accordion-item');
         const content = item.querySelector('.accordion-content');
         const isOpen = item.classList.contains('open');
-
         document.querySelectorAll('.accordion-item.open').forEach(openItem => {
              if (openItem !== item) {
                  openItem.classList.remove('open');
                  openItem.querySelector('.accordion-content').style.maxHeight = 0;
              }
         });
-        
         if (isOpen) {
             content.style.maxHeight = 0;
             item.classList.remove('open');
@@ -1435,19 +1386,8 @@
             content.style.maxHeight = content.scrollHeight + "px"; 
         }
     }
-    
-    window.addEventListener('resize', () => {
-        document.querySelectorAll('.accordion-item.open').forEach(openItem => {
-            const content = openItem.querySelector('.accordion-content');
-            content.style.transition = 'none';
-            content.style.maxHeight = content.scrollHeight + "px";
-            setTimeout(() => {
-                content.style.transition = 'max-height 0.3s ease-out';
-            }, 10);
-        });
-    });
 
-    // --- Scatter Card Dragging (Simplified) ---
+    // --- Scatter Card Dragging ---
     
     function startDrag(e, id) {
       if(e.button === 2) return; 
@@ -1456,28 +1396,23 @@
       
       const card = document.getElementById(`scatter-${id}`);
       if(!card) return;
-      
-      // Ensure this is not blocking the canvas drag start event
       if(e.target.closest('.scatter-card') !== card) return;
 
       scatter.dragging = true;
       e.currentTarget.setPointerCapture(e.pointerId);
+      card.classList.add('is-dragging');
 
       const item = items.find(i => i.id === id);
       const startItemX = item.pos.x;
       const startItemY = item.pos.y;
       
-      // Calculate where the pointer is relative to the SCATTER CANVAS's origin (0,0)
       const containerRect = document.getElementById('scatterContainer').getBoundingClientRect();
       const startClientX = e.clientX - containerRect.left;
       const startClientY = e.clientY - containerRect.top;
       
-      // Inverse the current transform to find the pointer's position in the UNTRANSFORMED canvas space
       const invScale = 1 / scatter.transform.scale;
       const startCanvasX = (startClientX - scatter.transform.x) * invScale;
       const startCanvasY = (startClientY - scatter.transform.y) * invScale;
-
-      card.style.zIndex = 100;
 
       function move(eMove) {
         if (eMove.pointerId !== e.pointerId) return;
@@ -1488,11 +1423,8 @@
         const currentCanvasX = (currentClientX - scatter.transform.x) * invScale;
         const currentCanvasY = (currentClientY - scatter.transform.y) * invScale;
         
-        const dx = currentCanvasX - startCanvasX;
-        const dy = currentCanvasY - startCanvasY;
-        
-        const newX = startItemX + dx;
-        const newY = startItemY + dy;
+        const newX = startItemX + (currentCanvasX - startCanvasX);
+        const newY = startItemY + (currentCanvasY - startCanvasY);
         
         card.style.transform = `translate(${newX}px, ${newY}px)`;
         item.pos = {x: newX, y: newY};
@@ -1504,10 +1436,8 @@
         document.removeEventListener('pointermove', move);
         document.removeEventListener('pointerup', end);
         document.removeEventListener('pointercancel', end);
-        card.style.zIndex = '';
-        
-        // Use a timeout to prevent card click handler from firing immediately
-        setTimeout(() => scatter.dragging = false, 100); 
+        card.classList.remove('is-dragging');
+        setTimeout(() => scatter.dragging = false, 50); 
         save();
       }
 
