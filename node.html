@@ -402,6 +402,9 @@
         width: 100%; 
     }
 
+
+    
+
     /* --- Bottom Navigation (Dock) --- */
     .bottom-nav {
       position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -767,6 +770,11 @@
 
 <div id="scatterContainer" class="view-container">
   <div class="scatter-canvas" id="scatterCanvas"></div>
+  <div class="scatter-zoom-controls">
+    <button class="zoom-btn" onclick="zoomOut()">–</button>
+    <button class="zoom-btn" onclick="resetView()">1×</button>
+    <button class="zoom-btn" onclick="zoomIn()">+</button>
+  </div>
 </div>
 
 <div class="scatter-controls" id="scatterControls">
@@ -2425,24 +2433,82 @@ window.addEventListener('resize', () => {
     }
 });
 
-function zoom(delta, clientX, clientY) {
+// === MODIFIED ZOOM FUNCTION (now supports center zoom when no cursor) ===
+function zoom(delta, clientX = null, clientY = null) {
   const newScale = Math.max(0.25, Math.min(3, scatter.transform.scale + delta));
-  
-  if (newScale !== scatter.transform.scale) {
-    // Calculate the new transform to zoom towards the cursor position
-    const containerRect = canvas.getBoundingClientRect();
-    const x = clientX - containerRect.left;
-    const y = clientY - containerRect.top;
-    
-    const scaleRatio = newScale / scatter.transform.scale;
-    
-    scatter.transform.x = x - (x - scatter.transform.x) * scaleRatio;
-    scatter.transform.y = y - (y - scatter.transform.y) * scaleRatio;
-    scatter.transform.scale = newScale;
-    
+  if (newScale === scatter.transform.scale) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const zoomX = (clientX !== null && clientY !== null) 
+    ? clientX - rect.left 
+    : rect.width / 2;
+  const zoomY = (clientY !== null && clientY !== null) 
+    ? clientY - rect.top 
+    : rect.height / 2;
+
+  const scaleRatio = newScale / scatter.transform.scale;
+
+  scatter.transform.x = zoomX - (zoomX - scatter.transform.x) * scaleRatio;
+  scatter.transform.y = zoomY - (zoomY - scatter.transform.y) * scaleRatio;
+  scatter.transform.scale = newScale;
+
+  applyScatterTransform();
+}
+
+// === NEW: Zoom button helpers ===
+function zoomIn() {
+  zoom(0.25); // always center
+}
+
+function zoomOut() {
+  zoom(-0.25); // always center
+}
+
+function resetView() {
+  scatter.transform = { x: 0, y: 0, scale: 1 };
+  applyScatterTransform();
+}
+
+// === CANVAS PANNING (background drag) ===
+let panning = false;
+let panStart = { x: 0, y: 0 };
+
+canvas.addEventListener('pointerdown', (e) => {
+  // Only pan if drag started on background (not on a card)
+  if (!e.target.closest('.scatter-card')) {
+    panning = true;
+    panStart.x = e.clientX - scatter.transform.x;
+    panStart.y = e.clientY - scatter.transform.y;
+    canvas.style.cursor = 'grab';
+  }
+});
+
+document.addEventListener('pointermove', (e) => {
+  if (panning) {
+    scatter.transform.x = e.clientX - panStart.x;
+    scatter.transform.y = e.clientY - panStart.y;
     applyScatterTransform();
   }
-}
+});
+
+document.addEventListener('pointerup', () => {
+  if (panning) {
+    panning = false;
+    canvas.style.cursor = 'default';
+  }
+});
+
+document.addEventListener('pointercancel', () => {
+  panning = false;
+  canvas.style.cursor = 'default';
+});
+
+// === WHEEL ZOOM (toward cursor) ===
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 0.25 : -0.25;
+  zoom(delta, e.clientX, e.clientY);
+}, { passive: false });
 
 </script>
 </body>
