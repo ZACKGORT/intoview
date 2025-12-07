@@ -143,7 +143,12 @@
 
     .card-top { display: flex; justify-content: space-between; align-items: center; }
     .card-provider { font-weight: 600; font-size: 14px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; animation: pulse 1.5s infinite ease-in-out; }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 8px currentColor; }
+      50% { box-shadow: 0 0 16px currentColor; }
+    }
 
     /* Edit Icon Style */
     .card-edit-icon {
@@ -160,6 +165,7 @@
       text-align: center;
       letter-spacing: -1px;
       margin: 8px 0;
+      position: relative;
     }
 
     .card-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--ink-dim); border-top: 1px solid var(--glass-border); padding-top: 12px; }
@@ -172,6 +178,31 @@
       color: var(--ink-dim); transition: 0.2s;
     }
     .action-icon:hover { background: var(--accent); color: #000; }
+
+    .card.burnt, .scatter-card.burnt {
+      opacity: 0.6;
+    }
+
+    .card.burnt .card-edit-icon, .scatter-card.burnt .card-edit-icon {
+      opacity: 1;
+    }
+
+    .burnt-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      font-family: var(--font-mono);
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--neon-red);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .scatter-card .burnt-label {
+      font-size: 1.2rem;
+    }
 
     /* --- Scatter View --- */
     #scatterContainer { 
@@ -202,7 +233,7 @@
         z-index: 1000 !important;
         cursor: grabbing;
     }
-    .scatter-card .card-timer { font-size: 1.4rem; margin: 4px 0; }
+    .scatter-card .card-timer { font-size: 1.4rem; margin: 4px 0; position: relative; }
     .scatter-card .card-provider { font-size: 11px; }
     .scatter-card .card-meta { 
         display: block; 
@@ -516,7 +547,8 @@
       <div class="form-group">
         <label>Current Status</label>
         <div class="status-toggles">
-          <button type="button" data-status="active" class="btn-toggle text-green" onclick="selectStatusButton('active')">Active</button>
+          <button type="button" data-status="active" class="btn-toggle text-blue" onclick="selectStatusButton('active')">Active</button>
+          <button type="button" data-status="ready" class="btn-toggle text-green" onclick="selectStatusButton('ready')">Ready</button>
           <button type="button" data-status="cooldown" class="btn-toggle text-orange" onclick="selectStatusButton('cooldown')">Cooldown</button>
           <button type="button" data-status="burnt" class="btn-toggle text-red" onclick="selectStatusButton('burnt')">Burnt</button>
         </div>
@@ -1021,7 +1053,7 @@
       const timerLabel = isCooldown ? 'TIME TO READY' : (isBurnt ? 'DEFUNCT' : 'TIME IN USE');
       
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'card' + (isBurnt ? ' burnt' : '');
       card.dataset.id = item.id;
       card.onclick = (e) => {
           // Prevent activation if clicking on the edit icon
@@ -1052,7 +1084,7 @@
           </div>
         </div>
         
-        <div class="card-timer" id="timer-${item.id}">00:00:00</div>
+        <div class="card-timer" id="timer-${item.id}">00:00:00${isBurnt ? '<div class="burnt-label">BURNT</div>' : ''}</div>
         
         <div style="font-size:11px; color:var(--ink-dim); text-align:center; margin-top:-10px;">${timerLabel}</div>
 
@@ -1131,7 +1163,7 @@
     
     function renderScatterCard(item) {
         const card = document.createElement('div');
-        card.className = 'scatter-card';
+        card.className = 'scatter-card' + (item.status === 'burnt' ? ' burnt' : '');
         card.id = `scatter-card-${item.id}`;
         card.dataset.id = item.id;
         
@@ -1157,10 +1189,13 @@
               <div style="display: flex; align-items: center; gap:4px;">
                 <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
                 <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
+                <button class="card-edit-icon" onclick="openModal(${item.id})">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"></path></svg>
+                </button>
               </div>
             </div>
             
-            <div class="card-timer" id="timer-${item.id}">00:00:00</div>
+            <div class="card-timer" id="timer-${item.id}">00:00:00${isBurnt ? '<div class="burnt-label">BURNT</div>' : ''}</div>
             
             <div style="font-size:10px; color:var(--ink-dim); margin-top:-4px;">${timerLabel}</div>
             
