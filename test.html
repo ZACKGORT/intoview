@@ -462,15 +462,17 @@
     
     @keyframes fadeIn { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
 
+
+
   </style>
 </head>
 <body data-theme="dark">
 
-  <header class="app-header">
-    <div class="header-top">
-    <div class="logo">
-    <img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg" alt="IntoView Logo" style="height: 32px;">
-  </div>
+<header class="app-header">
+<div class="header-top">
+<div class="logo">
+<img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg.svg" alt="IntoView Logo" style="height: 32px;">
+</div>
       
       <div class="header-buttons">
         <button class="theme-btn info-btn" onclick="openInfoModal()" title="Information & Help">
@@ -519,6 +521,9 @@
     </button>
   </nav>
 
+  <div class="overlay" id="providerSelectOverlay">
+  </div>
+
   <div class="overlay" id="modalOverlay">
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeModal()">
@@ -530,9 +535,10 @@
       <input type="hidden" id="nodeId">
       
       <div class="form-group">
-        <label>Provider</label>
-        <select id="inpProvider"></select>
-      </div>
+      <label for="inpProvider">Provider</label>
+      <select id="inpProvider" required>
+        </select>
+    </div>
       
       <div class="form-group">
         <label>Email / Identity</label>
@@ -552,13 +558,13 @@
           <button type="button" data-status="cooldown" class="btn-toggle text-orange" onclick="selectStatusButton('cooldown')">Cooldown</button>
           <button type="button" data-status="burnt" class="btn-toggle text-red" onclick="selectStatusButton('burnt')">Burnt</button>
         </div>
-        <input type="hidden" id="inpStatus" value="active">
+        <input type="hidden" id="inpStatus" value="ready">
       </div>
       
       <div class="form-group">
         <label>Reset Cycle (Hours)</label>
         <div class="pill-grid">
-           <div class="pill-option" data-hours="3" onclick="selectResetHours(3)">3h</div>
+           <div class="pill-option selected" data-hours="3" onclick="selectResetHours(3)">3h</div>
            <div class="pill-option" data-hours="6" onclick="selectResetHours(6)">6h</div>
            <div class="pill-option" data-hours="12" onclick="selectResetHours(12)">12h</div>
            <div class="pill-option" data-hours="24" onclick="selectResetHours(24)">24h</div>
@@ -678,1214 +684,1360 @@
 <div class="toast" id="toast">Copied to Clipboard</div>
 
 
-  <script>
-    // --- Global State ---
-    let items = []; // Main array of nodes
-    let providers = []; // List of all providers for dropdowns/pills
-    let config = {
-      filterStatus: 'all',
-      filterProvider: 'all',
-      view: 'grid'
+<script>
+// --- Global State ---
+let items = []; // Main array of nodes
+let providers = []; // List of all providers for dropdowns/pills
+let config = {
+  filterStatus: 'all',
+  filterProvider: 'all',
+  view: 'grid'
+};
+let scatter = {
+  transform: {
+    x: 0,
+    y: 0,
+    scale: 1
+  },
+  panning: false,
+  dragging: false,
+  pinchStart: 0,
+};
+let activeNodeId = null;
+let timerInterval = null;
+let isDraggingCard = false; // NEW: Flag to detect if a drag occurred
+
+// --- Data Persistence ---
+function load() {
+  const storedItems = localStorage.getItem('iv_items');
+  const storedProviders = localStorage.getItem('iv_providers');
+  if (storedItems) {
+    items = JSON.parse(storedItems);
+  } else {
+    seedMockData(); // Use mock data if nothing is stored
+  }
+  if (storedProviders) {
+    providers = JSON.parse(storedProviders);
+  } else {
+    providers = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot', 'Perplexity', 'Mistral', 'Midjourney', 'Llama Hub'];
+  }
+  config.filterStatus = localStorage.getItem('iv_filterStatus') || 'all';
+  config.filterProvider = localStorage.getItem('iv_filterProvider') || 'all';
+  config.view = localStorage.getItem('iv_view') || 'grid';
+  const storedTransform = localStorage.getItem('iv_scatterTransform');
+  if (storedTransform) {
+    scatter.transform = JSON.parse(storedTransform);
+  }
+}
+
+function seedMockData() {
+  const mockData = [
+    // --- FEW ACTIVE (2) ---
+    {
+      provider: 'ChatGPT',
+      email: 'gpt_4_main@openai.com',
+      status: 'active',
+      resetHours: 3,
+      lastUsedOffset: 0.1
+    },
+    {
+      provider: 'Claude',
+      email: 'claude_opus_pro@anthropic.ai',
+      status: 'active',
+      resetHours: 6,
+      lastUsedOffset: 0.2
+    },
+    // --- SOME READY (3) ---
+    {
+      provider: 'Grok',
+      email: 'grok_fun_mode@x.ai',
+      status: 'ready',
+      resetHours: 12,
+      lastUsedOffset: 100
+    },
+    {
+      provider: 'Perplexity',
+      email: 'pplx_search@perplexity.ai',
+      status: 'ready',
+      resetHours: 24,
+      lastUsedOffset: 100
+    },
+    {
+      provider: 'Mistral',
+      email: 'mistral_large@mistral.ai',
+      status: 'ready',
+      resetHours: 48,
+      lastUsedOffset: 100
+    },
+    // --- SOME COOLDOWN (3) ---
+    {
+      provider: 'Gemini',
+      email: 'gemini_advanced@google.com',
+      status: 'cooldown',
+      resetHours: 3,
+      lastUsedOffset: 1.5
+    },
+    {
+      provider: 'Llama Hub',
+      email: 'llama3_online@meta.com',
+      status: 'cooldown',
+      resetHours: 6,
+      lastUsedOffset: 3.5
+    },
+    {
+      provider: 'Dalle',
+      email: 'dalle_3@openai.com',
+      status: 'cooldown',
+      resetHours: 12,
+      lastUsedOffset: 8
+    },
+    // --- FEW BURNT (3) ---
+    {
+      provider: 'Claude',
+      email: 'claude_v1_legacy@anthropic.ai',
+      status: 'burnt',
+      resetHours: 12,
+      lastUsedOffset: 200
+    },
+    {
+      provider: 'Midjourney',
+      email: 'mj_trial_expired@discord.com',
+      status: 'burnt',
+      resetHours: 24,
+      lastUsedOffset: 50
+    },
+    {
+      provider: 'Copilot',
+      email: 'expired_enterprise@corp.com',
+      status: 'burnt',
+      resetHours: 6,
+      lastUsedOffset: 300
+    },
+  ];
+
+  items = mockData.map((data, i) => {
+    const lastUsedMs = Date.now() - (data.lastUsedOffset * 60 * 60 * 1000);
+    return {
+      id: Date.now() + i,
+      provider: data.provider,
+      email: data.email,
+      status: data.status,
+      resetHours: data.resetHours,
+      lastUsed: lastUsedMs,
+      pos: {
+        x: 50 + (i % 3) * 250,
+        y: 100 + Math.floor(i / 3) * 180
+      }
     };
-    let scatter = {
-      transform: { x: 0, y: 0, scale: 1 },
-      panning: false,
-      dragging: false,
-      pinchStart: 0,
-    };
-    let activeNodeId = null;
-    let timerInterval = null;
+  });
+  save();
+}
 
-    // --- Data Persistence ---
+function save() {
+  localStorage.setItem('iv_items', JSON.stringify(items));
+  localStorage.setItem('iv_providers', JSON.stringify(providers));
+  localStorage.setItem('iv_filterStatus', config.filterStatus);
+  localStorage.setItem('iv_filterProvider', config.filterProvider);
+  localStorage.setItem('iv_view', config.view);
+  localStorage.setItem('iv_scatterTransform', JSON.stringify(scatter.transform));
+}
 
-    function load() {
-      const storedItems = localStorage.getItem('iv_items');
-      const storedProviders = localStorage.getItem('iv_providers');
-      
-      if (storedItems) {
-        items = JSON.parse(storedItems);
-      } else {
-        seedMockData(); // Use mock data if nothing is stored
-      }
-      
-      if (storedProviders) {
-        providers = JSON.parse(storedProviders);
-      }
-      
-      config.filterStatus = localStorage.getItem('iv_filterStatus') || 'all';
-      config.filterProvider = localStorage.getItem('iv_filterProvider') || 'all';
-      config.view = localStorage.getItem('iv_view') || 'grid';
-      
-      const storedTransform = localStorage.getItem('iv_scatterTransform');
-      if (storedTransform) {
-        scatter.transform = JSON.parse(storedTransform);
-      }
+// --- Utility Functions ---
+function formatTime(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const totalHours = Math.floor(totalMinutes / 60);
+  const hours = String(totalHours).padStart(2, '0');
+  const minutes = String(totalMinutes % 60).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+
+  if (totalHours > 99) {
+    return `${totalHours}h+`;
+  }
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function formatRemainingTime(ms) {
+  if (ms <= 0) return '00:00:00';
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const totalHours = Math.floor(totalMinutes / 60);
+
+  const hours = String(totalHours).padStart(2, '0');
+  const minutes = String(totalMinutes % 60).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+
+  if (totalHours > 99) {
+    return `${totalHours}h+`;
+  }
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function formatLastUsed(timestamp) {
+  const ms = Date.now() - timestamp;
+  const minutes = Math.floor(ms / (1000 * 60));
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+
+  if (hours >= 24) return `${Math.floor(hours / 24)} days ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return 'just now';
+}
+
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 3000);
+}
+
+function copyInput(id) {
+  const input = document.getElementById(id);
+  navigator.clipboard.writeText(input.value).then(() => {
+    showToast('Copied to Clipboard');
+  }).catch(err => {
+    console.error('Could not copy text: ', err);
+  });
+}
+
+function toggleTheme() {
+  const currentTheme = document.body.getAttribute('data-theme');
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  document.body.setAttribute('data-theme', newTheme);
+  localStorage.setItem('iv_theme', newTheme);
+
+  const logo = document.getElementById('logoImg');
+  if (logo) {
+    logo.src = newTheme === 'light' ? 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-dark.svg' : 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg';
+  }
+}
+
+function toggleAccordion(header) {
+  const item = header.parentNode;
+  const content = item.querySelector('.accordion-content');
+  const isOpen = item.classList.contains('open');
+
+  // Close all other open accordions
+  document.querySelectorAll('.accordion-item.open').forEach(openItem => {
+    if (openItem !== item) {
+      openItem.classList.remove('open');
+      openItem.querySelector('.accordion-content').style.maxHeight = null;
     }
+  });
 
-    function seedMockData() {
-      const allProviders = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot', 'Perplexity', 'Mistral', 'Midjourney', 'Llama Hub'];
-      
-      const mockData = [
-          // --- FEW ACTIVE (2) ---
-          { provider: 'ChatGPT', email: 'gpt_4_main@openai.com', status: 'active', resetHours: 3, lastUsedOffset: 0.1 },
-          { provider: 'Claude', email: 'claude_opus_pro@anthropic.ai', status: 'active', resetHours: 6, lastUsedOffset: 0.2 },
+  if (isOpen) {
+    item.classList.remove('open');
+    content.style.maxHeight = null;
+  } else {
+    item.classList.add('open');
+    content.style.maxHeight = content.scrollHeight + "px";
+  }
+}
 
-          // --- SOME READY (3) ---
-          { provider: 'Grok', email: 'grok_fun_mode@x.com', status: 'ready', resetHours: 48, lastUsedOffset: 50 },
-          { provider: 'Gemini', email: 'gemini_ultra@google.com', status: 'ready', resetHours: 12, lastUsedOffset: 14 },
-          { provider: 'Copilot', email: 'github_copilot_student@ms.com', status: 'ready', resetHours: 6, lastUsedOffset: 8 },
+// --- Filtering & View Management ---
+function switchView(viewName) {
+  config.view = viewName;
+  localStorage.setItem('iv_view', viewName);
+  document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === viewName));
+  document.querySelectorAll('.view-container').forEach(c => c.classList.remove('active'));
 
-          // --- MOST COOLING (7) ---
-          { provider: 'ChatGPT', email: 'gpt_3.5_burner@openai.com', status: 'cooldown', resetHours: 3, lastUsedOffset: 0.5 },
-          { provider: 'Claude', email: 'claude_sonnet_dev@anthropic.ai', status: 'cooldown', resetHours: 8, lastUsedOffset: 2 },
-          { provider: 'Perplexity', email: 'research_pplx@perplexity.ai', status: 'cooldown', resetHours: 4, lastUsedOffset: 1 },
-          { provider: 'Mistral', email: 'le_chat_large@mistral.ai', status: 'cooldown', resetHours: 24, lastUsedOffset: 12 },
-          { provider: 'Midjourney', email: 'mj_fast_hours@discord.com', status: 'cooldown', resetHours: 12, lastUsedOffset: 11 }, // Almost ready
-          { provider: 'Llama Hub', email: 'llama3_70b@meta.ai', status: 'cooldown', resetHours: 6, lastUsedOffset: 1.5 },
-          { provider: 'Gemini', email: 'gemini_flash@google.com', status: 'cooldown', resetHours: 24, lastUsedOffset: 5 },
+  if (viewName === 'grid') {
+    document.getElementById('gridContainer').classList.add('active');
+    document.getElementById('scatterControls').classList.remove('visible');
+    renderGrid();
+  } else {
+    document.getElementById('scatterContainer').classList.add('active');
+    document.getElementById('scatterControls').classList.add('visible');
+    renderScatter();
+  }
+}
 
-          // --- BUNCH DEFUNCT/BURNT (4) ---
-          { provider: 'ChatGPT', email: 'old_gpt_banned@openai.com', status: 'burnt', resetHours: 24, lastUsedOffset: 100 },
-          { provider: 'Claude', email: 'claude_v1_legacy@anthropic.ai', status: 'burnt', resetHours: 12, lastUsedOffset: 200 },
-          { provider: 'Midjourney', email: 'mj_trial_expired@discord.com', status: 'burnt', resetHours: 24, lastUsedOffset: 50 },
-          { provider: 'Copilot', email: 'expired_enterprise@corp.com', status: 'burnt', resetHours: 6, lastUsedOffset: 300 },
-      ];
-      
-      items = mockData.map((data, i) => {
-        const lastUsedMs = Date.now() - (data.lastUsedOffset * 60 * 60 * 1000);
-        return {
-          id: Date.now() + i,
-          provider: data.provider,
-          email: data.email,
-          status: data.status,
-          resetHours: data.resetHours,
-          lastUsed: lastUsedMs,
-          pos: { x: 50 + (i % 3) * 250, y: 100 + Math.floor(i / 3) * 180 }
-        };
-      });
-      providers = allProviders; 
-      save();
-    }
+function filterItems() {
+  let res = items;
+  if (config.filterStatus !== 'all') {
+    res = res.filter(i => i.status === config.filterStatus);
+  }
+  if (config.filterProvider !== 'all') {
+    res = res.filter(i => i.provider === config.filterProvider);
+  }
+  return res;
+}
 
-    function save() {
-      localStorage.setItem('iv_items', JSON.stringify(items));
-      localStorage.setItem('iv_providers', JSON.stringify(providers));
-      localStorage.setItem('iv_filterStatus', config.filterStatus);
-      localStorage.setItem('iv_filterProvider', config.filterProvider);
-      localStorage.setItem('iv_scatterTransform', JSON.stringify(scatter.transform));
-    }
+function cycleStatusFilter() {
+  const statuses = ['all', 'active', 'ready', 'cooldown', 'burnt'];
+  let currentIndex = statuses.indexOf(config.filterStatus);
+  currentIndex = (currentIndex + 1) % statuses.length;
+  config.filterStatus = statuses[currentIndex];
 
-    // --- Utility Functions ---
+  updateFilterPill();
+  localStorage.setItem('iv_filterStatus', config.filterStatus);
 
-    function formatTime(ms) {
-      const totalSeconds = Math.floor(ms / 1000);
-      const totalMinutes = Math.floor(totalSeconds / 60);
-      const totalHours = Math.floor(totalMinutes / 60);
+  if (config.view === 'grid') {
+    renderGrid();
+  } else {
+    renderScatter();
+  }
+  showToast(`Filter: ${config.filterStatus.toUpperCase()}`);
+}
 
-      const hours = String(totalHours).padStart(2, '0');
-      const minutes = String(totalMinutes % 60).padStart(2, '0');
-      const seconds = String(totalSeconds % 60).padStart(2, '0');
+function updateFilterPill() {
+  const pill = document.getElementById('statusPill');
+  const dot = document.getElementById('filterDot');
+  const label = document.getElementById('filterLabel');
 
-      if (totalHours > 99) {
-          return `${totalHours}h+`;
-      }
-      return `${hours}:${minutes}:${seconds}`;
-    }
+  label.textContent = config.filterStatus.toUpperCase();
+  dot.className = 'filter-dot';
 
-    function formatRemainingTime(ms) {
-      if (ms <= 0) return '00:00:00';
-      const totalSeconds = Math.floor(ms / 1000);
-      const totalMinutes = Math.floor(totalSeconds / 60);
-      const totalHours = Math.floor(totalMinutes / 60);
+  if (config.filterStatus === 'all') {
+    dot.style.background = 'var(--ink-dim)';
+    dot.style.boxShadow = '0 0 5px var(--ink-dim)';
+  } else if (config.filterStatus === 'active') {
+    dot.style.background = 'var(--neon-blue)';
+    dot.style.boxShadow = '0 0 8px var(--neon-blue)';
+  } else if (config.filterStatus === 'ready') {
+    dot.style.background = 'var(--neon-green)';
+    dot.style.boxShadow = '0 0 8px var(--neon-green)';
+  } else if (config.filterStatus === 'cooldown') {
+    dot.style.background = 'var(--neon-orange)';
+    dot.style.boxShadow = '0 0 8px var(--neon-orange)';
+  } else if (config.filterStatus === 'burnt') {
+    dot.style.background = 'var(--neon-red)';
+    dot.style.boxShadow = '0 0 8px var(--neon-red)';
+  }
+}
 
-      const days = Math.floor(totalHours / 24);
-      const hours = String(totalHours % 24).padStart(2, '0');
-      const minutes = String(totalMinutes % 60).padStart(2, '0');
-      const seconds = String(totalSeconds % 60).padStart(2, '0');
-      
-      if (days > 0) return `${days}d ${hours}h`;
-      return `${hours}:${minutes}:${seconds}`;
-    }
+function setProviderFilter(provider) {
+  config.filterProvider = provider;
+  localStorage.setItem('iv_filterProvider', provider);
+  renderProviderPills();
+  if (config.view === 'grid') {
+    renderGrid();
+  } else {
+    renderScatter();
+  }
+}
 
-    function copyToClipboard(text) {
-        if (!navigator.clipboard) {
-            fallbackCopyTextToClipboard(text);
-            return;
-        }
-        navigator.clipboard.writeText(text).then(function() {
-            showToast('Copied to Clipboard!');
-        }, function(err) {
-            console.error('Async: Could not copy text: ', err);
-            showToast('Copy Failed!');
-        });
-    }
-    
-    function fallbackCopyTextToClipboard(text) {
-      var textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";  // Avoid scrolling to bottom
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      try {
-        var successful = document.execCommand('copy');
-        var msg = successful ? 'successful' : 'unsuccessful';
-        showToast('Copied to Clipboard!');
-      } catch (err) {
-        showToast('Copy Failed!');
-      }
-      document.body.removeChild(textArea);
-    }
-    
-    function copyInput(inputId) {
-        const input = document.getElementById(inputId);
-        copyToClipboard(input.value);
-    }
+function renderAll() {
+  renderProviderPills();
+  renderGrid();
+  renderScatter();
+  updateAllTimers();
+  renderProviderSelect();
+  renderProviderPills();
+}
 
-    function showToast(message) {
-      const toast = document.getElementById('toast');
-      toast.textContent = message;
-      toast.classList.add('show');
-      setTimeout(() => {
-        toast.classList.remove('show');
-      }, 2000);
-    }
+// --- Rendering Functions ---
 
-    function toggleAccordion(header) {
-        const item = header.closest('.accordion-item');
-        const content = item.querySelector('.accordion-content');
-        const isOpen = item.classList.contains('open');
+function updateAllTimers() {
+  const now = Date.now();
 
-        // Close all other accordions
-        document.querySelectorAll('.accordion-item').forEach(otherItem => {
-            if (otherItem !== item) {
-                otherItem.classList.remove('open');
-                otherItem.querySelector('.accordion-content').style.maxHeight = null;
-            }
-        });
+  items.forEach(item => {
+    const timerElement = document.getElementById(`timer-${item.id}`);
+    const resetDot = document.getElementById(`reset-dot-${item.id}`);
+    if (!timerElement) return;
 
-        if (isOpen) {
-            item.classList.remove('open');
-            content.style.maxHeight = null;
-        } else {
-            item.classList.add('open');
-            content.style.maxHeight = content.scrollHeight + "px";
-        }
-    }
+    if (item.status === 'active') {
+      const timeInUse = now - item.lastUsed;
+      timerElement.textContent = formatTime(timeInUse);
+      if (resetDot) resetDot.style.opacity = '0';
+    } else if (item.status === 'cooldown') {
+      const resetMs = item.resetHours * 60 * 60 * 1000;
+      const remainingMs = item.lastUsed + resetMs - now;
+      timerElement.textContent = formatRemainingTime(remainingMs);
 
-    // --- Filtering & View Management ---
-
-    function switchView(viewName) {
-      config.view = viewName;
-      localStorage.setItem('iv_view', viewName);
-      
-      document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === viewName));
-      document.querySelectorAll('.view-container').forEach(c => c.classList.remove('active'));
-      
-      if(viewName === 'grid') {
-        document.getElementById('gridContainer').classList.add('active');
-        document.getElementById('scatterControls').classList.remove('visible');
-        renderGrid();
-      } else {
-        document.getElementById('scatterContainer').classList.add('active');
-        document.getElementById('scatterControls').classList.add('visible');
-        renderScatter();
-      }
-    }
-
-    function filterItems() {
-      let res = items;
-      if (config.filterStatus !== 'all') {
-        res = res.filter(i => i.status === config.filterStatus);
-      }
-      if (config.filterProvider !== 'all') {
-        res = res.filter(i => i.provider === config.filterProvider);
-      }
-      return res;
-    }
-
-    function cycleStatusFilter() {
-        const statuses = ['all', 'active', 'ready', 'cooldown', 'burnt'];
-        let currentIndex = statuses.indexOf(config.filterStatus);
-        
-        currentIndex = (currentIndex + 1) % statuses.length;
-        config.filterStatus = statuses[currentIndex];
-        
-        updateFilterPill();
-        localStorage.setItem('iv_filterStatus', config.filterStatus);
-        
-        if (config.view === 'grid') {
-            renderGrid();
-        } else {
-            renderScatter();
-        }
-    }
-    
-    function updateFilterPill() {
-        const pill = document.getElementById('statusPill');
-        const dot = document.getElementById('filterDot');
-        const label = document.getElementById('filterLabel');
-
-        label.textContent = config.filterStatus.toUpperCase();
-        
-        dot.className = 'filter-dot';
-        
-        if (config.filterStatus === 'all') {
-            dot.style.background = 'var(--ink-dim)';
-            dot.style.boxShadow = '0 0 5px var(--ink-dim)';
-        } else if (config.filterStatus === 'active') {
-            dot.style.background = 'var(--neon-blue)';
-            dot.style.boxShadow = '0 0 5px var(--neon-blue)';
-        } else if (config.filterStatus === 'ready') {
-            dot.style.background = 'var(--neon-green)';
-            dot.style.boxShadow = '0 0 5px var(--neon-green)';
-        } else if (config.filterStatus === 'cooldown') {
-            dot.style.background = 'var(--neon-orange)';
-            dot.style.boxShadow = '0 0 5px var(--neon-orange)';
-        } else if (config.filterStatus === 'burnt') {
-            dot.style.background = 'var(--neon-red)';
-            dot.style.boxShadow = '0 0 5px var(--neon-red)';
-        }
-    }
-
-    function setProviderFilter(providerName) {
-        config.filterProvider = providerName;
-        localStorage.setItem('iv_filterProvider', providerName);
-        renderProviderPills();
-
-        if (config.view === 'grid') {
-            renderGrid();
-        } else {
-            renderScatter();
-        }
-    }
-
-    // --- Rendering ---
-
-    function updateAllTimers() {
-      const activeItems = items.filter(i => i.status !== 'burnt');
-      activeItems.forEach(item => {
-        const timerElement = document.getElementById(`timer-${item.id}`);
-        const resetDot = document.getElementById(`reset-dot-${item.id}`);
-        const now = Date.now();
-
-        if (!timerElement) return;
-
-        if (item.status === 'active') {
-          const usedMs = now - item.lastUsed;
-          timerElement.textContent = formatTime(usedMs);
-          
-          const resetMs = item.resetHours * 60 * 60 * 1000;
-          if (usedMs >= resetMs) {
-            // Auto-hit limit/cooldown when active time exceeds reset time
-            item.status = 'cooldown';
-            item.lastUsed = now; // New cooldown start time
-            save();
-            renderAll();
-            showToast(`${item.provider} Node Cooldown Initiated.`);
-          }
-        } 
-        
-        else if (item.status === 'cooldown') {
-          const resetMs = item.resetHours * 60 * 60 * 1000;
-          const remainingMs = item.lastUsed + resetMs - now;
-          timerElement.textContent = formatRemainingTime(remainingMs);
-          
-          const progress = Math.min(1, (now - item.lastUsed) / resetMs);
-          if (resetDot) {
-            resetDot.style.opacity = '1';
-            resetDot.style.transform = `scaleX(${progress})`;
-          }
-
-          if (remainingMs <= 0) {
-            item.status = 'ready';
-            save();
-            renderAll();
-            showToast(`${item.provider} Node is Ready!`);
-          }
-        }
-        
-        else if (item.status === 'ready') {
-          timerElement.textContent = '00:00:00';
-          if (resetDot) resetDot.style.opacity = '0';
-        }
-      });
-    }
-
-    function renderProviderPills() {
-        const bar = document.getElementById('providerBar');
-        bar.innerHTML = '';
-
-        // Add 'All' pill
-        const allPill = document.createElement('div');
-        allPill.className = `pill ${config.filterProvider === 'all' ? 'active' : ''}`;
-        allPill.textContent = 'All Providers';
-        allPill.onclick = () => setProviderFilter('all');
-        bar.appendChild(allPill);
-
-        providers.sort().forEach(provider => {
-            const pill = document.createElement('div');
-            pill.className = `pill ${config.filterProvider === provider ? 'active' : ''}`;
-            pill.textContent = provider;
-            pill.onclick = () => setProviderFilter(provider);
-            bar.appendChild(pill);
-        });
-        
-        // Add 'Add' pill
-        const addPill = document.createElement('div');
-        addPill.className = 'pill add-btn';
-        addPill.textContent = '+ Add Node';
-        addPill.onclick = openModal;
-        bar.appendChild(addPill);
-    }
-    
-    function renderCard(item) {
-      const isCooldown = item.status === 'cooldown';
-      const isBurnt = item.status === 'burnt';
-      const isReady = item.status === 'ready';
-
-      let dotClass = '';
-      if (item.status === 'active') dotClass = 'text-blue';
-      else if (isCooldown) dotClass = 'text-orange';
-      else if (isReady) dotClass = 'text-green';
-      else if (isBurnt) dotClass = 'text-red';
-      
-      const timerLabel = isCooldown ? 'TIME TO READY' : (isBurnt ? 'DEFUNCT' : 'TIME IN USE');
-      
-      const card = document.createElement('div');
-      card.className = 'card' + (isBurnt ? ' burnt' : '');
-      card.dataset.id = item.id;
-      card.onclick = (e) => {
-          // Prevent activation if clicking on the edit icon
-          if (e.target.closest('.card-edit-icon') || e.target.closest('.action-icon')) {
-              return;
-          }
-          if (item.status === 'ready') {
-              openActionOverlay(item.id);
-          } else {
-              openModal(item.id);
-          }
-      };
-      card.oncontextmenu = (e) => {
-          e.preventDefault();
-          showContextMenu(e, item.id);
-      }
-      
-      // Card Content
-      card.innerHTML = `
-        <div class="card-top">
-          <div class="card-provider">${item.provider}</div>
-          <div style="display: flex; align-items: center;">
-            <div class="status-dot ${dotClass}" style="margin-right:8px;"></div>
-            <div style="font-size:14px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
-            <button class="card-edit-icon" onclick="openModal(${item.id})">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"></path></svg>
-            </button>
-          </div>
-        </div>
-        
-        <div class="card-timer" id="timer-${item.id}">00:00:00${isBurnt ? '<div class="burnt-label">BURNT</div>' : ''}</div>
-        
-        <div style="font-size:11px; color:var(--ink-dim); text-align:center; margin-top:-10px;">${timerLabel}</div>
-
-        <div class="card-meta">
-            <span class="card-email">${item.email}</span>
-            <div class="card-actions">
-                ${item.status !== 'ready' ? `<div class="action-icon" onclick="confirmForceRestore(${item.id})" title="Reset to Ready">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.74 15.42 20 13.75 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 9.74C4.26 11.02 4 12.63 4 14c0 4.42 3.58 8 8 8V23l4-4-4-4v3z"></path></svg>
-                </div>` : ''}
-                ${item.status === 'active' || item.status === 'cooldown' ? `<div class="action-icon" onclick="confirmHitLimit(${item.id})" title="Hit Limit Now">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
-                </div>` : ''}
-            </div>
-        </div>
-      `;
-      
-      return card;
-    }
-
-    function renderGrid() {
-      const wrapper = document.getElementById('gridWrapper');
-      wrapper.innerHTML = '';
-      
-      const filtered = filterItems().sort((a, b) => {
-        // Sort by status: Active > Ready > Cooldown > Burnt
-        const statusOrder = { 'active': 0, 'ready': 1, 'cooldown': 2, 'burnt': 3 };
-        const statusA = statusOrder[a.status];
-        const statusB = statusOrder[b.status];
-        if (statusA !== statusB) return statusA - statusB;
-        
-        // Secondary sort: Cooldown remaining or last used time
-        if (a.status === 'cooldown' || b.status === 'cooldown') {
-            const timeToA = a.resetHours * 3600000 - (Date.now() - a.lastUsed);
-            const timeToB = b.resetHours * 3600000 - (Date.now() - b.lastUsed);
-            return timeToA - timeToB;
-        }
-        
-        return b.lastUsed - a.lastUsed; // Most recently used first for Active/Ready
-      });
-
-      if (filtered.length === 0) {
-        wrapper.innerHTML = `<div style="text-align:center; padding-top:40px; color:var(--ink-dim); font-size:16px;">No nodes match the current filter.</div>`;
-      } else {
-        filtered.forEach(item => {
-          wrapper.appendChild(renderCard(item));
-        });
-      }
-    }
-
-    // --- Scatter View Logic ---
-    
-    function applyScatterTransform() {
-        const canvas = document.getElementById('scatterCanvas');
-        canvas.style.transform = `translate(${scatter.transform.x}px, ${scatter.transform.y}px) scale(${scatter.transform.scale})`;
-        canvas.style.backgroundPosition = `${scatter.transform.x}px ${scatter.transform.y}px`;
-        canvas.style.backgroundSize = `${40 * scatter.transform.scale}px ${40 * scatter.transform.scale}px`;
-    }
-
-    function renderScatter() {
-        const canvas = document.getElementById('scatterCanvas');
-        canvas.innerHTML = '';
-        
-        const filtered = filterItems();
-
-        if (filtered.length === 0) {
-            canvas.innerHTML = `<div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:var(--ink-dim); font-size:16px; width:200px; text-align:center;">No nodes match the current filter.</div>`;
-        } else {
-            filtered.forEach(item => {
-                const card = renderScatterCard(item);
-                canvas.appendChild(card);
-            });
-        }
-        
-        applyScatterTransform();
-    }
-    
-    function renderScatterCard(item) {
-        const card = document.createElement('div');
-        card.className = 'scatter-card' + (item.status === 'burnt' ? ' burnt' : '');
-        card.id = `scatter-card-${item.id}`;
-        card.dataset.id = item.id;
-        
-        card.style.left = `${item.pos.x}px`;
-        card.style.top = `${item.pos.y}px`;
-        card.style.zIndex = item.status === 'active' ? 5 : 1;
-        
-        const isCooldown = item.status === 'cooldown';
-        const isBurnt = item.status === 'burnt';
-        const isReady = item.status === 'ready';
-
-        let dotClass = '';
-        if (item.status === 'active') dotClass = 'text-blue';
-        else if (isCooldown) dotClass = 'text-orange';
-        else if (isReady) dotClass = 'text-green';
-        else if (isBurnt) dotClass = 'text-red';
-        
-        const timerLabel = isCooldown ? 'TIME TO READY' : (isBurnt ? 'DEFUNCT' : 'TIME IN USE');
-        
-        card.innerHTML = `
-            <div class="card-top" style="width:100%;">
-              <div class="card-provider">${item.provider}</div>
-              <div style="display: flex; align-items: center; gap:4px;">
-                <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
-                <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
-                <button class="card-edit-icon" onclick="openModal(${item.id})">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"></path></svg>
-                </button>
-              </div>
-            </div>
-            
-            <div class="card-timer" id="timer-${item.id}">00:00:00${isBurnt ? '<div class="burnt-label">BURNT</div>' : ''}</div>
-            
-            <div style="font-size:10px; color:var(--ink-dim); margin-top:-4px;">${timerLabel}</div>
-            
-            <div class="card-meta">
-                ${item.email}
-            </div>
-            
-            ${isCooldown ? `<div style="height:4px; width:100%; background:var(--glass-border); border-radius:2px; margin-top:8px; overflow:hidden;">
-                <div id="reset-dot-${item.id}" style="height:4px; width:100%; background:var(--neon-orange); transform-origin:left; transform:scaleX(0);"></div>
-            </div>` : ''}
-        `;
-
-        card.onpointerdown = (e) => startDrag(e, item);
-        card.onclick = (e) => {
-            // Prevent activation if drag happened
-            if (scatter.dragging) return;
-            if (item.status === 'ready') {
-                openActionOverlay(item.id);
-            } else {
-                openModal(item.id);
-            }
-        };
-        card.oncontextmenu = (e) => {
-            e.preventDefault();
-            showContextMenu(e, item.id);
-        }
-
-        return card;
-    }
-    
-    function autoArrange() {
-        const filtered = filterItems();
-        const cardWidth = 250;
-        const cardHeight = 200;
-        const perRow = 5;
-        
-        filtered.forEach((item, i) => {
-            const row = Math.floor(i / perRow);
-            const col = i % perRow;
-            
-            item.pos = {
-                x: 50 + col * cardWidth,
-                y: 100 + row * cardHeight
-            };
-        });
-        
-        // Reset transform to center things a bit
-        scatter.transform = { x: 0, y: 0, scale: 1 };
-        
-        save();
-        renderScatter();
-        showToast('Nodes Arranged!');
-    }
-
-    // --- Scatter Interactivity (Pan/Drag/Zoom) ---
-    
-    // Pan Logic
-    let lastPan = { x: 0, y: 0 };
-    const canvas = document.getElementById('scatterCanvas');
-
-    canvas.addEventListener('pointerdown', (e) => {
-      // Ignore if clicking on a card or if a card drag is in progress
-      if (e.target.closest('.scatter-card') || scatter.dragging) {
-        return;
-      }
-      
-      e.preventDefault();
-      scatter.panning = true;
-      canvas.setPointerCapture(e.pointerId);
-      
-      lastPan.x = e.clientX;
-      lastPan.y = e.clientY;
-    });
-
-    canvas.addEventListener('pointermove', (e) => {
-      if (scatter.panning) {
-        const dx = e.clientX - lastPan.x;
-        const dy = e.clientY - lastPan.y;
-        
-        scatter.transform.x += dx;
-        scatter.transform.y += dy;
-        
-        lastPan.x = e.clientX;
-        lastPan.y = e.clientY;
-        
-        applyScatterTransform();
-      }
-    });
-
-    canvas.addEventListener('pointerup', (e) => {
-      if (scatter.panning) {
-        scatter.panning = false;
-        canvas.releasePointerCapture(e.pointerId);
-        save();
-      }
-    });
-
-    // Drag Logic
-    function startDrag(e, item) {
-      if (e.button !== 0) return; // Only left mouse button
-
-      const card = e.currentTarget;
-      
-      scatter.dragging = true;
-      card.classList.add('is-dragging');
-      card.setPointerCapture(e.pointerId);
-      
-      // Bring to front
-      card.style.zIndex = 1000; 
-
-      const containerRect = canvas.getBoundingClientRect();
-      const startItemX = item.pos.x;
-      const startItemY = item.pos.y;
-      
-      const startClientX = e.clientX - containerRect.left;
-      const startClientY = e.clientY - containerRect.top;
-      
-      const invScale = 1 / scatter.transform.scale;
-      const startCanvasX = (startClientX - scatter.transform.x) * invScale;
-      const startCanvasY = (startClientY - scatter.transform.y) * invScale;
-
-      function move(eMove) {
-        if (eMove.pointerId !== e.pointerId) return;
-        
-        const currentClientX = eMove.clientX - containerRect.left;
-        const currentClientY = eMove.clientY - containerRect.top;
-        
-        const currentCanvasX = (currentClientX - scatter.transform.x) * invScale;
-        const currentCanvasY = (currentClientY - scatter.transform.y) * invScale;
-        
-        const newX = startItemX + (currentCanvasX - startCanvasX);
-        const newY = startItemY + (currentCanvasY - startCanvasY);
-        
-        card.style.transform = `translate(${newX - startItemX}px, ${newY - startItemY}px)`;
+      const progress = Math.min(1, (now - item.lastUsed) / resetMs);
+      if (resetDot) {
+        resetDot.style.opacity = '1';
+        resetDot.style.transform = `scaleX(${progress})`;
       }
 
-      function end(eEnd) {
-        if (eEnd.pointerId !== e.pointerId) return;
-        
-        document.removeEventListener('pointermove', move);
-        document.removeEventListener('pointerup', end);
-        document.removeEventListener('pointercancel', end);
-        card.classList.remove('is-dragging');
-        // FIX: Reset zIndex after drag is complete to fix timer/overlap issues
-        card.style.zIndex = item.status === 'active' ? 5 : 1; 
-        const currentClientX = eEnd.clientX - containerRect.left;
-        const currentClientY = eEnd.clientY - containerRect.top;
-        
-        const currentCanvasX = (currentClientX - scatter.transform.x) * invScale;
-        const currentCanvasY = (currentClientY - scatter.transform.y) * invScale;
-        
-        const newX = startItemX + (currentCanvasX - startCanvasX);
-        const newY = startItemY + (currentCanvasY - startCanvasY);
-        item.pos = {x: newX, y: newY};
-        card.style.left = `${newX}px`;
-        card.style.top = `${newY}px`;
-        card.style.transform = '';
-        setTimeout(() => scatter.dragging = false, 50); // Small delay to prevent immediate click
-        save();
-      }
-
-      document.addEventListener('pointermove', move);
-      document.addEventListener('pointerup', end);
-      document.addEventListener('pointercancel', end);
-    }
-
-    // Zoom Logic
-    canvas.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      
-      const zoomFactor = -e.deltaY / 1000; 
-      zoom(zoomFactor, e.clientX, e.clientY);
-      save();
-    });
-    
-    // Pinch to zoom (for mobile/touch devices)
-    let pointers = [];
-
-    canvas.addEventListener('touchstart', (e) => {
-        pointers = Array.from(e.touches);
-    });
-
-    canvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        
-        if (e.touches.length === 2) {
-            const touch1 = e.touches[0];
-            const touch2 = e.touches[1];
-
-            const dist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
-            
-            if (scatter.pinchStart === 0) {
-                scatter.pinchStart = dist;
-                return;
-            }
-            
-            const scaleChange = dist / scatter.pinchStart;
-            
-            const centerX = (touch1.clientX + touch2.clientX) / 2;
-            const centerY = (touch1.clientY + touch2.clientY) / 2;
-
-            const oldScale = scatter.transform.scale;
-            let newScale = oldScale * scaleChange;
-            
-            // Clamp scale
-            newScale = Math.max(0.25, Math.min(3, newScale)); 
-            
-            const scaleRatio = newScale / oldScale;
-
-            scatter.transform.x = centerX - (centerX - scatter.transform.x) * scaleRatio;
-            scatter.transform.y = centerY - (centerY - scatter.transform.y) * scaleRatio;
-            scatter.transform.scale = newScale;
-            
-            scatter.pinchStart = dist;
-            applyScatterTransform();
-        } else if (e.touches.length === 1 && !e.target.closest('.scatter-card')) {
-             // Treat single touch move as pan if not dragging a card
-             const touch = e.touches[0];
-             const dx = touch.clientX - lastPan.x;
-             const dy = touch.clientY - lastPan.y;
-            
-             scatter.transform.x += dx;
-             scatter.transform.y += dy;
-            
-             lastPan.x = touch.clientX;
-             lastPan.y = touch.clientY;
-            
-             applyScatterTransform();
-        }
-    }, { passive: false });
-
-    canvas.addEventListener('touchend', (e) => {
-        pointers = Array.from(e.touches);
-        if (e.touches.length < 2) {
-            scatter.pinchStart = 0;
-            save();
-        }
-    });
-
-    function zoom(zoomFactor, clientX, clientY) {
-      const scaleDelta = 1 + zoomFactor;
-      const oldScale = scatter.transform.scale;
-      let newScale = oldScale * scaleDelta;
-
-      // Clamp scale
-      newScale = Math.max(0.25, Math.min(3, newScale)); 
-      
-      const scaleRatio = newScale / oldScale;
-
-      // Adjust translation to keep the zoom origin (clientX, clientY) fixed
-      scatter.transform.x = clientX - (clientX - scatter.transform.x) * scaleRatio;
-      scatter.transform.y = clientY - (clientY - scatter.transform.y) * scaleRatio;
-      scatter.transform.scale = newScale;
-      
-      applyScatterTransform();
-    }
-    
-    // --- Context Menu Logic ---
-    
-    function showContextMenu(e, nodeId) {
-        const menu = document.getElementById('contextMenu');
-        const item = items.find(i => i.id == nodeId);
-        if (!item) return;
-
-        menu.innerHTML = `
-            <div class="ctx-header">${item.provider} Node</div>
-            <div class="ctx-item" onclick="openModal(${nodeId})">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"></path></svg>
-                <span>Edit Node</span>
-            </div>
-            ${item.status !== 'active' ? `<div class="ctx-item" onclick="activateNode(${nodeId})">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"></path></svg>
-                <span>Mark Active & Use</span>
-            </div>` : ''}
-            ${item.status !== 'ready' ? `<div class="ctx-item" onclick="confirmForceRestore(${nodeId})">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.74 15.42 20 13.75 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 9.74C4.26 11.02 4 12.63 4 14c0 4.42 3.58 8 8 8V23l4-4-4-4v3z"></path></svg>
-                <span>Force Ready</span>
-            </div>` : ''}
-            ${item.status !== 'cooldown' ? `<div class="ctx-item" onclick="confirmHitLimit(${nodeId})">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
-                <span>Hit Limit / Cooldown</span>
-            </div>` : ''}
-        `;
-        
-        menu.style.left = `${e.clientX}px`;
-        menu.style.top = `${e.clientY}px`;
-        menu.classList.add('active');
-        
-        // Hide menu on next click
-        const hide = () => {
-            menu.classList.remove('active');
-            document.removeEventListener('click', hide);
-            document.removeEventListener('contextmenu', hide);
-        };
-        setTimeout(() => document.addEventListener('click', hide), 10);
-    }
-    
-    function showBackgroundContextMenu(e) {
-      const menu = document.getElementById('contextMenu');
-      menu.innerHTML = `
-          <div class="ctx-header">Scatter Options</div>
-          <div class="ctx-item" onclick="autoArrange()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 11h7V4H4v7zm0 9h7v-7H4v7zm9 0h7v-7h-7v7zm0-16v7h7V4h-7z"></path></svg>
-              <span>Auto Arrange</span>
-          </div>
-      `;
-      
-      menu.style.left = `${e.clientX}px`;
-      menu.style.top = `${e.clientY}px`;
-      menu.classList.add('active');
-      
-      // Hide menu on next click
-      const hide = () => {
-          menu.classList.remove('active');
-          document.removeEventListener('click', hide);
-          document.removeEventListener('contextmenu', hide);
-      };
-      setTimeout(() => document.addEventListener('click', hide), 10);
-    }
-
-    function closeContextMenu() {
-      document.getElementById('contextMenu').classList.remove('active');
-    }
-    
-    // Hide context menu if clicking outside of it (already handled by hide function, but just in case)
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('#contextMenu')) {
-            document.getElementById('contextMenu').classList.remove('active');
-        }
-    });
-
-
-    // --- Status & Action Handlers ---
-    
-    function activateNode(nodeId) {
-        closeActionOverlay();
-        const item = items.find(i => i.id == nodeId);
-        if (!item) return;
-        
-        // 1. Reset any previously active node to cooldown/ready
-        const previouslyActive = items.find(i => i.status === 'active' && i.id !== nodeId);
-        if (previouslyActive) {
-            const usedTime = Date.now() - previouslyActive.lastUsed;
-            const resetTime = previouslyActive.resetHours * 60 * 60 * 1000;
-            
-            if (usedTime >= resetTime) {
-                previouslyActive.status = 'ready'; // Time expired, reset to ready
-            } else {
-                previouslyActive.status = 'cooldown'; // Time not expired, set to cooldown
-            }
-            previouslyActive.lastUsed = Date.now();
-        }
-
-        // 2. Activate the new node
-        item.status = 'active';
-        item.lastUsed = Date.now();
-        
-        // 3. Copy email (already done in ActionOverlay, but ensure on direct activation)
-        copyToClipboard(item.email);
-
-        save();
-        renderAll();
-    }
-    
-    function hitLimit(nodeId) {
-        closeConfirm();
-        const item = items.find(i => i.id == nodeId);
-        if (!item) return;
-
-        // Only move to cooldown if it's currently active or ready (if ready, skip straight to cooldown)
-        if (item.status === 'active' || item.status === 'ready') {
-            item.status = 'cooldown';
-            item.lastUsed = Date.now();
-            save();
-            renderAll();
-            showToast(`${item.provider} Node is now in Cooldown.`);
-        }
-    }
-    
-    function forceRestore(nodeId) {
-        closeConfirm();
-        const item = items.find(i => i.id == nodeId);
-        if (!item) return;
-
+      if (remainingMs <= 0) {
         item.status = 'ready';
-        item.lastUsed = Date.now() - (item.resetHours * 60 * 60 * 1000) * 2; // Set last used far in past to ensure ready state
         save();
         renderAll();
-        showToast(`${item.provider} Node is Force Ready.`);
-    }
-
-    // --- Modal/Dialog Management ---
-
-    function setupProviderSelect(currentProvider = 'ChatGPT') {
-      const select = document.getElementById('inpProvider');
-      select.innerHTML = '';
-      
-      const sortedProviders = [...providers].sort();
-      sortedProviders.forEach(provider => {
-        const option = document.createElement('option');
-        option.value = provider;
-        option.textContent = provider;
-        if (provider === currentProvider) {
-          option.selected = true;
-        }
-        select.appendChild(option);
-      });
-      
-      // Add 'Custom' option
-      const customOption = document.createElement('option');
-      customOption.value = 'Custom';
-      customOption.textContent = 'Custom Provider...';
-      select.appendChild(customOption);
-
-      select.onchange = (e) => {
-        if (e.target.value === 'Custom') {
-          const newProvider = prompt("Enter new provider name:");
-          if (newProvider && newProvider.trim()) {
-            const cleanNewProvider = newProvider.trim();
-            if (!providers.includes(cleanNewProvider)) {
-              providers.push(cleanNewProvider);
-              save();
-            }
-            setupProviderSelect(cleanNewProvider); // Re-render with new one selected
-          } else {
-            // Revert selection if user cancels prompt
-            setupProviderSelect(currentProvider);
-          }
-        }
-      };
-    }
-
-    function selectStatusButton(status) {
-        document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('selected'));
-        document.querySelector(`.btn-toggle[data-status="${status}"]`).classList.add('selected');
-        document.getElementById('inpStatus').value = status;
-    }
-    
-    function selectResetHours(hours) {
-        document.querySelectorAll('.pill-option').forEach(p => p.classList.remove('selected'));
-        document.querySelector(`.pill-option[data-hours="${hours}"]`).classList.add('selected');
-        document.getElementById('inpReset').value = hours;
-        document.getElementById('inpResetCustom').value = ''; // Clear custom input
-    }
-    
-    document.getElementById('inpResetCustom').addEventListener('input', (e) => {
-        document.querySelectorAll('.pill-option').forEach(p => p.classList.remove('selected'));
-        const value = parseFloat(e.target.value);
-        if (!isNaN(value) && value > 0) {
-            document.getElementById('inpReset').value = value;
-        } else if (e.target.value === '') {
-            // Re-select default or current value if custom is cleared
-            selectResetHours(document.getElementById('inpReset').value || 3);
-        }
-    });
-
-    function openModal(nodeId = null) {
-      const modal = document.getElementById('modalOverlay');
-      const form = document.getElementById('nodeForm');
-      const title = document.getElementById('modalTitle');
-      const btnDelete = document.getElementById('btnDelete');
-      const editActions = document.getElementById('editActions');
-      
-      form.reset();
-      
-      let item = {
-        provider: 'ChatGPT', 
-        email: '', 
-        status: 'ready', 
-        resetHours: 3 
-      };
-
-      if (nodeId !== null) {
-        item = items.find(i => i.id == nodeId);
-        title.textContent = `Edit: ${item.provider}`;
-        document.getElementById('nodeId').value = nodeId;
-        document.getElementById('inpEmail').value = item.email;
-        document.getElementById('inpReset').value = item.resetHours;
-        btnDelete.style.display = 'block';
-        editActions.style.display = 'flex';
-      } else {
-        title.textContent = 'New Node';
-        document.getElementById('nodeId').value = '';
-        btnDelete.style.display = 'none';
-        editActions.style.display = 'none';
+        showToast(`${item.provider} Node is Ready!`);
       }
-      
-      setupProviderSelect(item.provider);
-      selectStatusButton(item.status);
-      selectResetHours(item.resetHours);
-      
-      modal.classList.add('active');
+    } else if (item.status === 'ready') {
+      timerElement.textContent = '00:00:00';
+      if (resetDot) resetDot.style.opacity = '0';
+    } else if (item.status === 'burnt') {
+      timerElement.textContent = formatLastUsed(item.lastUsed);
+      if (resetDot) resetDot.style.opacity = '0';
     }
+  });
+}
 
-    function closeModal() {
-      document.getElementById('modalOverlay').classList.remove('active');
+function renderProviderPills() {
+  const bar = document.getElementById('providerBar');
+  bar.innerHTML = '';
+
+  // Add 'All' pill
+  const allPill = document.createElement('div');
+  allPill.className = `pill ${config.filterProvider === 'all' ? 'active' : ''}`;
+  allPill.textContent = 'All Providers';
+  allPill.onclick = () => setProviderFilter('all');
+  bar.appendChild(allPill);
+
+  providers.sort().forEach(provider => {
+    const pill = document.createElement('div');
+    pill.className = `pill ${config.filterProvider === provider ? 'active' : ''}`;
+    pill.textContent = provider;
+    pill.onclick = () => setProviderFilter(provider);
+    bar.appendChild(pill);
+  });
+
+  // Add 'Add' pill
+  const addPill = document.createElement('div');
+  addPill.className = 'pill add-btn';
+  addPill.textContent = '+ Add Node';
+  addPill.onclick = openModal;
+  bar.appendChild(addPill);
+}
+
+function renderCard(item) {
+  const isCooldown = item.status === 'cooldown';
+  const isBurnt = item.status === 'burnt';
+  const isReady = item.status === 'ready';
+
+  let dotClass = '';
+  if (item.status === 'active') dotClass = 'text-blue';
+  else if (isCooldown) dotClass = 'text-orange';
+  else if (isReady) dotClass = 'text-green';
+  else if (isBurnt) dotClass = 'text-red';
+
+  const timerLabel = isCooldown ? 'TIME TO READY' : (isBurnt ? 'LAST USED' : 'TIME IN USE');
+
+  const card = document.createElement('div');
+  card.className = `card ${isBurnt ? 'burnt' : ''}`;
+  card.id = `card-${item.id}`;
+  card.setAttribute('data-id', item.id);
+  card.onclick = (e) => {
+    // Prevent modal opening when clicking action icons
+    if (e.target.closest('.card-actions') || e.target.closest('.card-edit-icon')) {
+      return;
     }
+    openModal(item.id);
+  };
+  card.oncontextmenu = (e) => {
+    e.preventDefault();
+    showContextMenu(e, item.id);
+  };
 
-    document.getElementById('nodeForm').onsubmit = function(e) {
-      e.preventDefault();
-      
-      const nodeId = document.getElementById('nodeId').value;
-      const provider = document.getElementById('inpProvider').value;
-      const email = document.getElementById('inpEmail').value.trim();
-      const status = document.getElementById('inpStatus').value;
-      const resetHours = parseFloat(document.getElementById('inpReset').value);
-      
-      if (!email || isNaN(resetHours) || resetHours <= 0) {
-        showToast('Please check form inputs.');
-        return;
-      }
-      
-      const now = Date.now();
-      
-      if (nodeId) {
-        // Edit existing node
-        const item = items.find(i => i.id == nodeId);
-        item.provider = provider;
-        item.email = email;
-        
-        // If status changes, update lastUsed timestamp
-        if (item.status !== status) {
-            item.status = status;
-            item.lastUsed = now; // Reset timer on status change
-        }
-        item.resetHours = resetHours;
+  card.innerHTML = `
+    <div class="card-top">
+      <div class="card-provider">${item.provider}</div>
+      <div style="display: flex; align-items: center; gap:4px;">
+         <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
+         <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
+         <button class="card-edit-icon" onclick="openModal(${item.id})">
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
+         </button>
+      </div>
+    </div>
+    <div class="card-timer" id="timer-${item.id}"></div>
+    <div style="height: 4px; background: var(--glass-border); border-radius: 2px; position:relative; overflow:hidden;">
+      <div id="reset-dot-${item.id}" style="position:absolute; inset:0; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform 1s linear;"></div>
+    </div>
+    <div style="font-size:10px; font-weight:600; color:var(--ink-dim); text-align:center; margin-top:-10px;">${timerLabel}</div>
 
-        if (!providers.includes(provider)) {
-             providers.push(provider);
-        }
-        showToast('Node Updated!');
+    ${isBurnt ? `<div class="burnt-label">BURNT</div>` : ''}
 
-      } else {
-        // Create new node
-        const newItem = {
-          id: now + Math.floor(Math.random() * 1000),
-          provider: provider,
-          email: email,
-          status: status,
-          resetHours: resetHours,
-          lastUsed: now,
-          pos: { x: 50, y: 50 } // Default position for scatter view
-        };
-        items.push(newItem);
+    <div class="card-meta">
+      <span class="card-email">${item.email}</span>
+      <div class="card-actions">
+        ${item.status !== 'ready' ? `<div class="action-icon" onclick="confirmForceRestore(${item.id})" title="Reset to Ready">
+           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.74 15.42 20 13.75 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 9.74C4.26 11.02 4 12.63 4 14c0 4.42 3.58 8 8 8V23l4-4-4-4v3z"></path></svg>
+        </div>` : ''}
+        ${item.status === 'active' || item.status === 'cooldown' ? `<div class="action-icon" onclick="confirmHitLimit(${item.id})" title="Hit Limit Now">
+           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
+        </div>` : ''}
+        ${item.status === 'ready' ? `<div class="action-icon text-green" onclick="openActionOverlay(${item.id})" title="Activate Node">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"></path></svg>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+  return card;
+}
 
-        if (!providers.includes(provider)) {
-            providers.push(provider);
-        }
-        showToast('New Node Added!');
-      }
-
-      save();
-      closeModal();
-      renderAll();
+function renderGrid() {
+  const wrapper = document.getElementById('gridWrapper');
+  const filteredItems = filterItems().sort((a, b) => {
+    // Sort by status: Active > Ready > Cooldown > Burnt
+    const statusOrder = {
+      'active': 0,
+      'ready': 1,
+      'cooldown': 2,
+      'burnt': 3
     };
-    
-    function deleteNode() {
-        const nodeId = document.getElementById('nodeId').value;
-        const item = items.find(i => i.id == nodeId);
-        if (!item) return;
-        
-        confirmAction(`Delete ${item.provider}?`, 'This action cannot be undone.', () => {
-            items = items.filter(i => i.id != nodeId);
-            save();
-            closeModal();
-            renderAll();
-            showToast('Node Deleted!');
-        });
+    return statusOrder[a.status] - statusOrder[b.status];
+  });
+
+  wrapper.innerHTML = '';
+  filteredItems.forEach(item => {
+    wrapper.appendChild(renderCard(item));
+  });
+}
+
+function renderScatter() {
+  const canvas = document.getElementById('scatterCanvas');
+  const filteredItems = filterItems();
+  const existingIds = Array.from(canvas.children).map(c => c.dataset.id);
+
+  // 1. Remove cards that are no longer needed
+  existingIds.forEach(id => {
+    if (!filteredItems.find(i => i.id == id)) {
+      document.getElementById(`scatter-card-${id}`).remove();
     }
+  });
 
-    function confirmAction(title, text, callback) {
-        const overlay = document.getElementById('confirmOverlay');
-        document.getElementById('confirmTitle').textContent = title;
-        document.getElementById('confirmText').textContent = text;
-        const btnConfirm = document.getElementById('btnConfirmAction');
-        
-        // Clone the button to remove existing listeners
-        const newBtnConfirm = btnConfirm.cloneNode(true);
-        btnConfirm.parentNode.replaceChild(newBtnConfirm, btnConfirm);
+  // 2. Add/Update cards
+  filteredItems.forEach(item => {
+    let card = document.getElementById(`scatter-card-${item.id}`);
 
-        newBtnConfirm.onclick = callback;
-        overlay.classList.add('active');
-    }
-
-    function closeConfirm() {
-        document.getElementById('confirmOverlay').classList.remove('active');
-    }
-    
-    function confirmHitLimit(nodeId) {
-        closeContextMenu();
-        const id = nodeId || document.getElementById('nodeId').value;
-        const item = items.find(i => i.id == id);
-        if (!item) return;
-
-        confirmAction(`Hit Limit: ${item.provider}`, `Mark this node as 'cooldown' and start its ${item.resetHours}h reset timer?`, () => hitLimit(id));
-    }
-    
-    function confirmForceRestore(nodeId) {
-        closeContextMenu();
-        const id = nodeId || document.getElementById('nodeId').value;
-        const item = items.find(i => i.id == id);
-        if (!item) return;
-
-        confirmAction(`Force Ready: ${item.provider}`, `Immediately set this node's status to 'ready'?`, () => forceRestore(id));
-    }
-
-    function openActionOverlay(nodeId) {
-        const overlay = document.getElementById('actionOverlay');
-        const item = items.find(i => i.id == nodeId);
-        if (!item || item.status !== 'ready') return;
-        
-        document.getElementById('actionTitle').textContent = `Activate ${item.provider}`;
-        document.getElementById('actionEmail').value = item.email;
-        copyToClipboard(item.email);
-        
-        const btnActivate = document.getElementById('btnActivateNode');
-        // Clone button to remove listeners
-        const newBtnActivate = btnActivate.cloneNode(true);
-        btnActivate.parentNode.replaceChild(newBtnActivate, btnActivate);
-        newBtnActivate.onclick = () => activateNode(nodeId);
-
-        overlay.classList.add('active');
-    }
-
-    function closeActionOverlay() {
-        document.getElementById('actionOverlay').classList.remove('active');
-    }
-
-    function openInfoModal() {
-        document.getElementById('infoOverlay').classList.add('active');
-    }
-    
-    function closeInfoModal() {
-        document.getElementById('infoOverlay').classList.remove('active');
-    }
-
-    function toggleTheme() {
-        const body = document.body;
-        const currentTheme = body.getAttribute('data-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        body.setAttribute('data-theme', newTheme);
-        localStorage.setItem('iv_theme', newTheme);
-    }
-    
-    // --- Initialization ---
-
-    function renderAll() {
-        renderProviderPills();
-        updateFilterPill();
-        if (config.view === 'grid') {
-            renderGrid();
-        } else {
-            renderScatter();
-        }
-    }
-
-    function init() {
-      load();
-      
-      const storedTheme = localStorage.getItem('iv_theme');
-      if (storedTheme) {
-        document.body.setAttribute('data-theme', storedTheme);
-      }
-      
-      // Ensure the correct view is active on load
-      switchView(config.view); 
-
-      // Start the timer loop
-      timerInterval = setInterval(updateAllTimers, 1000);
-      
-      // Initial render
-      renderAll();
-
-      // Add background context menu for scatter
-      const canvas = document.getElementById('scatterCanvas');
-      canvas.oncontextmenu = (e) => {
-        if (!e.target.closest('.scatter-card')) {
-          e.preventDefault();
-          showBackgroundContextMenu(e);
+    if (!card) {
+      // Create new card
+      card = document.createElement('div');
+      card.className = `scatter-card ${item.status === 'burnt' ? 'burnt' : ''}`;
+      card.id = `scatter-card-${item.id}`;
+      card.setAttribute('data-id', item.id);
+      card.oncontextmenu = (e) => {
+        e.preventDefault();
+        showContextMenu(e, item.id);
+      };
+      card.onclick = () => {
+        if (!isDraggingCard) { // NEW: Prevent click after drag
+          openModal(item.id);
         }
       };
+      card.addEventListener('pointerdown', (e) => startDrag(e, item));
+      canvas.appendChild(card);
     }
 
-    window.addEventListener('load', init);
-    window.addEventListener('resize', () => {
-        if (config.view === 'scatter') {
-            applyScatterTransform(); // Re-center background on resize
-        }
-    });
-    
-  </script>
+    // Update card content (simplified version of renderCard)
+    const isCooldown = item.status === 'cooldown';
+    const isBurnt = item.status === 'burnt';
+    const isReady = item.status === 'ready';
+    let dotClass = '';
+    if (item.status === 'active') dotClass = 'text-blue';
+    else if (isCooldown) dotClass = 'text-orange';
+    else if (isReady) dotClass = 'text-green';
+    else if (isBurnt) dotClass = 'text-red';
+
+    const timerLabel = isCooldown ? 'TIME TO READY' : (isBurnt ? 'LAST USED' : 'TIME IN USE');
+
+    card.innerHTML = `
+      <div class="card-top" style="width:100%;">
+        <div class="card-provider">${item.provider}</div>
+        <div style="display: flex; align-items: center; gap:4px;">
+           <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
+           <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
+           <button class="card-edit-icon" onclick="openModal(${item.id})">
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
+           </button>
+        </div>
+      </div>
+      <div class="card-timer" id="timer-${item.id}"></div>
+      <div style="height: 2px; background: var(--glass-border); border-radius: 2px; position:relative; overflow:hidden; width:80%;">
+        <div id="reset-dot-${item.id}" style="position:absolute; inset:0; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform 1s linear;"></div>
+      </div>
+      <div class="card-meta">
+        <span class="card-email">${item.email}</span>
+      </div>
+      ${isBurnt ? `<div class="burnt-label">BURNT</div>` : ''}
+    `;
+
+    // Apply position
+    card.style.left = `${item.pos.x}px`;
+    card.style.top = `${item.pos.y}px`;
+    card.style.zIndex = item.status === 'active' ? 5 : 1;
+  });
+
+  applyScatterTransform();
+}
+
+function autoArrange() {
+  const filteredItems = filterItems();
+  const padding = 20;
+  let x = 50;
+  let y = 50;
+  const cardWidth = 250; // Increased width for scatter view
+  const cardHeight = 150; // Increased height for scatter view
+
+  // Reset transform to 1,0,0 before calculating positions
+  scatter.transform = {
+    x: 0,
+    y: 0,
+    scale: 1
+  };
+  applyScatterTransform();
+
+  filteredItems.forEach((item, index) => {
+    // Simple grid layout logic
+    if (index % 3 === 0 && index !== 0) {
+      x = 50;
+      y += cardHeight + padding;
+    }
+
+    item.pos.x = x;
+    item.pos.y = y;
+
+    x += cardWidth + padding;
+  });
+
+  save();
+  renderScatter();
+  showToast('Nodes Arranged!');
+}
+
+// --- Scatter Pan/Zoom Logic ---
+const canvas = document.getElementById('scatterCanvas');
+const scatterCanvas = document.getElementById('scatterCanvas');
+
+function applyScatterTransform() {
+  scatterCanvas.style.transform = `translate(${scatter.transform.x}px, ${scatter.transform.y}px) scale(${scatter.transform.scale})`;
+}
+
+let lastPan = {
+  x: 0,
+  y: 0
+};
+let pointers = [];
+
+// Pan Logic (Mouse)
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.scatter-card')) return; // Card drag handles itself
+
+  if (e.button === 0) { // Left click for pan
+    e.preventDefault();
+    scatter.panning = true;
+    lastPan.x = e.clientX;
+    lastPan.y = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+  }
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (scatter.panning) {
+    const dx = e.clientX - lastPan.x;
+    const dy = e.clientY - lastPan.y;
+    scatter.transform.x += dx;
+    scatter.transform.y += dy;
+    lastPan.x = e.clientX;
+    lastPan.y = e.clientY;
+    applyScatterTransform();
+  }
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  if (scatter.panning) {
+    scatter.panning = false;
+    canvas.releasePointerCapture(e.pointerId);
+    save();
+  }
+});
+
+// Drag Logic
+function startDrag(e, item) {
+  if (e.button !== 0) return; // Only left mouse button
+
+  const card = e.currentTarget;
+  scatter.dragging = true;
+  card.classList.add('is-dragging');
+  card.setPointerCapture(e.pointerId);
+
+  // Bring to front
+  card.style.zIndex = 1000;
+
+  const containerRect = canvas.getBoundingClientRect();
+  const startItemX = item.pos.x;
+  const startItemY = item.pos.y;
+  const startClientX = e.clientX;
+  const startClientY = e.clientY;
+  const invScale = 1 / scatter.transform.scale;
+
+  const startCanvasX = (startClientX - containerRect.left - scatter.transform.x) * invScale;
+  const startCanvasY = (startClientY - containerRect.top - scatter.transform.y) * invScale;
+
+  let distanceMoved = 0;
+  isDraggingCard = false;
+
+  function move(eMove) {
+    if (eMove.pointerId !== e.pointerId) return;
+    scatter.dragging = true;
+
+    const currentClientX = eMove.clientX;
+    const currentClientY = eMove.clientY;
+
+    // Calculate total distance moved
+    const dx_client = currentClientX - startClientX;
+    const dy_client = currentClientY - startClientY;
+    distanceMoved = Math.hypot(dx_client, dy_client);
+
+    if (distanceMoved > 5) { // Dampening threshold (5 pixels)
+      isDraggingCard = true;
+    }
+
+    const currentCanvasX = (currentClientX - containerRect.left - scatter.transform.x) * invScale;
+    const currentCanvasY = (currentClientY - containerRect.top - scatter.transform.y) * invScale;
+
+    const newX = startItemX + (currentCanvasX - startCanvasX);
+    const newY = startItemY + (currentCanvasY - startCanvasY);
+
+    // Apply a temporary transform for the drag visual effect
+    card.style.transform = `translate(${newX - startItemX}px, ${newY - startItemY}px)`;
+  }
+
+  function end(eEnd) {
+    if (eEnd.pointerId !== e.pointerId) return;
+
+    // Calculate final position
+    const currentClientX = eEnd.clientX;
+    const currentClientY = eEnd.clientY;
+    const currentCanvasX = (currentClientX - containerRect.left - scatter.transform.x) * invScale;
+    const currentCanvasY = (currentClientY - containerRect.top - scatter.transform.y) * invScale;
+
+    const finalX = startItemX + (currentCanvasX - startCanvasX);
+    const finalY = startItemY + (currentCanvasY - startCanvasY);
+
+    if (isDraggingCard) { // Only update position if a drag actually happened
+      item.pos.x = finalX;
+      item.pos.y = finalY;
+      card.style.left = `${finalX}px`; // Apply final position
+      card.style.top = `${finalY}px`; // Apply final position
+      save();
+    }
+
+    // Reset card styles and state
+    card.style.transform = ''; // Remove the temporary drag transform
+    card.classList.remove('is-dragging');
+    scatter.dragging = false;
+    card.style.zIndex = item.status === 'active' ? 5 : 1; // Restore z-index
+    card.removeEventListener('pointermove', move);
+    card.removeEventListener('pointerup', end);
+
+    // isDraggingCard will be checked by card.onclick on pointerup/click
+    setTimeout(() => isDraggingCard = false, 100); // Reset flag after a short delay
+  }
+
+  card.addEventListener('pointermove', move);
+  card.addEventListener('pointerup', end);
+}
+
+// Zoom/Pinch Logic
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const zoomFactor = e.deltaY * -0.001; // Scale factor based on wheel speed
+  zoom(zoomFactor, e.clientX, e.clientY);
+  save();
+});
+
+// Touch/Pinch Logic (kept for completeness, though pan/zoom is main focus)
+canvas.addEventListener('touchstart', (e) => {
+  pointers = Array.from(e.touches);
+  if (pointers.length === 2) {
+    const touch1 = pointers[0];
+    const touch2 = pointers[1];
+    scatter.pinchStart = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+  } else if (pointers.length === 1 && !e.target.closest('.scatter-card')) {
+    lastPan.x = pointers[0].clientX;
+    lastPan.y = pointers[0].clientY;
+  }
+}, {
+  passive: false
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault(); // Prevent page scroll during pan/zoom
+  pointers = Array.from(e.touches);
+
+  if (pointers.length === 2) {
+    const touch1 = pointers[0];
+    const touch2 = pointers[1];
+    const currentDist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+    const scaleChange = currentDist / scatter.pinchStart;
+
+    const centerX = (touch1.clientX + touch2.clientX) / 2;
+    const centerY = (touch1.clientY + touch2.clientY) / 2;
+
+    const oldScale = scatter.transform.scale;
+    let newScale = oldScale * scaleChange;
+
+    // Clamp scale
+    newScale = Math.max(0.25, Math.min(3, newScale));
+
+    const scaleRatio = newScale / oldScale;
+
+    scatter.transform.x = centerX - (centerX - scatter.transform.x) * scaleRatio;
+    scatter.transform.y = centerY - (centerY - scatter.transform.y) * scaleRatio;
+    scatter.transform.scale = newScale;
+    scatter.pinchStart = currentDist; // Update pinchStart for next move
+
+    applyScatterTransform();
+
+  } else if (e.touches.length === 1 && !e.target.closest('.scatter-card')) {
+    // Treat single touch move as pan if not dragging a card
+    const touch = e.touches[0];
+    const dx = touch.clientX - lastPan.x;
+    const dy = touch.clientY - lastPan.y;
+    scatter.transform.x += dx;
+    scatter.transform.y += dy;
+    lastPan.x = touch.clientX;
+    lastPan.y = touch.clientY;
+    applyScatterTransform();
+  }
+}, {
+  passive: false
+});
+
+canvas.addEventListener('touchend', (e) => {
+  pointers = Array.from(e.touches);
+  if (e.touches.length < 2) {
+    scatter.pinchStart = 0;
+    save();
+  }
+});
+
+function zoom(zoomFactor, clientX, clientY) {
+  const scaleDelta = 1 + zoomFactor;
+  const oldScale = scatter.transform.scale;
+  let newScale = oldScale * scaleDelta;
+
+  // Clamp scale
+  newScale = Math.max(0.25, Math.min(3, newScale));
+
+  const scaleRatio = newScale / oldScale;
+
+  // Adjust translation to keep the zoom origin (clientX, clientY) fixed
+  scatter.transform.x = clientX - (clientX - scatter.transform.x) * scaleRatio;
+  scatter.transform.y = clientY - (clientY - scatter.transform.y) * scaleRatio;
+  scatter.transform.scale = newScale;
+
+  applyScatterTransform();
+}
+
+// --- Context Menu Logic ---
+function showContextMenu(e, nodeId) {
+  closeContextMenu(); // Close any open menu
+  const menu = document.getElementById('contextMenu');
+  const item = items.find(i => i.id == nodeId);
+  if (!item) return;
+
+  menu.innerHTML = `
+    <div class="ctx-header">${item.provider} Node</div>
+    <div class="ctx-item" onclick="openModal(${item.id})">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
+       <span>Edit Details</span>
+    </div>
+    ${item.status === 'ready' ? `<div class="ctx-item text-green" onclick="openActionOverlay(${item.id})">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"></path></svg>
+       <span>Activate Node</span>
+    </div>` : ''}
+    ${item.status !== 'ready' ? `<div class="ctx-item text-blue" onclick="confirmForceRestore(${item.id})">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.74 15.42 20 13.75 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 9.74C4.26 11.02 4 12.63 4 14c0 4.42 3.58 8 8 8V23l4-4-4-4v3z"></path></svg>
+       <span>Force Restore</span>
+    </div>` : ''}
+    ${item.status === 'active' || item.status === 'cooldown' ? `<div class="ctx-item text-red" onclick="confirmHitLimit(${item.id})">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
+       <span>Hit Limit / Cooldown</span>
+    </div>` : ''}
+  `;
+
+  menu.style.left = `${e.clientX}px`;
+  menu.style.top = `${e.clientY}px`;
+  menu.classList.add('active');
+
+  // Hide menu on next click
+  const hide = () => {
+    menu.classList.remove('active');
+    document.removeEventListener('click', hide);
+    document.removeEventListener('contextmenu', hide);
+  };
+  setTimeout(() => document.addEventListener('click', hide), 10);
+}
+
+// NEW: Grid View Context Menu
+function showGridBackgroundContextMenu(e) {
+  const menu = document.getElementById('contextMenu');
+  menu.innerHTML = `
+    <div class="ctx-header">Grid Options</div>
+    <div class="ctx-item" onclick="closeContextMenu(); openModal()">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
+       <span>Add New Node</span>
+    </div>
+    <div class="ctx-item" onclick="closeContextMenu(); addNewProviderFromMenu()">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
+       <span>Add New Provider</span>
+    </div>
+  `;
+
+  menu.style.left = `${e.clientX}px`;
+  menu.style.top = `${e.clientY}px`;
+  menu.classList.add('active');
+
+  // Hide menu on next click
+  const hide = () => {
+    menu.classList.remove('active');
+    document.removeEventListener('click', hide);
+    document.removeEventListener('contextmenu', hide);
+  };
+  setTimeout(() => document.addEventListener('click', hide), 10);
+}
+
+// NEW: Scatter View Context Menu
+function showScatterBackgroundContextMenu(e) {
+  const menu = document.getElementById('contextMenu');
+  menu.innerHTML = `
+    <div class="ctx-header">Scatter Options</div>
+    <div class="ctx-item" onclick="closeContextMenu(); openModal()">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
+       <span>Add New Node</span>
+    </div>
+    <div class="ctx-item" onclick="closeContextMenu(); addNewProviderFromMenu()">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
+       <span>Add New Provider</span>
+    </div>
+    <div class="ctx-item" onclick="closeContextMenu(); autoArrange()">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 11h7V4H4v7zm0 9h7v-7H4v7zm9 0h7v-7h-7v7zm0-16v7h7V4h-7z"></path></svg>
+       <span>Auto Arrange</span>
+    </div>
+  `;
+
+  menu.style.left = `${e.clientX}px`;
+  menu.style.top = `${e.clientY}px`;
+  menu.classList.add('active');
+
+  // Hide menu on next click
+  const hide = () => {
+    menu.classList.remove('active');
+    document.removeEventListener('click', hide);
+    document.removeEventListener('contextmenu', hide);
+  };
+  setTimeout(() => document.addEventListener('click', hide), 10);
+}
+
+function closeContextMenu() {
+  document.getElementById('contextMenu').classList.remove('active');
+}
+
+// Helper for context menu
+function addNewProviderFromMenu() {
+  const newProvider = prompt('Enter new provider name:');
+  if (newProvider && newProvider.trim()) {
+    const trimmedProvider = newProvider.trim();
+    if (!providers.includes(trimmedProvider)) {
+      providers.push(trimmedProvider);
+      providers.sort();
+      save();
+      renderProviderSelect();
+      renderProviderPills();
+      showToast('Provider added!');
+    }
+  }
+}
+
+
+// Hide context menu if clicking outside of it (already handled by hide function, but just in case)
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#contextMenu')) {
+    document.getElementById('contextMenu').classList.remove('active');
+  }
+});
+
+// --- Quick Actions ---
+function confirmHitLimit(nodeId) {
+  closeModal();
+  closeContextMenu();
+  const id = nodeId || document.getElementById('nodeId').value;
+  const item = items.find(i => i.id == id);
+  if (!item) return;
+
+  confirmAction(`Hit Limit: ${item.provider}`, `Mark this node as 'cooldown' and start its ${item.resetHours}h reset timer?`, () => {
+    item.status = 'cooldown';
+    item.lastUsed = Date.now();
+    save();
+    closeConfirm();
+    renderAll();
+    showToast(`${item.provider} Node Cooldown Initiated.`);
+  });
+}
+
+function confirmForceRestore(nodeId) {
+  closeModal();
+  closeContextMenu();
+  const id = nodeId || document.getElementById('nodeId').value;
+  const item = items.find(i => i.id == id);
+  if (!item) return;
+
+  confirmAction(`Force Restore: ${item.provider}`, `Mark this node as 'ready' and reset its timer?`, () => {
+    item.status = 'ready';
+    // Set last used far in past to ensure ready state
+    item.lastUsed = Date.now() - (item.resetHours * 60 * 60 * 1000) * 2;
+    save();
+    closeConfirm();
+    renderAll();
+    showToast(`${item.provider} Node is Force Ready.`);
+  });
+}
+
+// --- Modal/Dialog Management (Provider Select Rework) ---
+
+// Renders options for the new <select id="inpProvider">
+function renderProviderSelect() {
+  const select = document.getElementById('inpProvider');
+  if (!select) return;
+
+  const currentProviderValue = select.value;
+
+  // Clear existing options
+  select.innerHTML = '';
+
+  // Add the default "Select" option
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = 'Select a Provider';
+  defaultOption.disabled = true;
+  defaultOption.selected = true;
+  select.appendChild(defaultOption);
+
+  // Add existing providers
+  providers.sort().forEach(provider => {
+    const option = document.createElement('option');
+    option.value = provider;
+    option.textContent = provider;
+    select.appendChild(option);
+  });
+
+  // Add the "Add Custom" option
+  const customOption = document.createElement('option');
+  customOption.value = 'CUSTOM_ADD_NEW';
+  customOption.textContent = '+ Add Custom Provider...';
+  select.appendChild(customOption);
+
+  // Attempt to re-select the previous value if it's still valid
+  if (currentProviderValue && (providers.includes(currentProviderValue) || currentProviderValue === 'CUSTOM_ADD_NEW')) {
+    select.value = currentProviderValue;
+  }
+}
+
+// Handle selection change for custom provider
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'inpProvider' && e.target.value === 'CUSTOM_ADD_NEW') {
+    const newProvider = prompt('Enter new provider name:');
+    if (newProvider && newProvider.trim()) {
+      const trimmedProvider = newProvider.trim();
+      if (!providers.includes(trimmedProvider)) {
+        providers.push(trimmedProvider);
+        providers.sort();
+        save();
+      }
+      // Re-render and select the new provider
+      renderProviderSelect();
+      document.getElementById('inpProvider').value = trimmedProvider;
+      renderProviderPills(); // Update pills immediately
+    } else {
+      // If canceled, reset the selection to the default
+      document.getElementById('inpProvider').value = '';
+    }
+  }
+});
+
+
+function selectStatusButton(status) {
+  document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('selected'));
+  document.querySelector(`.btn-toggle[data-status="${status}"]`).classList.add('selected');
+  document.getElementById('inpStatus').value = status;
+}
+
+function selectResetHours(hours) {
+  document.querySelectorAll('.pill-option').forEach(p => p.classList.remove('selected'));
+  document.querySelector(`.pill-option[data-hours="${hours}"]`).classList.add('selected');
+  document.getElementById('inpReset').value = hours;
+  document.getElementById('inpResetCustom').value = ''; // Clear custom input
+}
+
+document.getElementById('inpResetCustom').addEventListener('input', (e) => {
+  document.querySelectorAll('.pill-option').forEach(p => p.classList.remove('selected'));
+  const value = parseFloat(e.target.value);
+  if (!isNaN(value) && value > 0) {
+    document.getElementById('inpReset').value = value;
+  } else if (e.target.value === '') {
+    // Re-select default or current value if custom is cleared
+    selectResetHours(document.getElementById('inpReset').value || 3);
+  }
+});
+
+function openModal(nodeId = null) {
+  const modal = document.getElementById('modalOverlay');
+  const form = document.getElementById('nodeForm');
+  const title = document.getElementById('modalTitle');
+  const btnDelete = document.getElementById('btnDelete');
+  const editActions = document.getElementById('editActions');
+  const inpProvider = document.getElementById('inpProvider'); // Now the <select>
+
+  form.reset();
+  selectResetHours(3);
+  selectStatusButton('ready');
+  document.getElementById('nodeId').value = '';
+  renderProviderSelect(); // Render/reset the options in the select
+  inpProvider.value = ''; // Ensure default is selected
+  title.textContent = 'New Node';
+  btnDelete.style.display = 'none';
+  editActions.style.display = 'none';
+
+  if (nodeId) {
+    // Edit existing node
+    const item = items.find(i => i.id == nodeId);
+    if (!item) return;
+
+    title.textContent = `Edit Node: ${item.provider}`;
+    document.getElementById('nodeId').value = nodeId;
+
+    // Ensure the provider is in the list before trying to set the value
+    if (!providers.includes(item.provider)) {
+       providers.push(item.provider);
+       providers.sort();
+       save();
+       renderProviderSelect();
+    }
+    inpProvider.value = item.provider; // SETTING THE SELECT VALUE
+
+    document.getElementById('inpEmail').value = item.email;
+    selectStatusButton(item.status);
+
+    // Handle custom reset hours
+    const option = document.querySelector(`.pill-option[data-hours="${item.resetHours}"]`);
+    if (option) {
+      selectResetHours(item.resetHours);
+    } else {
+      document.querySelectorAll('.pill-option').forEach(p => p.classList.remove('selected'));
+      document.getElementById('inpResetCustom').value = item.resetHours;
+      document.getElementById('inpReset').value = item.resetHours;
+    }
+
+    btnDelete.style.display = 'block';
+    editActions.style.display = 'flex';
+    document.getElementById('btnDelete').onclick = () => deleteNode();
+    document.getElementById('btnDelete').setAttribute('data-id', nodeId); // For confirm dialog
+    document.querySelector('#editActions .btn-secondary:nth-child(1)').onclick = () => confirmHitLimit(nodeId);
+    document.querySelector('#editActions .btn-secondary:nth-child(2)').onclick = () => confirmForceRestore(nodeId);
+  }
+
+  modal.classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
+// NEW: Function to close action overlay
+function closeActionOverlay() {
+  document.getElementById('actionOverlay').classList.remove('active');
+}
+
+// NEW: Function to close info modal
+function closeInfoModal() {
+  document.getElementById('infoOverlay').classList.remove('active');
+}
+
+
+const form = document.getElementById('nodeForm');
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+
+  const nodeId = document.getElementById('nodeId').value;
+  const provider = document.getElementById('inpProvider').value; // Get value from <select>
+  const email = document.getElementById('inpEmail').value;
+  const status = document.getElementById('inpStatus').value;
+  const resetHours = parseFloat(document.getElementById('inpReset').value);
+
+  // Validation for new <select>
+  if (!provider || provider === 'CUSTOM_ADD_NEW') {
+    showToast('Please select a valid Provider.');
+    return;
+  }
+
+  const now = Date.now();
+
+  if (nodeId) {
+    // Update existing node
+    const item = items.find(i => i.id == nodeId);
+    if (!item) return;
+
+    const oldStatus = item.status;
+    const oldProvider = item.provider;
+
+    item.provider = provider;
+    item.email = email;
+    item.status = status;
+
+    // Only apply lastUsed = now if status changed to active/cooldown or provider changed
+    if (item.status !== oldStatus || item.provider !== oldProvider) {
+      item.lastUsed = now; // Reset timer on status or provider change
+    }
+
+    item.resetHours = resetHours;
+    if (!providers.includes(provider)) {
+      providers.push(provider);
+    }
+    showToast('Node Updated!');
+  } else {
+    // Create new node
+    const newItem = {
+      id: now + Math.floor(Math.random() * 1000),
+      provider: provider,
+      email: email,
+      status: status,
+      resetHours: resetHours,
+      lastUsed: now,
+      pos: {
+        x: 50,
+        y: 50
+      } // Default position for scatter view
+    };
+    items.push(newItem);
+    if (!providers.includes(provider)) {
+      providers.push(provider);
+    }
+    showToast('New Node Added!');
+  }
+
+  save();
+  closeModal();
+  renderAll();
+});
+
+function deleteNode() {
+  const nodeId = document.getElementById('nodeId').value;
+  const item = items.find(i => i.id == nodeId);
+  if (!item) return;
+
+  confirmAction(`Delete ${item.provider}?`, 'This action cannot be undone.', () => {
+    items = items.filter(i => i.id != nodeId);
+    save();
+    closeModal();
+    renderAll();
+    showToast('Node Deleted!');
+  });
+}
+
+function confirmAction(title, text, callback) {
+  const overlay = document.getElementById('confirmOverlay');
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmText').textContent = text;
+  const btnConfirm = document.getElementById('btnConfirmAction');
+
+  // Clone the button to remove existing listeners
+  const newBtnConfirm = btnConfirm.cloneNode(true);
+  btnConfirm.parentNode.replaceChild(newBtnConfirm, btnConfirm);
+  newBtnConfirm.onclick = () => {
+    callback();
+    closeConfirm();
+  };
+
+  overlay.classList.add('active');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmOverlay').classList.remove('active');
+}
+
+function openActionOverlay(nodeId) {
+  closeModal();
+  closeContextMenu();
+  const item = items.find(i => i.id == nodeId);
+  if (!item) return;
+
+  // Copy email to clipboard and show toast
+  navigator.clipboard.writeText(item.email).then(() => {
+    showToast(`Copied ${item.provider} email.`);
+  });
+
+  document.getElementById('actionTitle').textContent = `Activate Node: ${item.provider}`;
+  document.getElementById('actionEmail').value = item.email;
+
+  const btnActivate = document.getElementById('btnActivateNode');
+  const newBtnActivate = btnActivate.cloneNode(true);
+  btnActivate.parentNode.replaceChild(newBtnActivate, btnActivate);
+
+  newBtnActivate.onclick = () => {
+    // Set to active and start timer
+    item.status = 'active';
+    item.lastUsed = Date.now();
+    save();
+    closeActionOverlay();
+    renderAll();
+    showToast(`${item.provider} Node Activated!`);
+  };
+
+  document.getElementById('actionOverlay').classList.add('active');
+}
+
+function openInfoModal() {
+  document.getElementById('infoOverlay').classList.add('active');
+}
+
+
+// NEW: Close overlay when clicking background
+document.querySelectorAll('.overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.classList.remove('active');
+      closeContextMenu(); // Ensure context menu is also closed
+    }
+  });
+});
+
+// --- Initialization ---
+function init() {
+  load();
+  const storedTheme = localStorage.getItem('iv_theme');
+  if (storedTheme) {
+    document.body.setAttribute('data-theme', storedTheme);
+    const logo = document.getElementById('logoImg');
+    if (logo) {
+      logo.src = storedTheme === 'light' ? 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-dark.svg' : 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg';
+    }
+  }
+
+  // Ensure the correct view is active on load
+  switchView(config.view);
+
+  // Start the timer loop
+  timerInterval = setInterval(updateAllTimers, 1000);
+
+  // Initial render
+  renderAll();
+
+  // NEW: Grid background context menu handler
+  const gridWrapper = document.getElementById('gridWrapper');
+  gridWrapper.oncontextmenu = (e) => {
+    if (e.target === gridWrapper) {
+      e.preventDefault();
+      showGridBackgroundContextMenu(e);
+    }
+  };
+
+  // Scatter background context menu handler
+  const canvas = document.getElementById('scatterCanvas');
+  canvas.oncontextmenu = (e) => {
+    if (!e.target.closest('.scatter-card')) {
+      e.preventDefault();
+      showScatterBackgroundContextMenu(e);
+    }
+  };
+}
+
+window.addEventListener('load', init);
+window.addEventListener('resize', () => {
+    if (config.view === 'scatter') {
+        applyScatterTransform(); // Re-center background on resize
+    }
+});
+
+</script>
 </body>
 </html>
