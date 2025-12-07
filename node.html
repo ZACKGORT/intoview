@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
-  <title>i n t o v i e w : N.O.D.E. Enhanced</title>
+  <title>i n t o v i e w : N.O.D.E. V.2.9.1</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -1499,14 +1499,15 @@ function renderGrid() {
 }
 
 function renderScatter() {
-  const canvas = document.getElementById('scatterCanvas');
+  if (!canvas) {
+    console.warn('Canvas not initialized yet—skipping renderScatter.');
+    return;
+  }
   const filteredItems = filterItems();
   const existingIds = Array.from(canvas.children).map(c => c.dataset.id);
-
   // Create/Update all cards, dim non-filtered
   items.forEach(item => {
     let card = document.getElementById(`scatter-card-${item.id}`);
-
     if (!card) {
       // Create new card
       card = document.createElement('div');
@@ -1514,18 +1515,22 @@ function renderScatter() {
       card.id = `scatter-card-${item.id}`;
       card.setAttribute('data-id', item.id);
       card.oncontextmenu = (e) => {
+        if (config.scatterMode === 'move') return; // Disable in move mode
         e.preventDefault();
         showContextMenu(e, item.id);
       };
       card.onclick = () => {
-        if (!isDraggingCard) { // NEW: Prevent click after drag
+        if (config.scatterMode === 'move') return;
+        if (!isDraggingCard) {
           openModal(item.id);
         }
       };
-      card.addEventListener('pointerdown', (e) => startDrag(e, item));
+      card.addEventListener('pointerdown', (e) => {
+        if (config.scatterMode === 'view') return; // Only drag in move mode
+        startDrag(e, item);
+      });
       canvas.appendChild(card);
     }
-
     // Update card content (simplified version of renderCard)
     const isCooldown = item.status === 'cooldown';
     const isBurnt = item.status === 'burnt';
@@ -1535,9 +1540,7 @@ function renderScatter() {
     else if (isCooldown) dotClass = 'text-orange';
     else if (isReady) dotClass = 'text-green';
     else if (isBurnt) dotClass = 'text-red';
-
     const timerLabel = isCooldown ? 'TIME TO READY' : (isBurnt ? 'LAST USED' : 'TIME IN USE');
-
     card.innerHTML = `
       <div class="card-top" style="width:100%;">
         <div class="card-provider">${item.provider}</div>
@@ -1558,12 +1561,10 @@ function renderScatter() {
       </div>
       ${isBurnt ? `<div class="burnt-label">BURNT</div>` : ''}
     `;
-
     // Apply position
     card.style.left = `${item.pos.x}px`;
     card.style.top = `${item.pos.y}px`;
     card.style.zIndex = item.status === 'active' ? 5 : 1;
-
     // Apply dimmed class if not in filter
     if (filteredItems.some(f => f.id === item.id)) {
       card.classList.remove('dimmed');
@@ -1571,15 +1572,284 @@ function renderScatter() {
       card.classList.add('dimmed');
     }
   });
-
   // Remove cards if somehow extra (though unlikely)
   existingIds.forEach(id => {
     if (!items.find(i => i.id == id)) {
       document.getElementById(`scatter-card-${id}`).remove();
     }
   });
-
   applyScatterTransform();
+}
+
+function toggleViewMode() {
+  config.scatterMode = 'view';
+  scatter.moveActive = false;
+  updateScatterMode();
+}
+
+function toggleMoveMode() {
+  scatter.moveActive = !scatter.moveActive;
+  config.scatterMode = scatter.moveActive ? 'move' : 'view';
+  const moveBtn = document.getElementById('moveBtn');
+  const viewBtn = document.getElementById('viewBtn');
+  if (moveBtn) moveBtn.classList.toggle('active', scatter.moveActive);
+  if (viewBtn) viewBtn.classList.toggle('active', !scatter.moveActive);
+  if (scatter.moveActive && scatter.magneticActive) {
+    toggleMagneticWipe(); // Disable magnetic in move mode
+  }
+  updateScatterMode();
+  showToast(scatter.moveActive ? "Move Mode (ESC to exit)" : "View Mode");
+}
+
+function updateScatterMode() {
+  const cards = document.querySelectorAll('.scatter-card');
+  cards.forEach(card => {
+    card.style.pointerEvents = config.scatterMode === 'view' ? 'auto' : 'none'; // Disable clicks in move
+    card.style.cursor = config.scatterMode === 'move' ? 'grab' : 'pointer';
+  });
+  if (config.scatterMode === 'view') {
+    clearReactiveDots();
+  }
+}
+
+function init() {
+  load();
+  const storedTheme = localStorage.getItem('iv_theme');
+  if (storedTheme) {
+    // Set theme index based on stored theme
+    currentThemeIndex = themes.indexOf(storedTheme);
+    if (currentThemeIndex === -1) currentThemeIndex = 0;
+  
+    document.body.setAttribute('data-theme', storedTheme);
+    const logo = document.getElementById('logoImg');
+    if (logo) {
+      switch(storedTheme) {
+        case 'light':
+          logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-dark.svg';
+          break;
+        case 'rose':
+          logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-rose.svg';
+          break;
+        default:
+          logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg';
+      }
+    }
+  }
+  // Ensure the correct view is active on load
+  switchView(config.view);
+  // Start the timer loop
+  timerInterval = setInterval(updateAllTimers, 1000);
+  canvas = document.getElementById('scatterCanvas');
+  magnetCursor = document.getElementById('magnetCursor');
+  // Initial render
+  renderAll();
+  // Add mode toggle buttons dynamically
+  const scatterControls = document.getElementById('scatterControls');
+  if (scatterControls) {
+    const viewBtn = document.createElement('button');
+    viewBtn.id = 'viewBtn';
+    viewBtn.className = 'control-btn';
+    viewBtn.title = 'View Mode';
+    viewBtn.innerText = '👁️';
+    viewBtn.onclick = toggleViewMode;
+    scatterControls.prepend(viewBtn);
+
+    const moveBtn = document.createElement('button');
+    moveBtn.id = 'moveBtn';
+    moveBtn.className = 'control-btn';
+    moveBtn.title = 'Move Mode';
+    moveBtn.innerText = '✋';
+    moveBtn.onclick = toggleMoveMode;
+    scatterControls.prepend(moveBtn);
+
+    // Make controls visible
+    scatterControls.classList.add('visible');
+  }
+  // Style zoom controls dynamically if needed
+  const zoomControls = document.querySelector('.scatter-zoom-controls');
+  if (zoomControls) {
+    zoomControls.style.position = 'fixed';
+    zoomControls.style.bottom = '100px';
+    zoomControls.style.left = '20px';
+    zoomControls.style.display = 'flex';
+    zoomControls.style.gap = '8px';
+    zoomControls.style.zIndex = '150';
+  }
+  const zoomBtns = document.querySelectorAll('.zoom-btn');
+  zoomBtns.forEach(btn => {
+    btn.style.width = '48px';
+    btn.style.height = '48px';
+    btn.style.borderRadius = '50%';
+    btn.style.background = 'var(--glass-bg)';
+    btn.style.border = '1px solid var(--glass-border)';
+    btn.style.color = 'var(--ink)';
+    btn.style.fontSize = '16px';
+    btn.style.cursor = 'pointer';
+    btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+    btn.style.display = 'flex';
+    btn.style.alignItems = 'center';
+    btn.style.justifyContent = 'center';
+  });
+  // NEW: Grid background context menu handler
+  const gridWrapper = document.getElementById('gridWrapper');
+  gridWrapper.oncontextmenu = (e) => {
+    if (e.target === gridWrapper) {
+      e.preventDefault();
+      showGridBackgroundContextMenu(e);
+    }
+  };
+  // Scatter background context menu handler
+  canvas.oncontextmenu = (e) => {
+    if (!e.target.closest('.scatter-card')) {
+      e.preventDefault();
+      showScatterBackgroundContextMenu(e);
+    }
+  };
+  updateGridDisplay();
+  // --- Scatter Pan/Zoom Logic ---
+  let lastPan = {
+    x: 0,
+    y: 0
+  };
+  let pointers = [];
+  // Pan Logic (Mouse)
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.scatter-card')) return; // Card drag handles itself
+    if (e.button === 0) { // Left click for pan
+      e.preventDefault();
+      scatter.panning = true;
+      lastPan.x = e.clientX;
+      lastPan.y = e.clientY;
+      canvas.setPointerCapture(e.pointerId);
+    }
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (scatter.panning) {
+      const dx = e.clientX - lastPan.x;
+      const dy = e.clientY - lastPan.y;
+      scatter.transform.x += dx;
+      scatter.transform.y += dy;
+      lastPan.x = e.clientX;
+      lastPan.y = e.clientY;
+      applyScatterTransform();
+    }
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    if (scatter.panning) {
+      scatter.panning = false;
+      canvas.releasePointerCapture(e.pointerId);
+      save();
+    }
+  });
+  // Zoom/Pinch Logic
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY * -0.001; // Scale factor based on wheel speed
+    zoom(zoomFactor, e.clientX, e.clientY);
+    save();
+  });
+  // Touch/Pinch Logic (kept for completeness, though pan/zoom is main focus)
+  canvas.addEventListener('touchstart', (e) => {
+    pointers = Array.from(e.touches);
+    if (pointers.length === 2) {
+      const touch1 = pointers[0];
+      const touch2 = pointers[1];
+      scatter.pinchStart = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+    } else if (pointers.length === 1 && !e.target.closest('.scatter-card')) {
+      lastPan.x = pointers[0].clientX;
+      lastPan.y = pointers[0].clientY;
+    }
+  }, {
+    passive: false
+  });
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault(); // Prevent page scroll during pan/zoom
+    pointers = Array.from(e.touches);
+    if (pointers.length === 2) {
+      const touch1 = pointers[0];
+      const touch2 = pointers[1];
+      const currentDist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+      const scaleChange = currentDist / scatter.pinchStart;
+      const centerX = (touch1.clientX + touch2.clientX) / 2;
+      const centerY = (touch1.clientY + touch2.clientY) / 2;
+      const oldScale = scatter.transform.scale;
+      let newScale = oldScale * scaleChange;
+      // Clamp scale
+      newScale = Math.max(0.25, Math.min(3, newScale));
+      const scaleRatio = newScale / oldScale;
+      scatter.transform.x = centerX - (centerX - scatter.transform.x) * scaleRatio;
+      scatter.transform.y = centerY - (centerY - scatter.transform.y) * scaleRatio;
+      scatter.transform.scale = newScale;
+      scatter.pinchStart = currentDist; // Update pinchStart for next move
+      applyScatterTransform();
+    } else if (e.touches.length === 1 && !e.target.closest('.scatter-card')) {
+      // Treat single touch move as pan if not dragging a card
+      const touch = e.touches[0];
+      const dx = touch.clientX - lastPan.x;
+      const dy = touch.clientY - lastPan.y;
+      scatter.transform.x += dx;
+      scatter.transform.y += dy;
+      lastPan.x = touch.clientX;
+      lastPan.y = touch.clientY;
+      applyScatterTransform();
+    }
+  }, {
+    passive: false
+  });
+  canvas.addEventListener('touchend', (e) => {
+    pointers = Array.from(e.touches);
+    if (e.touches.length < 2) {
+      scatter.pinchStart = 0;
+      save();
+    }
+  });
+  // Update stack position on move
+  canvas.addEventListener('pointermove', (e) => {
+    if (magneticEngaged) {
+      const rect = canvas.getBoundingClientRect();
+      const invScale = 1 / scatter.transform.scale;
+      const cursorX = (e.clientX - rect.left - scatter.transform.x) * invScale;
+      const cursorY = (e.clientY - rect.top - scatter.transform.y) * invScale;
+      if (stackLeader) {
+        stackLeader.pos.x = cursorX - 110; // Center card on cursor
+        stackLeader.pos.y = cursorY - 80;
+        const leaderCard = document.getElementById(`scatter-card-${stackLeader.id}`);
+        leaderCard.style.left = `${stackLeader.pos.x}px`;
+        leaderCard.style.top = `${stackLeader.pos.y}px`;
+        // Stack others below leader
+        const filtered = filterItems();
+        filtered.slice(1).forEach((item, index) => {
+          item.pos.x = stackLeader.pos.x + (index + 1) * stackOffset;
+          item.pos.y = stackLeader.pos.y + (index + 1) * stackOffset;
+          const card = document.getElementById(`scatter-card-${item.id}`);
+          card.style.left = `${item.pos.x}px`;
+          card.style.top = `${item.pos.y}px`;
+        });
+      }
+      magnetCursor.style.left = `${e.clientX - 16}px`;
+      magnetCursor.style.top = `${e.clientY - 16}px`;
+    }
+  });
+  // Mobile double tap for magnetic
+  let lastTap = 0;
+  canvas.addEventListener('touchstart', (e) => {
+    const now = new Date().getTime();
+    if (now - lastTap < 300) {
+      e.preventDefault();
+      if (!magneticEngaged) {
+        engageMagnetic();
+      } else {
+        disengageMagnetic();
+      }
+    }
+    lastTap = now;
+  });
+  // Add ESC key listener for move mode exit
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && scatter.moveActive) {
+      toggleMoveMode();
+    }
+  });
 }
 
 function autoArrange() {
