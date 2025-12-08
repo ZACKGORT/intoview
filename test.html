@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
-  <title>IntoView: N.O.D.E. v2.9.1</title>
+  <title>IntoView: N.O.D.E. v3.0</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -452,7 +452,7 @@
     }
     .overlay.active .modal-sheet { transform: translateY(0); }
     @media(min-width: 600px) {
-      .modal-sheet { max-width: 400px; border-radius: 24px; border: 1px solid var(--glass-border); transform: scale(0.95); }
+      .modal-sheet { max-width: 1024px; border-radius: 24px; border: 1px solid var(--glass-border); transform: scale(0.95); }
       .overlay.active .modal-sheet { transform: scale(1); }
     }
    
@@ -698,25 +698,52 @@
         box-shadow: 0 0 12px currentColor, 0 0 24px currentColor, 0 0 36px currentColor;
       }
     }
-    /* List View Styles */
-    #listView {
-      display: none;
-      overflow-y: auto;
-      padding: 10px 16px 120px 16px;
+    /* List View Table Styles in Overlay */
+    .list-table-container {
+      width: 100%;
+      overflow-x: auto;
     }
-    #listTable {
+    .list-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 12px;
+      font-size: 13px;
+      font-family: var(--font-mono);
     }
-    #listTable th, #listTable td {
-      padding: 8px;
+    .list-table th, .list-table td {
+      padding: 12px;
       border-bottom: 1px solid var(--glass-border);
       text-align: left;
     }
-    #listTable th {
-      font-weight: 600;
+    .list-table th {
+      font-weight: 700;
       text-transform: uppercase;
+      font-size: 11px;
+      color: var(--ink-dim);
+      letter-spacing: 1px;
+      position: sticky;
+      top: 0;
+      background: var(--bg-color); /* To cover scrolling content */
+      z-index: 10;
+    }
+    .list-table tr {
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .list-table tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .list-table tr.burnt { opacity: 0.6; }
+   
+    /* List Overlay Specifics */
+    #listOverlay .modal-sheet {
+        height: 90vh; /* Taller for list view */
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .sheet-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 16px; flex-shrink: 0;
     }
   </style>
 </head>
@@ -728,6 +755,9 @@
 </div>
  
   <div class="header-buttons">
+    <button class="theme-btn" onclick="openListOverlay()" title="View List">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"></path></svg>
+    </button>
     <button class="theme-btn info-btn" onclick="openInfoModal()" title="Information & Help">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
     </button>
@@ -741,19 +771,6 @@
 </header>
 <div id="gridContainer" class="view-container active">
   <div class="grid-wrapper" id="gridWrapper"></div>
-  <div id="listView">
-    <table id="listTable">
-      <thead>
-        <tr>
-          <th>Provider</th>
-          <th>Email</th>
-          <th>Status</th>
-          <th>Timer</th>
-        </tr>
-      </thead>
-      <tbody id="listBody"></tbody>
-    </table>
-  </div>
 </div>
 <div id="scatterContainer" class="view-container">
   <div class="scatter-canvas" id="scatterCanvas"></div>
@@ -772,7 +789,7 @@
 <div id="contextMenu" class="context-menu"></div>
 <nav class="bottom-nav">
   <div class="nav-group">
-    <button class="nav-btn active" data-view="structured" onclick="toggleStructuredView()" title="Grid/List View">
+    <button class="nav-btn active" data-view="structured" onclick="switchView('grid')" title="Grid View">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M4 11h7V4H4v7zm0 9h7v-7H4v7zm9 0h7v-7h-7v7zm0-16v7h7V4h-7z"></path></svg>
     </button>
     <button class="nav-btn" data-view="scatter" onclick="switchView('scatter')" title="Scatter View">
@@ -787,6 +804,32 @@
 </nav>
 <div class="overlay" id="providerSelectOverlay">
 </div>
+
+<div class="overlay" id="listOverlay">
+  <div class="modal-sheet">
+     <div class="sheet-header">
+        <h2 style="font-family:var(--font-mono)">Node Index</h2>
+        <button class="close-btn" onclick="closeListOverlay()" style="position:static;">
+           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+     </div>
+     <div class="list-table-container" style="flex: 1; overflow-y: auto;">
+        <table class="list-table">
+           <thead>
+              <tr>
+                 <th>Provider</th>
+                 <th>Identity</th>
+                 <th>Status</th>
+                 <th>Timer</th>
+              </tr>
+           </thead>
+           <tbody id="overlayListBody">
+              </tbody>
+        </table>
+     </div>
+  </div>
+</div>
+
 <div class="overlay" id="modalOverlay">
 <div class="modal-sheet">
   <button class="close-btn" onclick="closeModal()">
@@ -885,10 +928,10 @@
       <h3 style="font-weight: 700; font-size: 16px; color: var(--accent); margin-bottom: 8px;">✨ Enhanced Features:</h3>
       <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;">
         This version includes:<br>
+        • 📋 New Fullscreen List View (Header Icon)<br>
         • 🎬 Cinematic edge blur & vignette effects<br>
         • 🎨 New Rose/Pink theme with retro pop art vibes<br>
-        • 🌸 Theme-aware logo switching<br>
-        • ✨ Enhanced animations & interactions
+        • 🌸 Theme-aware logo switching
       </p>
     </div>
     <div id="accordionContainer">
@@ -901,12 +944,9 @@
         <div class="accordion-content">
           <div class="accordion-content-inner">
             <ul style="list-style-type: none; padding: 0;">
-              <li><strong style="color: var(--accent);">Tap Card (Grid/Scatter):</strong> Open Edit Modal (View Details).</li>
-              <li><strong style="color: var(--accent);">Right-Click / Long-Press Card:</strong> Quick Action Menu (Hit Limit / Restore / View Details).</li>
-              <li><strong style="color: var(--accent);">Right-Click / Long-Press Provider Pill:</strong> Manage Provider (Edit Name / Delete / New).</li>
-              <li><strong style="color: var(--accent);">Right-Click / Long-Press Background (Scatter Mode):</strong> Arrangement & Sorting menu.</li>
-              <li><strong style="color: var(--accent);">Drag Card (Scatter Mode):</strong> Move the node freely.</li>
-              <li><strong style="color: var(--accent);">Drag Background:</strong> Scroll / Pan / Zoom / Sort / Arrange</li>
+              <li><strong style="color: var(--accent);">Tap Card/Row:</strong> Open Edit Modal (View Details).</li>
+              <li><strong style="color: var(--accent);">Right-Click / Long-Press:</strong> Quick Action Menu.</li>
+              <li><strong style="color: var(--accent);">List View (Header):</strong> Opens a condensed index of all nodes.</li>
               <li><strong style="color: var(--accent);">Theme Toggle:</strong> Switches between Dark, Light, and Rose themes.</li>
               <li><strong style="color: var(--accent);">Status Pill (Bottom Right):</strong> Cycles the global filter (All -> Active -> Cooldown -> Burnt).</li>
             </ul>
@@ -950,34 +990,39 @@ let config = {
   filterStatus: 'all',
   filterProvider: 'all',
   view: 'grid',
-  density: 'tight', // New: 'tight' or 'cascading'
-  listMode: false, // New: for list view in grid
-  sortKey: null // New: current sort key
+  density: 'tight', // 'tight' or 'cascading'
+  sortKey: null,
+  scatterMode: 'view' // 'view' or 'move'
 };
 let scatter = {
-  transform: {
-    x: 0,
-    y: 0,
-    scale: 1
-  },
+  transform: { x: 0, y: 0, scale: 1 },
   panning: false,
   dragging: false,
   pinchStart: 0,
+  moveActive: false,
+  magneticActive: false
 };
 let activeNodeId = null;
 let timerInterval = null;
 let isDraggingCard = false;
 let touchTimer = null;
+let canvas = null;
+let magnetCursor = null;
+let magneticEngaged = false;
+let stackLeader = null;
+const stackOffset = 30;
 const statusOrder = { active: 1, ready: 2, cooldown: 3, burnt: 4 };
+
 // --- Theme Management ---
 const themes = ['dark', 'light', 'rose'];
 let currentThemeIndex = 0;
+
 function toggleTheme() {
   currentThemeIndex = (currentThemeIndex + 1) % themes.length;
   const newTheme = themes[currentThemeIndex];
   document.body.setAttribute('data-theme', newTheme);
   localStorage.setItem('iv_theme', newTheme);
-  // Update logo based on theme
+
   const logo = document.getElementById('logoImg');
   if (logo) {
     switch(newTheme) {
@@ -991,39 +1036,38 @@ function toggleTheme() {
         logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg';
     }
   }
- 
   showToast(`Theme: ${newTheme.toUpperCase()}`);
 }
+
 // --- Data Persistence ---
 function load() {
   const storedItems = localStorage.getItem('iv_items');
   const storedProviders = localStorage.getItem('iv_providers');
+  
   if (storedItems) {
     items = JSON.parse(storedItems);
   } else {
-    seedMockData(); // Use mock data if nothing is stored
+    seedMockData();
   }
+  
   if (storedProviders) {
     providers = JSON.parse(storedProviders);
   } else {
-    providers = ['All', 'ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot', 'Perplexity', 'Mistral', 'Midjourney', 'Llama Hub'];
+    providers = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot', 'Perplexity', 'Mistral', 'Midjourney', 'Llama Hub'];
   }
-  // Ensure 'All' is always present
-  if (!providers.includes('All')) {
-    providers.push('All');
-    providers.sort();
-  }
+  
   config.filterStatus = localStorage.getItem('iv_filterStatus') || 'all';
   config.filterProvider = localStorage.getItem('iv_filterProvider') || 'all';
   config.view = localStorage.getItem('iv_view') || 'grid';
   config.density = localStorage.getItem('iv_density') || 'tight';
-  config.listMode = localStorage.getItem('iv_listMode') === 'true';
+  config.scatterMode = localStorage.getItem('iv_scatterMode') || 'view';
+  
   const storedTransform = localStorage.getItem('iv_scatterTransform');
   if (storedTransform) {
     scatter.transform = JSON.parse(storedTransform);
   }
-  updateStructuredIcon();
 }
+
 function save() {
   localStorage.setItem('iv_items', JSON.stringify(items));
   localStorage.setItem('iv_providers', JSON.stringify(providers));
@@ -1031,160 +1075,361 @@ function save() {
   localStorage.setItem('iv_filterProvider', config.filterProvider);
   localStorage.setItem('iv_view', config.view);
   localStorage.setItem('iv_density', config.density);
-  localStorage.setItem('iv_listMode', config.listMode);
+  localStorage.setItem('iv_scatterMode', config.scatterMode);
   localStorage.setItem('iv_scatterTransform', JSON.stringify(scatter.transform));
 }
+
 function seedMockData() {
-  items = [
-    { id: 1, provider: 'ChatGPT', email: 'gpt1@example.com', status: 'ready', resetHours: 3, lastUsed: Date.now() - 3600000, pos: { x: 50, y: 50 } },
-    { id: 2, provider: 'Claude', email: 'claude1@example.com', status: 'cooldown', resetHours: 6, lastUsed: Date.now() - 1800000, pos: { x: 300, y: 50 } },
-    { id: 3, provider: 'Gemini', email: 'gemini1@example.com', status: 'burnt', resetHours: 24, lastUsed: Date.now() - 7200000, pos: { x: 50, y: 200 } }
+  const mockData = [
+    { provider: 'ChatGPT', email: 'gpt_4_main@openai.com', status: 'active', resetHours: 3, lastUsedOffset: 0.1 },
+    { provider: 'Claude', email: 'claude_opus_pro@anthropic.ai', status: 'active', resetHours: 6, lastUsedOffset: 0.2 },
+    { provider: 'Grok', email: 'grok_fun_mode@x.ai', status: 'ready', resetHours: 12, lastUsedOffset: 100 },
+    { provider: 'Perplexity', email: 'pplx_search@perplexity.ai', status: 'ready', resetHours: 24, lastUsedOffset: 100 },
+    { provider: 'Mistral', email: 'mistral_large@mistral.ai', status: 'ready', resetHours: 48, lastUsedOffset: 100 },
+    { provider: 'Gemini', email: 'gemini_advanced@google.com', status: 'cooldown', resetHours: 3, lastUsedOffset: 1.5 },
+    { provider: 'Llama Hub', email: 'llama3_online@meta.com', status: 'cooldown', resetHours: 6, lastUsedOffset: 3.5 },
+    { provider: 'Dalle', email: 'dalle_3@openai.com', status: 'cooldown', resetHours: 12, lastUsedOffset: 8 },
+    { provider: 'Claude', email: 'claude_v1_legacy@anthropic.ai', status: 'burnt', resetHours: 12, lastUsedOffset: 200 },
+    { provider: 'Midjourney', email: 'mj_trial_expired@discord.com', status: 'burnt', resetHours: 24, lastUsedOffset: 50 },
+    { provider: 'Copilot', email: 'expired_enterprise@corp.com', status: 'burnt', resetHours: 6, lastUsedOffset: 300 }
   ];
+
+  items = mockData.map((data, i) => {
+    const lastUsedMs = Date.now() - (data.lastUsedOffset * 60 * 60 * 1000);
+    return {
+      id: Date.now() + i,
+      provider: data.provider,
+      email: data.email,
+      status: data.status,
+      resetHours: data.resetHours,
+      lastUsed: lastUsedMs,
+      pos: { x: 50 + (i % 3) * 250, y: 100 + Math.floor(i / 3) * 180 }
+    };
+  });
+  save();
 }
+
+// --- Utility Functions ---
+function formatTime(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const totalHours = Math.floor(totalMinutes / 60);
+  const hours = String(totalHours).padStart(2, '0');
+  const minutes = String(totalMinutes % 60).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  if (totalHours > 99) return `${totalHours}h+`;
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function formatRemainingTime(ms) {
+  if (ms <= 0) return '00:00:00';
+  const totalSeconds = Math.floor(ms / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const totalHours = Math.floor(totalMinutes / 60);
+  const hours = String(totalHours).padStart(2, '0');
+  const minutes = String(totalMinutes % 60).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  if (totalHours > 99) return `${totalHours}h+`;
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function formatLastUsed(timestamp) {
+  const ms = Date.now() - timestamp;
+  const minutes = Math.floor(ms / (1000 * 60));
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  if (hours >= 24) return `${Math.floor(hours / 24)} days ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return 'just now';
+}
+
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function copyInput(id) {
+  const input = document.getElementById(id);
+  navigator.clipboard.writeText(input.value).then(() => {
+    showToast('Copied to Clipboard');
+  }).catch(err => {
+    console.error('Could not copy text: ', err);
+  });
+}
+
+function toggleAccordion(header) {
+  const item = header.parentNode;
+  const content = item.querySelector('.accordion-content');
+  const isOpen = item.classList.contains('open');
+
+  document.querySelectorAll('.accordion-item.open').forEach(openItem => {
+    if (openItem !== item) {
+      openItem.classList.remove('open');
+      openItem.querySelector('.accordion-content').style.maxHeight = null;
+    }
+  });
+
+  if (isOpen) {
+    item.classList.remove('open');
+    content.style.maxHeight = null;
+  } else {
+    item.classList.add('open');
+    content.style.maxHeight = content.scrollHeight + "px";
+  }
+}
+
+// --- Filtering & View Management ---
+function switchView(viewName) {
+  config.view = viewName;
+  save();
+  document.querySelectorAll('.nav-btn[data-view]').forEach(b => 
+    b.classList.toggle('active', b.dataset.view === viewName)
+  );
+  document.querySelectorAll('.view-container').forEach(c => c.classList.remove('active'));
+
+  if (viewName === 'grid') {
+    document.getElementById('gridContainer').classList.add('active');
+    document.getElementById('scatterControls').classList.remove('visible');
+  } else {
+    document.getElementById('scatterContainer').classList.add('active');
+    document.getElementById('scatterControls').classList.add('visible');
+  }
+  renderAll();
+}
+
+function filterItems() {
+  let res = items;
+  if (config.filterStatus !== 'all') {
+    res = res.filter(i => i.status === config.filterStatus);
+  }
+  if (config.filterProvider !== 'all') {
+    res = res.filter(i => i.provider === config.filterProvider);
+  }
+  return res;
+}
+
+function cycleStatusFilter() {
+  const statuses = ['all', 'active', 'ready', 'cooldown', 'burnt'];
+  let currentIndex = statuses.indexOf(config.filterStatus);
+  currentIndex = (currentIndex + 1) % statuses.length;
+  config.filterStatus = statuses[currentIndex];
+  save();
+  renderAll();
+  showToast(`Filter: ${config.filterStatus.toUpperCase()}`);
+}
+
 // --- Rendering Functions ---
 function renderAll() {
   renderProviderPills();
   renderProviderSelect();
   const filteredItems = filterItems();
+  
+  if (document.getElementById('listOverlay').classList.contains('active')) {
+    renderListOverlayContents(filteredItems);
+  }
+  
   if (config.view === 'grid') {
-    if (config.listMode) {
-      renderList(filteredItems);
-      document.getElementById('gridWrapper').style.display = 'none';
-      document.getElementById('listView').style.display = 'block';
-    } else {
-      renderGrid(filteredItems);
-      document.getElementById('gridWrapper').style.display = 'grid';
-      document.getElementById('listView').style.display = 'none';
-    }
-    document.getElementById('scatterContainer').classList.remove('active');
-    document.getElementById('gridContainer').classList.add('active');
-    document.getElementById('scatterControls').classList.remove('visible');
-    document.querySelector('[data-view="structured"]').classList.add('active');
-    document.querySelector('[data-view="scatter"]').classList.remove('active');
+    renderGrid(filteredItems);
   } else {
     renderScatter(filteredItems);
-    document.getElementById('gridContainer').classList.remove('active');
-    document.getElementById('scatterContainer').classList.add('active');
-    document.getElementById('scatterControls').classList.add('visible');
-    document.querySelector('[data-view="structured"]').classList.remove('active');
-    document.querySelector('[data-view="scatter"]').classList.add('active');
   }
   updateAllTimers();
-  updateStructuredIcon();
 }
+
+function updateAllTimers() {
+  const now = Date.now();
+  items.forEach(item => {
+    const timerElement = document.getElementById(`timer-${item.id}`);
+    const listTimerElement = document.getElementById(`timer-list-${item.id}`);
+    const resetDot = document.getElementById(`reset-dot-${item.id}`);
+    
+    let timeStr = '00:00:00';
+    
+    if (item.status === 'active') {
+      const timeInUse = now - item.lastUsed;
+      timeStr = formatTime(timeInUse);
+      if (resetDot) resetDot.style.opacity = '0';
+    } else if (item.status === 'cooldown') {
+      const resetMs = item.resetHours * 60 * 60 * 1000;
+      const remainingMs = item.lastUsed + resetMs - now;
+      timeStr = formatRemainingTime(remainingMs);
+      
+      const progress = Math.min(1, (now - item.lastUsed) / resetMs);
+      if (resetDot) {
+        resetDot.style.opacity = '1';
+        resetDot.style.transform = `scaleX(${progress})`;
+      }
+      
+      if (remainingMs <= 0) {
+        item.status = 'ready';
+        save();
+        renderAll();
+        showToast(`${item.provider} Node is Ready!`);
+      }
+    } else if (item.status === 'ready') {
+      timeStr = '00:00:00';
+      if (resetDot) resetDot.style.opacity = '0';
+    } else if (item.status === 'burnt') {
+      timeStr = formatLastUsed(item.lastUsed);
+      if (resetDot) resetDot.style.opacity = '0';
+    }
+    
+    if (timerElement) timerElement.textContent = timeStr;
+    if (listTimerElement) listTimerElement.textContent = timeStr;
+  });
+}
+
 function renderProviderPills() {
   const bar = document.getElementById('providerBar');
   bar.innerHTML = '';
-  providers.sort().forEach(p => {
-    const pill = document.createElement('button');
-    // Handle case insensitivity for active state
-    const isActive = config.filterProvider.toLowerCase() === p.toLowerCase();
-    pill.className = 'pill' + (isActive ? ' active' : '');
-    pill.textContent = p;
-    pill.onclick = () => setProviderFilter(p);
+
+  const allPill = document.createElement('div');
+  allPill.className = `pill ${config.filterProvider === 'all' ? 'active' : ''}`;
+  allPill.textContent = 'All Providers';
+  allPill.onclick = () => setProviderFilter('all');
+  bar.appendChild(allPill);
+
+  providers.sort().forEach(provider => {
+    const pill = document.createElement('div');
+    pill.className = `pill ${config.filterProvider === provider ? 'active' : ''}`;
+    pill.textContent = provider;
+    pill.onclick = () => setProviderFilter(provider);
     pill.oncontextmenu = (e) => {
       e.preventDefault();
-      showProviderContextMenu(e, p);
+      showProviderContextMenu(e, provider);
     };
     bar.appendChild(pill);
   });
-  const addPill = document.createElement('button');
+
+  const addPill = document.createElement('div');
   addPill.className = 'pill add-btn';
-  addPill.textContent = '+ Add';
+  addPill.textContent = '+ New Provider';
   addPill.onclick = addNewProviderFromMenu;
   bar.appendChild(addPill);
 }
+
 function setProviderFilter(provider) {
-  // Handle case insensitivity for toggle
-  const normalizedCurrent = config.filterProvider.toLowerCase();
-  const normalizedProvider = provider.toLowerCase();
-  config.filterProvider = normalizedCurrent === normalizedProvider ? 'all' : provider;
+  config.filterProvider = provider;
   save();
   renderAll();
-  showToast(`Filtering: ${config.filterProvider.toLowerCase() === 'all' ? 'All Providers' : provider}`);
 }
+
+function renderCard(item) {
+  const isCooldown = item.status === 'cooldown';
+  const isBurnt = item.status === 'burnt';
+  const isReady = item.status === 'ready';
+
+  let dotClass = '';
+  if (item.status === 'active') dotClass = 'text-blue';
+  else if (isCooldown) dotClass = 'text-orange';
+  else if (isReady) dotClass = 'text-green';
+  else if (isBurnt) dotClass = 'text-red';
+
+  const timerLabel = isCooldown ? 'TIME TO READY' : (isBurnt ? 'LAST USED' : 'TIME IN USE');
+
+  const card = document.createElement('div');
+  card.className = `card ${isBurnt ? 'burnt' : ''}`;
+  card.id = `card-${item.id}`;
+  card.setAttribute('data-id', item.id);
+  card.onclick = (e) => {
+    if (e.target.closest('.card-actions') || e.target.closest('.card-edit-icon')) return;
+    if (!isDraggingCard) openModal(item.id);
+  };
+  card.oncontextmenu = (e) => {
+    e.preventDefault();
+    showContextMenu(e, item.id);
+  };
+
+  card.innerHTML = `
+    <div class="card-top">
+      <div class="card-provider">${item.provider}</div>
+      <div style="display: flex; align-items: center; gap:4px;">
+         <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
+         <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
+         <button class="card-edit-icon" onclick="openModal(${item.id})">
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
+         </button>
+      </div>
+    </div>
+    <div class="card-timer" id="timer-${item.id}"></div>
+    <div style="height: 4px; background: var(--glass-border); border-radius: 2px; position:relative; overflow:hidden;">
+      <div id="reset-dot-${item.id}" style="position:absolute; inset:0; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform 1s linear;"></div>
+    </div>
+    <div style="font-size:10px; font-weight:600; color:var(--ink-dim); text-align:center; margin-top:-10px;">${timerLabel}</div>
+    ${isBurnt ? `<div class="burnt-label">BURNT</div>` : ''}
+    <div class="card-meta">
+      <span class="card-email">${item.email}</span>
+      <div class="card-actions">
+        ${item.status !== 'ready' ? `<div class="action-icon" onclick="confirmForceRestore(${item.id})" title="Reset to Ready">
+           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.74 15.42 20 13.75 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 9.74C4.26 11.02 4 12.63 4 14c0 4.42 3.58 8 8 8V23l4-4-4-4v3z"></path></svg>
+        </div>` : ''}
+        ${item.status === 'active' || item.status === 'cooldown' ? `<div class="action-icon" onclick="confirmHitLimit(${item.id})" title="Hit Limit Now">
+           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
+        </div>` : ''}
+        ${item.status === 'ready' ? `<div class="action-icon text-green" onclick="openActionOverlay(${item.id})" title="Activate Node">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"></path></svg>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+  return card;
+}
+
 function renderGrid(filteredItems) {
   const wrapper = document.getElementById('gridWrapper');
+  const sortedItems = filteredItems.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
   wrapper.innerHTML = '';
-  filteredItems.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'card' + (item.status === 'burnt' ? ' burnt' : '');
-    const isBurnt = item.status === 'burnt';
-    const dotClass = `text-${item.status === 'active' ? 'blue' : item.status === 'ready' ? 'green' : item.status === 'cooldown' ? 'orange' : 'red'}`;
-    card.innerHTML = `
-      <div class="card-top">
-        <span class="card-provider">${item.provider}</span>
-        <div style="display:flex; align-items:center;">
-          <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
-          <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
-          <button class="card-edit-icon" onclick="event.stopPropagation(); openModal(${item.id})">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
-          </button>
-        </div>
-      </div>
-      <div class="card-timer" id="timer-${item.id}"></div>
-      <div style="height: 2px; background: var(--glass-border); border-radius: 2px; position:relative; overflow:hidden; width:80%;">
-        <div id="reset-dot-${item.id}" style="position:absolute; inset:0; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform 1s linear;"></div>
-      </div>
-      <div class="card-meta">
-        <span class="card-email">${item.email}</span>
-      </div>
-      ${isBurnt ? `<div class="burnt-label">BURNT</div>` : ''}
-    `;
-    card.onclick = (e) => {
-      if (!isDraggingCard) openModal(item.id);
-    };
-    card.oncontextmenu = (e) => {
-      e.preventDefault();
-      showContextMenu(e, item.id);
-    };
-    // Mobile long-press
-    card.addEventListener('touchstart', (e) => {
-      touchTimer = setTimeout(() => showContextMenu(e.touches[0], item.id), 500);
-    });
-    card.addEventListener('touchmove', () => clearTimeout(touchTimer));
-    card.addEventListener('touchend', () => clearTimeout(touchTimer));
-    wrapper.appendChild(card);
-  });
+  sortedItems.forEach(item => wrapper.appendChild(renderCard(item)));
 }
+
 function renderScatter(filteredItems) {
-  const canvas = document.getElementById('scatterCanvas');
-  const existingCards = canvas.querySelectorAll('.scatter-card');
-  const existingIds = Array.from(existingCards).map(c => c.id.replace('scatter-card-', ''));
+  if (!canvas) return;
+  
   const dropGhost = document.getElementById('dropGhost') || createDropGhost(canvas);
+  
   items.forEach(item => {
     let card = document.getElementById(`scatter-card-${item.id}`);
     if (!card) {
       card = document.createElement('div');
+      card.className = `scatter-card ${item.status === 'burnt' ? 'burnt' : ''}`;
       card.id = `scatter-card-${item.id}`;
-      card.className = 'scatter-card';
-      card.onclick = (e) => {
-        if (!isDraggingCard) openModal(item.id);
-      };
-      card.onpointerdown = (e) => startDrag(e, item);
+      card.setAttribute('data-id', item.id);
       card.oncontextmenu = (e) => {
+        if (config.scatterMode === 'move') return;
         e.preventDefault();
         showContextMenu(e, item.id);
       };
-      // Mobile long-press
-      card.addEventListener('touchstart', (e) => {
-        touchTimer = setTimeout(() => showContextMenu(e.touches[0], item.id), 500);
+      card.onclick = () => {
+        if (config.scatterMode === 'move') return;
+        if (!isDraggingCard) openModal(item.id);
+      };
+      card.addEventListener('pointerdown', (e) => {
+        if (config.scatterMode === 'view') return;
+        startDrag(e, item);
       });
-      card.addEventListener('touchmove', () => clearTimeout(touchTimer));
-      card.addEventListener('touchend', () => clearTimeout(touchTimer));
       canvas.appendChild(card);
     }
+    
     const isBurnt = item.status === 'burnt';
-    const dotClass = `text-${item.status === 'active' ? 'blue' : item.status === 'ready' ? 'green' : item.status === 'cooldown' ? 'orange' : 'red'}`;
+    let dotClass = '';
+    if (item.status === 'active') dotClass = 'text-blue';
+    else if (item.status === 'cooldown') dotClass = 'text-orange';
+    else if (item.status === 'ready') dotClass = 'text-green';
+    else if (isBurnt) dotClass = 'text-red';
+    
+    const timerLabel = item.status === 'cooldown' ? 'TIME TO READY' : (isBurnt ? 'LAST USED' : 'TIME IN USE');
+    
     card.innerHTML = `
-      <div class="card-top">
-        <span class="card-provider">${item.provider}</span>
-        <div style="display:flex; align-items:center;">
-          <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
-          <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
-          <button class="card-edit-icon" onclick="event.stopPropagation(); openModal(${item.id})">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
-          </button>
+      <div class="card-top" style="width:100%;">
+        <div class="card-provider">${item.provider}</div>
+        <div style="display: flex; align-items: center; gap:4px;">
+           <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
+           <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
+           <button class="card-edit-icon" onclick="openModal(${item.id})">
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
+           </button>
         </div>
       </div>
       <div class="card-timer" id="timer-${item.id}"></div>
@@ -1196,22 +1441,21 @@ function renderScatter(filteredItems) {
       </div>
       ${isBurnt ? `<div class="burnt-label">BURNT</div>` : ''}
     `;
+    
     card.style.left = `${item.pos.x}px`;
     card.style.top = `${item.pos.y}px`;
     card.style.zIndex = item.status === 'active' ? 5 : 1;
+    
     if (filteredItems.some(f => f.id === item.id)) {
       card.classList.remove('dimmed');
     } else {
       card.classList.add('dimmed');
     }
   });
-  existingIds.forEach(id => {
-    if (!items.find(i => i.id == id)) {
-      document.getElementById(`scatter-card-${id}`).remove();
-    }
-  });
+  
   applyScatterTransform();
 }
+
 function createDropGhost(canvas) {
   const ghost = document.createElement('div');
   ghost.id = 'dropGhost';
@@ -1220,98 +1464,62 @@ function createDropGhost(canvas) {
   canvas.appendChild(ghost);
   return ghost;
 }
-function renderList(filteredItems) {
-  const body = document.getElementById('listBody');
+
+function renderListOverlayContents(filteredItems) {
+  const body = document.getElementById('overlayListBody');
+  if (!body) return;
   body.innerHTML = '';
   filteredItems.forEach(item => {
     const row = document.createElement('tr');
+    row.className = item.status === 'burnt' ? 'burnt' : '';
+    const dotClass = `text-${item.status === 'active' ? 'blue' : item.status === 'ready' ? 'green' : item.status === 'cooldown' ? 'orange' : 'red'}`;
+    
     row.innerHTML = `
-      <td>${item.provider}</td>
-      <td>${item.email}</td>
-      <td class="text-${item.status === 'active' ? 'blue' : item.status === 'ready' ? 'green' : item.status === 'cooldown' ? 'orange' : 'red'}">${item.status}</td>
-      <td id="timer-${item.id}"></td>
+      <td><strong>${item.provider}</strong></td>
+      <td style="opacity:0.8">${item.email}</td>
+      <td><span class="${dotClass}" style="font-weight:700; text-transform:uppercase; font-size:11px;">${item.status}</span></td>
+      <td id="timer-list-${item.id}" style="font-family:var(--font-mono); font-weight:700;">--:--:--</td>
     `;
+    
+    row.onclick = () => {
+      closeListOverlay();
+      openModal(item.id);
+    };
+    row.oncontextmenu = (e) => {
+      e.preventDefault();
+      showContextMenu(e, item.id);
+    };
+    
     body.appendChild(row);
   });
 }
-function filterItems() {
-  return items.filter(item => {
-    const statusMatch = config.filterStatus === 'all' || item.status === config.filterStatus;
-    const providerMatch = config.filterProvider === 'all' || item.provider === config.filterProvider;
-    return statusMatch && providerMatch;
-  });
+
+function openListOverlay() {
+  document.getElementById('listOverlay').classList.add('active');
+  renderListOverlayContents(filterItems());
+  updateAllTimers();
 }
-function updateAllTimers() {
-  items.forEach(item => {
-    const timerEl = document.getElementById(`timer-${item.id}`);
-    if (timerEl) {
-      const timeStr = getTimerString(item);
-      timerEl.textContent = timeStr;
-    }
-  });
+
+function closeListOverlay() {
+  document.getElementById('listOverlay').classList.remove('active');
 }
-function getTimerString(item) {
-  if (item.status === 'ready' || item.status === 'active' || item.status === 'burnt') return '00:00:00';
-  const resetMs = item.resetHours * 60 * 60 * 1000;
-  const elapsed = Date.now() - item.lastUsed;
-  const remaining = resetMs - elapsed;
-  if (remaining <= 0) {
-    item.status = 'ready';
-    save();
-    return '00:00:00';
-  }
-  const hours = Math.floor(remaining / 3600000);
-  const mins = Math.floor((remaining % 3600000) / 60000);
-  const secs = Math.floor((remaining % 60000) / 1000);
-  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-}
-// --- View Switching ---
-function switchView(view) {
-  config.view = view;
-  if (view === 'grid') {
-    // Do not reset listMode, let it stay as is
-  } else {
-    config.listMode = false; // Reset when going to scatter
-  }
-  save();
-  renderAll();
-}
-// New: Toggle between grid and list in structured view
-function toggleStructuredView() {
-  if (config.view === 'scatter') {
-    switchView('grid');
-  } else {
-    config.listMode = !config.listMode;
-    save();
-    renderAll();
-  }
-}
-// Update the structured button icon
-function updateStructuredIcon() {
-  const btn = document.querySelector('[data-view="structured"]');
-  if (!btn) return;
-  if (config.view === 'grid' && config.listMode) {
-    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18v2H3zM3 11h18v2H3zM3 17h18v2H3z"></path></svg>';
-    btn.title = 'List View';
-  } else {
-    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M4 11h7V4H4v7zm0 9h7v-7H4v7zm9 0h7v-7h-7v7zm0-16v7h7V4h-7z"></path></svg>';
-    btn.title = 'Grid View';
-  }
-}
-// --- Density Toggle (Feature 1) ---
+
+// --- Density Toggle ---
 function toggleDensity() {
   config.density = config.density === 'tight' ? 'cascading' : 'tight';
   save();
   relayout();
   showToast(`Density: ${config.density.charAt(0).toUpperCase() + config.density.slice(1)}`);
 }
-// --- Relayout Function (Used in Features 1, 2) ---
+
+// --- Relayout Function ---
 function relayout() {
   const filtered = filterItems();
   const cardW = 220, cardH = 120, pad = 20;
   const viewportW = window.innerWidth, viewportH = window.innerHeight;
   const cols = Math.floor(viewportW / (cardW + pad));
-  let x = pad, y = viewportH / 4; // Center start
+  let x = pad, y = viewportH / 4;
+  
   if (config.density === 'tight') {
     filtered.forEach((item, i) => {
       item.pos.x = x;
@@ -1322,7 +1530,7 @@ function relayout() {
         y += cardH + pad;
       }
     });
-  } else { // cascading
+  } else {
     if (config.sortKey === 'status' || config.sortKey === 'provider') {
       const groups = {};
       filtered.forEach(item => {
@@ -1339,17 +1547,19 @@ function relayout() {
         y += (grp.length * 30) + cardH + pad;
       }
     } else {
-      // Linear cascade for other sorts
       filtered.forEach((item, i) => {
         item.pos.x = pad + (i % cols) * 50;
         item.pos.y = y + Math.floor(i / cols) * 50;
       });
     }
   }
-  resetView(); // Center after relayout
+  
+  resetView();
   renderScatter(filtered);
+  save();
 }
-// --- Sorting and Relayout (Feature 2) ---
+
+// --- Sorting ---
 function sortAndRelayout(key) {
   closeContextMenu();
   config.sortKey = key;
@@ -1360,10 +1570,31 @@ function sortAndRelayout(key) {
     return 0;
   });
   relayout();
-  save();
   showToast(`Sorted by ${key.charAt(0).toUpperCase() + key.slice(1)}`);
 }
-// --- Drag and Drop with Snap/Ghost (Feature 3) ---
+
+// --- View Mode Toggle ---
+function toggleViewMode() {
+  config.scatterMode = 'view';
+  scatter.moveActive = false;
+  updateScatterMode();
+}
+
+
+function updateScatterMode() {
+  const cards = document.querySelectorAll('.scatter-card');
+  cards.forEach(card => {
+    card.style.pointerEvents = config.scatterMode === 'view' ? 'auto' : 'none';
+    card.style.cursor = config.scatterMode === 'move' ? 'grab' : 'pointer';
+  });
+}
+
+function autoArrange() {
+  relayout();
+  showToast('Nodes Arranged!');
+}
+
+// --- Drag and Drop ---
 function startDrag(e, item) {
   if (e.button !== 0) return;
   const card = e.currentTarget;
@@ -1371,7 +1602,8 @@ function startDrag(e, item) {
   card.classList.add('is-dragging');
   card.setPointerCapture(e.pointerId);
   card.style.zIndex = 1000;
-  const containerRect = document.getElementById('scatterCanvas').getBoundingClientRect();
+
+  const containerRect = canvas.getBoundingClientRect();
   const startItemX = item.pos.x;
   const startItemY = item.pos.y;
   const startClientX = e.clientX;
@@ -1379,12 +1611,15 @@ function startDrag(e, item) {
   const invScale = 1 / scatter.transform.scale;
   const startCanvasX = (startClientX - containerRect.left - scatter.transform.x) * invScale;
   const startCanvasY = (startClientY - containerRect.top - scatter.transform.y) * invScale;
+
   let distanceMoved = 0;
   isDraggingCard = false;
+
   const dropGhost = document.getElementById('dropGhost');
   dropGhost.style.display = 'block';
   dropGhost.style.width = card.offsetWidth + 'px';
   dropGhost.style.height = card.offsetHeight + 'px';
+
   function move(eMove) {
     if (eMove.pointerId !== e.pointerId) return;
     scatter.dragging = true;
@@ -1392,29 +1627,34 @@ function startDrag(e, item) {
     const dy_client = eMove.clientY - startClientY;
     distanceMoved = Math.hypot(dx_client, dy_client);
     if (distanceMoved > 5) isDraggingCard = true;
+
     const currentClientX = eMove.clientX;
     const currentClientY = eMove.clientY;
     const currentCanvasX = (currentClientX - containerRect.left - scatter.transform.x) * invScale;
     const currentCanvasY = (currentClientY - containerRect.top - scatter.transform.y) * invScale;
+
     let newX = startItemX + (currentCanvasX - startCanvasX);
     let newY = startItemY + (currentCanvasY - startCanvasY);
-    // Snap calculation
+
     const gridSize = config.density === 'tight' ? 20 : 50;
     const snappedX = Math.round(newX / gridSize) * gridSize;
     const snappedY = Math.round(newY / gridSize) * gridSize;
-    // Update ghost
+
     dropGhost.style.left = `${snappedX}px`;
     dropGhost.style.top = `${snappedY}px`;
     card.style.transform = `translate(${newX - startItemX}px, ${newY - startItemY}px)`;
   }
+
   function end(eEnd) {
     if (eEnd.pointerId !== e.pointerId) return;
     const currentClientX = eEnd.clientX;
     const currentClientY = eEnd.clientY;
     const currentCanvasX = (currentClientX - containerRect.left - scatter.transform.x) * invScale;
     const currentCanvasY = (currentClientY - containerRect.top - scatter.transform.y) * invScale;
+
     let finalX = startItemX + (currentCanvasX - startCanvasX);
     let finalY = startItemY + (currentCanvasY - startCanvasY);
+
     if (isDraggingCard) {
       const gridSize = config.density === 'tight' ? 20 : 50;
       finalX = Math.round(finalX / gridSize) * gridSize;
@@ -1425,6 +1665,7 @@ function startDrag(e, item) {
       card.style.top = `${finalY}px`;
       save();
     }
+
     dropGhost.style.display = 'none';
     card.style.transform = '';
     card.classList.remove('is-dragging');
@@ -1434,10 +1675,127 @@ function startDrag(e, item) {
     card.removeEventListener('pointerup', end);
     setTimeout(() => isDraggingCard = false, 100);
   }
+
   card.addEventListener('pointermove', move);
   card.addEventListener('pointerup', end);
 }
-// --- Context Menus (Updated for Feature 2) ---
+
+// --- Pan/Zoom Functions ---
+function applyScatterTransform() {
+  if (!canvas) return;
+  canvas.style.transform = `translate(${scatter.transform.x}px, ${scatter.transform.y}px) scale(${scatter.transform.scale})`;
+}
+
+function zoom(delta, clientX = null, clientY = null) {
+  const newScale = Math.max(0.25, Math.min(3, scatter.transform.scale + delta));
+  if (newScale === scatter.transform.scale) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const zoomX = (clientX !== null && clientY !== null) ? clientX - rect.left : rect.width / 2;
+  const zoomY = (clientY !== null && clientY !== null) ? clientY - rect.top : rect.height / 2;
+  const scaleRatio = newScale / scatter.transform.scale;
+
+  scatter.transform.x = zoomX - (zoomX - scatter.transform.x) * scaleRatio;
+  scatter.transform.y = zoomY - (zoomY - scatter.transform.y) * scaleRatio;
+  scatter.transform.scale = newScale;
+
+  applyScatterTransform();
+  save();
+}
+
+function zoomIn() { zoom(0.25); }
+function zoomOut() { zoom(-0.25); }
+function resetView() {
+  scatter.transform = { x: 0, y: 0, scale: 1 };
+  applyScatterTransform();
+  save();
+}
+
+// --- Context Menus ---
+function showContextMenu(e, nodeId) {
+  closeContextMenu();
+  const menu = document.getElementById('contextMenu');
+  const item = items.find(i => i.id == nodeId);
+  if (!item) return;
+
+  menu.innerHTML = `
+    <div class="ctx-header">${item.provider} Node</div>
+    <div class="ctx-item" onclick="openModal(${item.id})">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
+       <span>Edit Details</span>
+    </div>
+    ${item.status === 'ready' ? `<div class="ctx-item text-green" onclick="openActionOverlay(${item.id})">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"></path></svg>
+       <span>Activate Node</span>
+    </div>` : ''}
+    ${item.status !== 'ready' ? `<div class="ctx-item text-blue" onclick="confirmForceRestore(${item.id})">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.74 15.42 20 13.75 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 9.74C4.26 11.02 4 12.63 4 14c0 4.42 3.58 8 8 8V23l4-4-4-4v3z"></path></svg>
+       <span>Force Restore</span>
+    </div>` : ''}
+    ${item.status === 'active' || item.status === 'cooldown' ? `<div class="ctx-item text-red" onclick="confirmHitLimit(${item.id})">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
+       <span>Hit Limit / Cooldown</span>
+    </div>` : ''}
+  `;
+
+  menu.style.left = `${e.clientX}px`;
+  menu.style.top = `${e.clientY}px`;
+  menu.classList.add('active');
+
+  const hide = () => {
+    menu.classList.remove('active');
+    document.removeEventListener('click', hide);
+    document.removeEventListener('contextmenu', hide);
+  };
+  setTimeout(() => document.addEventListener('click', hide), 10);
+}
+
+function showProviderContextMenu(e, providerName) {
+  closeContextMenu();
+  const menu = document.getElementById('contextMenu');
+
+  menu.innerHTML = `
+    <div class="ctx-header">Provider: ${providerName}</div>
+    <div class="ctx-item" onclick="renameProvider('${providerName}')">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
+       <span>Edit Name</span>
+    </div>
+    <div class="ctx-item text-red" onclick="deleteProvider('${providerName}')">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path></svg>
+       <span>Delete Provider</span>
+    </div>
+    <div class="ctx-item" onclick="addNewProviderFromMenu()">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
+       <span>New Provider...</span>
+    </div>
+  `;
+
+  menu.style.left = `${e.clientX}px`;
+  menu.style.top = `${e.clientY}px`;
+  menu.classList.add('active');
+  setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
+}
+
+function showGridBackgroundContextMenu(e) {
+  closeContextMenu();
+  const menu = document.getElementById('contextMenu');
+  menu.innerHTML = `
+    <div class="ctx-header">Grid Options</div>
+    <div class="ctx-item" onclick="closeContextMenu(); openModal()">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
+       <span>Add New Node</span>
+    </div>
+    <div class="ctx-item" onclick="closeContextMenu(); addNewProviderFromMenu()">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
+       <span>Add New Provider</span>
+    </div>
+  `;
+  menu.style.left = `${e.clientX}px`;
+  menu.style.top = `${e.clientY}px`;
+  menu.classList.add('active');
+  setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
+}
+
 function showScatterBackgroundContextMenu(e) {
   closeContextMenu();
   const menu = document.getElementById('contextMenu');
@@ -1470,73 +1828,38 @@ function showScatterBackgroundContextMenu(e) {
   menu.classList.add('active');
   setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
 }
-function showProviderContextMenu(e, providerName) {
-  closeContextMenu();
-  const menu = document.getElementById('contextMenu');
-  menu.innerHTML = `
-    <div class="ctx-header">Provider: ${providerName}</div>
-    <div class="ctx-item" onclick="renameProvider('${providerName}')">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
-       <span>Edit Name</span>
-    </div>
-    <div class="ctx-item text-red" onclick="deleteProvider('${providerName}')">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path></svg>
-       <span>Delete Provider</span>
-    </div>
-    <div class="ctx-item" onclick="addNewProviderFromMenu()">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
-       <span>New Provider...</span>
-    </div>
-  `;
-  menu.style.left = `${e.clientX}px`;
-  menu.style.top = `${e.clientY}px`;
-  menu.classList.add('active');
-  setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
+
+function closeContextMenu() {
+  document.getElementById('contextMenu').classList.remove('active');
 }
+
 function renameProvider(oldName) {
-    const newName = prompt(`Rename ${oldName} to:`, oldName);
-    if(newName && newName.trim() && newName !== oldName) {
-        const trimmed = newName.trim();
-       
-        // Update the provider list
-        const index = providers.indexOf(oldName);
-        if(index !== -1) {
-            providers[index] = trimmed;
-        }
-       
-        // Update all associated items
-        items.forEach(item => {
-            if(item.provider === oldName) {
-                item.provider = trimmed;
-            }
-        });
-       
-        // If filter was set to this provider, update it
-        if(config.filterProvider === oldName) {
-            config.filterProvider = trimmed;
-        }
-       
-        providers.sort();
-        save();
-        renderAll();
-        showToast('Provider Renamed');
-    }
-}
-function deleteProvider(name) {
-  if (name === 'All') {
-    showToast('Cannot delete "All" provider.');
-    return;
+  const newName = prompt(`Rename ${oldName} to:`, oldName);
+  if (newName && newName.trim() && newName !== oldName) {
+    const trimmed = newName.trim();
+    const index = providers.indexOf(oldName);
+    if (index !== -1) providers[index] = trimmed;
+    items.forEach(item => {
+      if (item.provider === oldName) item.provider = trimmed;
+    });
+    if (config.filterProvider === oldName) config.filterProvider = trimmed;
+    providers.sort();
+    save();
+    renderAll();
+    showToast('Provider Renamed');
   }
-  if (confirm(`Remove "${name}" from provider list? (Associated nodes will remain but won't have a filter pill until re-added)`)) {
+}
+
+function deleteProvider(name) {
+  if (confirm(`Remove "${name}" from provider list?`)) {
     providers = providers.filter(p => p !== name);
-    if (config.filterProvider === name) {
-      config.filterProvider = 'all';
-    }
+    if (config.filterProvider === name) config.filterProvider = 'all';
     save();
     renderAll();
     showToast('Provider Removed');
   }
 }
+
 function addNewProviderFromMenu() {
   const newProvider = prompt('Enter new provider name:');
   if (newProvider && newProvider.trim()) {
@@ -1545,185 +1868,45 @@ function addNewProviderFromMenu() {
       providers.push(trimmedProvider);
       providers.sort();
       save();
+      renderProviderSelect();
       renderProviderPills();
       showToast('Provider added!');
     }
   }
 }
-function showGridBackgroundContextMenu(e) {
-  closeContextMenu();
-  const menu = document.getElementById('contextMenu');
-  menu.innerHTML = `
-    <div class="ctx-header">Grid Options</div>
-    <div class="ctx-item" onclick="closeContextMenu(); openModal()">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
-       <span>Add New Node</span>
-    </div>
-    <div class="ctx-item" onclick="closeContextMenu(); addNewProviderFromMenu()">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
-       <span>Add New Provider</span>
-    </div>
-  `;
-  menu.style.left = `${e.clientX}px`;
-  menu.style.top = `${e.clientY}px`;
-  menu.classList.add('active');
-  setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
-}
-function showContextMenu(e, nodeId) {
-  closeContextMenu();
-  const menu = document.getElementById('contextMenu');
-  const item = items.find(i => i.id == nodeId);
-  if (!item) return;
-  menu.innerHTML = `
-    <div class="ctx-header">${item.provider} Node</div>
-    <div class="ctx-item" onclick="openModal(${item.id})">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
-       <span>Edit Details</span>
-    </div>
-    ${item.status === 'ready' ? `<div class="ctx-item text-green" onclick="openActionOverlay(${item.id})">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"></path></svg>
-       <span>Activate Node</span>
-    </div>` : ''}
-    ${item.status !== 'ready' ? `<div class="ctx-item text-blue" onclick="confirmForceRestore(${item.id})">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.74 15.42 20 13.75 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 9.74C4.26 11.02 4 12.63 4 14c0 4.42 3.58 8 8 8V23l4-4-4-4v3z"></path></svg>
-       <span>Force Restore</span>
-    </div>` : ''}
-    ${item.status === 'active' || item.status === 'cooldown' ? `<div class="ctx-item text-red" onclick="confirmHitLimit(${item.id})">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
-       <span>Hit Limit / Cooldown</span>
-    </div>` : ''}
-  `;
-  menu.style.left = `${e.clientX}px`;
-  menu.style.top = `${e.clientY}px`;
-  menu.classList.add('active');
-  const hide = () => {
-    menu.classList.remove('active');
-    document.removeEventListener('click', hide);
-    document.removeEventListener('contextmenu', hide);
-  };
-  setTimeout(() => document.addEventListener('click', hide), 10);
-}
-function closeContextMenu() {
-  document.getElementById('contextMenu').classList.remove('active');
-}
-// --- Pan/Zoom ---
-function applyScatterTransform() {
-  document.getElementById('scatterCanvas').style.transform = `translate(${scatter.transform.x}px, ${scatter.transform.y}px) scale(${scatter.transform.scale})`;
-}
-function zoom(delta, clientX = window.innerWidth / 2, clientY = window.innerHeight / 2) {
-  const newScale = Math.max(0.25, Math.min(3, scatter.transform.scale + delta));
-  if (newScale === scatter.transform.scale) return;
-  const rect = document.getElementById('scatterCanvas').getBoundingClientRect();
-  const zoomX = clientX - rect.left;
-  const zoomY = clientY - rect.top;
-  const scaleRatio = newScale / scatter.transform.scale;
-  scatter.transform.x = zoomX - (zoomX - scatter.transform.x) * scaleRatio;
-  scatter.transform.y = zoomY - (zoomY - scatter.transform.y) * scaleRatio;
-  scatter.transform.scale = newScale;
-  applyScatterTransform();
-  save();
-}
-function zoomIn() {
-  zoom(0.25);
-}
-function zoomOut() {
-  zoom(-0.25);
-}
-function resetView() {
-  scatter.transform = { x: 0, y: 0, scale: 1 };
-  applyScatterTransform();
-  save();
-}
-// Pan logic
-let panning = false;
-let panStart = { x: 0, y: 0 };
-const scatterCanvas = document.getElementById('scatterCanvas');
-scatterCanvas.addEventListener('pointerdown', (e) => {
-  if (!e.target.closest('.scatter-card')) {
-    panning = true;
-    panStart.x = e.clientX - scatter.transform.x;
-    panStart.y = e.clientY - scatter.transform.y;
-    scatterCanvas.style.cursor = 'grab';
-  }
-});
-document.addEventListener('pointermove', (e) => {
-  if (panning) {
-    scatter.transform.x = e.clientX - panStart.x;
-    scatter.transform.y = e.clientY - panStart.y;
-    applyScatterTransform();
-  }
-});
-document.addEventListener('pointerup', () => {
-  if (panning) {
-    panning = false;
-    scatterCanvas.style.cursor = 'default';
-    save();
-  }
-});
-scatterCanvas.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  const delta = e.deltaY < 0 ? 0.25 : -0.25;
-  zoom(delta, e.clientX, e.clientY);
-}, { passive: false });
-// Mobile background long-press
-scatterCanvas.addEventListener('touchstart', (e) => {
-  if (e.touches.length === 1 && !panning && !e.target.closest('.scatter-card')) {
-    touchTimer = setTimeout(() => showScatterBackgroundContextMenu(e.touches[0]), 500);
-  }
-});
-scatterCanvas.addEventListener('touchmove', () => clearTimeout(touchTimer));
-scatterCanvas.addEventListener('touchend', () => clearTimeout(touchTimer));
-// Grid background long-press
-const gridWrapper = document.getElementById('gridWrapper');
-gridWrapper.oncontextmenu = (e) => {
-  if (e.target === gridWrapper) {
-    e.preventDefault();
-    showGridBackgroundContextMenu(e);
-  }
-};
-gridWrapper.addEventListener('touchstart', (e) => {
-  if (e.touches.length === 1 && e.target === gridWrapper) {
-    touchTimer = setTimeout(() => showGridBackgroundContextMenu(e.touches[0]), 500);
-  }
-});
-gridWrapper.addEventListener('touchmove', () => clearTimeout(touchTimer));
-gridWrapper.addEventListener('touchend', () => clearTimeout(touchTimer));
-// --- Utility Functions ---
-function showToast(msg) {
-  const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2000);
-}
-function autoArrange() {
-  relayout();
-  showToast('Nodes Arranged!');
-}
+
+// --- Modal Management ---
 function renderProviderSelect() {
   const select = document.getElementById('inpProvider');
   if (!select) return;
+
   const currentProviderValue = select.value;
   select.innerHTML = '';
+
   const defaultOption = document.createElement('option');
   defaultOption.value = '';
   defaultOption.textContent = 'Select a Provider';
   defaultOption.disabled = true;
   defaultOption.selected = true;
   select.appendChild(defaultOption);
+
   providers.sort().forEach(provider => {
     const option = document.createElement('option');
     option.value = provider;
     option.textContent = provider;
     select.appendChild(option);
   });
+
   const customOption = document.createElement('option');
   customOption.value = 'CUSTOM_ADD_NEW';
   customOption.textContent = '+ Add Custom Provider...';
   select.appendChild(customOption);
+
   if (currentProviderValue && (providers.includes(currentProviderValue) || currentProviderValue === 'CUSTOM_ADD_NEW')) {
     select.value = currentProviderValue;
   }
 }
+
 document.addEventListener('change', (e) => {
   if (e.target.id === 'inpProvider' && e.target.value === 'CUSTOM_ADD_NEW') {
     const newProvider = prompt('Enter new provider name:');
@@ -1742,17 +1925,20 @@ document.addEventListener('change', (e) => {
     }
   }
 });
+
 function selectStatusButton(status) {
   document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('selected'));
   document.querySelector(`.btn-toggle[data-status="${status}"]`).classList.add('selected');
   document.getElementById('inpStatus').value = status;
 }
+
 function selectResetHours(hours) {
   document.querySelectorAll('.pill-option').forEach(p => p.classList.remove('selected'));
   document.querySelector(`.pill-option[data-hours="${hours}"]`).classList.add('selected');
   document.getElementById('inpReset').value = hours;
   document.getElementById('inpResetCustom').value = '';
 }
+
 document.getElementById('inpResetCustom').addEventListener('input', (e) => {
   document.querySelectorAll('.pill-option').forEach(p => p.classList.remove('selected'));
   const value = parseFloat(e.target.value);
@@ -1762,34 +1948,106 @@ document.getElementById('inpResetCustom').addEventListener('input', (e) => {
     selectResetHours(document.getElementById('inpReset').value || 3);
   }
 });
+
+function openModal(nodeId = null) {
+  const modal = document.getElementById('modalOverlay');
+  const form = document.getElementById('nodeForm');
+  const title = document.getElementById('modalTitle');
+  const btnDelete = document.getElementById('btnDelete');
+  const editActions = document.getElementById('editActions');
+  const inpProvider = document.getElementById('inpProvider');
+
+  form.reset();
+  selectResetHours(3);
+  selectStatusButton('ready');
+  document.getElementById('nodeId').value = '';
+  renderProviderSelect();
+  inpProvider.value = '';
+  title.textContent = 'New Node';
+  btnDelete.style.display = 'none';
+  editActions.style.display = 'none';
+
+  if (nodeId) {
+    const item = items.find(i => i.id == nodeId);
+    if (!item) return;
+
+    title.textContent = `Edit Node: ${item.provider}`;
+    document.getElementById('nodeId').value = nodeId;
+
+    if (!providers.includes(item.provider)) {
+      providers.push(item.provider);
+      providers.sort();
+      save();
+      renderProviderSelect();
+    }
+    inpProvider.value = item.provider;
+    document.getElementById('inpEmail').value = item.email;
+    selectStatusButton(item.status);
+
+    const option = document.querySelector(`.pill-option[data-hours="${item.resetHours}"]`);
+    if (option) {
+      selectResetHours(item.resetHours);
+    } else {
+      document.querySelectorAll('.pill-option').forEach(p => p.classList.remove('selected'));
+      document.getElementById('inpResetCustom').value = item.resetHours;
+      document.getElementById('inpReset').value = item.resetHours;
+    }
+
+    btnDelete.style.display = 'block';
+    editActions.style.display = 'flex';
+    document.getElementById('btnDelete').onclick = () => deleteNode();
+    document.querySelector('#editActions .btn-secondary:nth-child(1)').onclick = () => confirmHitLimit(nodeId);
+    document.querySelector('#editActions .btn-secondary:nth-child(2)').onclick = () => confirmForceRestore(nodeId);
+  }
+
+  modal.classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
+function closeActionOverlay() {
+  document.getElementById('actionOverlay').classList.remove('active');
+}
+
+function closeInfoModal() {
+  document.getElementById('infoOverlay').classList.remove('active');
+}
+
 const form = document.getElementById('nodeForm');
 form.addEventListener('submit', (e) => {
   e.preventDefault();
+
   const nodeId = document.getElementById('nodeId').value;
   const provider = document.getElementById('inpProvider').value;
   const email = document.getElementById('inpEmail').value;
   const status = document.getElementById('inpStatus').value;
   const resetHours = parseFloat(document.getElementById('inpReset').value);
+
   if (!provider || provider === 'CUSTOM_ADD_NEW') {
     showToast('Please select a valid Provider.');
     return;
   }
+
   const now = Date.now();
+
   if (nodeId) {
     const item = items.find(i => i.id == nodeId);
     if (!item) return;
+
     const oldStatus = item.status;
     const oldProvider = item.provider;
     item.provider = provider;
     item.email = email;
     item.status = status;
+
     if (item.status !== oldStatus || item.provider !== oldProvider) {
       item.lastUsed = now;
     }
+
     item.resetHours = resetHours;
-    if (!providers.includes(provider)) {
-      providers.push(provider);
-    }
+    if (!providers.includes(provider)) providers.push(provider);
     showToast('Node Updated!');
   } else {
     const newItem = {
@@ -1799,25 +2057,23 @@ form.addEventListener('submit', (e) => {
       status: status,
       resetHours: resetHours,
       lastUsed: now,
-      pos: {
-        x: 50,
-        y: 50
-      }
+      pos: { x: 50, y: 50 }
     };
     items.push(newItem);
-    if (!providers.includes(provider)) {
-      providers.push(provider);
-    }
+    if (!providers.includes(provider)) providers.push(provider);
     showToast('New Node Added!');
   }
+
   save();
   closeModal();
   renderAll();
 });
+
 function deleteNode() {
   const nodeId = document.getElementById('nodeId').value;
   const item = items.find(i => i.id == nodeId);
   if (!item) return;
+
   confirmAction(`Delete ${item.provider}?`, 'This action cannot be undone.', () => {
     items = items.filter(i => i.id != nodeId);
     save();
@@ -1826,12 +2082,34 @@ function deleteNode() {
     showToast('Node Deleted!');
   });
 }
+
+function confirmAction(title, text, callback) {
+  const overlay = document.getElementById('confirmOverlay');
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmText').textContent = text;
+  const btnConfirm = document.getElementById('btnConfirmAction');
+
+  const newBtnConfirm = btnConfirm.cloneNode(true);
+  btnConfirm.parentNode.replaceChild(newBtnConfirm, btnConfirm);
+  newBtnConfirm.onclick = () => {
+    callback();
+    closeConfirm();
+  };
+
+  overlay.classList.add('active');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmOverlay').classList.remove('active');
+}
+
 function confirmHitLimit(nodeId) {
   closeModal();
   closeContextMenu();
   const id = nodeId || document.getElementById('nodeId').value;
   const item = items.find(i => i.id == id);
   if (!item) return;
+
   confirmAction(`Hit Limit: ${item.provider}`, `Mark this node as 'cooldown' and start its ${item.resetHours}h reset timer?`, () => {
     item.status = 'cooldown';
     item.lastUsed = Date.now();
@@ -1841,12 +2119,14 @@ function confirmHitLimit(nodeId) {
     showToast(`${item.provider} Node Cooldown Initiated.`);
   });
 }
+
 function confirmForceRestore(nodeId) {
   closeModal();
   closeContextMenu();
   const id = nodeId || document.getElementById('nodeId').value;
   const item = items.find(i => i.id == id);
   if (!item) return;
+
   confirmAction(`Force Restore: ${item.provider}`, `Mark this node as 'ready' and reset its timer?`, () => {
     item.status = 'ready';
     item.lastUsed = Date.now() - (item.resetHours * 60 * 60 * 1000) * 2;
@@ -1856,35 +2136,24 @@ function confirmForceRestore(nodeId) {
     showToast(`${item.provider} Node is Force Ready.`);
   });
 }
-function confirmAction(title, text, callback) {
-  const overlay = document.getElementById('confirmOverlay');
-  document.getElementById('confirmTitle').textContent = title;
-  document.getElementById('confirmText').textContent = text;
-  const btnConfirm = document.getElementById('btnConfirmAction');
-  const newBtnConfirm = btnConfirm.cloneNode(true);
-  btnConfirm.parentNode.replaceChild(newBtnConfirm, btnConfirm);
-  newBtnConfirm.onclick = () => {
-    callback();
-    closeConfirm();
-  };
-  overlay.classList.add('active');
-}
-function closeConfirm() {
-  document.getElementById('confirmOverlay').classList.remove('active');
-}
+
 function openActionOverlay(nodeId) {
   closeModal();
   closeContextMenu();
   const item = items.find(i => i.id == nodeId);
   if (!item) return;
+
   navigator.clipboard.writeText(item.email).then(() => {
     showToast(`Copied ${item.provider} email.`);
   });
+
   document.getElementById('actionTitle').textContent = `Activate Node: ${item.provider}`;
   document.getElementById('actionEmail').value = item.email;
+
   const btnActivate = document.getElementById('btnActivateNode');
   const newBtnActivate = btnActivate.cloneNode(true);
   btnActivate.parentNode.replaceChild(newBtnActivate, btnActivate);
+
   newBtnActivate.onclick = () => {
     item.status = 'active';
     item.lastUsed = Date.now();
@@ -1893,38 +2162,166 @@ function openActionOverlay(nodeId) {
     renderAll();
     showToast(`${item.provider} Node Activated!`);
   };
+
   document.getElementById('actionOverlay').classList.add('active');
 }
-function closeActionOverlay() {
-  document.getElementById('actionOverlay').classList.remove('active');
-}
+
 function openInfoModal() {
   document.getElementById('infoOverlay').classList.add('active');
 }
-function closeInfoModal() {
-  document.getElementById('infoOverlay').classList.remove('active');
-}
-function toggleAccordion(btn) {
-  const item = btn.parentNode;
-  item.classList.toggle('open');
-  const content = item.querySelector('.accordion-content');
-  content.style.maxHeight = item.classList.contains('open') ? content.scrollHeight + 'px' : 0;
-}
-function copyInput(id) {
-  const input = document.getElementById(id);
-  input.select();
-  document.execCommand('copy');
-  showToast('Copied!');
-}
-function cycleStatusFilter() {
-  const statuses = ['all', 'active', 'ready', 'cooldown', 'burnt'];
-  const currentIndex = statuses.indexOf(config.filterStatus);
-  config.filterStatus = statuses[(currentIndex + 1) % statuses.length];
-  save();
-  renderAll();
-  showToast(`Filter: ${config.filterStatus.toUpperCase()}`);
-}
+
 // --- Initialization ---
+function init() {
+  load();
+  const storedTheme = localStorage.getItem('iv_theme');
+  if (storedTheme) {
+    currentThemeIndex = themes.indexOf(storedTheme);
+    if (currentThemeIndex === -1) currentThemeIndex = 0;
+    document.body.setAttribute('data-theme', storedTheme);
+    const logo = document.getElementById('logoImg');
+    if (logo) {
+      switch(storedTheme) {
+        case 'light':
+          logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-dark.svg';
+          break;
+        case 'rose':
+          logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-rose.svg';
+          break;
+        default:
+          logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg';
+      }
+    }
+  }
+
+  switchView(config.view);
+  timerInterval = setInterval(updateAllTimers, 1000);
+  canvas = document.getElementById('scatterCanvas');
+  magnetCursor = document.getElementById('magnetCursor');
+  renderAll();
+
+  const scatterControls = document.getElementById('scatterControls');
+  if (scatterControls) {
+
+    const moveBtn = document.createElement('button');
+    moveBtn.id = 'moveBtn';
+    moveBtn.className = 'control-btn';
+    moveBtn.title = 'Move Mode';
+    moveBtn.innerText = '✋';
+    moveBtn.onclick = toggleMoveMode;
+    scatterControls.prepend(moveBtn);
+  }
+
+  const gridWrapper = document.getElementById('gridWrapper');
+  gridWrapper.oncontextmenu = (e) => {
+    if (e.target === gridWrapper) {
+      e.preventDefault();
+      showGridBackgroundContextMenu(e);
+    }
+  };
+  gridWrapper.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1 && e.target === gridWrapper) {
+      touchTimer = setTimeout(() => showGridBackgroundContextMenu(e.touches[0]), 500);
+    }
+  });
+  gridWrapper.addEventListener('touchmove', () => clearTimeout(touchTimer));
+  gridWrapper.addEventListener('touchend', () => clearTimeout(touchTimer));
+
+  canvas.oncontextmenu = (e) => {
+    if (!e.target.closest('.scatter-card')) {
+      e.preventDefault();
+      showScatterBackgroundContextMenu(e);
+    }
+  };
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1 && !e.target.closest('.scatter-card')) {
+      touchTimer = setTimeout(() => showScatterBackgroundContextMenu(e.touches[0]), 500);
+    }
+  });
+  canvas.addEventListener('touchmove', () => clearTimeout(touchTimer));
+  canvas.addEventListener('touchend', () => clearTimeout(touchTimer));
+
+  // Pan logic
+  let panning = false;
+  let panStart = { x: 0, y: 0 };
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest('.scatter-card')) {
+      panning = true;
+      panStart.x = e.clientX - scatter.transform.x;
+      panStart.y = e.clientY - scatter.transform.y;
+      canvas.style.cursor = 'grab';
+    }
+  });
+
+  document.addEventListener('pointermove', (e) => {
+    if (panning) {
+      scatter.transform.x = e.clientX - panStart.x;
+      scatter.transform.y = e.clientY - panStart.y;
+      applyScatterTransform();
+    }
+  });
+
+  document.addEventListener('pointerup', () => {
+    if (panning) {
+      panning = false;
+      canvas.style.cursor = 'default';
+      save();
+    }
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.25 : -0.25;
+    zoom(delta, e.clientX, e.clientY);
+  }, { passive: false });
+
+  // Touch pinch/zoom
+  let pointers = [];
+  canvas.addEventListener('touchstart', (e) => {
+    pointers = Array.from(e.touches);
+    if (pointers.length === 2) {
+      const touch1 = pointers[0];
+      const touch2 = pointers[1];
+      scatter.pinchStart = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    pointers = Array.from(e.touches);
+    if (pointers.length === 2) {
+      const touch1 = pointers[0];
+      const touch2 = pointers[1];
+      const currentDist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+      const scaleChange = currentDist / scatter.pinchStart;
+      const centerX = (touch1.clientX + touch2.clientX) / 2;
+      const centerY = (touch1.clientY + touch2.clientY) / 2;
+      const oldScale = scatter.transform.scale;
+      let newScale = oldScale * scaleChange;
+      newScale = Math.max(0.25, Math.min(3, newScale));
+      const scaleRatio = newScale / oldScale;
+      scatter.transform.x = centerX - (centerX - scatter.transform.x) * scaleRatio;
+      scatter.transform.y = centerY - (centerY - scatter.transform.y) * scaleRatio;
+      scatter.transform.scale = newScale;
+      scatter.pinchStart = currentDist;
+      applyScatterTransform();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    pointers = Array.from(e.touches);
+    if (e.touches.length < 2) {
+      scatter.pinchStart = 0;
+      save();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && scatter.moveActive) {
+      toggleMoveMode();
+    }
+  });
+}
+
 document.querySelectorAll('.overlay').forEach(overlay => {
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) {
@@ -1933,11 +2330,12 @@ document.querySelectorAll('.overlay').forEach(overlay => {
     }
   });
 });
-window.addEventListener('load', () => {
-  load();
-  renderAll();
-  timerInterval = setInterval(updateAllTimers, 1000);
-  window.addEventListener('resize', relayout);
+
+window.addEventListener('load', init);
+window.addEventListener('resize', () => {
+  if (config.view === 'scatter') {
+    applyScatterTransform();
+  }
 });
 </script>
 </body>
