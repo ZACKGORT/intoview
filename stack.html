@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>i n t o v i e w : n o d e</title>
+  <link href="https://fonts.googleapis.com" rel="preconnect" crossorigin>
+  <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+
+  <style>
+    /* --- CORE STYLING (Inherited from BLOCK.html) --- */
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { overflow: hidden; font-family: 'Inter', sans-serif; background: #0f1014; color: #fff; }
+    
+    #canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+    
+    :root {
+      --bg-color: #0f1014;
+      --glass-bg: rgba(255, 255, 255, 0.04);
+      --glass-bg-hover: rgba(255, 255, 255, 0.08);
+      --glass-bg-bright: rgba(255, 255, 255, 0.12);
+      --glass-border: rgba(255, 255, 255, 0.12);
+      --accent: #83ff83; /* Neon Green */
+      --active: #FF1493; /* Neon Pink */
+      --font-stack: Inter, ui-sans-serif, system-ui;
+    }
+
+    /* UI LAYOUT & COMPONENTS */
+    .ui-layer { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
+    .pointer-events-auto { pointer-events: auto; }
+
+    /* Left Rail - Camera Presets */
+    .left-rail {
+      position: fixed; top: 50%; left: 24px; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 8px;
+      background: var(--glass-bg); backdrop-filter: blur(8px);
+      padding: 6px; border: 1px solid var(--glass-border); border-radius: 8px;
+      pointer-events: auto;
+    }
+
+    /* Right Rail - Impulse Controls */
+    .right-rail {
+      position: fixed; top: 50%; right: 24px; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 8px;
+      background: var(--glass-bg); backdrop-filter: blur(8px);
+      padding: 6px; border: 1px solid var(--glass-border); border-radius: 8px;
+      pointer-events: auto;
+    }
+
+    button {
+      padding: 8px 16px; background: transparent; border: none;
+      color: #fff; cursor: pointer; transition: background 0.2s ease;
+      display: flex; align-items: center; gap: 8px; border-radius: 4px;
+      font-family: var(--font-stack); font-weight: 500; font-size: 14px;
+      text-align: left;
+    }
+    button:hover { background: var(--glass-bg-hover); }
+    button.active { background: var(--glass-bg-bright); color: var(--accent); }
+    button.mode-active { color: var(--active); border: 1px solid var(--active); }
+
+    .emoji { font-size: 1.2em; }
+    
+    /* Power Level Indicator */
+    .power-display {
+      text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      color: rgba(255,255,255,0.5); padding: 4px 0; border-top: 1px solid var(--glass-border);
+      margin-top: 4px;
+    }
+    .power-val { color: var(--accent); font-weight: bold; }
+
+    /* Top Mode Toggle */
+    .top-bar {
+      position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--glass-bg); backdrop-filter: blur(8px);
+      padding: 6px; border: 1px solid var(--glass-border); border-radius: 8px;
+      display: flex; gap: 8px; pointer-events: auto;
+    }
+
+    /* Modal - New Note */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 200;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    
+    .modal {
+      background: #0f1014; border: 1px solid var(--glass-border);
+      padding: 24px; width: 320px; border-radius: 12px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      transform: scale(0.9); transition: transform 0.2s ease;
+    }
+    .modal-overlay.open .modal { transform: scale(1); }
+    
+    .modal h3 { color: var(--accent); margin-bottom: 16px; font-size: 16px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .modal input {
+      width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+      padding: 12px; color: white; border-radius: 4px; margin-bottom: 16px;
+      font-family: 'Inter', sans-serif; outline: none;
+    }
+    .modal input:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .btn-primary { background: var(--accent); color: #000; font-weight: 700; }
+    .btn-primary:hover { background: #6eff6e; }
+
+    /* Instructions / HUD */
+    .hud {
+      position: fixed; bottom: 24px; left: 24px; 
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.4);
+      pointer-events: none; line-height: 1.5;
+    }
+    .hud kbd { border: 1px solid rgba(255,255,255,0.2); padding: 1px 4px; border-radius: 3px; color: var(--accent); }
+
+    /* Vignette & Grain */
+    .vignette {
+      position: fixed; inset: 0; pointer-events: none; z-index: 50;
+      background: radial-gradient(120% 90% at 50% 50%, #fff0 10%, rgb(15 16 20 / 0.8) 60%, rgb(15 16 20 / 1) 100%);
+      opacity: 0.5;
+    }
+    body::after {
+      content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 49; opacity: 0.05;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="canvas"></canvas>
+
+  <div class="vignette"></div>
+
+  <div class="top-bar">
+    <button id="modeFreeBtn" class="active"><span class="emoji">✨</span> Free Mode</button>
+    <button id="modeMoveBtn"><span class="emoji">🏗️</span> Move Mode</button>
+  </div>
+
+  <div class="left-rail">
+    <button id="microBtn"><span class="emoji">🔍</span> Micro</button>    
+    <button id="macroBtn" class="active"><span class="emoji">🌐</span> Macro</button>
+  </div>
+
+  <div class="right-rail">
+    <button id="impulseNudgeBtn" class="active"><span class="emoji">👉</span> Nudge</button>
+    <button id="impulsePullBtn"><span class="emoji">🧲</span> Pull Closer</button>
+    <button id="impulseBootBtn"><span class="emoji">🥾</span> Boot</button>
+    <div class="power-display">PWR: <span id="powerVal" class="power-val">1</span>x</div>
+  </div>
+
+  <div class="hud">
+    <div id="freeHud">
+      [L-Click Ground] New Note<br>
+      [L-Click Block] Apply Impulse<br>
+      [1-4] Set Power Level<br>
+      [Space] Reset Camera
+    </div>
+    <div id="moveHud" style="display:none; color: var(--active);">
+      [L-Click Block] Select<br>
+      [Arrow Keys] Move Grid<br>
+      [Space] Deselect
+    </div>
+  </div>
+
+  <div id="noteModal" class="modal-overlay">
+    <div class="modal">
+      <h3>New Data Block</h3>
+      <input type="text" id="noteInput" placeholder="Enter note content..." autocomplete="off">
+      <div class="modal-actions">
+        <button id="cancelNoteBtn">Cancel</button>
+        <button id="saveNoteBtn" class="btn-primary">Initialize</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- 1. SETUP & CONSTANTS ---
+    const CUBE_SIZE = 3.33; // Inherited grid unit
+    const NEON_GREEN = 0x39FF14;
+    const NEON_PINK = 0xFF1493;
+    
+    // State
+    let state = {
+      interactionMode: 'free', // 'free' | 'move'
+      currentGrid: 'macro',    // 'micro' | 'macro'
+      impulseType: 'nudge',    // 'nudge' | 'pull' | 'boot'
+      powerLevel: 1,
+      selectedCube: null,      // For Move Mode
+    };
+
+    // --- 2. THREE.JS & SCENE INIT ---
+    const canvas = document.getElementById('canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f1014);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    // Initial Camera Position (Macro)
+    camera.position.set(0, -4, 34 * 0.44); 
+
+    // Lighting (Preserved from BLOCK.html)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    
+    const accentLight = new THREE.PointLight(NEON_PINK, 3, 20);
+    accentLight.position.set(-8, 5, 10);
+    scene.add(accentLight);
+
+    const whiteLight = new THREE.PointLight(NEON_GREEN, 2, 100);
+    whiteLight.position.set(8, 5, 10);
+    scene.add(whiteLight);
+
+    const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    mainLight.position.set(5, 15, 10);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    const d = 30;
+    mainLight.shadow.camera.left = -d; mainLight.shadow.camera.right = d;
+    mainLight.shadow.camera.top = d; mainLight.shadow.camera.bottom = -d;
+    scene.add(mainLight);
+
+    // Environment Map (for glass reflection)
+    const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256);
+    const cubeCamera = new THREE.CubeCamera(0.1, 1000, cubeRenderTarget);
+    scene.add(cubeCamera);
+
+    // Floor / Ground
+    // We use a math plane for raycasting, but a grid helper for visuals
+    const groundGeo = new THREE.PlaneGeometry(800, 800);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0f1014, roughness: 1, metalness: 0 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -6; // Base floor level
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Visual Grid
+    const gridHelper = new THREE.GridHelper(200, 60, 0x222222, 0x111111);
+    gridHelper.position.y = -5.99; // Just above ground
+    scene.add(gridHelper);
+
+    // Tile Cursor (The hover highlight)
+    const cursorGeo = new THREE.PlaneGeometry(CUBE_SIZE, CUBE_SIZE);
+    const cursorMat = new THREE.MeshBasicMaterial({ color: NEON_GREEN, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+    const tileCursor = new THREE.Mesh(cursorGeo, cursorMat);
+    tileCursor.rotation.x = -Math.PI / 2;
+    tileCursor.visible = false;
+    scene.add(tileCursor);
+
+    // --- 3. PHYSICS (CANNON.JS) ---
+    const world = new CANNON.World();
+    world.gravity.set(0, -19.81, 0);
+    world.broadphase = new CANNON.NaiveBroadphase();
+    
+    const defaultMaterial = new CANNON.Material();
+    const defaultContactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
+      friction: 0.3, restitution: 0.5
+    });
+    world.addContactMaterial(defaultContactMaterial);
+
+    // Physics Floor
+    const groundShape = new CANNON.Plane();
+    const groundBody = new CANNON.Body({ mass: 0, material: defaultMaterial });
+    groundBody.addShape(groundShape);
+    groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+    groundBody.position.set(0, -6, 0);
+    world.addBody(groundBody);
+
+    // --- 4. MATERIALS & SHADER (Fresnel) ---
+    // Minimal implementation of the FresnelMap generation from source
+    function generateFresnelMap() {
+      const width = 512, height = 1;
+      const data = new Uint8Array(width * 4);
+      for (let i = 0; i < width; i++) {
+        const cosTheta = i / width;
+        const u = Math.pow(1 - cosTheta, 5);
+        // Green/Blue shift
+        data[i * 4] = Math.floor(255 * (0.04 + 0.96 * u)); 
+        data[i * 4 + 1] = 255;
+        data[i * 4 + 2] = Math.floor(255 * u + 100);
+        data[i * 4 + 3] = 255;
+      }
+      const tex = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
+      tex.needsUpdate = true;
+      return tex;
+    }
+    const fresnelMap = generateFresnelMap();
+
+    const neonGreenMaterial = new THREE.MeshPhysicalMaterial({
+      color: NEON_GREEN, metalness: 0.8, roughness: 0.0,
+      clearcoat: 1.0, emissive: NEON_GREEN, emissiveIntensity: 0.55,
+      envMap: cubeRenderTarget.texture
+    });
+
+    const neonPinkMaterial = new THREE.MeshPhysicalMaterial({
+      color: NEON_PINK, metalness: 0.1, roughness: 0.1,
+      clearcoat: 1.0, emissive: NEON_PINK, emissiveIntensity: 0.6
+    });
+
+    // --- 5. BLOCK LOGIC ---
+    let blocks = []; // Array of { mesh, body, id }
+    let constraints = [];
+
+    function snapToGrid(val) {
+      return Math.round(val / CUBE_SIZE) * CUBE_SIZE;
+    }
+
+    // Function to create a block
+    function createBlock(x, z, yOffset = 0) {
+      const startY = -6 + (CUBE_SIZE / 2) + yOffset;
+      
+      // Visual Mesh
+      const geo = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+      const mesh = new THREE.Mesh(geo, neonGreenMaterial.clone());
+      mesh.position.set(x, startY, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      // Physics Body
+      const shape = new CANNON.Box(new CANNON.Vec3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2));
+      const body = new CANNON.Body({ mass: 2, material: defaultMaterial });
+      body.addShape(shape);
+      body.position.set(x, startY, z);
+      body.linearDamping = 0.3;
+      body.angularDamping = 0.3;
+      world.addBody(body);
+
+      const block = { mesh, body, id: Date.now() };
+      blocks.push(block);
+
+      // Magnetic Stringing (Constraint Logic)
+      checkAndLinkNeighbors(block);
+
+      return block;
+    }
+
+    function checkAndLinkNeighbors(newBlock) {
+      const range = CUBE_SIZE * 1.2; // Slightly larger than size to catch neighbors
+      
+      blocks.forEach(other => {
+        if (other === newBlock) return;
+        const dist = newBlock.body.position.distanceTo(other.body.position);
+        
+        if (dist < range) {
+          // Add Lock Constraint (Welds them)
+          const constraint = new CANNON.LockConstraint(newBlock.body, other.body);
+          world.addConstraint(constraint);
+          constraints.push(constraint);
+          
+          // Visual flare (optional) - flash them
+          gsap.to(newBlock.mesh.scale, { x:1.1, y:1.1, z:1.1, duration:0.1, yoyo:true, repeat:1 });
+        }
+      });
+    }
+
+    // --- 6. INTERACTION LOGIC ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let hoveredTile = { x: 0, z: 0 };
+    let isHoveringBlock = null;
+
+    // Handle Mouse Move (Cursor & Camera Tilt)
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+      // 1. Raycast Ground for Tile Cursor
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObject(ground);
+
+      if (intersects.length > 0) {
+        const p = intersects[0].point;
+        hoveredTile.x = snapToGrid(p.x);
+        hoveredTile.z = snapToGrid(p.z);
+        
+        tileCursor.position.set(hoveredTile.x, -5.9, hoveredTile.z);
+        tileCursor.visible = (state.interactionMode === 'free'); // Only show in free mode
+      }
+
+      // 2. Camera Tilt (Parallax)
+      const targetRotX = (e.clientY / window.innerHeight - 0.5) * 0.2;
+      const targetRotY = (e.clientX / window.innerWidth - 0.5) * 0.2;
+      gsap.to(scene.rotation, { x: targetRotX, y: targetRotY, duration: 1 });
+    });
+
+    // Handle Click
+    window.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button') || e.target.closest('.modal') || e.target.closest('.modal-overlay')) return;
+
+      raycaster.setFromCamera(mouse, camera);
+      
+      // Check block intersection first
+      const blockIntersects = raycaster.intersectObjects(blocks.map(b => b.mesh));
+
+      if (blockIntersects.length > 0) {
+        // --- CLICKED A BLOCK ---
+        const hitBlock = blocks.find(b => b.mesh === blockIntersects[0].object);
+        
+        if (state.interactionMode === 'move') {
+          // Select Block
+          selectBlock(hitBlock);
+        } else {
+          // Free Mode: Impulse
+          applyImpulse(hitBlock, blockIntersects[0].point);
+        }
+      } else {
+        // --- CLICKED GROUND ---
+        if (state.interactionMode === 'free') {
+            // Check if tile is occupied (simple distance check)
+            const isOccupied = blocks.some(b => 
+                Math.abs(b.body.position.x - hoveredTile.x) < 1 && 
+                Math.abs(b.body.position.z - hoveredTile.z) < 1
+            );
+            
+            // Open Modal to create note
+            // We calculate stack height if occupied? 
+            // Simplified: New Note Modal stores the target coords
+            openNoteModal(hoveredTile.x, hoveredTile.z, isOccupied);
+        } else if (state.interactionMode === 'move') {
+            // Deselect
+            selectBlock(null);
+        }
+      }
+    });
+
+    // Logic: Apply Impulse
+    function applyImpulse(block, point) {
+      const forceMult = state.powerLevel;
+      const body = block.body;
+      body.wakeUp();
+
+      if (state.impulseType === 'nudge') {
+        // Push away from camera
+        const dir = new THREE.Vector3().subVectors(block.mesh.position, camera.position).normalize();
+        dir.y = 0.2; // Slight lift
+        const force = 15 * forceMult;
+        body.applyImpulse(new CANNON.Vec3(dir.x * force, dir.y * force, dir.z * force), body.position);
+      } 
+      else if (state.impulseType === 'pull') {
+        // Pull toward camera
+        const dir = new THREE.Vector3().subVectors(camera.position, block.mesh.position).normalize();
+        dir.y = 0.1;
+        const force = 10 * forceMult;
+        body.applyImpulse(new CANNON.Vec3(dir.x * force, dir.y * force, dir.z * force), body.position);
+      } 
+      else if (state.impulseType === 'boot') {
+        // Big Kick
+        const force = 80 * forceMult;
+        body.applyImpulse(new CANNON.Vec3(0, force, -force * 0.5), body.position);
+        // Add spin
+        body.angularVelocity.set(Math.random()*10, Math.random()*10, Math.random()*10);
+      }
+    }
+
+    // Logic: Select Block (Move Mode)
+    function selectBlock(block) {
+      // Reset previous
+      if (state.selectedCube) {
+        state.selectedCube.mesh.material = neonGreenMaterial;
+      }
+      
+      state.selectedCube = block;
+      
+      if (block) {
+        block.mesh.material = neonPinkMaterial;
+        // Wake up physics but maybe set velocity to 0 to stop drift
+        block.body.velocity.set(0,0,0);
+        block.body.angularVelocity.set(0,0,0);
+      }
+    }
+
+    // --- 7. MOVE MODE (Keyboard) ---
+    window.addEventListener('keydown', (e) => {
+      // Power Levels
+      if (['1','2','3','4'].includes(e.key)) {
+        state.powerLevel = parseInt(e.key);
+        document.getElementById('powerVal').textContent = state.powerLevel;
+        return;
+      }
+
+      // Move Mode Arrows
+      if (state.interactionMode === 'move' && state.selectedCube) {
+        const body = state.selectedCube.body;
+        const mesh = state.selectedCube.mesh;
+        let moved = false;
+        
+        // Disable physics temporarily for manual move? 
+        // We just teleport the body.
+        
+        switch(e.key) {
+          case 'ArrowUp': body.position.z -= CUBE_SIZE; moved = true; break;
+          case 'ArrowDown': body.position.z += CUBE_SIZE; moved = true; break;
+          case 'ArrowLeft': body.position.x -= CUBE_SIZE; moved = true; break;
+          case 'ArrowRight': body.position.x += CUBE_SIZE; moved = true; break;
+        }
+
+        if (moved) {
+          // Snap strictly
+          body.position.x = Math.round(body.position.x / CUBE_SIZE) * CUBE_SIZE;
+          body.position.z = Math.round(body.position.z / CUBE_SIZE) * CUBE_SIZE;
+          
+          // Reset Physics
+          body.velocity.set(0,0,0);
+          body.angularVelocity.set(0,0,0);
+          body.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), 0); // Reset rotation
+          
+          // Update Mesh immediately to avoid lag
+          mesh.position.copy(body.position);
+          mesh.quaternion.copy(body.quaternion);
+        }
+      }
+    });
+
+    // --- 8. UI & MODAL WIRING ---
+    const modal = document.getElementById('noteModal');
+    const noteInput = document.getElementById('noteInput');
+    let pendingNotePos = null;
+
+    function openNoteModal(x, z, occupied) {
+      pendingNotePos = { x, z, occupied };
+      modal.classList.add('open');
+      noteInput.value = '';
+      setTimeout(() => noteInput.focus(), 100);
+    }
+
+    function closeNoteModal() {
+      modal.classList.remove('open');
+      pendingNotePos = null;
+    }
+
+    document.getElementById('cancelNoteBtn').addEventListener('click', closeNoteModal);
+    
+    document.getElementById('saveNoteBtn').addEventListener('click', () => {
+      if (!pendingNotePos) return;
+      const val = noteInput.value.trim();
+      if (val) {
+        // Calculate Y based on existing blocks to stack
+        let yOffset = 0;
+        if (pendingNotePos.occupied) {
+          // Find highest block at this X/Z
+          let maxY = -100;
+          blocks.forEach(b => {
+             if (Math.abs(b.body.position.x - pendingNotePos.x) < 1 &&
+                 Math.abs(b.body.position.z - pendingNotePos.z) < 1) {
+                if (b.body.position.y > maxY) maxY = b.body.position.y;
+             }
+          });
+          if (maxY > -100) {
+             yOffset = maxY + 6; // +6 because ground is at -6
+          }
+        }
+        createBlock(pendingNotePos.x, pendingNotePos.z, yOffset);
+      }
+      closeNoteModal();
+    });
+
+    // Enter key in modal
+    noteInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('saveNoteBtn').click();
+    });
+
+    // UI Buttons
+    function setMode(mode) {
+      state.interactionMode = mode;
+      document.getElementById('modeFreeBtn').classList.toggle('active', mode === 'free');
+      document.getElementById('modeMoveBtn').classList.toggle('active', mode === 'move');
+      document.getElementById('freeHud').style.display = mode === 'free' ? 'block' : 'none';
+      document.getElementById('moveHud').style.display = mode === 'move' ? 'block' : 'none';
+      
+      // Toggle Cursor
+      tileCursor.visible = (mode === 'free');
+      
+      if (mode === 'free') selectBlock(null);
+    }
+
+    document.getElementById('modeFreeBtn').addEventListener('click', () => setMode('free'));
+    document.getElementById('modeMoveBtn').addEventListener('click', () => setMode('move'));
+
+    // Impulses
+    const impBtns = {
+      nudge: document.getElementById('impulseNudgeBtn'),
+      pull: document.getElementById('impulsePullBtn'),
+      boot: document.getElementById('impulseBootBtn')
+    };
+
+    Object.keys(impBtns).forEach(key => {
+      impBtns[key].addEventListener('click', () => {
+        state.impulseType = key;
+        Object.values(impBtns).forEach(b => b.classList.remove('active'));
+        impBtns[key].classList.add('active');
+      });
+    });
+
+    // Camera Presets
+    document.getElementById('microBtn').addEventListener('click', () => {
+      state.currentGrid = 'micro';
+      document.getElementById('microBtn').classList.add('active');
+      document.getElementById('macroBtn').classList.remove('active');
+      gsap.to(camera.position, { y: -6 + (10/2.5), z: 21, duration: 1, ease: 'power2.inOut' });
+      gsap.to(camera.rotation, { x: 0.2, duration: 1 });
+    });
+
+    document.getElementById('macroBtn').addEventListener('click', () => {
+      state.currentGrid = 'macro';
+      document.getElementById('macroBtn').classList.add('active');
+      document.getElementById('microBtn').classList.remove('active');
+      gsap.to(camera.position, { y: -4, z: 34 * 0.44, duration: 1, ease: 'power2.inOut' });
+      gsap.to(camera.rotation, { x: 0, duration: 1 });
+    });
+
+    // --- 9. ANIMATION LOOP ---
+    const fixedTimeStep = 1.0 / 60.0;
+    
+    function animate() {
+      requestAnimationFrame(animate);
+
+      world.step(fixedTimeStep);
+
+      // Sync Mesh with Physics
+      blocks.forEach(({ mesh, body }) => {
+        mesh.position.copy(body.position);
+        mesh.quaternion.copy(body.quaternion);
+      });
+
+      cubeCamera.update(renderer, scene);
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+  </script>
+</body>
+</html>
