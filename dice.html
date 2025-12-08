@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Cube Notes - Enhanced</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script src="https://cdn.babylonjs.com/cannon.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0f;
+      color: #fff;
+    }
+
+    #canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: grab;
+    }
+
+    #canvas.grabbing {
+      cursor: grabbing;
+    }
+
+    #canvas.magnetized {
+      cursor: crosshair;
+    }
+
+    /* FAB */
+    .fab {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      font-size: 32px;
+      font-weight: 300;
+      cursor: pointer;
+      box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fab:hover {
+      transform: scale(1.1) rotate(90deg);
+      box-shadow: 0 12px 48px rgba(102, 126, 234, 0.6);
+    }
+
+    /* Context Menu */
+    .context-menu {
+      position: fixed;
+      background: rgba(20, 20, 30, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 8px;
+      z-index: 2000;
+      display: none;
+      min-width: 180px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .context-menu.active {
+      display: block;
+    }
+
+    .context-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background 0.2s;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .context-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .context-item-icon {
+      font-size: 16px;
+      opacity: 0.7;
+    }
+
+    /* Note Modal */
+    .note-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      backdrop-filter: blur(4px);
+    }
+
+    .note-modal.active {
+      display: flex;
+    }
+
+    .note-content {
+      background: linear-gradient(135deg, rgba(30, 30, 45, 0.95), rgba(20, 20, 35, 0.95));
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 24px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 20px 80px rgba(0, 0, 0, 0.8);
+    }
+
+    .note-content h2 {
+      margin-bottom: 16px;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .note-content textarea {
+      width: 100%;
+      min-height: 150px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 12px;
+      color: white;
+      font-size: 14px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .note-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+
+    /* Camera Controls Info */
+    .camera-info {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(20, 20, 30, 0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 12px;
+      z-index: 1000;
+      max-width: 250px;
+    }
+
+    .camera-info h3 {
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: #667eea;
+    }
+
+    .camera-info p {
+      margin: 4px 0;
+      opacity: 0.8;
+    }
+
+    /* Magnetization Indicator */
+    .magnet-indicator {
+      position: fixed;
+      pointer-events: none;
+      width: 80px;
+      height: 80px;
+      border: 2px solid #667eea;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 500;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+    }
+
+    .magnet-indicator.active {
+      opacity: 1;
+      animation: magnetPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes magnetPulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.2); }
+    }
+
+    /* Face Note Markers */
+    .face-marker {
+      position: fixed;
+      width: 20px;
+      height: 20px;
+      background: rgba(102, 126, 234, 0.8);
+      border: 2px solid white;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 100;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Zoom Level Indicator */
+    .zoom-indicator {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20, 20, 30, 0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 8px 20px;
+      font-size: 12px;
+      z-index: 1000;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  
+  <!-- FAB -->
+  <button class="fab" id="fabBtn" title="Create New Cube">+</button>
+  
+  <!-- Context Menu -->
+  <div class="context-menu" id="contextMenu">
+    <div class="context-item" data-action="new-note">
+      <span class="context-item-icon">📝</span>
+      <span>New Note</span>
+    </div>
+    <div class="context-item" data-action="edit">
+      <span class="context-item-icon">✏️</span>
+      <span>Edit Cube</span>
+    </div>
+    <div class="context-item" data-action="hold">
+      <span class="context-item-icon">🎈</span>
+      <span>Hold Thought</span>
+    </div>
+    <div class="context-item" data-action="delete">
+      <span class="context-item-icon">🗑️</span>
+      <span>Delete</span>
+    </div>
+  </div>
+
+  <!-- Note Modal -->
+  <div class="note-modal" id="noteModal">
+    <div class="note-content">
+      <h2 id="noteModalTitle">New Note</h2>
+      <textarea id="noteTextarea" placeholder="Write your note here..."></textarea>
+      <div class="note-actions">
+        <button class="btn btn-secondary" id="noteCancelBtn">Cancel</button>
+        <button class="btn btn-primary" id="noteSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera Info -->
+  <div class="camera-info">
+    <h3>Controls</h3>
+    <p><strong>Left Click:</strong> Drag cubes</p>
+    <p><strong>Right Click:</strong> Context menu</p>
+    <p><strong>Scroll:</strong> Zoom camera</p>
+    <p><strong>Hold Shift:</strong> Magnetize cursor</p>
+  </div>
+
+  <!-- Zoom Indicator -->
+  <div class="zoom-indicator" id="zoomIndicator">BIRD'S EYE VIEW</div>
+
+  <!-- Magnetization Indicator -->
+  <div class="magnet-indicator" id="magnetIndicator"></div>
+
+  <script>
+    // ============================================
+    // GLOBAL STATE
+    // ============================================
+    let scene, camera, renderer, world;
+    let raycaster, mouse;
+    let cubes = [];
+    let ground;
+    
+    // Interaction state
+    let isDragging = false;
+    let draggedCube = null;
+    let dragPlane = new THREE.Plane();
+    let dragOffset = new THREE.Vector3();
+    let isShiftPressed = false;
+    let magnetizedCube = null;
+
+    // Camera state
+    let cameraMode = 'birds-eye'; // 'birds-eye', 'wide', 'ground'
+    let zoomLevel = 0; // 0-100
+    let focusTarget = new THREE.Vector3(0, 0, 0);
+
+    // Context menu state
+    let contextMenuCube = null;
+    let contextMenuFace = null;
+
+    // Note modal state
+    let noteModalCube = null;
+    let noteModalFace = null;
+
+    // Constants
+    const CUBE_SIZE = 2;
+    const GRID_SIZE = 20;
+    const MAGNET_RANGE = 5;
+
+    // Face normals for detection
+    const FACE_NORMALS = {
+      top: new THREE.Vector3(0, 1, 0),
+      bottom: new THREE.Vector3(0, -1, 0),
+      front: new THREE.Vector3(0, 0, 1),
+      back: new THREE.Vector3(0, 0, -1),
+      left: new THREE.Vector3(-1, 0, 0),
+      right: new THREE.Vector3(1, 0, 0)
+    };
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    function init() {
+      // Scene setup
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0a0a0f);
+      scene.fog = new THREE.Fog(0x0a0a0f, 30, 100);
+
+      // Camera setup - start at bird's eye
+      camera = new THREE.PerspectiveCamera(
+        60,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      setCameraPosition('birds-eye');
+
+      // Renderer setup
+      const canvas = document.getElementById('canvas');
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      // Physics world
+      world = new CANNON.World();
+      world.gravity.set(0, -20, 0);
+      world.broadphase = new CANNON.NaiveBroadphase();
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 20, 10);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.camera.left = -25;
+      directionalLight.shadow.camera.right = 25;
+      directionalLight.shadow.camera.top = 25;
+      directionalLight.shadow.camera.bottom = -25;
+      scene.add(directionalLight);
+
+      // Accent lights
+      const pointLight1 = new THREE.PointLight(0x667eea, 1, 30);
+      pointLight1.position.set(-15, 10, -15);
+      scene.add(pointLight1);
+
+      const pointLight2 = new THREE.PointLight(0x764ba2, 0.8, 25);
+      pointLight2.position.set(15, 8, 15);
+      scene.add(pointLight2);
+
+      // Ground
+      createGround();
+
+      // Raycaster
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      // Initial cubes
+      createInitialCubes();
+
+      // Event listeners
+      setupEventListeners();
+
+      // Start animation
+      animate();
+    }
+
+    // ============================================
+    // SCENE OBJECTS
+    // ============================================
+    function createGround() {
+      const groundGeometry = new THREE.PlaneGeometry(100, 100);
+      const groundMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a2e,
+        roughness: 0.8,
+        metalness: 0.2
+      });
+      ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = 0;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Physics ground
+      const groundShape = new CANNON.Plane();
+      const groundBody = new CANNON.Body({ mass: 0 });
+      groundBody.addShape(groundShape);
+      groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+      world.addBody(groundBody);
+
+      // Grid helper
+      const gridHelper = new THREE.GridHelper(100, 50, 0x667eea, 0x2a2a3e);
+      gridHelper.position.y = 0.01;
+      scene.add(gridHelper);
+    }
+
+    function createCube(position = null, dropAnimation = false) {
+      if (!position) {
+        position = new THREE.Vector3(
+          (Math.random() - 0.5) * GRID_SIZE,
+          dropAnimation ? 30 : 5,
+          (Math.random() - 0.5) * GRID_SIZE
+        );
+      }
+
+      // Mesh
+      const geometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+      const material = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color().setHSL(Math.random(), 0.7, 0.6),
+        metalness: 0.7,
+        roughness: 0.2,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1,
+        emissive: new THREE.Color().setHSL(Math.random(), 0.7, 0.3),
+        emissiveIntensity: 0.3
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(position);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      // Physics body
+      const shape = new CANNON.Box(new CANNON.Vec3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2));
+      const body = new CANNON.Body({
+        mass: 1,
+        shape: shape,
+        linearDamping: 0.3,
+        angularDamping: 0.3
+      });
+      body.position.set(position.x, position.y, position.z);
+      world.addBody(body);
+
+      const cube = {
+        id: Date.now() + Math.random(),
+        mesh: mesh,
+        body: body,
+        notes: {}, // face -> text
+        floating: false,
+        floatTarget: null
+      };
+
+      cubes.push(cube);
+
+      // Drop animation
+      if (dropAnimation) {
+        gsap.to(mesh.scale, {
+          x: 1.2, y: 0.8, z: 1.2,
+          duration: 0.3,
+          yoyo: true,
+          repeat: 1,
+          delay: 1.5,
+          ease: "power2.inOut"
+        });
+      }
+
+      return cube;
+    }
+
+    function createInitialCubes() {
+      for (let i = 0; i < 5; i++) {
+        createCube(new THREE.Vector3(
+          (i - 2) * 4,
+          5,
+          0
+        ));
+      }
+    }
+
+    function removeCube(cube) {
+      scene.remove(cube.mesh);
+      world.removeBody(cube.body);
+      cubes = cubes.filter(c => c.id !== cube.id);
+    }
+
+    // ============================================
+    // CAMERA SYSTEM
+    // ============================================
+    function setCameraPosition(mode) {
+      cameraMode = mode;
+      
+      let targetPos, targetLookAt;
+      
+      switch(mode) {
+        case 'birds-eye':
+          targetPos = { x: 0, y: 50, z: 0.1 };
+          targetLookAt = { x: 0, y: 0, z: 0 };
+          updateZoomIndicator('BIRD\'S EYE VIEW');
+          break;
+        case 'wide':
+          targetPos = { x: 0, y: 35, z: 25 };
+          targetLookAt = { x: 0, y: 0, z: 0 };
+          updateZoomIndicator('WIDE VIEW');
+          break;
+        case 'ground':
+          targetPos = { x: 0, y: 5, z: 15 };
+          targetLookAt = { x: 0, y: 2, z: 0 };
+          updateZoomIndicator('GROUND LEVEL');
+          break;
+      }
+
+      gsap.to(camera.position, {
+        x: targetPos.x,
+        y: targetPos.y,
+        z: targetPos.z,
+        duration: 1.5,
+        ease: "power2.inOut"
+      });
+
+      gsap.to(focusTarget, {
+        x: targetLookAt.x,
+        y: targetLookAt.y,
+        z: targetLookAt.z,
+        duration: 1.5,
+        ease: "power2.inOut"
+      });
+    }
+
+    function updateZoomIndicator(text) {
+      const indicator = document.getElementById('zoomIndicator');
+      indicator.textContent = text;
+      
+      gsap.fromTo(indicator, 
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.3 }
+      );
+      
+      gsap.to(indicator, {
+        opacity: 0,
+        delay: 1.5,
+        duration: 0.5
+      });
+    }
+
+    function updateCameraZoom(delta) {
+      zoomLevel = Math.max(0, Math.min(100, zoomLevel + delta));
+
+      if (zoomLevel < 33) {
+        setCameraPosition('birds-eye');
+      } else if (zoomLevel < 66) {
+        setCameraPosition('wide');
+      } else {
+        setCameraPosition('ground');
+      }
+    }
+
+    function focusOnCube(cube) {
+      const pos = cube.mesh.position;
+      gsap.to(focusTarget, {
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+        duration: 1.0,
+        ease: "power2.inOut"
+      });
+    }
+
+    // ============================================
+    // INTERACTION HANDLERS
+    // ============================================
+    function onMouseDown(event) {
+      if (event.button === 2) return; // Ignore right click for drag
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(cubes.map(c => c.mesh));
+
+      if (intersects.length > 0) {
+        const cube = cubes.find(c => c.mesh === intersects[0].object);
+        
+        // If magnetized, use that cube instead
+        if (isShiftPressed && magnetizedCube) {
+          startDragging(magnetizedCube, intersects[0].point);
+        } else if (cube) {
+          startDragging(cube, intersects[0].point);
+        }
+      }
+
+      document.getElementById('canvas').classList.add('grabbing');
+    }
+
+    function startDragging(cube, intersectPoint) {
+      isDragging = true;
+      draggedCube = cube;
+      
+      // Create drag plane perpendicular to camera
+      const cameraDirection = new THREE.Vector3();
+      camera.getWorldDirection(cameraDirection);
+      dragPlane.setFromNormalAndCoplanarPoint(cameraDirection, intersectPoint);
+      
+      // Calculate offset
+      dragOffset.copy(intersectPoint).sub(cube.mesh.position);
+      
+      // Wake up physics
+      cube.body.wakeUp();
+    }
+
+    function onMouseMove(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      // Magnetization when Shift held
+      if (isShiftPressed && !isDragging) {
+        updateMagnetization();
+      }
+
+      if (isDragging && draggedCube) {
+        raycaster.setFromCamera(mouse, camera);
+        
+        const intersectPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(dragPlane, intersectPoint);
+        
+        if (intersectPoint) {
+          const targetPos = intersectPoint.sub(dragOffset);
+          
+          // Apply force toward target
+          const force = new CANNON.Vec3(
+            (targetPos.x - draggedCube.body.position.x) * 20,
+            (targetPos.y - draggedCube.body.position.y) * 20,
+            (targetPos.z - draggedCube.body.position.z) * 20
+          );
+          
+          draggedCube.body.applyForce(force, draggedCube.body.position);
+        }
+      }
+    }
+
+    function onMouseUp(event) {
+      isDragging = false;
+      draggedCube = null;
+      document.getElementById('canvas').classList.remove('grabbing');
+    }
+
+    function onContextMenu(event) {
+      event.preventDefault();
+      
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(cubes.map(c => c.mesh));
+
+      if (intersects.length > 0) {
+        const cube = cubes.find(c => c.mesh === intersects[0].object);
+        const face = detectFace(intersects[0]);
+        
+        showContextMenu(event.clientX, event.clientY, cube, face);
+      } else {
+        hideContextMenu();
+      }
+    }
+
+    function onWheel(event) {
+      event.preventDefault();
+      const delta = event.deltaY > 0 ? 5 : -5;
+      updateCameraZoom(delta);
+    }
+
+    function onKeyDown(event) {
+      if (event.key === 'Shift') {
+        isShiftPressed = true;
+        document.getElementById('canvas').classList.add('magnetized');
+      }
+    }
+
+    function onKeyUp(event) {
+      if (event.key === 'Shift') {
+        isShiftPressed = false;
+        magnetizedCube = null;
+        document.getElementById('canvas').classList.remove('magnetized');
+        document.getElementById('magnetIndicator').classList.remove('active');
+      }
+    }
+
+    // ============================================
+    // MAGNETIZATION
+    // ============================================
+    function updateMagnetization() {
+      raycaster.setFromCamera(mouse, camera);
+      
+      let closestCube = null;
+      let closestDistance = MAGNET_RANGE;
+      
+      cubes.forEach(cube => {
+        const screenPos = cube.mesh.position.clone().project(camera);
+        const distance = Math.sqrt(
+          Math.pow(screenPos.x - mouse.x, 2) + 
+          Math.pow(screenPos.y - mouse.y, 2)
+        );
+        
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestCube = cube;
+        }
+      });
+      
+      magnetizedCube = closestCube;
+      
+      if (magnetizedCube) {
+        showMagnetIndicator(magnetizedCube);
+      } else {
+        hideMagnetIndicator();
+      }
+    }
+
+    function showMagnetIndicator(cube) {
+      const indicator = document.getElementById('magnetIndicator');
+      const screenPos = cube.mesh.position.clone().project(camera);
+      
+      const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-screenPos.y * 0.5 + 0.5) * window.innerHeight;
+      
+      indicator.style.left = x + 'px';
+      indicator.style.top = y + 'px';
+      indicator.classList.add('active');
+    }
+
+    function hideMagnetIndicator() {
+      document.getElementById('magnetIndicator').classList.remove('active');
+    }
+
+    // ============================================
+    // FACE DETECTION
+    // ============================================
+    function detectFace(intersection) {
+      const normal = intersection.face.normal.clone();
+      normal.transformDirection(intersection.object.matrixWorld);
+      
+      let closestFace = 'top';
+      let maxDot = -1;
+      
+      for (const [faceName, faceNormal] of Object.entries(FACE_NORMALS)) {
+        const dot = normal.dot(faceNormal);
+        if (dot > maxDot) {
+          maxDot = dot;
+          closestFace = faceName;
+        }
+      }
+      
+      return closestFace;
+    }
+
+    // ============================================
+    // CONTEXT MENU
+    // ============================================
+    function showContextMenu(x, y, cube, face) {
+      const menu = document.getElementById('contextMenu');
+      menu.style.left = x + 'px';
+      menu.style.top = y + 'px';
+      menu.classList.add('active');
+      
+      contextMenuCube = cube;
+      contextMenuFace = face;
+    }
+
+    function hideContextMenu() {
+      document.getElementById('contextMenu').classList.remove('active');
+      contextMenuCube = null;
+      contextMenuFace = null;
+    }
+
+    // ============================================
+    // NOTE SYSTEM
+    // ============================================
+    function showNoteModal(title, initialText = '') {
+      const modal = document.getElementById('noteModal');
+      const textarea = document.getElementById('noteTextarea');
+      const titleEl = document.getElementById('noteModalTitle');
+      
+      titleEl.textContent = title;
+      textarea.value = initialText;
+      modal.classList.add('active');
+      
+      setTimeout(() => textarea.focus(), 100);
+    }
+
+    function hideNoteModal() {
+      document.getElementById('noteModal').classList.remove('active');
+      noteModalCube = null;
+      noteModalFace = null;
+    }
+
+    function saveNote() {
+      const text = document.getElementById('noteTextarea').value.trim();
+      
+      if (noteModalCube && noteModalFace && text) {
+        noteModalCube.notes[noteModalFace] = text;
+        console.log(`Note saved to ${noteModalFace} face:`, text);
+      }
+      
+      hideNoteModal();
+    }
+
+    // ============================================
+    // FLOATING (HOLD THOUGHT)
+    // ============================================
+    function toggleFloat(cube) {
+      cube.floating = !cube.floating;
+      
+      if (cube.floating) {
+        cube.floatTarget = cube.mesh.position.y + 5;
+        cube.body.mass = 0;
+        cube.body.type = CANNON.Body.KINEMATIC;
+        
+        gsap.to(cube.mesh.position, {
+          y: cube.floatTarget,
+          duration: 2,
+          ease: "power2.out"
+        });
+        
+        // Add floating animation
+        gsap.to(cube.mesh.position, {
+          y: `+=${0.5}`,
+          duration: 2,
+          repeat: -1,
+          yoyo: true,
+          ease: "sine.inOut"
+        });
+      } else {
+        gsap.killTweensOf(cube.mesh.position);
+        cube.body.mass = 1;
+        cube.body.type = CANNON.Body.DYNAMIC;
+        cube.body.wakeUp();
+      }
+    }
+
+    // ============================================
+    // EVENT LISTENERS
+    // ============================================
+    function setupEventListeners() {
+      const canvas = document.getElementById('canvas');
+      
+      canvas.addEventListener('mousedown', onMouseDown);
+      canvas.addEventListener('mousemove', onMouseMove);
+      canvas.addEventListener('mouseup', onMouseUp);
+      canvas.addEventListener('contextmenu', onContextMenu);
+      canvas.addEventListener('wheel', onWheel, { passive: false });
+      
+      document.addEventListener('keydown', onKeyDown);
+      document.addEventListener('keyup', onKeyUp);
+      
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // FAB button
+      document.getElementById('fabBtn').addEventListener('click', () => {
+        createCube(null, true);
+      });
+
+      // Context menu items
+      document.querySelectorAll('.context-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const action = item.dataset.action;
+          
+          switch(action) {
+            case 'new-note':
+              noteModalCube = contextMenuCube;
+              noteModalFace = contextMenuFace;
+              showNoteModal(`New Note - ${contextMenuFace} face`);
+              break;
+            case 'edit':
+              if (contextMenuCube && contextMenuFace) {
+                noteModalCube = contextMenuCube;
+                noteModalFace = contextMenuFace;
+                const existing = contextMenuCube.notes[contextMenuFace] || '';
+                showNoteModal(`Edit Note - ${contextMenuFace} face`, existing);
+              }
+              break;
+            case 'hold':
+              if (contextMenuCube) {
+                toggleFloat(contextMenuCube);
+              }
+              break;
+            case 'delete':
+              if (contextMenuCube && confirm('Delete this cube?')) {
+                removeCube(contextMenuCube);
+              }
+              break;
+          }
+          
+          hideContextMenu();
+        });
+      });
+
+      // Note modal buttons
+      document.getElementById('noteSaveBtn').addEventListener('click', saveNote);
+      document.getElementById('noteCancelBtn').addEventListener('click', hideNoteModal);
+
+      // Close on backdrop click
+      document.getElementById('noteModal').addEventListener('click', (e) => {
+        if (e.target.id === 'noteModal') {
+          hideNoteModal();
+        }
+      });
+
+      // Close context menu on outside click
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.context-menu') && !e.target.closest('#canvas')) {
+          hideContextMenu();
+        }
+      });
+    }
+
+    // ============================================
+    // ANIMATION LOOP
+    // ============================================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Physics step
+      world.step(1/60);
+
+      // Update cube positions from physics
+      cubes.forEach(cube => {
+        if (!cube.floating) {
+          cube.mesh.position.copy(cube.body.position);
+          cube.mesh.quaternion.copy(cube.body.quaternion);
+        }
+      });
+
+      // Update camera look target
+      camera.lookAt(focusTarget);
+
+      // Render
+      renderer.render(scene, camera);
+    }
+
+    // ============================================
+    // START APPLICATION
+    // ============================================
+    init();
+  </script>
+</body>
+</html>
