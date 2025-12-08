@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STACK: Note System | Rig Refactor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
+    <style>
+        :root { --bg: #0f1014; --glass: rgba(255, 255, 255, 0.05); --accent: #83ff83; --active: #FF1493; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: var(--bg); overflow: hidden; color: white; font-family: 'JetBrains Mono', monospace; }
+        #canvas { display: block; width: 100vw; height: 100vh; }
+        .hud { position: fixed; bottom: 20px; left: 20px; pointer-events: none; font-size: 11px; opacity: 0.6; }
+        .key { color: var(--accent); font-weight: bold; }
+        .mode-status { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); 
+                       background: var(--glass); padding: 8px 16px; border-radius: 20px; 
+                       border: 1px solid rgba(255,255,255,0.1); opacity: 0; transition: 0.3s; }
+        .mode-status.active { opacity: 1; color: var(--active); border-color: var(--active); }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="modeTag" class="mode-status">MOVE MODE: BIRDS-EYE</div>
+    <div class="hud">
+        [SCROLL] Zoom Micro/Macro | <span class="key">[SHIFT]</span> Move Mode | [ARROWS] Magnetic Nav
+    </div>
+
+    <script>
+        const CONFIG = {
+            grid: 3.33,
+            camera: {
+                micro: { y: -1, z: 12, rotX: -0.1 },
+                macro: { y: 10, z: 35, rotX: -0.52 }, // ~30 deg
+                birdsEye: { y: 40, z: 0, rotX: -Math.PI/2 }
+            }
+        };
+
+        // Standard Three.js Initialization (PRESERVED)
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f1014);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        // Rig State
+        const Rig = {
+            zoom: 0.5, targetZoom: 0.5,
+            mode: 'standard', // standard | birdsEye
+            pivot: new THREE.Vector3(0, 0, 0),
+            targetPivot: new THREE.Vector3(0, 0, 0)
+        };
+
+        // Lighting & Environment
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const grid = new THREE.GridHelper(100, 30, 0x333333, 0x222222);
+        grid.position.y = -4;
+        scene.add(grid);
+
+        // Logic Loop (Physics + Rig Update)
+        function update() {
+            // Rig: Zoom Interpolation
+            Rig.zoom += (Rig.targetZoom - Rig.zoom) * 0.1;
+            Rig.pivot.lerp(Rig.targetPivot, 0.1); // Magnetic guide pull
+
+            if (Rig.mode === 'standard') {
+                const y = THREE.MathUtils.lerp(CONFIG.camera.micro.y, CONFIG.camera.macro.y, Rig.zoom);
+                const z = THREE.MathUtils.lerp(CONFIG.camera.micro.z, CONFIG.camera.macro.z, Rig.zoom);
+                const rx = THREE.MathUtils.lerp(CONFIG.camera.micro.rotX, CONFIG.camera.macro.rotX, Rig.zoom);
+                
+                camera.position.set(Rig.pivot.x, Rig.pivot.y + y, Rig.pivot.z + z);
+                camera.rotation.x = rx;
+            } else {
+                // Birds-Eye Snap
+                camera.position.lerp(new THREE.Vector3(Rig.pivot.x, CONFIG.camera.birdsEye.y, Rig.pivot.z + 0.1), 0.1);
+                camera.lookAt(Rig.pivot);
+            }
+
+            renderer.render(scene, camera);
+            requestAnimationFrame(update);
+        }
+
+        // Input: Zoom Past Thresholds
+        window.addEventListener('wheel', (e) => {
+            Rig.targetZoom += e.deltaY * 0.001;
+            Rig.targetZoom = Math.max(-0.2, Math.min(1.2, Rig.targetZoom)); // 20% over-extension
+        });
+
+        // Input: Move Mode (SHIFT)
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === 'Shift') {
+                Rig.mode = 'birdsEye';
+                document.getElementById('modeTag').classList.add('active');
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+            if (e.key === 'Shift') {
+                Rig.mode = 'standard';
+                document.getElementById('modeTag').classList.remove('active');
+            }
+        });
+
+        // Navigation Physics (Magnetic Pull)
+        setInterval(() => {
+            const speed = 0.5;
+            if (keys['ArrowUp']) Rig.targetPivot.z -= speed;
+            if (keys['ArrowDown']) Rig.targetPivot.z += speed;
+            if (keys['ArrowLeft']) Rig.targetPivot.x -= speed;
+            if (keys['ArrowRight']) Rig.targetPivot.x += speed;
+        }, 16);
+
+        // REFACTOR: Grid click spawn REMOVED.
+        // Hover raycasting logic would insert here as preserved code.
+
+        update();
+    </script>
+</body>
+</html>
