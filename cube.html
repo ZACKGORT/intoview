@@ -1,0 +1,2440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Enhanced 3D Thought Mapping - Magnetic Cubes (Notes)</title>
+
+  <!-- FONTS -->
+  <link href="https://fonts.googleapis.com" rel="preconnect" crossorigin />
+  <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+
+  <!-- LIBRARIES -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.babylonjs.com/cannon.js"></script>
+
+  <style>
+    /* ============================================
+       CORE VARIABLES & THEMING
+       ============================================ */
+    :root {
+      --bg-color: #0f1014;
+      --card-color: transparent;
+      --ink: #ffffff;
+      --ink-2: #9f9f9f;
+      --ink-3: #6c6c6c;
+      --ink-4: #FF8DA1;
+      --accent: #83ff83;
+      --magnetic-blue: #4a9eff;
+      --magnetic-purple: #b366ff;
+      --connection-green: #00ff88;
+      --snap-zone: #ffcc00;
+      --danger-red: #ff4466;
+
+      --curve-k: 1;
+      --vig-opacity: .01;
+      --edge-blur: 4.4px;
+      --cursor-size: 20px;
+      --corner-pad: clamp(16px, 4vw, 24px);
+      --corner-top: calc(env(safe-area-inset-top) + clamp(12px, 2vh, 18px));
+      --z-grain: 149;
+      --z-blur: 4;
+      --z-vig: .01;
+      --z-ui: 220;
+      --z-overlay: 250;
+      --z-cursor: 230;
+      --z-magnetic: 200;
+      --z-connection: 180;
+
+      --glass-bg: rgba(255, 255, 255, 0.04);
+      --glass-bg-hover: rgba(255, 255, 255, 0.08);
+      --glass-bg-bright: rgba(255, 255, 255, 0.12);
+      --glass-border: rgba(255, 255, 255, 0.12);
+      --fab-size: 80px;
+      --fab-bottom: calc(env(safe-area-inset-bottom) + clamp(16px, 3vh, 32px));
+      --base-font-size: 14px;
+      --subtle-outline: rgba(255, 255, 255, 0.08);
+      --font-stack: Inter, ui-sans-serif, system-ui;
+    }
+
+    /* ============================================
+       BASE STYLES
+       ============================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      overflow: hidden;
+      font-family: var(--font-stack);
+      background: var(--bg-color);
+      color: var(--ink);
+      touch-action: none;
+    }
+
+    /* ============================================
+       CANVAS & 3D SCENE
+       ============================================ */
+    #canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      outline: none;
+      cursor: grab;
+    }
+
+    #canvas.grabbing {
+      cursor: grabbing;
+    }
+
+    #canvas.hovering-magnetic {
+      cursor: pointer;
+    }
+
+    /* ============================================
+       UI OVERLAYS
+       ============================================ */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: var(--z-ui);
+    }
+
+    /* ============================================
+       CONTROL PANEL
+       ============================================ */
+    .control-panel {
+      position: fixed;
+      top: var(--corner-top);
+      left: var(--corner-pad);
+      right: var(--corner-pad);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      z-index: var(--z-ui);
+      pointer-events: none;
+    }
+
+    .control-group {
+      display: flex;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .control-btn {
+      padding: 12px 20px;
+      border-radius: 16px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      color: var(--ink-2);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .control-btn:hover {
+      background: var(--glass-bg-hover);
+      color: var(--ink);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
+    }
+
+    .control-btn.active {
+      background: var(--glass-bg-bright);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* ============================================
+       MODE INDICATOR
+       ============================================ */
+    .mode-indicator {
+      position: fixed;
+      top: calc(var(--corner-top) + 80px);
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 24px;
+      border-radius: 20px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      z-index: var(--z-ui);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .mode-indicator.visible {
+      opacity: 1;
+    }
+
+    /* ============================================
+       FLOATING ACTION BUTTON
+       ============================================ */
+    .fab-wrap {
+      position: fixed;
+      bottom: var(--fab-bottom);
+      right: var(--corner-pad);
+      z-index: var(--z-ui);
+    }
+
+    .fab {
+      width: var(--fab-size);
+      height: var(--fab-size);
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, var(--magnetic-blue), var(--magnetic-purple));
+      color: white;
+      font-size: 24px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 8px 32px rgba(74, 158, 255, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+    }
+
+    .fab:hover {
+      transform: scale(1.1) rotate(90deg);
+      box-shadow: 0 12px 48px rgba(74, 158, 255, 0.6);
+    }
+
+    .fab:active {
+      transform: scale(0.95);
+    }
+
+    /* ============================================
+       INSTRUCTIONS PANEL
+       ============================================ */
+    .instructions {
+      position: fixed;
+      bottom: calc(var(--fab-bottom) + 100px);
+      left: var(--corner-pad);
+      right: var(--corner-pad);
+      max-width: 400px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 20px;
+      z-index: var(--z-ui);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      pointer-events: auto;
+    }
+
+    .instructions h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .instructions ul {
+      list-style: none;
+      font-size: 12px;
+      color: var(--ink-2);
+      line-height: 1.6;
+    }
+
+    .instructions li {
+      margin-bottom: 8px;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .instructions li:before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+    }
+
+    .close-instructions {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      color: var(--ink-3);
+      cursor: pointer;
+      font-size: 16px;
+      transition: color 0.2s ease;
+      pointer-events: auto;
+    }
+
+    .close-instructions:hover {
+      color: var(--ink);
+    }
+
+    /* ============================================
+       STATUS DISPLAY
+       ============================================ */
+    .status-display {
+      position: fixed;
+      top: calc(var(--corner-top) + 80px);
+      right: var(--corner-pad);
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--ink-2);
+      z-index: var(--z-ui);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      pointer-events: auto;
+    }
+
+    .status-item {
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .status-value {
+      color: var(--accent);
+    }
+
+    /* ============================================
+       MAGNETIC VISUALIZATION
+       ============================================ */
+    .magnetic-indicator {
+      position: fixed;
+      pointer-events: none;
+      z-index: var(--z-magnetic);
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--snap-zone) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      mix-blend-mode: screen;
+    }
+
+    .magnetic-indicator.active {
+      opacity: 0.6;
+      animation: magneticPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes magneticPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+    }
+
+    /* ============================================
+       CONNECTION VISUALIZATION
+       ============================================ */
+    .connection-info {
+      position: fixed;
+      top: calc(var(--corner-top) + 140px);
+      right: var(--corner-pad);
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 11px;
+      color: var(--ink-2);
+      z-index: var(--z-ui);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      max-width: 200px;
+      pointer-events: auto;
+    }
+
+    .connection-item {
+      margin-bottom: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .connection-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .connection-strength {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .strength-bar {
+      flex: 1;
+      height: 4px;
+      background: var(--glass-border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .strength-fill {
+      height: 100%;
+      background: var(--connection-green);
+      transition: width 0.3s ease;
+    }
+
+    /* ============================================
+       QUICK INDEX (PINNED NOTES)
+       ============================================ */
+    .quick-index {
+      position: fixed;
+      left: var(--corner-pad);
+      top: calc(var(--corner-top) + 20px);
+      width: 320px;
+      max-width: calc(40vw);
+      background: rgba(10,10,12,0.6);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 12px;
+      z-index: calc(var(--z-ui) + 10);
+      backdrop-filter: blur(10px);
+      color: var(--ink-2);
+      font-size: 13px;
+      pointer-events: auto;
+    }
+
+    .quick-index h4 {
+      font-size: 12px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    .quick-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border-radius: 8px;
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+
+    .quick-item:hover {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .tag-chip {
+      background: rgba(255,255,255,0.03);
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--ink-2);
+    }
+
+    .quick-search {
+      margin-bottom: 8px;
+      display: flex;
+      gap: 8px;
+    }
+    .quick-search input {
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: transparent;
+      color: var(--ink);
+      font-size: 13px;
+      outline: none;
+    }
+
+    /* ============================================
+       NOTE EDITOR (MODAL)
+       ============================================ */
+    .note-editor-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: calc(var(--z-overlay) + 10);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+    }
+
+    .note-editor-backdrop.active {
+      display: flex;
+    }
+
+    .note-editor {
+      width: min(760px, calc(96vw));
+      max-height: 88vh;
+      overflow: auto;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      padding: 16px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+    }
+
+    .note-editor .row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .note-editor label {
+      font-size: 12px;
+      color: var(--ink-2);
+      margin-bottom: 6px;
+    }
+
+    .note-editor input[type="text"],
+    .note-editor textarea,
+    .note-editor select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--glass-border);
+      background: transparent;
+      color: var(--ink);
+      resize: vertical;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .note-editor textarea {
+      min-height: 160px;
+    }
+
+    .note-editor .editor-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+
+    .btn-primary {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(90deg,var(--magnetic-blue),var(--magnetic-purple));
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: transparent;
+      color: var(--ink-2);
+      cursor: pointer;
+    }
+
+    /* connection label DOM */
+    .conn-label {
+      position: fixed;
+      pointer-events: none;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: var(--ink-2);
+      z-index: calc(var(--z-connection) + 5);
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+    }
+
+    /* ============================================
+       RESPONSIVE & ACCESSIBILITY
+       ============================================ */
+    @media (max-width: 768px) {
+      .control-panel {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+      }
+
+      .control-group {
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .control-btn {
+        padding: 8px 16px;
+        font-size: 11px;
+      }
+
+      .instructions {
+        max-width: calc(100% - 32px);
+        bottom: calc(var(--fab-bottom) + 120px);
+      }
+
+      .status-display {
+        top: auto;
+        bottom: calc(var(--fab-bottom) + 20px);
+        right: var(--corner-pad);
+      }
+
+      .connection-info {
+        display: none;
+      }
+
+      .quick-index {
+        width: 86vw;
+        left: 7vw;
+        top: calc(var(--corner-top) + 8px);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .fab {
+        width: 60px;
+        height: 60px;
+        font-size: 20px;
+      }
+
+      .control-btn {
+        padding: 6px 12px;
+        font-size: 10px;
+      }
+
+      .note-editor {
+        width: calc(96vw);
+        padding: 12px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    *:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    button:focus,
+    .control-btn:focus {
+      outline: 2px solid var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <!-- 3D Canvas -->
+  <canvas id="canvas"></canvas>
+
+  <!-- Magnetic Indicator (follows mouse) -->
+  <div class="magnetic-indicator" id="magneticIndicator"></div>
+
+  <!-- Control Panel -->
+  <header class="control-panel">
+    <div class="control-group">
+      <button class="control-btn active" id="modeSelect" data-mode="select">Select</button>
+      <button class="control-btn" id="modeConnect" data-mode="connect">Connect</button>
+      <button class="control-btn" id="modeBreak" data-mode="break">Break</button>
+      <button class="control-btn" id="modeCreate" data-mode="create">Create</button>
+    </div>
+    <div class="control-group">
+      <button class="control-btn" id="resetCamera">Reset View</button>
+      <button class="control-btn" id="clearAll">Clear All</button>
+      <button class="control-btn" id="exportNotes">Export</button>
+      <button class="control-btn" id="importNotes">Import</button>
+    </div>
+  </header>
+
+  <!-- Mode Indicator -->
+  <div class="mode-indicator" id="modeIndicator">Select Mode</div>
+
+  <!-- Instructions Panel -->
+  <div class="instructions" id="instructions">
+    <button class="close-instructions" id="closeInstructions">×</button>
+    <h3>Magnetic Cube Controls</h3>
+    <ul>
+      <li><strong>Select:</strong> Click to select cubes, drag to move</li>
+      <li><strong>Connect:</strong> Click cubes to link them magnetically</li>
+      <li><strong>Break:</strong> Click connections to break them</li>
+      <li><strong>Create:</strong> Click empty space to add new cubes (or use +)</li>
+      <li><strong>Double-click / E:</strong> Open note editor</li>
+      <li><strong>F:</strong> Focus selected cube</li>
+      <li><strong>P:</strong> Toggle pin</li>
+      <li><strong>Drag:</strong> Right-click drag to rotate camera</li>
+      <li><strong>Scroll:</strong> Zoom in/out</li>
+      <li><strong>Chain Physics:</strong> Connected cubes move together</li>
+    </ul>
+  </div>
+
+  <!-- Status Display -->
+  <div class="status-display">
+    <div class="status-item">
+      <span>Cubes:</span>
+      <span class="status-value" id="cubeCount">0</span>
+    </div>
+    <div class="status-item">
+      <span>Connections:</span>
+      <span class="status-value" id="connectionCount">0</span>
+    </div>
+    <div class="status-item">
+      <span>Selected:</span>
+      <span class="status-value" id="selectedCount">0</span>
+    </div>
+  </div>
+
+  <!-- Connection Info -->
+  <div class="connection-info" id="connectionInfo">
+    <div class="connection-item">
+      <strong>Active Connections</strong>
+      <div id="connectionList"></div>
+    </div>
+  </div>
+
+  <!-- Quick Index (Pinned) -->
+  <div class="quick-index" id="quickIndex" aria-live="polite">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <h4>Pinned Notes</h4>
+      <div style="font-size:11px;color:var(--ink-2)">Quick index</div>
+    </div>
+    <div class="quick-search">
+      <input id="quickSearch" placeholder="Search title or tags" aria-label="Search pinned notes" />
+    </div>
+    <div id="quickList"></div>
+  </div>
+
+  <!-- Floating Action Button -->
+  <div class="fab-wrap">
+    <button class="fab" id="fabButton" aria-label="Create Cube">+</button>
+  </div>
+
+  <!-- NOTE EDITOR MODAL -->
+  <div class="note-editor-backdrop" id="noteEditorBackdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="note-editor" id="noteEditor" role="document">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:700;color:var(--accent)">Edit Note</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary" id="editorNewLinked">New Linked</button>
+          <button class="btn-secondary" id="editorClose">Close</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="flex:1">
+          <label for="noteTitle">Title</label>
+          <input id="noteTitle" type="text" aria-label="Note title" />
+        </div>
+        <div style="width:120px">
+          <label for="noteColor">Color</label>
+          <select id="noteColor" aria-label="Note color">
+            <option value="#83ff83">Green</option>
+            <option value="#4a9eff">Blue</option>
+            <option value="#b366ff">Purple</option>
+            <option value="#ffcc00">Yellow</option>
+            <option value="#ff4466">Red</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label for="noteBody">Body (Markdown allowed)</label>
+        <textarea id="noteBody" aria-label="Note body"></textarea>
+      </div>
+
+      <div style="margin-top:8px;">
+        <label for="noteTags">Tags (comma separated)</label>
+        <input id="noteTags" type="text" aria-label="Note tags" />
+      </div>
+
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+        <input id="notePinned" type="checkbox" />
+        <label for="notePinned" style="font-size:13px;color:var(--ink-2)">Pinned</label>
+      </div>
+
+      <div class="editor-actions">
+        <button class="btn-secondary" id="editorDelete">Delete</button>
+        <button class="btn-primary" id="editorSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container for connection labels (DOM) -->
+  <div id="connLabelContainer"></div>
+
+  <script>
+    /*
+     * ============================================
+     * ENHANCED 3D THOUGHT MAPPING APPLICATION
+     * (Full-file with notes editor, export/import, undo/redo)
+     * Local storage key: intoview:note:v1
+     * Undo/redo depth: 50
+     * ============================================
+     */
+
+    // ============================================
+    // GLOBAL VARIABLES & STATE MANAGEMENT
+    // ============================================
+    let scene, camera, renderer, world;
+    let raycaster, mouse;
+    let cubes = [];
+    let connections = [];
+    let selectedCubes = [];
+    let connectionLine = null;
+
+    // Interaction state
+    let currentMode = 'select';
+    let isDragging = false;
+    let isRotating = false;
+    let draggedCube = null;
+    let connectionStart = null;
+    let hoveredCube = null;
+
+    // Camera controls
+    let cameraTarget = new THREE.Vector3(0, 0, 0);
+    let cameraRadius = 30;
+    let cameraTheta = 0;
+    let cameraPhi = Math.PI / 4;
+    let previousMousePosition = { x: 0, y: 0 };
+
+    // Touch controls
+    let touchStart = { x: 0, y: 0 };
+    let longPressTimer = null;
+
+    // Physics constants
+    const CUBE_SIZE = 2;
+    const MAGNETIC_RANGE = 4;
+    const CONNECTION_STRENGTH = 100;
+    const BREAK_THRESHOLD = 15;
+    const SNAP_DISTANCE = 0.5;
+
+    // Data persistence key
+    const STORAGE_KEY = 'intoview:note:v1';
+
+    // Undo/redo stacks
+    const undoStack = [];
+    const redoStack = [];
+    const UNDO_LIMIT = 50;
+
+    // Colors
+    const COLORS = {
+      default: 0x83ff83,
+      selected: 0x4a9eff,
+      connecting: 0xffcc00,
+      breaking: 0xff4466,
+      magnetic: 0xb366ff,
+      snapZone: 0x00ff88
+    };
+
+    // Map to store connection label DOM nodes
+    const connectionLabelMap = new Map();
+
+    // Debounce/save timers
+    let autosaveTimer = null;
+    let dirty = false;
+    let lastSavedAt = null;
+
+    // ============================================
+    // UTIL: ID
+    function genId(prefix = '') {
+      return prefix + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
+    }
+
+    // ============================================
+    // INITIALIZATION
+    function init() {
+      initScene();
+      initPhysics();
+      initLighting();
+      createGround();
+
+      // Load saved state if present, otherwise create initial cubes
+      const loaded = loadFromLocal();
+      if (!loaded) {
+        createInitialCubes();
+      }
+
+      setupEventListeners();
+      animate();
+      updateUI();
+
+      // Hide instructions after delay
+      setTimeout(() => {
+        gsap.to('#instructions', {
+          opacity: 0,
+          duration: 0.5,
+          onComplete: () => {
+            document.getElementById('instructions').style.display = 'none';
+          }
+        });
+      }, 10000);
+
+      // restore camera default
+      resetCameraImmediate();
+    }
+
+    // ============================================
+    // SCENE SETUP
+    function initScene() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f1014);
+      scene.fog = new THREE.Fog(0x0f1014, 50, 200);
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      updateCameraPosition();
+
+      const canvas = document.getElementById('canvas');
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: !isMobileDevice(),
+        powerPreference: 'high-performance',
+        alpha: true
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+    }
+
+    function initPhysics() {
+      world = new CANNON.World();
+      world.gravity.set(0, -19.81, 0);
+      world.broadphase = new CANNON.NaiveBroadphase();
+      world.solver.iterations = 10;
+      world.defaultContactMaterial.friction = 0.4;
+      world.defaultContactMaterial.restitution = 0.3;
+    }
+
+    function initLighting() {
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 20, 10);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.camera.left = -50;
+      directionalLight.shadow.camera.right = 50;
+      directionalLight.shadow.camera.top = 50;
+      directionalLight.shadow.camera.bottom = -50;
+      directionalLight.shadow.camera.near = 0.1;
+      directionalLight.shadow.camera.far = 100;
+      scene.add(directionalLight);
+
+      const accentLight1 = new THREE.PointLight(0x4a9eff, 1, 30);
+      accentLight1.position.set(-20, 15, -20);
+      scene.add(accentLight1);
+
+      const accentLight2 = new THREE.PointLight(0xb366ff, 0.8, 25);
+      accentLight2.position.set(20, 10, 20);
+      scene.add(accentLight2);
+    }
+
+    function createGround() {
+      const groundGeometry = new THREE.PlaneGeometry(100, 100);
+      const groundMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a2e,
+        roughness: 0.8,
+        metalness: 0.2
+      });
+      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -10;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      const groundShape = new CANNON.Plane();
+      const groundBody = new CANNON.Body({ mass: 0 });
+      groundBody.addShape(groundShape);
+      groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+      groundBody.position.set(0, -10, 0);
+      world.addBody(groundBody);
+    }
+
+    // ============================================
+    // CUBE CREATION & MANAGEMENT (now with note metadata)
+    function createCube(position = null, noteData = null) {
+      if (!position) {
+        position = new THREE.Vector3(
+          (Math.random() - 0.5) * 20,
+          Math.random() * 10,
+          (Math.random() - 0.5) * 20
+        );
+      }
+
+      const geometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+      const material = new THREE.MeshPhysicalMaterial({
+        color: noteData && noteData.color ? noteData.color : COLORS.default,
+        metalness: 0.7,
+        roughness: 0.2,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1,
+        emissive: noteData && noteData.color ? noteData.color : COLORS.default,
+        emissiveIntensity: 0.2
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(position);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      const shape = new CANNON.Box(new CANNON.Vec3(CUBE_SIZE / 2, CUBE_SIZE / 2, CUBE_SIZE / 2));
+      const body = new CANNON.Body({
+        mass: 1,
+        material: new CANNON.Material({
+          friction: 0.4,
+          restitution: 0.3
+        })
+      });
+      body.addShape(shape);
+      body.position.set(position.x, position.y, position.z);
+      body.linearDamping = 0.4;
+      body.angularDamping = 0.4;
+      world.addBody(body);
+
+      const now = new Date().toISOString();
+
+      const defaultNote = {
+        title: (noteData && noteData.title) || 'Untitled',
+        body: (noteData && noteData.body) || '',
+        tags: (noteData && noteData.tags) || [],
+        color: (noteData && noteData.color) || '#83ff83',
+        pinned: (noteData && !!noteData.pinned) || false,
+        createdAt: (noteData && noteData.createdAt) || now,
+        updatedAt: (noteData && noteData.updatedAt) || now
+      };
+
+      const cube = {
+        id: genId('cube-'),
+        mesh: mesh,
+        body: body,
+        connections: [],
+        selected: false,
+        color: defaultNote.color,
+        originalColor: defaultNote.color,
+        note: defaultNote
+      };
+
+      cubes.push(cube);
+      markDirty();
+      pushUndo({ type: 'createCube', payload: { id: cube.id } });
+      return cube;
+    }
+
+    function createInitialCubes() {
+      for (let i = 0; i < 5; i++) {
+        createCube(new THREE.Vector3(
+          (Math.random() - 0.5) * 10,
+          i * 3,
+          (Math.random() - 0.5) * 10
+        ));
+      }
+    }
+
+    // ============================================
+    // CONNECTIONS WITH LABELS
+    function findNearbyCubes(cube, range = MAGNETIC_RANGE) {
+      return cubes.filter(other => {
+        if (other === cube) return false;
+        const distance = cube.mesh.position.distanceTo(other.mesh.position);
+        return distance < range;
+      });
+    }
+
+    function createConnection(cube1, cube2, label = null, skipUndo = false) {
+      const existingConnection = connections.find(conn =>
+        (conn.cube1 === cube1 && conn.cube2 === cube2) ||
+        (conn.cube1 === cube2 && conn.cube2 === cube1)
+      );
+
+      if (existingConnection) {
+        // If there is an existing connection, optionally update label
+        if (label && !existingConnection.label) {
+          existingConnection.label = label;
+          createConnectionLabelDOM(existingConnection);
+          markDirty();
+        }
+        return null;
+      }
+
+      const constraint = new CANNON.PointToPointConstraint(
+        cube1.body,
+        new CANNON.Vec3(CUBE_SIZE / 2, 0, 0),
+        cube2.body,
+        new CANNON.Vec3(-CUBE_SIZE / 2, 0, 0)
+      );
+      world.addConstraint(constraint);
+
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+        cube1.mesh.position,
+        cube2.mesh.position
+      ]);
+      const lineMaterial = new THREE.LineBasicMaterial({
+        color: COLORS.connectionGreen,
+        linewidth: 2,
+        transparent: true,
+        opacity: 0.6
+      });
+      const line = new THREE.Line(lineGeometry, lineMaterial);
+      scene.add(line);
+
+      const connection = {
+        id: genId('conn-'),
+        cube1: cube1,
+        cube2: cube2,
+        constraint: constraint,
+        line: line,
+        strength: CONNECTION_STRENGTH,
+        active: true,
+        label: label || null
+      };
+
+      connections.push(connection);
+      cube1.connections.push(connection);
+      cube2.connections.push(connection);
+
+      // Visual feedback
+      flashConnectionColor(line, COLORS.snapZone);
+      createSnapEffect(cube1.mesh.position, cube2.mesh.position);
+
+      // create DOM label if label present
+      if (connection.label) {
+        createConnectionLabelDOM(connection);
+      }
+
+      markDirty();
+      if (!skipUndo) pushUndo({ type: 'createConnection', payload: { id: connection.id } });
+      return connection;
+    }
+
+    function breakConnection(connection, skipUndo = false) {
+      if (!connection.active) return;
+
+      try {
+        world.removeConstraint(connection.constraint);
+      } catch (e) {
+        // ignore if already removed
+      }
+
+      scene.remove(connection.line);
+
+      // remove any DOM label
+      removeConnectionLabelDOM(connection);
+
+      connection.cube1.connections = connection.cube1.connections.filter(c => c !== connection);
+      connection.cube2.connections = connection.cube2.connections.filter(c => c !== connection);
+
+      connection.active = false;
+      connections = connections.filter(c => c !== connection);
+
+      createBreakEffect(connection.cube1.mesh.position, connection.cube2.mesh.position);
+      markDirty();
+      if (!skipUndo) pushUndo({ type: 'breakConnection', payload: { id: connection.id } });
+    }
+
+    function updateConnectionLines() {
+      connections.forEach(connection => {
+        if (!connection.active) return;
+
+        const positions = connection.line.geometry.attributes.position;
+        if (!positions || !positions.array) {
+          // Recreate geometry if needed
+          const pts = [connection.cube1.mesh.position, connection.cube2.mesh.position];
+          connection.line.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+        } else {
+          positions.array[0] = connection.cube1.mesh.position.x;
+          positions.array[1] = connection.cube1.mesh.position.y;
+          positions.array[2] = connection.cube1.mesh.position.z;
+          positions.array[3] = connection.cube2.mesh.position.x;
+          positions.array[4] = connection.cube2.mesh.position.y;
+          positions.array[5] = connection.cube2.mesh.position.z;
+          positions.needsUpdate = true;
+        }
+
+        // update label DOM position if exists
+        if (connection.label) {
+          updateConnectionLabelDOM(connection);
+        }
+      });
+    }
+
+    function checkForBreak(connection) {
+      const distance = connection.cube1.mesh.position.distanceTo(connection.cube2.mesh.position);
+      const relativeVelocity = connection.cube1.body.velocity.vsub(connection.cube2.body.velocity).length();
+
+      if (distance > BREAK_THRESHOLD || relativeVelocity > BREAK_THRESHOLD) {
+        breakConnection(connection);
+        return true;
+      }
+      return false;
+    }
+
+    // ============================================
+    // VISUAL EFFECTS
+    function flashConnectionColor(line, color) {
+      const originalColor = line.material.color.getHex();
+      line.material.color.setHex(color);
+      line.material.opacity = 1.0;
+
+      setTimeout(() => {
+        line.material.color.setHex(originalColor);
+        line.material.opacity = 0.6;
+      }, 300);
+    }
+
+    function createSnapEffect(pos1, pos2) {
+      const midPoint = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
+
+      const particleGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+      const particleMaterial = new THREE.MeshBasicMaterial({
+        color: COLORS.snapZone,
+        transparent: true,
+        opacity: 1
+      });
+      const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+      particle.position.copy(midPoint);
+      scene.add(particle);
+
+      gsap.to(particle.scale, {
+        x: 3, y: 3, z: 3,
+        duration: 0.5,
+        ease: "power2.out"
+      });
+      gsap.to(particleMaterial, {
+        opacity: 0,
+        duration: 0.5,
+        ease: "power2.out",
+        onComplete: () => {
+          scene.remove(particle);
+        }
+      });
+    }
+
+    function createBreakEffect(pos1, pos2) {
+      [pos1, pos2].forEach(pos => {
+        const particleGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+        const particleMaterial = new THREE.MeshBasicMaterial({
+          color: COLORS.breaking,
+          transparent: true,
+          opacity: 1
+        });
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+        particle.position.copy(pos);
+        scene.add(particle);
+
+        gsap.to(particle.scale, {
+          x: 2, y: 2, z: 2,
+          duration: 0.3,
+          ease: "power2.out"
+        });
+        gsap.to(particleMaterial, {
+          opacity: 0,
+          duration: 0.3,
+          ease: "power2.out",
+          onComplete: () => {
+            scene.remove(particle);
+          }
+        });
+      });
+    }
+
+    function updateMagneticIndicator(cube) {
+      const indicator = document.getElementById('magneticIndicator');
+      if (cube) {
+        const vector = cube.mesh.position.clone();
+        vector.project(camera);
+
+        const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+        const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+
+        indicator.style.left = x + 'px';
+        indicator.style.top = y + 'px';
+        indicator.style.width = '60px';
+        indicator.style.height = '60px';
+        indicator.style.marginLeft = '-30px';
+        indicator.style.marginTop = '-30px';
+        indicator.classList.add('active');
+      } else {
+        indicator.classList.remove('active');
+      }
+    }
+
+    // ============================================
+    // INTERACTION MODES & SELECTION
+    function setMode(mode) {
+      currentMode = mode;
+
+      document.querySelectorAll('.control-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      // map button IDs to mode names safely
+      const mapping = {
+        select: 'modeSelect',
+        connect: 'modeConnect',
+        break: 'modeBreak',
+        create: 'modeCreate'
+      };
+      const btn = document.getElementById(mapping[mode]);
+      if (btn) btn.classList.add('active');
+
+      const indicator = document.getElementById('modeIndicator');
+      indicator.textContent = mode.charAt(0).toUpperCase() + mode.slice(1) + ' Mode';
+      indicator.classList.add('visible');
+      setTimeout(() => indicator.classList.remove('visible'), 2000);
+
+      clearSelection();
+      connectionStart = null;
+    }
+
+    function handleCubeInteraction(cube, event) {
+      switch (currentMode) {
+        case 'select':
+          handleSelectMode(cube, event);
+          break;
+        case 'connect':
+          handleConnectMode(cube, event);
+          break;
+        case 'break':
+          handleBreakMode(cube, event);
+          break;
+        case 'create':
+          handleCreateMode(cube, event);
+          break;
+      }
+    }
+
+    function handleSelectMode(cube, event) {
+      if (event.shiftKey) {
+        toggleCubeSelection(cube);
+      } else {
+        clearSelection();
+        selectCube(cube);
+      }
+    }
+
+    function handleConnectMode(cube, event) {
+      if (!connectionStart) {
+        connectionStart = cube;
+        selectCube(cube);
+        // small visual feedback - no line created yet
+      } else if (connectionStart !== cube) {
+        // show quick label picker near mouse
+        showConnectionLabelPicker(event.clientX, event.clientY, (labelChoice) => {
+          const connection = createConnection(connectionStart, cube, labelChoice);
+          if (connection) {
+            console.log('Connection created:', connection);
+          }
+          clearSelection();
+          connectionStart = null;
+        });
+      }
+    }
+
+    function handleBreakMode(cube, event) {
+      const connectionsToBreak = [...cube.connections];
+      connectionsToBreak.forEach(connection => {
+        breakConnection(connection);
+      });
+
+      gsap.to(cube.mesh.scale, {
+        x: 0.8, y: 0.8, z: 0.8,
+        duration: 0.1,
+        yoyo: true,
+        repeat: 1
+      });
+    }
+
+    function handleCreateMode(cube, event) {
+      const newPosition = cube.mesh.position.clone();
+      newPosition.x += (Math.random() - 0.5) * 4;
+      newPosition.y += 2;
+      newPosition.z += (Math.random() - 0.5) * 4;
+
+      const newCube = createCube(newPosition);
+      // optionally connect
+      if (event.shiftKey) {
+        createConnection(cube, newCube);
+      }
+      openEditor(newCube);
+    }
+
+    // Selection helpers
+    function selectCube(cube) {
+      if (!cube.selected) {
+        cube.selected = true;
+        selectedCubes.push(cube);
+        updateCubeAppearance(cube);
+      }
+    }
+
+    function toggleCubeSelection(cube) {
+      if (cube.selected) {
+        deselectCube(cube);
+      } else {
+        selectCube(cube);
+      }
+    }
+
+    function deselectCube(cube) {
+      cube.selected = false;
+      selectedCubes = selectedCubes.filter(c => c !== cube);
+      updateCubeAppearance(cube);
+    }
+
+    function clearSelection() {
+      selectedCubes.forEach(cube => {
+        cube.selected = false;
+        updateCubeAppearance(cube);
+      });
+      selectedCubes = [];
+    }
+
+    function updateCubeAppearance(cube) {
+      if (cube.selected) {
+        cube.mesh.material.color.setHex(COLORS.selected);
+        cube.mesh.material.emissive.setHex(COLORS.selected);
+        cube.mesh.material.emissiveIntensity = 0.4;
+
+        gsap.to(cube.mesh.scale, {
+          x: 1.1, y: 1.1, z: 1.1,
+          duration: 0.2,
+          ease: "back.out"
+        });
+      } else {
+        cube.mesh.material.color.setHex(colorStringToHex(cube.originalColor));
+        cube.mesh.material.emissive.setHex(colorStringToHex(cube.originalColor));
+        cube.mesh.material.emissiveIntensity = 0.2;
+
+        gsap.to(cube.mesh.scale, {
+          x: 1, y: 1, z: 1,
+          duration: 0.2,
+          ease: "power2.out"
+        });
+      }
+    }
+
+    function colorStringToHex(str) {
+      try {
+        if (typeof str === 'number') return str;
+        if (str.startsWith('#')) {
+          return parseInt(str.slice(1), 16);
+        }
+        // fallback
+        return COLORS.default;
+      } catch (e) {
+        return COLORS.default;
+      }
+    }
+
+    // ============================================
+    // CAMERA CONTROLS
+    function updateCameraPosition() {
+      const x = cameraRadius * Math.sin(cameraPhi) * Math.cos(cameraTheta);
+      const y = cameraRadius * Math.cos(cameraPhi);
+      const z = cameraRadius * Math.sin(cameraPhi) * Math.sin(cameraTheta);
+
+      camera.position.set(x, y, z);
+      camera.lookAt(cameraTarget);
+    }
+
+    function resetCamera() {
+      gsap.to(camera.position, {
+        x: 30, y: 20, z: 30,
+        duration: 1.5,
+        ease: "power2.inOut",
+        onUpdate: function () {
+          camera.lookAt(cameraTarget);
+        }
+      });
+      cameraRadius = 30;
+      cameraTheta = 0;
+      cameraPhi = Math.PI / 4;
+      cameraTarget.set(0, 0, 0);
+    }
+
+    function resetCameraImmediate() {
+      camera.position.set(30, 20, 30);
+      camera.lookAt(cameraTarget);
+      cameraRadius = 30;
+      cameraTheta = 0;
+      cameraPhi = Math.PI / 4;
+      cameraTarget.set(0, 0, 0);
+    }
+
+    function centerOnCube(cube) {
+      if (!cube) return;
+      const target = cube.mesh.position.clone();
+      gsap.to(cameraTarget, {
+        x: target.x,
+        y: target.y,
+        z: target.z,
+        duration: 1.0,
+        ease: "power2.inOut",
+        onUpdate: () => {
+          camera.lookAt(cameraTarget);
+        }
+      });
+    }
+
+    // ============================================
+    // UI UPDATES
+    function updateUI() {
+      document.getElementById('cubeCount').textContent = cubes.length;
+      document.getElementById('connectionCount').textContent = connections.filter(c => c.active).length;
+      document.getElementById('selectedCount').textContent = selectedCubes.length;
+
+      const connectionList = document.getElementById('connectionList');
+      if (connections.length > 0) {
+        connectionList.innerHTML = connections.slice(0, 3).map(conn => `
+          <div style="font-size: 10px; margin-bottom: 4px;">
+            Cube ${cubes.indexOf(conn.cube1) + 1} ↔ Cube ${cubes.indexOf(conn.cube2) + 1} ${conn.label ? '• ' + conn.label : ''}
+          </div>
+        `).join('');
+      } else {
+        connectionList.innerHTML = '<div style="font-size: 10px; opacity: 0.5;">No connections</div>';
+      }
+
+      // Quick index pinned
+      renderQuickIndex();
+    }
+
+    function renderQuickIndex() {
+      const quickList = document.getElementById('quickList');
+      const query = (document.getElementById('quickSearch').value || '').toLowerCase();
+
+      const pinned = cubes.filter(c => c.note && c.note.pinned);
+      const filtered = pinned.filter(c => {
+        const t = (c.note.title || '').toLowerCase();
+        const tags = (c.note.tags || []).join(' ').toLowerCase();
+        return !query || t.includes(query) || tags.includes(query);
+      });
+
+      if (filtered.length === 0) {
+        quickList.innerHTML = '<div style="font-size:12px;opacity:0.6">No pinned notes</div>';
+        return;
+      }
+
+      quickList.innerHTML = filtered.map(c => `
+        <div class="quick-item" data-id="${c.id}">
+          <div style="flex:1">
+            <div style="font-weight:600;color:${c.note.color};font-size:13px">${escapeHtml(c.note.title || 'Untitled')}</div>
+            <div style="font-size:11px;color:var(--ink-2);margin-top:4px">${escapeHtml((c.note.tags || []).slice(0,3).join(', '))}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+            <div style="font-size:11px;color:var(--ink-2)">${(new Date(c.note.updatedAt)).toLocaleDateString()}</div>
+          </div>
+        </div>
+      `).join('');
+
+      // wire click handlers
+      quickList.querySelectorAll('.quick-item').forEach(el => {
+        el.onclick = () => {
+          const id = el.getAttribute('data-id');
+          const c = cubes.find(x => x.id === id);
+          if (c) {
+            centerOnCube(c);
+            // highlight briefly
+            gsap.to(c.mesh.scale, { x: 1.2, y: 1.2, z: 1.2, duration: 0.15, yoyo: true, repeat: 1 });
+          }
+        };
+      });
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ============================================
+    // EVENT LISTENERS
+    function setupEventListeners() {
+      const canvas = document.getElementById('canvas');
+
+      canvas.addEventListener('mousedown', onMouseDown);
+      canvas.addEventListener('mousemove', onMouseMove);
+      canvas.addEventListener('mouseup', onMouseUp);
+      canvas.addEventListener('wheel', onMouseWheel, { passive: false });
+      canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      canvas.addEventListener('dblclick', onDoubleClick);
+
+      canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+      canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+      canvas.addEventListener('touchend', onTouchEnd);
+
+      window.addEventListener('resize', onWindowResize);
+
+      document.getElementById('modeSelect').addEventListener('click', () => setMode('select'));
+      document.getElementById('modeConnect').addEventListener('click', () => setMode('connect'));
+      document.getElementById('modeBreak').addEventListener('click', () => setMode('break'));
+      document.getElementById('modeCreate').addEventListener('click', () => setMode('create'));
+
+      document.getElementById('resetCamera').addEventListener('click', resetCamera);
+      document.getElementById('clearAll').addEventListener('click', clearAll);
+      document.getElementById('fabButton').addEventListener('click', () => {
+        setMode('create');
+        const newC = createCube();
+        openEditor(newC);
+      });
+
+      document.getElementById('closeInstructions').addEventListener('click', () => {
+        gsap.to('#instructions', {
+          opacity: 0,
+          duration: 0.3,
+          onComplete: () => {
+            document.getElementById('instructions').style.display = 'none';
+          }
+        });
+      });
+
+      document.addEventListener('keydown', handleKeyboard);
+
+      // close editor if clicking the backdrop (outside the editor)
+document.getElementById('noteEditorBackdrop').addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'noteEditorBackdrop') {
+    closeEditor();
+  }
+});
+
+
+      
+      // Editor buttons
+      document.getElementById('editorClose').addEventListener('click', closeEditor);
+      document.getElementById('editorSave').addEventListener('click', saveNoteFromEditor);
+      document.getElementById('editorNewLinked').addEventListener('click', () => {
+        const current = getEditorCube();
+        if (current) {
+          const child = createCube(current.mesh.position.clone().add(new THREE.Vector3(2, 2, 0)));
+          createConnection(current, child);
+          openEditor(child);
+        }
+      });
+      document.getElementById('editorDelete').addEventListener('click', () => {
+        const cube = getEditorCube();
+        if (cube && confirm('Delete this note and cube?')) {
+          removeCube(cube);
+          closeEditor();
+        }
+      });
+
+      // export/import
+      document.getElementById('exportNotes').addEventListener('click', () => {
+        const json = exportNotes();
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'intoview-notes.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      });
+
+      document.getElementById('importNotes').addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json';
+        input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            try {
+              const json = JSON.parse(ev.target.result);
+              if (confirm('Importing will replace current scene. Continue?')) {
+                importNotes(json);
+              }
+            } catch (err) {
+              alert('Invalid JSON file.');
+            }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      });
+
+      // search
+      document.getElementById('quickSearch').addEventListener('input', renderQuickIndex);
+    }
+
+    // ============================================
+    // MOUSE / TOUCH HANDLERS
+    function onMouseDown(event) {
+      if (event.button === 2) {
+        isRotating = true;
+        previousMousePosition = { x: event.clientX, y: event.clientY };
+        document.getElementById('canvas').classList.add('grabbing');
+        return;
+      }
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(cubes.map(c => c.mesh));
+
+      if (intersects.length > 0) {
+        const clickedCube = cubes.find(c => c.mesh === intersects[0].object);
+        if (clickedCube) {
+          handleCubeInteraction(clickedCube, event);
+
+          if (currentMode === 'select' && !event.shiftKey) {
+            isDragging = true;
+            draggedCube = clickedCube;
+          }
+        }
+      } else if (currentMode === 'create') {
+        const planeIntersect = getPlaneIntersection(event);
+        if (planeIntersect) {
+          const newCube = createCube(planeIntersect);
+          openEditor(newCube);
+        }
+      }
+    }
+
+    function onMouseMove(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      if (isRotating) {
+        const deltaMove = {
+          x: event.clientX - previousMousePosition.x,
+          y: event.clientY - previousMousePosition.y
+        };
+
+        cameraTheta -= deltaMove.x * 0.01;
+        cameraPhi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraPhi + deltaMove.y * 0.01));
+
+        updateCameraPosition();
+
+        previousMousePosition = {
+          x: event.clientX,
+          y: event.clientY
+        };
+      } else if (isDragging && draggedCube) {
+        const planeIntersect = getPlaneIntersection(event);
+        if (planeIntersect) {
+          const forceVec = planeIntersect.clone().sub(draggedCube.mesh.position);
+          forceVec.multiplyScalar(10);
+          draggedCube.body.wakeUp();
+          draggedCube.body.applyForce(new CANNON.Vec3(forceVec.x, forceVec.y, forceVec.z), draggedCube.body.position);
+
+          draggedCube.connections.forEach(connection => {
+            const otherCube = connection.cube1 === draggedCube ? connection.cube2 : connection.cube1;
+            otherCube.body.wakeUp();
+          });
+        }
+      } else {
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(cubes.map(c => c.mesh));
+
+        if (intersects.length > 0) {
+          const hoveredCubeObj = cubes.find(c => c.mesh === intersects[0].object);
+          if (hoveredCubeObj && hoveredCubeObj !== hoveredCube) {
+            hoveredCube = hoveredCubeObj;
+
+            if (currentMode === 'connect') {
+              const nearby = findNearbyCubes(hoveredCubeObj);
+              updateMagneticIndicator(nearby.length > 0 ? hoveredCubeObj : null);
+            }
+
+            document.getElementById('canvas').classList.add('hovering-magnetic');
+          }
+        } else {
+          hoveredCube = null;
+          updateMagneticIndicator(null);
+          document.getElementById('canvas').classList.remove('hovering-magnetic');
+        }
+      }
+    }
+
+    function onMouseUp(event) {
+      isDragging = false;
+      isRotating = false;
+      draggedCube = null;
+      document.getElementById('canvas').classList.remove('grabbing');
+    }
+
+    function onMouseWheel(event) {
+      event.preventDefault();
+
+      const delta = event.deltaY * 0.01;
+      cameraRadius = Math.max(10, Math.min(100, cameraRadius + delta));
+
+      updateCameraPosition();
+    }
+
+    function onDoubleClick(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(cubes.map(c => c.mesh));
+      if (intersects.length > 0) {
+        const cube = cubes.find(c => c.mesh === intersects[0].object);
+        if (cube) {
+          openEditor(cube);
+        }
+      }
+    }
+
+    function onTouchStart(event) {
+      if (event.touches.length === 1) {
+        touchStart.x = event.touches[0].clientX;
+        touchStart.y = event.touches[0].clientY;
+
+        // start long-press timer to open editor
+        clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+          const t = event.touches[0];
+          const mouseEvent = new MouseEvent('mousedown', {
+            clientX: t.clientX,
+            clientY: t.clientY,
+            button: 0
+          });
+          mouse.x = (t.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(t.clientY / window.innerHeight) * 2 + 1;
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObjects(cubes.map(c => c.mesh));
+          if (intersects.length > 0) {
+            const cube = cubes.find(c => c.mesh === intersects[0].object);
+            if (cube) {
+              openEditor(cube);
+            }
+          }
+        }, 600);
+
+        const mouseEvent = new MouseEvent('mousedown', {
+          clientX: event.touches[0].clientX,
+          clientY: event.touches[0].clientY,
+          button: 0
+        });
+        onMouseDown(mouseEvent);
+      } else if (event.touches.length === 2) {
+        // pinch to zoom could be added -- not required
+      }
+    }
+
+    function onTouchMove(event) {
+      if (event.touches.length === 1) {
+        event.preventDefault();
+        clearTimeout(longPressTimer);
+        const mouseEvent = new MouseEvent('mousemove', {
+          clientX: event.touches[0].clientX,
+          clientY: event.touches[0].clientY
+        });
+        onMouseMove(mouseEvent);
+      }
+    }
+
+    function onTouchEnd(event) {
+      clearTimeout(longPressTimer);
+      const mouseEvent = new MouseEvent('mouseup', {});
+      onMouseUp(mouseEvent);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // ============================================
+    // KEYBOARD HANDLING
+    function handleKeyboard(event) {
+      if (event.ctrlKey || event.metaKey) {
+        if (event.key === 'z' || event.key === 'Z') {
+          event.preventDefault();
+          if (event.shiftKey) redo(); else undo();
+          return;
+        }
+      }
+
+      switch (event.key) {
+        case '1':
+          setMode('select');
+          break;
+        case '2':
+          setMode('connect');
+          break;
+        case '3':
+          setMode('break');
+          break;
+        case '4':
+          setMode('create');
+          break;
+        case 'r':
+        case 'R':
+          resetCamera();
+          break;
+        case 'Delete':
+          if (selectedCubes.length > 0) {
+            selectedCubes.forEach(cube => removeCube(cube));
+            clearSelection();
+          }
+          break;
+        case 'Escape':
+          clearSelection();
+          connectionStart = null;
+          break;
+        case 'e':
+        case 'E':
+          if (selectedCubes.length === 1) {
+            openEditor(selectedCubes[0]);
+          }
+          break;
+        case 'f':
+        case 'F':
+          if (selectedCubes.length === 1) {
+            centerOnCube(selectedCubes[0]);
+          }
+          break;
+        case 'p':
+        case 'P':
+          if (selectedCubes.length === 1) {
+            const c = selectedCubes[0];
+            c.note.pinned = !c.note.pinned;
+            markDirty();
+            updateUI();
+          }
+          break;
+      }
+    }
+
+    // ============================================
+    // PLANE INTERSECTION UTIL
+    function getPlaneIntersection(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      // create virtual plane at y = -5
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 5); // normal up, constant 5 -> y = -5
+      const intersectPoint = new THREE.Vector3();
+      raycaster.ray.intersectPlane(plane, intersectPoint);
+
+      if (intersectPoint) return intersectPoint;
+      return null;
+    }
+
+    // ============================================
+    // REMOVE / CLEAR
+    function removeCube(cube, skipUndo = false) {
+      const connectionsToRemove = [...cube.connections];
+      connectionsToRemove.forEach(connection => {
+        breakConnection(connection);
+      });
+
+      scene.remove(cube.mesh);
+      try {
+        world.removeBody(cube.body);
+      } catch (e) { }
+
+      cubes = cubes.filter(c => c !== cube);
+      selectedCubes = selectedCubes.filter(c => c !== cube);
+
+      markDirty();
+      if (!skipUndo) pushUndo({ type: 'removeCube', payload: { id: cube.id, note: cube.note } });
+    }
+
+    function clearAll() {
+      if (!confirm('Clear all cubes and connections?')) return;
+      // backup export
+      const backup = exportNotes();
+      try {
+        cubes.forEach(cube => {
+          scene.remove(cube.mesh);
+          try { world.removeBody(cube.body); } catch (e) { }
+        });
+        connections.forEach(connection => {
+          try { world.removeConstraint(connection.constraint); } catch (e) { }
+          scene.remove(connection.line);
+          removeConnectionLabelDOM(connection);
+        });
+      } catch (e) { }
+
+      cubes = [];
+      connections = [];
+      selectedCubes = [];
+
+      createInitialCubes();
+      markDirty();
+      pushUndo({ type: 'clearAll', payload: { backup } });
+    }
+
+    // ============================================
+    // ANIMATION LOOP
+    function animate() {
+      requestAnimationFrame(animate);
+
+      world.step(1 / 60);
+
+      cubes.forEach(cube => {
+        cube.mesh.position.copy(cube.body.position);
+        cube.mesh.quaternion.copy(cube.body.quaternion);
+      });
+
+      updateConnectionLines();
+
+      connections.forEach(connection => {
+        if (connection.active) {
+          checkForBreak(connection);
+        }
+      });
+
+      // Auto-connect nearby in connect mode
+      if (currentMode === 'connect' && connectionStart) {
+        const nearby = findNearbyCubes(connectionStart);
+        nearby.forEach(cube => {
+          if (cube !== connectionStart) {
+            const existingConnection = connections.find(conn =>
+              (conn.cube1 === connectionStart && conn.cube2 === cube) ||
+              (conn.cube1 === cube && conn.cube2 === connectionStart)
+            );
+            if (!existingConnection) {
+              // create connection but do not push undo for mass auto connects
+              createConnection(connectionStart, cube, null, true);
+            }
+          }
+        });
+      }
+
+      updateUI();
+
+      renderer.render(scene, camera);
+    }
+
+    // ============================================
+    // NOTE EDITOR: open/close/save
+    let editorOpenCubeId = null;
+    function openEditor(cube) {
+      if (!cube) return;
+      editorOpenCubeId = cube.id;
+      const backdrop = document.getElementById('noteEditorBackdrop');
+      backdrop.classList.add('active');
+      backdrop.setAttribute('aria-hidden', 'false');
+
+      // fill fields
+      document.getElementById('noteTitle').value = cube.note.title || '';
+      document.getElementById('noteBody').value = cube.note.body || '';
+      document.getElementById('noteTags').value = (cube.note.tags || []).join(', ');
+      document.getElementById('noteColor').value = cube.note.color || '#83ff83';
+      document.getElementById('notePinned').checked = !!cube.note.pinned;
+
+      document.getElementById('noteTitle').focus();
+
+      // start autosave watcher while open
+      startEditorAutosave();
+    }
+
+    function startEditorAutosave() {
+      clearInterval(autosaveTimer);
+      autosaveTimer = setInterval(() => {
+        // save if open
+        if (editorOpenCubeId) {
+          saveNoteFromEditor(false);
+        }
+      }, 2000);
+    }
+
+    function stopEditorAutosave() {
+      clearInterval(autosaveTimer);
+      autosaveTimer = null;
+    }
+
+    function closeEditor() {
+      saveNoteFromEditor(true);
+      const backdrop = document.getElementById('noteEditorBackdrop');
+      backdrop.classList.remove('active');
+      backdrop.setAttribute('aria-hidden', 'true');
+      editorOpenCubeId = null;
+      stopEditorAutosave();
+    }
+
+    function getEditorCube() {
+      return cubes.find(c => c.id === editorOpenCubeId);
+    }
+
+    function saveNoteFromEditor(closeAfter = false) {
+      const cube = getEditorCube();
+      if (!cube) return;
+      const title = document.getElementById('noteTitle').value.trim();
+      const body = document.getElementById('noteBody').value;
+      const tagsRaw = document.getElementById('noteTags').value;
+      const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+      const color = document.getElementById('noteColor').value;
+      const pinned = document.getElementById('notePinned').checked;
+
+      const prevNote = JSON.parse(JSON.stringify(cube.note));
+
+      cube.note.title = title || 'Untitled';
+      cube.note.body = body;
+      cube.note.tags = tags;
+      cube.note.color = color;
+      cube.note.pinned = pinned;
+      cube.note.updatedAt = new Date().toISOString();
+
+      cube.originalColor = color;
+      cube.color = color;
+      cube.mesh.material.color.setHex(colorStringToHex(color));
+      cube.mesh.material.emissive.setHex(colorStringToHex(color));
+
+      markDirty();
+      pushUndo({ type: 'editNote', payload: { id: cube.id, before: prevNote, after: JSON.parse(JSON.stringify(cube.note)) } });
+
+      if (closeAfter) closeEditor();
+      updateUI();
+    }
+
+    // ============================================
+    // CONNECTION LABEL PICKER (simple context menu)
+    function showConnectionLabelPicker(x, y, callback) {
+      const labels = ['supports', 'contradicts', 'example'];
+      const menu = document.createElement('div');
+      menu.style.position = 'fixed';
+      menu.style.left = x + 'px';
+      menu.style.top = y + 'px';
+      menu.style.transform = 'translate(-50%, -50%)';
+      menu.style.background = 'rgba(10,10,12,0.95)';
+      menu.style.border = '1px solid rgba(255,255,255,0.06)';
+      menu.style.padding = '8px';
+      menu.style.borderRadius = '8px';
+      menu.style.zIndex = 9999;
+      labels.forEach(l => {
+        const item = document.createElement('div');
+        item.innerText = l;
+        item.style.padding = '6px 10px';
+        item.style.cursor = 'pointer';
+        item.style.color = 'var(--ink)';
+        item.onmouseenter = () => item.style.background = 'rgba(255,255,255,0.02)';
+        item.onmouseleave = () => item.style.background = 'transparent';
+        item.onclick = () => {
+          document.body.removeChild(menu);
+          callback(l);
+        };
+        menu.appendChild(item);
+      });
+      const cancel = document.createElement('div');
+      cancel.innerText = 'none';
+      cancel.style.padding = '6px 10px';
+      cancel.style.cursor = 'pointer';
+      cancel.style.color = 'var(--ink-2)';
+      cancel.onclick = () => {
+        document.body.removeChild(menu);
+        callback(null);
+      };
+      menu.appendChild(cancel);
+      document.body.appendChild(menu);
+      // remove on click outside
+      const onDocClick = (e) => {
+        if (!menu.contains(e.target)) {
+          try { document.body.removeChild(menu); } catch (e) { }
+          document.removeEventListener('mousedown', onDocClick);
+        }
+      };
+      document.addEventListener('mousedown', onDocClick);
+    }
+
+    // ============================================
+    // CONNECTION LABEL DOM (positioned via projection)
+    function createConnectionLabelDOM(connection) {
+      removeConnectionLabelDOM(connection);
+      if (!connection.label) return;
+      const div = document.createElement('div');
+      div.className = 'conn-label';
+      div.innerText = connection.label;
+      div.dataset.connId = connection.id;
+      document.getElementById('connLabelContainer').appendChild(div);
+      connectionLabelMap.set(connection.id, div);
+      updateConnectionLabelDOM(connection);
+    }
+
+    function updateConnectionLabelDOM(connection) {
+      const el = connectionLabelMap.get(connection.id);
+      if (!el) return;
+      const mid = new THREE.Vector3().addVectors(connection.cube1.mesh.position, connection.cube2.mesh.position).multiplyScalar(0.5);
+      const proj = mid.clone().project(camera);
+      const x = (proj.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (proj.y * -0.5 + 0.5) * window.innerHeight;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+    }
+
+    function removeConnectionLabelDOM(connection) {
+      const el = connectionLabelMap.get(connection.id);
+      if (el && el.parentNode) {
+        el.parentNode.removeChild(el);
+      }
+      connectionLabelMap.delete(connection.id);
+    }
+
+    // ============================================
+    // EXPORT / IMPORT
+    function exportNotes() {
+      const payload = {
+        meta: { version: '1', created: new Date().toISOString(), updated: new Date().toISOString() },
+        cubes: cubes.map(c => ({
+          id: c.id,
+          position: { x: c.mesh.position.x, y: c.mesh.position.y, z: c.mesh.position.z },
+          quaternion: { x: c.mesh.quaternion.x, y: c.mesh.quaternion.y, z: c.mesh.quaternion.z, w: c.mesh.quaternion.w },
+          note: c.note
+        })),
+        connections: connections.filter(c => c.active).map(conn => ({
+          id: conn.id,
+          a: conn.cube1.id,
+          b: conn.cube2.id,
+          label: conn.label || null
+        }))
+      };
+      return JSON.stringify(payload, null, 2);
+    }
+
+    function importNotes(json) {
+      // clear current
+      try {
+        cubes.forEach(cube => {
+          scene.remove(cube.mesh);
+          try { world.removeBody(cube.body); } catch (e) { }
+        });
+        connections.forEach(conn => {
+          try { world.removeConstraint(conn.constraint); } catch (e) { }
+          scene.remove(conn.line);
+          removeConnectionLabelDOM(conn);
+        });
+      } catch (e) { }
+      cubes = [];
+      connections = [];
+      selectedCubes = [];
+
+      // create new from json
+      const idMap = {};
+      (json.cubes || []).forEach(cd => {
+        const pos = new THREE.Vector3(cd.position.x, cd.position.y, cd.position.z);
+        const cube = createCube(pos, cd.note || {});
+        // override id and quaternions if provided
+        if (cd.id) cube.id = cd.id;
+        if (cd.quaternion) {
+          cube.body.quaternion.set(cd.quaternion.x, cd.quaternion.y, cd.quaternion.z, cd.quaternion.w);
+        }
+        idMap[cube.id] = cube;
+      });
+
+      (json.connections || []).forEach(conn => {
+        const a = cubes.find(c => c.id === conn.a);
+        const b = cubes.find(c => c.id === conn.b);
+        if (a && b) {
+          createConnection(a, b, conn.label, true);
+        }
+      });
+
+      markDirty();
+    }
+
+    // ============================================
+    // PERSISTENCE: save/load to localStorage
+    function saveToLocal(throttled = true) {
+      // throttle to not abuse localStorage
+      if (throttled) {
+        if (saveToLocal._pending) return;
+        saveToLocal._pending = true;
+        setTimeout(() => {
+          saveToLocal._pending = false;
+          _doSave();
+        }, 800);
+      } else {
+        _doSave();
+      }
+
+      function _doSave() {
+        try {
+          const data = {
+            meta: { version: '1', updated: new Date().toISOString() },
+            cubes: cubes.map(c => ({
+              id: c.id,
+              position: { x: c.mesh.position.x, y: c.mesh.position.y, z: c.mesh.position.z },
+              quaternion: { x: c.mesh.quaternion.x, y: c.mesh.quaternion.y, z: c.mesh.quaternion.z, w: c.mesh.quaternion.w },
+              note: c.note
+            })),
+            connections: connections.filter(c => c.active).map(conn => ({ id: conn.id, a: conn.cube1.id, b: conn.cube2.id, label: conn.label || null }))
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          dirty = false;
+          lastSavedAt = new Date();
+          console.log('Saved notes to localStorage');
+        } catch (e) {
+          console.error('Save failed', e);
+        }
+      }
+    }
+
+    function loadFromLocal() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const data = JSON.parse(raw);
+        if (!data || !data.cubes) return false;
+        // create from data
+        cubes = [];
+        connections = [];
+        selectedCubes = [];
+
+        (data.cubes || []).forEach(cd => {
+          const pos = new THREE.Vector3(cd.position.x, cd.position.y, cd.position.z);
+          const cube = createCube(pos, cd.note || {});
+          // override id and quaternion
+          if (cd.id) cube.id = cd.id;
+          if (cd.quaternion) cube.body.quaternion.set(cd.quaternion.x, cd.quaternion.y, cd.quaternion.z, cd.quaternion.w);
+        });
+
+        (data.connections || []).forEach(conn => {
+          const a = cubes.find(c => c.id === conn.a);
+          const b = cubes.find(c => c.id === conn.b);
+          if (a && b) createConnection(a, b, conn.label, true);
+        });
+
+        dirty = false;
+        return true;
+      } catch (e) {
+        console.warn('Load failed', e);
+        return false;
+      }
+    }
+
+    function markDirty() {
+      dirty = true;
+      saveToLocal(true);
+    }
+
+    // ============================================
+    // UNDO / REDO
+    function pushUndo(action) {
+      undoStack.push(action);
+      if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+      // clear redo
+      redoStack.length = 0;
+    }
+
+    function undo() {
+      const action = undoStack.pop();
+      if (!action) return;
+      redoStack.push(action);
+      switch (action.type) {
+        case 'createCube':
+          {
+            const c = cubes.find(x => x.id === action.payload.id);
+            if (c) removeCube(c, true);
+          }
+          break;
+        case 'removeCube':
+          {
+            // restore from payload if available - simple approach: import backup note -> create new cube at origin
+            const payload = action.payload;
+            const cube = createCube(new THREE.Vector3(0, 0, 0), payload.note);
+            cube.id = payload.id;
+          }
+          break;
+        case 'createConnection':
+          {
+            const conn = connections.find(x => x.id === action.payload.id);
+            if (conn) breakConnection(conn, true);
+          }
+          break;
+        case 'breakConnection':
+          {
+            // restoring broken connection is non-trivial without saved endpoints; skip
+            // in our implementation we avoid pushing breakConnection without payload
+          }
+          break;
+        case 'editNote':
+          {
+            const id = action.payload.id;
+            const cube = cubes.find(c => c.id === id);
+            if (cube) {
+              cube.note = action.payload.before;
+              cube.originalColor = cube.note.color;
+              cube.mesh.material.color.setHex(colorStringToHex(cube.originalColor));
+            }
+          }
+          break;
+        case 'clearAll':
+          {
+            // restore backup JSON
+            try {
+              const json = JSON.parse(action.payload.backup);
+              importNotes(json);
+            } catch (e) { }
+          }
+          break;
+        default:
+          console.warn('undo unknown', action);
+      }
+      markDirty();
+    }
+
+    function redo() {
+      const action = redoStack.pop();
+      if (!action) return;
+      undoStack.push(action);
+      // naive redo: reapply simple actions
+      switch (action.type) {
+        case 'createCube':
+          createCube();
+          break;
+        case 'createConnection':
+          // cannot reliably redo without endpoints
+          break;
+        case 'editNote':
+          const id = action.payload.id;
+          const cube = cubes.find(c => c.id === id);
+          if (cube) {
+            cube.note = action.payload.after;
+            cube.originalColor = cube.note.color;
+            cube.mesh.material.color.setHex(colorStringToHex(cube.originalColor));
+          }
+          break;
+        default:
+          console.warn('redo unknown', action);
+      }
+      markDirty();
+    }
+
+    // ============================================
+    // HELPERS
+    function isMobileDevice() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    // ============================================
+    // SMALL UTIL: escape for safety when inserting into DOM (already used above)
+    // ============================================
+
+    // ============================================
+    // BOOT
+    init();
+  </script>
+</body>
+</html>
