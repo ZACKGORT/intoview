@@ -1,2354 +1,2350 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
-  <title>IntoView: N.O.D.E. v3.3 - Enhanced UI</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>3D Cube Notes - Spatial Thinking</title>
+  
+  <!-- FONTS -->
+  <link href="https://fonts.googleapis.com" rel="preconnect" crossorigin>
+  <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  
+  <!-- LIBRARIES -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.babylonjs.com/cannon.js"></script>
+  
   <style>
+    /* ============================================
+       DESIGN SYSTEM & VARIABLES
+       ============================================ */
     :root {
-      --bg-color: #050505;
-      --card-bg: #111111;
-      --ink: #ffffff;
-      --ink-dim: #888888;
-      --accent: #FFED29;
-     
-      --neon-green: #22c55e;
-      --neon-orange: #f97316;
-      --neon-red: #ef4444;
-      --neon-blue: #3b82f6;
-     
-      --glass-bg: rgba(20, 20, 20, 0.85);
+      --bg-primary: #0a0e1a;
+      --bg-secondary: #141824;
+      --surface: #1e2330;
+      --surface-elevated: #282d3c;
+      
+      --text-primary: #ffffff;
+      --text-secondary: #a8b2d1;
+      --text-muted: #64748b;
+      
+      --accent-primary: #60a5fa;
+      --accent-secondary: #818cf8;
+      --accent-success: #34d399;
+      --accent-warning: #fbbf24;
+      --accent-danger: #f87171;
+      
+      --cube-default: #3b82f6;
+      --cube-selected: #60a5fa;
+      --cube-connected: #818cf8;
+      --cube-floating: #fbbf24;
+      
+      --glass-bg: rgba(30, 35, 48, 0.8);
       --glass-border: rgba(255, 255, 255, 0.1);
-      --glass-blur: 16px;
-     
-      --nav-height: 80px;
-      --header-height: 100px;
-      --font-mono: 'JetBrains Mono', monospace;
-      --font-sans: 'Inter', sans-serif;
-     
-      /* Cinematic effects */
-      --edge-blur-amount: 12px;
-      --vignette-strength: 0.6;
-      --vignette-size: 40%;
+      --glass-blur: 12px;
+      
+      --shadow-elevation-1: 0 2px 8px rgba(0, 0, 0, 0.3);
+      --shadow-elevation-2: 0 4px 16px rgba(0, 0, 0, 0.4);
+      --shadow-elevation-3: 0 8px 32px rgba(0, 0, 0, 0.5);
+      
+      --transition-fast: 0.2s ease;
+      --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-swoosh: 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+      
+      --z-ui: 100;
+      --z-overlay: 200;
+      --z-modal: 300;
+      --z-tooltip: 400;
     }
 
-
-    /* Nerd Theme - Brutalist Minimalist */
-    [data-theme="nerd"] {
-      --bg-color: #000000;
-      --card-bg: #ffffff;
-      --ink: #ffffff;
-      --ink-dim: #888888;
-      --accent: #FFED29;
-     
-      --neon-green: #22c55e;
-      --neon-orange: #f97316;
-      --neon-red: #ef4444;
-      --neon-blue: #3b82f6;
-     
-      --glass-bg: rgba(20, 20, 20, 0.9);
-      --glass-border: rgba(255, 255, 255, 0.1);
-      --glass-blur: 16px;
-     
-      --nav-height: 80px;
-      --header-height: 100px;
-      --font-mono: 'JetBrains Mono', monospace;
-      --font-sans: 'Inter', sans-serif;
-     
-      /* Cinematic effects */
-      --edge-blur-amount: 0px;
-      --vignette-strength: 0.0;
-      --vignette-size: 0%;
-    }
-    
-    /* Nerd Theme - Brutalist Minimalist
-      --bg-color: #000000;
-      --card-bg: #ffffff;
-      --ink: #000000;
-      --ink-dim: #2d2d2d;
-      --accent: #00ff00;
-      --glass-bg: rgba(30, 41, 59, 0.85);
-      --glass-border: rgba(51, 65, 85, 0.6);
-      --neon-green: #00ff00;
-      --neon-orange: #ff6600;
-      --neon-red: #ff0000;
-      --neon-blue: #0066ff;
-      --vignette-strength: 0.3;
-      --edge-blur-amount: 8px;
-    } */
-
-    
-    [data-theme="light"] {
-      --bg-color: #f0f0f0;
-      --card-bg: #ffffff;
-      --ink: #111111;
-      --ink-dim: #666666;
-      --glass-bg: rgba(255, 255, 255, 0.9);
-      --glass-border: rgba(0, 0, 0, 0.1);
-      --vignette-strength: 0.4; 
-    }
-    
-    [data-theme="rose"] {
-      --bg-color: #1a0a0f;
-      --card-bg: #2d1419;
-      --ink: #FFE5EC;
-      --ink-dim: #FFB3C1;
-      --accent: #FF8DA1;
-      --neon-green: #4ADE80;
-      --neon-orange: #FB923C;
-      --neon-red: #F87171;
-      --neon-blue: #60A5FA;
-      --glass-bg: rgba(255, 141, 161, 0.15);
-      --glass-border: rgba(255, 141, 161, 0.3);
-      --rose-primary: #FF8DA1;
-      --rose-secondary: #FF6B8B;
-      --rose-accent: #FFC0CB;
-      --rose-dark: #D63384;
-      --rose-light: #FFE0E9;
-      --retro-yellow: #FFD93D;
-      --retro-blue: #6BCB77;
-      --retro-purple: #4D96FF;
-      --vignette-strength: 0.5;
-    }
-    
-    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
-    html, body { height: 100%; font-family: var(--font-sans); background: var(--bg-color); color: var(--ink); overflow: hidden; }
-
-    /* NERD theme specific body background */
-    [data-theme="nerd"] html, [data-theme="nerd"] body {
-      background: linear-gradient(135deg, #fff 0%, #fff 100%);
-      position: relative;
+    /* ============================================
+       BASE STYLES
+       ============================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
 
-    [data-theme="nerd"] body::before {
-      content: '';
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image: 
-        radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.12) 0%, transparent 50%),
-        radial-gradient(circle at 75% 75%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 50%);
-      pointer-events: none;
-      z-index: 0;
-    }
-    
-    /* --- Cinematic Visual Effects --- */
-    body { position: relative; }
-    
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
-      backdrop-filter: blur(var(--edge-blur-amount));
-      -webkit-backdrop-filter: blur(var(--edge-blur-amount));
-      mask-image: linear-gradient(to bottom, black 0%, transparent 10%, transparent 90%, black 100%),
-                  linear-gradient(to right, black 0%, transparent 10%, transparent 90%, black 100%);
-      mask-composite: source-in;
-      pointer-events: none;
-      z-index: 200;
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow: hidden;
+      touch-action: none;
     }
 
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background: radial-gradient(
-        circle at center,
-        transparent 40%,
-        rgba(0, 0, 0, var(--vignette-strength)) 100%
-      );
-      pointer-events: none;
-      z-index: 200;
-    }
-    
-    /* Theme specific effects */
-    [data-theme="nerd"] body::before,
-    [data-theme="nerd"] body::after {
-      display: none;
-    }
-    
-    [data-theme="rose"] body::after {
-        background: radial-gradient(
-        circle at center,
-        transparent 40%,
-        rgba(50, 0, 20, var(--vignette-strength)) 100%
-      );
-    }
-
-    [data-theme="light"] body::after {
-        background: radial-gradient(
-        circle at center,
-        transparent 40%,
-        rgba(0, 0, 0, 0.3) 100%
-      );
-    }
-
-    /* --- Custom Scrollbar Design --- */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--ink-dim); }
-    
-    /* --- Typography & Utilities --- */
-    .text-green { color: var(--neon-green); }
-    .text-orange { color: var(--neon-orange); }
-    .text-red { color: var(--neon-red); }
-    .text-blue { color: var(--neon-blue); }
-    .text-rose { color: var(--rose-primary); }
-    
-    [data-theme="nerd"] .text-green { color: #006400; font-weight: 700; }
-    [data-theme="nerd"] .text-orange { color: #ff6600; font-weight: 700; }
-    [data-theme="nerd"] .text-red { color: #cc0000; font-weight: 700; }
-    [data-theme="nerd"] .text-blue { color: #0066cc; font-weight: 700; }
-   
-    [data-theme="rose"] .text-green { color: var(--retro-blue); }
-    [data-theme="rose"] .text-orange { color: var(--retro-yellow); }
-    [data-theme="rose"] .text-red { color: var(--rose-secondary); }
-    [data-theme="rose"] .text-blue { color: var(--retro-purple); }
-    
-    /* --- Layout Structure --- */
-    .app-header {
-      position: fixed; top: 0; left: 0; right: 0; height: var(--header-height);
-      display: flex; flex-direction: column; justify-content: center;
-      padding: 10px 0; z-index: 1001;
-      background: linear-gradient(to bottom, var(--bg-color) 40%, transparent);
-      pointer-events: none;
-    }
-    .header-top {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 0 20px; width: 100%; pointer-events: auto;
-    }
-   
-    /* Logo Styling */
-    .logo {
-        display: flex; align-items: center; height: 32px; z-index: 1000;
-    }
-    .logo img{
-        height: 32px;
-        width: auto;
-        transition: filter 0.3s ease, transform 0.3s ease;
-    }
-    .logo:hover img {
-        transform: scale(1.05);
-        filter: drop-shadow(0 0 8px var(--accent));
-    }
-    .header-buttons { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-    .theme-btn {
-        background: transparent; border: none; color: var(--ink-dim);
-        cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center;
-        transition: all 0.3s ease;
-    }
-    .theme-btn:hover { color: var(--ink); background: var(--glass-border); transform: scale(1.1); }
-    .theme-btn:active { background: var(--glass-border); color: var(--ink); transform: scale(0.95); }
-    
-    /* --- Provider Toggle Bar --- */
-    .provider-bar {
-      display: flex; gap: 8px; overflow-x: auto; padding: 10px 20px;
-      pointer-events: auto; scrollbar-width: none;
-      justify-content: flex-start;
-      transition: justify-content 0.3s ease;
-    }
-    
-    /* Center provider bar in list view on desktop */
-    .provider-bar.list-view-centered {
-      justify-content: center;
-      padding-left: 20px;
-      padding-right: 20px;
-    }
-    
-    @media (max-width: 600px) {
-      .provider-bar.list-view-centered {
-        justify-content: flex-start;
-      }
-    }
-    
-    .provider-bar::-webkit-scrollbar { display: none; }
-   
-    .pill {
-      padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;
-      background: var(--glass-bg); border: 1px solid var(--glass-border);
-      color: var(--ink-dim); white-space: nowrap; cursor: pointer; transition: all 0.2s;
-      flex-shrink: 0;
-    }
-    .pill.active { background: var(--ink); color: var(--bg-color); border-color: var(--ink); }
-    .pill.add-btn { border-style: dashed; }
-   
-    [data-theme="nerd"] .pill {
-      background: transparent;
-      border: 2px solid var(--ink);
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
-    [data-theme="nerd"] .pill.active {
-      background: var(--ink);
-      color: var(--bg-color);
-      box-shadow: none;
-    }
-    
-    [data-theme="rose"] .pill.active {
-      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
-      color: white;
-      border-color: var(--rose-primary);
-      box-shadow: 0 0 12px rgba(255, 141, 161, 0.5);
-    }
-    .view-container {
-      position: absolute; inset: 0;
-      top: var(--header-height); bottom: 0;
-      overflow: hidden; opacity: 0; pointer-events: none;
-      transition: opacity 0.3s ease;
-    }
-    .view-container.active { opacity: 1; pointer-events: auto; }
-    
-    /* --- Grid View --- */
-    #gridContainer { overflow-y: auto; padding: 10px 16px 120px 16px; }
-    .grid-wrapper {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 16px;
-      padding-bottom: 40px;
-    }
-    @media(min-width: 600px) { .grid-wrapper { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); } }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--glass-border);
-      border-radius: 16px;
-      padding: 20px;
-      position: relative;
-      display: flex; flex-direction: column; gap: 12px;
-      transition: transform 0.2s, background 0.2s, box-shadow 0.3s ease;
-      cursor: pointer;
-      z-index: 100;
-    }
-    .card:hover {
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 1000;
-    }
-    
-    [data-theme="nerd"] .card {
-      border: 2px solid var(--ink);
-      border-radius: 0;
-      box-shadow: none;
-    }
-    
-    [data-theme="nerd"] .card:hover {
-      box-shadow: 4px 4px 0px var(--ink);
-      transform: translate(-2px, -2px);
-    }
-    
-    [data-theme="rose"] .card:hover {
-      box-shadow: 0 8px 24px rgba(255, 141, 161, 0.3);
-    }
-    .card:active { transform: scale(0.98); background: var(--glass-border); }
-    .card-top { display: flex; justify-content: space-between; align-items: center; }
-    .card-provider { font-weight: 600; font-size: 14px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; }
-   
-    /* STATUS DOT */
-    .status-dot {
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        background-color: currentColor; 
-        box-shadow: 0 0 6px currentColor, 0 0 12px currentColor;
-        animation: pulse 2s infinite ease-in-out;
-    }
-    
-    [data-theme="nerd"] .status-dot {
-      width: 6px; height: 6px;
-      box-shadow: none;
-      animation: none;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 0.8; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
-    }
-    .card-edit-icon {
-      color: var(--ink-dim); padding: 4px; border-radius: 4px;
-      transition: color 0.2s, background 0.2s;
-      margin-left: 8px;
-    }
-    .card-edit-icon:hover { color: var(--ink); background: rgba(255,255,255,0.1); }
-    .card-timer {
-      font-family: var(--font-mono);
-      font-size: 2.4rem;
-      font-weight: 700;
-      text-align: center;
-      letter-spacing: -1px;
-      margin: 8px 0;
-      position: relative;
-    }
-    .card-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--ink-dim); border-top: 1px solid var(--glass-border); padding-top: 12px; }
-    .card-email { font-family: var(--font-mono); opacity: 0.8; }
-   
-    .card-actions { display: flex; gap: 8px; }
-    .action-icon {
-      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
-      border-radius: 6px; background: rgba(255,255,255,0.05); cursor: pointer;
-      color: var(--ink-dim); transition: 0.2s;
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .action-icon:hover { background: var(--accent); color: #000; }
-   
-    [data-theme="nerd"] .action-icon {
-      border: 1px solid var(--ink);
-      background: transparent;
-    }
-    
-    [data-theme="nerd"] .action-icon:hover {
-      background: var(--ink);
-      color: var(--bg-color);
-    }
-   
-    [data-theme="rose"] .action-icon:hover {
-      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
-      color: white;
-    }
-    .card.burnt, .scatter-card.burnt { opacity: 0.9; }
-    .card.burnt .card-edit-icon, .scatter-card.burnt .card-edit-icon { opacity: 1; }
-    .burnt-label {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) rotate(-45deg);
-      font-family: var(--font-mono);
-      font-size: 2.2rem;
-      font-weight: 900;
-      color: var(--neon-red);
-      opacity: .88;
-      pointer-events: none;
-    }
-    [data-theme="rose"] .burnt-label {
-      color: var(--rose-secondary);
-      text-shadow: 0 0 8px var(--rose-secondary);
-    }
-    .scatter-card .burnt-label { font-size: 1.8rem; }
-    
-    /* --- Scatter View --- */
-    #scatterContainer {
-        overflow: hidden;
-        background-image: radial-gradient(var(--glass-border) 1px, transparent 1px);
-        background-size: 40px 40px;
-    }
-    
-    [data-theme="nerd"] #scatterContainer {
-      background-image: linear-gradient(var(--ink) 1px, transparent 1px);
-      background-size: 20px 20px;
-      opacity: 0.3;
-    }
-    
-    [data-theme="rose"] #scatterContainer {
-        background-image: radial-gradient(rgba(255, 141, 161, 0.2) 1px, transparent 1px);
-    }
-    .scatter-canvas {
-        width: 100%; height: 100%; position: relative;
-        will-change: transform;
-        touch-action: none;
-    }
-    .scatter-card {
-      position: absolute;
-      width: 220px;
-      background: var(--card-bg);
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      padding: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-      display: flex; flex-direction: column; align-items: center;
-      user-select: none;
-      transition: box-shadow 0.2s, opacity 0.3s ease, filter 0.3s ease, left 0.4s cubic-bezier(0.25, 1, 0.5, 1), top 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    /* ============================================
+       3D CANVAS
+       ============================================ */
+    #canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
       cursor: grab;
-      z-index: 1000;
     }
-    
-    [data-theme="nerd"] .scatter-card {
-      border: 2px solid var(--ink);
-      border-radius: 0;
-      box-shadow: none;
+
+    #canvas.grabbing {
+      cursor: grabbing;
     }
-    
-    [data-theme="rose"] .scatter-card { box-shadow: 0 10px 30px rgba(255, 141, 161, 0.2); }
-    .scatter-card.dimmed { opacity: 0.077; filter: grayscale(90%) blur(0.5px); }
-    .scatter-card.is-dragging {
-        box-shadow: 0 20px 50px rgba(0,0,0,0.6);
-        z-index: 1000 !important;
-        cursor: grabbing;
-        transition: none;
+
+    #canvas.inspecting {
+      cursor: crosshair;
     }
-    .scatter-card .card-timer { font-size: 1.4rem; margin: 4px 0; position: relative; }
-    .scatter-card .card-provider { font-size: 11px; }
-    .scatter-card .card-meta {
-        display: block; text-align: center; font-size: 11px;
-        color: var(--ink-dim); margin-top: 8px; border-top: 1px solid var(--glass-border);
-        padding-top: 8px; width: 100%;
-    }
-    .scatter-card.ghost {
-      opacity: 0.5; background: var(--accent); pointer-events: none; z-index: 999;
-    }
-    
-    /* --- Bottom Navigation (Dock) --- */
-    .bottom-nav {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      width: 92%; max-width: 400px;
-      height: 64px;
+
+    /* ============================================
+       CAMERA MODE INDICATOR
+       ============================================ */
+    .camera-indicator {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       background: var(--glass-bg);
       backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
       border: 1px solid var(--glass-border);
-      border-radius: 32px;
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 0 8px 0 16px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-      z-index: 99999;
+      border-radius: 24px;
+      padding: 8px 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      z-index: var(--z-ui);
+      opacity: 0;
+      transition: opacity var(--transition-fast);
     }
-    
-    [data-theme="nerd"] .bottom-nav {
-      background: var(--bg-color);
-      border: 2px solid var(--ink);
-      border-radius: 0;
-      box-shadow: none;
+
+    .camera-indicator.visible {
+      opacity: 1;
     }
-    
-    [data-theme="rose"] .bottom-nav {
-      background: rgba(255, 141, 161, 0.15);
-      border-color: rgba(255, 141, 161, 0.3);
-      box-shadow: 0 20px 40px rgba(255, 141, 161, 0.2);
+
+    /* ============================================
+       RAIL TOGGLE UI (Edge Navigation)
+       ============================================ */
+    .rail-toggle {
+      position: fixed;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
+      border-left: none;
+      border-radius: 0 24px 24px 0;
+      padding: 16px 8px;
+      z-index: var(--z-ui);
+      transition: all var(--transition-smooth);
     }
-    .nav-group { display: flex; align-items: center; gap: 4px; }
-    .nav-btn {
-      width: 48px; height: 48px;
-      border-radius: 50%;
-      border: none; background: transparent;
-      color: var(--ink-dim);
-      font-size: 20px;
-      display: flex; align-items: center; justify-content: center;
+
+    .rail-toggle:hover {
+      background: var(--surface-elevated);
+      transform: translateY(-50%) translateX(4px);
+    }
+
+    .rail-toggle.active {
+      background: var(--surface-elevated);
+      transform: translateY(-50%) translateX(200px);
+    }
+
+    .rail-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all var(--transition-fast);
+      padding: 8px;
+      border-radius: 12px;
     }
-    .nav-btn.active { color: var(--ink); background: rgba(255,255,255,0.1); }
-    .nav-btn.primary { background: var(--accent); color: #000; transform: scale(1.1); box-shadow: 0 0 15px var(--accent); }
-    .nav-btn.primary:active { transform: scale(1.0); }
-    
-    [data-theme="nerd"] .nav-btn {
-      border: 1px solid var(--ink);
-      border-radius: 0;
+
+    .rail-item:hover {
+      background: var(--glass-bg);
+      transform: scale(1.05);
     }
-    
-    [data-theme="nerd"] .nav-btn.active {
-      background: var(--ink);
-      color: var(--bg-color);
+
+    .rail-item.active {
+      background: var(--accent-primary);
+      color: var(--bg-primary);
     }
-    
-    [data-theme="nerd"] .nav-btn.primary {
-      background: var(--ink);
-      color: var(--bg-color);
-      box-shadow: none;
+
+    .rail-icon {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
     }
-    
-    [data-theme="rose"] .nav-btn.primary {
-      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
+
+    .rail-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+    }
+
+    /* ============================================
+       MODE PANEL
+       ============================================ */
+    .mode-panel {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 16px;
+      z-index: var(--z-ui);
+      min-width: 200px;
+      box-shadow: var(--shadow-elevation-2);
+    }
+
+    .mode-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .mode-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mode-option {
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mode-option:hover {
+      background: var(--surface);
+      border-color: var(--accent-primary);
+      transform: translateY(-1px);
+    }
+
+    .mode-option.active {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+      color: var(--bg-primary);
+    }
+
+    .mode-icon {
+      font-size: 14px;
+    }
+
+    /* ============================================
+       FLOATING ACTION BUTTON
+       ============================================ */
+    .fab {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border: none;
       color: white;
-      box-shadow: 0 0 20px rgba(255, 141, 161, 0.6);
-    }
-    .filter-pill-btn {
-        background: var(--glass-border);
-        height: 40px;
-        width: 120px;
-        padding: 0 16px;
-        border-radius: 20px;
-        border: 1px solid var(--glass-border);
-        color: var(--ink);
-        display: flex; align-items: center; justify-content: flex-start;
-        gap: 8px;
-        font-size: 11px; font-weight: 700; text-transform: uppercase;
-        margin-right: 8px; cursor: pointer;
-        transition: all 0.2s;
-    }
-    .filter-pill-btn:active { transform: scale(0.95); }
-    .filter-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-dim); box-shadow: 0 0 5px currentColor; flex-shrink: 0; }
-   
-    /* --- Enhanced List Overlay --- */
-    .overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(8px);
-      z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s;
-      display: flex; align-items: flex-start;
-      padding-top: calc(var(--header-height) + 20px);
-    }
-    
-    /* Specific list overlay positioning */
-    .overlay.list-overlay {
-      padding-top: calc(var(--header-height) + 60px); /* Sit below filter bar */
+      font-size: 24px;
+      font-weight: 700;
+      cursor: pointer;
+      z-index: var(--z-ui);
+      transition: all var(--transition-smooth);
+      box-shadow: var(--shadow-elevation-2);
+      display: flex;
       align-items: center;
       justify-content: center;
     }
-    
-    .overlay.active { opacity: 1; pointer-events: auto; }
-    @media(min-width: 600px) { 
-      .overlay:not(.list-overlay) { align-items: center; justify-content: center; }
+
+    .fab:hover {
+      transform: scale(1.1) rotate(90deg);
+      box-shadow: var(--shadow-elevation-3);
     }
-    
-    .modal-sheet {
-      position: relative;
-      width: 100%; background: var(--bg-color);
-      border-top: 1px solid var(--glass-border);
-      border-radius: 24px 24px 0 0;
-      padding: 24px;
-      transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-      max-height: 85vh; overflow-y: auto;
-    }
-    
-    /* List overlay specific styling */
-    .overlay.list-overlay .modal-sheet {
-      max-width: 90vw; /* Wider for better data display */
-      width: 1200px; /* Fixed wide width for desktop */
-      max-width: calc(100vw - 40px);
-      border-radius: 24px; /* All corners rounded */
-      border: 1px solid var(--glass-border);
+
+    .fab:active {
       transform: scale(0.95);
-      max-height: calc(100vh - var(--header-height) - 120px); /* Account for header and margin */
     }
-    
-    .overlay.list-overlay.active .modal-sheet {
-      transform: scale(1);
-    }
-    
-    @media(min-width: 600px) {
-      .modal-sheet:not(.list-overlay .modal-sheet) { 
-        max-width: 575px; 
-        border-radius: 24px; 
-        border: 1px solid var(--glass-border); 
-        transform: scale(0.95); 
-      }
-      .overlay:not(.list-overlay).active .modal-sheet { transform: scale(1); }
-    }
-    
-    @media (max-width: 768px) {
-      .overlay.list-overlay .modal-sheet {
-        width: 95vw;
-        max-width: 95vw;
-      }
-    }
-    
-    [data-theme="nerd"] .modal-sheet {
-      border: 2px solid var(--ink);
-      border-radius: 0;
-      background: var(--bg-color);
-    }
-    
-    [data-theme="rose"] .modal-sheet {
-      background: linear-gradient(135deg, var(--bg-color) 0%, rgba(45, 20, 25, 0.8) 100%);
-      border-color: var(--rose-primary);
-    }
-    .close-btn {
-       position: absolute; top: 16px; right: 16px;
-       background: transparent; border: none; color: var(--ink-dim);
-       cursor: pointer; padding: 8px; border-radius: 50%; z-index: 9999;
-       transition: color 0.2s;
-    }
-    .close-btn:hover { color: var(--ink); }
-    
-    /* --- Dialogs & Forms --- */
-    .confirm-dialog {
-        background: var(--card-bg); border: 1px solid var(--glass-border);
-        padding: 24px; border-radius: 16px; width: 90%; max-width: 320px;
-        text-align: center;
-        margin-bottom: 40vh;
-    }
-    .overlay.active .confirm-dialog { animation: fadeIn 0.1s ease; }
-    @media(min-width: 600px) { .confirm-dialog { margin-bottom: 0; } }
-    [data-theme="nerd"] .confirm-dialog {
-      border: 2px solid var(--ink);
-      border-radius: 0;
-      background: var(--bg-color);
-    }
-    [data-theme="rose"] .confirm-dialog {
-      background: linear-gradient(135deg, var(--card-bg) 0%, rgba(255, 141, 161, 0.1) 100%);
-      border-color: var(--rose-primary);
-    }
-    .confirm-title { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
-    .confirm-text { font-size: 13px; color: var(--ink-dim); margin-bottom: 20px; }
-    .confirm-actions { display: flex; gap: 10px; }
-    .form-group { margin-bottom: 16px; }
-    label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); margin-bottom: 6px; text-transform: uppercase; }
-    .input-wrapper { position: relative; width: 100%; }
-    .input-wrapper input { padding-right: 40px; }
-    .input-icon-btn {
-      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-      background: none; border: none; color: var(--ink-dim); cursor: pointer;
-      padding: 4px; border-radius: 4px;
-    }
-    .input-icon-btn:hover { color: var(--accent); background: rgba(255,255,255,0.1); }
-    [data-theme="nerd"] .input-icon-btn:hover { color: var(--ink); }
-    [data-theme="rose"] .input-icon-btn:hover { color: var(--rose-primary); }
-    input, select, textarea {
-      width: 100%; padding: 16px;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
-      border-radius: 12px; color: var(--ink); font-size: 16px;
-      font-family: var(--font-sans); padding-right: 32px;
-      -webkit-appearance: none; -moz-appearance: none; appearance: none;
-    }
-    
-    [data-theme="nerd"] input, [data-theme="nerd"] select, [data-theme="nerd"] textarea {
-      background: transparent;
-      border: 2px solid var(--ink);
-      border-radius: 0;
-      font-weight: 500;
-    }
-    
-    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.1); }
-    [data-theme="nerd"] input:focus, [data-theme="nerd"] select:focus, [data-theme="nerd"] textarea:focus {
-      border-color: var(--ink);
-      background: transparent;
-      box-shadow: 2px 2px 0px var(--ink);
-    }
-    [data-theme="rose"] input:focus, [data-theme="rose"] select:focus, [data-theme="rose"] textarea:focus {
-      border-color: var(--rose-primary);
-      background: rgba(255, 141, 161, 0.1);
-    }
-    .form-group select {
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23888' d='M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 12px center;
-        background-size: 16px;
-    }
-    .status-toggles { display: flex; gap: 8px; }
-    .btn-toggle {
-       flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; border: 1px solid var(--glass-border);
-       background: transparent; cursor: pointer; transition: all 0.2s; font-size: 14px;
-       line-height: 1;
-    }
-    .btn-toggle.selected { color: var(--bg-color); border-color: currentColor; }
-    .btn-toggle[data-status="active"].selected { background: var(--accent); color: #000; border-color: var(--accent); }
-    .btn-toggle[data-status="ready"].selected { background: var(--neon-green); color: #000; border-color: var(--neon-green); }
-    .btn-toggle[data-status="cooldown"].selected { background: var(--neon-orange); color: #000; border-color: var(--neon-orange); }
-    .btn-toggle[data-status="burnt"].selected { background: var(--neon-red); color: #000; border-color: var(--neon-red); }
-    
-    [data-theme="nerd"] .btn-toggle {
-      border-radius: 0;
-      border: 2px solid var(--ink);
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-    
-    [data-theme="nerd"] .btn-toggle.selected {
-      background: var(--ink);
-      color: var(--bg-color);
-      box-shadow: 2px 2px 0px var(--ink);
-    }
-    
-    [data-theme="rose"] .btn-toggle[data-status="ready"].selected { background: var(--retro-blue); }
-    [data-theme="rose"] .btn-toggle[data-status="cooldown"].selected { background: var(--retro-yellow); }
-    [data-theme="rose"] .btn-toggle[data-status="burnt"].selected { background: var(--rose-secondary); }
-    .pill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .pill-option {
-       padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 600; text-align: center;
-       background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
-       cursor: pointer; transition: all 0.2s; line-height: 1.2;
-    }
-    .pill-option:hover { background: rgba(255,255,255,0.1); }
-    .pill-option.selected { background: var(--accent); color: #000; border-color: var(--accent); }
-    
-    [data-theme="nerd"] .pill-option {
-      border-radius: 0;
-      border: 2px solid var(--ink);
-      font-weight: 700;
-    }
-    
-    [data-theme="nerd"] .pill-option.selected {
-      background: var(--ink);
-      color: var(--bg-color);
-      box-shadow: 2px 2px 0px var(--ink);
-    }
-    
-    [data-theme="rose"] .pill-option.selected {
-      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
-      color: white;
-      border-color: var(--rose-primary);
-    }
-    .btn-block { width: 100%; padding: 16px; border-radius: 12px; font-weight: 700; border: none; font-size: 14px; text-transform: uppercase; cursor: pointer; }
-    .btn-primary { background: var(--accent); color: #000; }
-    .btn-secondary { background: var(--glass-border); color: var(--ink); margin-top: 12px; }
-    .btn-danger { background: rgba(239,68,68,0.2); color: var(--neon-red); margin-top: 12px; border: 1px solid rgba(239,68,68,0.5); }
-    
-    [data-theme="nerd"] .btn-primary,
-    [data-theme="nerd"] .btn-secondary,
-    [data-theme="nerd"] .btn-danger {
-      border-radius: 0;
-      border: 2px solid var(--ink);
-      font-weight: 700;
-    }
-    
-    [data-theme="nerd"] .btn-primary {
-      background: var(--ink);
-      color: var(--bg-color);
-      box-shadow: 2px 2px 0px var(--ink);
-    }
-    
-    [data-theme="nerd"] .btn-secondary {
-      background: transparent;
-      color: var(--ink);
-    }
-    
-    [data-theme="nerd"] .btn-danger {
-      background: transparent;
-      color: var(--neon-red);
-      border-color: var(--neon-red);
-    }
-    
-    [data-theme="rose"] .btn-primary {
-      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
-      color: white;
-    }
-    [data-theme="rose"] .btn-danger {
-      background: rgba(255, 107, 139, 0.2);
-      color: var(--rose-secondary);
-      border-color: rgba(255, 107, 139, 0.5);
-    }
-    .btn-half { flex: 1; padding: 12px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer; }
-    .btn-cancel { background: transparent; color: var(--ink-dim); border: 1px solid var(--glass-border); }
-    .btn-confirm { background: var(--accent); color: #000; }
-    
-    [data-theme="nerd"] .btn-half {
-      border-radius: 0;
-      border: 2px solid var(--ink);
-    }
-    
-    [data-theme="nerd"] .btn-confirm {
-      background: var(--ink);
-      color: var(--bg-color);
-      box-shadow: 2px 2px 0px var(--ink);
-    }
-    
-    [data-theme="nerd"] .btn-cancel {
-      background: transparent;
-      color: var(--ink);
-    }
-    
-    [data-theme="rose"] .btn-confirm {
-      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
-      color: white;
-    }
-    /* --- Accordion Styles --- */
-    .accordion-item {
-        border: 1px solid var(--glass-border);
-        border-radius: 12px;
-        margin-bottom: 8px;
-        overflow: hidden;
-        transition: all 0.2s;
-    }
-    .accordion-header {
-        width: 100%; background: transparent; border: none; padding: 16px;
-        text-align: left; color: var(--ink); font-weight: 600; font-size: 15px; cursor: pointer;
-        display: flex; justify-content: space-between; align-items: center;
-    }
-    .accordion-header:hover { background: rgba(255, 255, 255, 0.05); }
-    .accordion-icon { transition: transform 0.3s ease; }
-    .accordion-item.open .accordion-icon { transform: rotate(180deg); }
-    .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
-    .accordion-content-inner { padding: 0 16px 16px 16px; font-size: 14px; color: var(--ink-dim); line-height: 1.6; }
-    
-    /* --- Utilities --- */
-    .toast {
-      position: fixed; top: 7.777em; left: 50%; transform: translateX(-50%) translateY(-5px);
-      background: var(--accent); color: #000; padding: 10px 20px; border-radius: 20px;
-      font-weight: 700; font-size: 12px; opacity: 0; pointer-events: none; transition: all 0.3s; z-index: 9999;
-    }
-    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-    
-    [data-theme="nerd"] .toast {
-      background: var(--ink);
-      color: var(--bg-color);
-      border-radius: 0;
-      border: 2px solid var(--ink);
-      font-weight: 700;
-    }
-    
-    [data-theme="rose"] .toast {
-      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
-      color: white;
-    }
-   
-    /* SCATTER CONTROLS (RIGHT RAIL) */
-    .scatter-controls {
-      position: fixed; bottom: 33vh; right: 20px; display: none; flex-direction: column; gap: 10px; z-index: 201;
-    }
-    .scatter-controls.visible { display: flex; }
-    .control-btn { 
-        width: 48px; height: 48px; 
-        border-radius: 50%; 
-        background: var(--glass-bg); 
-        border: 1px solid var(--glass-border); 
-        color: var(--ink); 
-        font-size: 20px; 
-        backdrop-filter: blur(10px); 
-        cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        transition: transform 0.2s, background 0.2s;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-    }
-    .control-btn:hover { transform: scale(1.05); background: var(--glass-border); }
-    .control-btn:active { transform: scale(0.95); }
-    
-    [data-theme="nerd"] .control-btn {
-      border-radius: 0;
-      border: 2px solid var(--ink);
-      box-shadow: none;
-    }
-    
-    [data-theme="nerd"] .control-btn:hover {
-      background: var(--ink);
-      color: var(--bg-color);
-      box-shadow: 2px 2px 0px var(--ink);
-    }
-    
-    /* --- Context Menu --- */
+
+    /* ============================================
+       CONTEXT MENU
+       ============================================ */
     .context-menu {
-      position: fixed; display: none;
-      background: var(--card-bg); border: 1px solid var(--glass-border);
-      border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-      z-index: 2000; width: 220px; overflow: hidden;
-      backdrop-filter: blur(12px);
-    }
-    
-    [data-theme="nerd"] .context-menu {
-      border: 2px solid var(--ink);
-      border-radius: 0;
-      box-shadow: 4px 4px 0px var(--ink);
-      background: var(--bg-color);
-    }
-
-    /* NERD Theme Fixes - Maintain consistent border-radius for interactive elements */
-    [data-theme="nerd"] .bottom-nav {
-      border-radius: 32px 32px 0 0 !important;
-      border: 1px solid var(--glass-border) !important;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5) !important;
+      position: fixed;
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 8px;
+      z-index: var(--z-modal);
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.95) translateY(10px);
+      transition: all var(--transition-fast);
+      box-shadow: var(--shadow-elevation-3);
     }
 
-    [data-theme="nerd"] .nav-btn {
-      border-radius: 50% !important;
-      border: 1px solid var(--glass-border) !important;
+    .context-menu.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1) translateY(0);
     }
 
-    [data-theme="nerd"] .nav-btn.active {
-      border-radius: 50% !important;
+    .context-item {
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      white-space: nowrap;
     }
 
-    [data-theme="nerd"] .control-btn {
-      border-radius: 50% !important;
-      border: 1px solid var(--glass-border) !important;
+    .context-item:hover {
+      background: var(--surface);
     }
 
-    /* Grid/Scatter view visibility fixes */
-    [data-theme="nerd"] .grid-view {
-      display: none !important;
+    .context-separator {
+      height: 1px;
+      background: var(--glass-border);
+      margin: 4px 0;
     }
 
-    [data-theme="nerd"].grid-view-mode .grid-view {
-      display: block !important;
+    /* ============================================
+       NOTE EDITOR MODAL
+       ============================================ */
+    .note-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: var(--z-modal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-smooth);
     }
 
-    [data-theme="nerd"].grid-view-mode .scatter-view {
-      display: none !important;
+    .note-modal.visible {
+      opacity: 1;
+      pointer-events: auto;
     }
 
-    [data-theme="nerd"].scatter-view-mode .grid-view {
-      display: none !important;
+    .note-modal-content {
+      background: var(--surface);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      padding: 32px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      transform: scale(0.9) translateY(20px);
+      transition: transform var(--transition-smooth);
+      box-shadow: var(--shadow-elevation-3);
     }
 
-    [data-theme="nerd"].scatter-view-mode .scatter-view {
-      display: block !important;
+    .note-modal.visible .note-modal-content {
+      transform: scale(1) translateY(0);
     }
-    
-    [data-theme="rose"] .context-menu {
-      background: linear-gradient(135deg, var(--card-bg) 0%, rgba(255, 141, 161, 0.1) 100%);
-      border-color: var(--rose-primary);
-      box-shadow: 0 10px 40px rgba(255, 141, 161, 0.3);
+
+    .note-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
     }
-    .context-menu.active { display: block; animation: fadeIn 0.1s ease; }
-    .ctx-header { padding: 8px 12px; font-size: 10px; text-transform: uppercase; color: var(--ink-dim); border-bottom: 1px solid var(--glass-border); letter-spacing: 1px; }
-    .ctx-item {
-      padding: 12px 16px; font-size: 14px; color: var(--ink); cursor: pointer; display: flex; align-items: center; gap: 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.02);
-      transition: background 0.2s;
+
+    .note-modal-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
     }
-    .ctx-item:hover { background: var(--accent); color: #000; }
-    .ctx-item:last-child { border-bottom: none; }
-    
-    [data-theme="nerd"] .ctx-item {
-      font-weight: 500;
-      border-bottom: 1px solid var(--ink);
+
+    .note-modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: var(--glass-bg);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition-fast);
     }
-    
-    [data-theme="nerd"] .ctx-item:hover {
-      background: var(--ink);
-      color: var(--bg-color);
+
+    .note-modal-close:hover {
+      background: var(--surface-elevated);
+      color: var(--text-primary);
     }
-    
-    [data-theme="rose"] .ctx-item:hover {
-      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
-      color: white;
+
+    .note-form-group {
+      margin-bottom: 20px;
     }
-    @keyframes fadeIn { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
-    
-    /* List View Table Styles */
-    .list-table-container { width: 100%; overflow-x: auto; }
-    .list-table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: var(--font-mono); }
-    .list-table th, .list-table td { padding: 12px; border-bottom: 1px solid var(--glass-border); text-align: left; }
-    .list-table th {
-      font-weight: 700; text-transform: uppercase; font-size: 11px; color: var(--ink-dim);
-      letter-spacing: 1px; position: sticky; top: 0; background: var(--bg-color); z-index: 2222;
+
+    .note-form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
     }
-    .list-table tr { cursor: pointer; transition: background 0.2s; }
-    .list-table tr:hover { background: rgba(255, 255, 255, 0.05); }
-    .list-table tr.burnt { opacity: 0.6; }
-    
-    [data-theme="nerd"] .list-table th,
-    [data-theme="nerd"] .list-table td {
-      border-bottom: 1px solid var(--ink);
+
+    .note-form-input,
+    .note-form-textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      transition: all var(--transition-fast);
+    }
+
+    .note-form-input:focus,
+    .note-form-textarea:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      background: var(--surface);
+    }
+
+    .note-form-textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    .note-form-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .note-form-btn {
+      flex: 1;
+      padding: 12px 20px;
+      border-radius: 12px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .note-form-btn-primary {
+      background: var(--accent-primary);
+      color: var(--bg-primary);
+    }
+
+    .note-form-btn-primary:hover {
+      background: var(--accent-secondary);
+      transform: translateY(-1px);
+    }
+
+    .note-form-btn-secondary {
+      background: var(--glass-bg);
+      color: var(--text-secondary);
+      border: 1px solid var(--glass-border);
+    }
+
+    .note-form-btn-secondary:hover {
+      background: var(--surface);
+      color: var(--text-primary);
+    }
+
+    /* ============================================
+       STATUS BAR
+       ============================================ */
+    .status-bar {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 12px 20px;
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-secondary);
+      z-index: var(--z-ui);
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-label {
+      color: var(--text-muted);
+    }
+
+    .status-value {
+      color: var(--accent-primary);
       font-weight: 600;
     }
-    
-    [data-theme="nerd"] .list-table tr:hover {
-      background: rgba(0, 0, 0, 0.05);
+
+    /* ============================================
+       HELP OVERLAY
+       ============================================ */
+    .help-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: var(--z-modal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-smooth);
     }
-    
-    .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0; }
+
+    .help-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .help-content {
+      background: var(--surface);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      padding: 32px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      transform: scale(0.9) translateY(20px);
+      transition: transform var(--transition-smooth);
+    }
+
+    .help-overlay.visible .help-content {
+      transform: scale(1) translateY(0);
+    }
+
+    .help-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
+
+    .help-section {
+      margin-bottom: 24px;
+    }
+
+    .help-section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--accent-primary);
+    }
+
+    .help-list {
+      list-style: none;
+    }
+
+    .help-list li {
+      margin-bottom: 8px;
+      padding-left: 20px;
+      position: relative;
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .help-list li:before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: var(--accent-primary);
+    }
+
+    .help-shortcuts {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 16px;
+      font-size: 14px;
+    }
+
+    .help-key {
+      background: var(--glass-bg);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      color: var(--accent-primary);
+    }
+
+    .help-desc {
+      color: var(--text-secondary);
+    }
+
+    /* ============================================
+       RESPONSIVE DESIGN
+       ============================================ */
+    @media (max-width: 768px) {
+      .rail-toggle {
+        top: auto;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 24px 24px 0 0;
+        border-left: 1px solid var(--glass-border);
+        border-bottom: none;
+        flex-direction: row;
+        padding: 12px 16px;
+        gap: 16px;
+      }
+
+      .rail-toggle.active {
+        transform: translateX(-50%) translateY(-200px);
+      }
+
+      .rail-item {
+        flex-direction: row;
+        margin-bottom: 0;
+        margin-right: 16px;
+      }
+
+      .rail-label {
+        writing-mode: horizontal-tb;
+      }
+
+      .mode-panel {
+        top: auto;
+        bottom: 180px;
+        right: 20px;
+      }
+
+      .status-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .fab {
+        width: 56px;
+        height: 56px;
+        font-size: 20px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .mode-panel {
+        right: 16px;
+        bottom: 160px;
+        min-width: 160px;
+      }
+
+      .help-content {
+        padding: 24px;
+      }
+
+      .note-modal-content {
+        padding: 24px;
+      }
+    }
+
+    /* ============================================
+       ACCESSIBILITY
+       ============================================ */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* ============================================
+       FOCUS STATES
+       ============================================ */
+    *:focus {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
+    }
+
+    button:focus, .mode-option:focus, .context-item:focus {
+      outline: 2px solid var(--accent-primary);
+    }
   </style>
-<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+
 </head>
-<body data-theme="dark">
-<header class="app-header">
-<div class="header-top">
-<div class="logo">
-<img id="logoImg" src="https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg" alt="IntoView Logo" style="height: 32px;">
-</div>
-  <div class="header-buttons">
-    <button class="theme-btn" onclick="openListOverlay()" title="View List">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"></path></svg>
-    </button>
-    <button class="theme-btn info-btn" onclick="openInfoModal()" title="Information & Help">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
-    </button>
-    <button class="theme-btn" onclick="toggleTheme()" title="Toggle Theme">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"></path></svg>
-    </button>
-  </div>
-</div>
-  <div class="provider-bar" id="providerBar"></div>
-</header>
-<div id="gridContainer" class="view-container active">
-  <div class="grid-wrapper" id="gridWrapper"></div>
-</div>
-<div id="scatterContainer" class="view-container">
-  <div class="scatter-canvas" id="scatterCanvas"></div>
-</div>
+<body>
+  <!-- 3D Canvas -->
+  <canvas id="canvas"></canvas>
 
-<div class="scatter-controls" id="scatterControls">
+  <!-- Camera Mode Indicator -->
+  <div class="camera-indicator" id="cameraIndicator">Macro View</div>
 
-  <button class="control-btn" onclick="collectNodes()" title="Collect into Grid">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z"></path></svg>
-  </button>
-  <button class="control-btn" onclick="cascadeNodes()" title="Cascade Solitaire Stack">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 4h16v2H4zm0 4h16v2H4zm0 4h16v2H4z"></path></svg>
-  </button>
-  <div style="height:10px;"></div>
+  <!-- Rail Toggle UI -->
+  <nav class="rail-toggle" id="railToggle">
+    <div class="rail-item active" data-mode="view">
+      <div class="rail-icon">👁️</div>
+      <div class="rail-label">View</div>
+    </div>
+    <div class="rail-item" data-mode="string">
+      <div class="rail-icon">🔗</div>
+      <div class="rail-label">String Together</div>
+    </div>
+    <div class="rail-item" data-mode="break">
+      <div class="rail-icon">💔</div>
+      <div class="rail-label">Break Up</div>
+    </div>
+    <div class="rail-item" data-mode="float">
+      <div class="rail-icon">🎈</div>
+      <div class="rail-label">Hold Thought</div>
+    </div>
+    <div class="rail-item" data-mode="move">
+      <div class="rail-icon">✋</div>
+      <div class="rail-label">Move</div>
+    </div>
+  </nav>
 
-  <div style="height:10px;"></div>
-  <button class="control-btn" onclick="zoom(0.1, window.innerWidth/2, window.innerHeight/2)" title="Zoom In">+</button>
-  <button class="control-btn" onclick="zoom(-0.1, window.innerWidth/2, window.innerHeight/2)" title="Zoom Out">-</button>
-</div>
-
-<div id="contextMenu" class="context-menu"></div>
-<nav class="bottom-nav">
-  <div class="nav-group">
-    <button class="nav-btn active" data-view="structured" onclick="switchView('grid')" title="Grid View">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M4 11h7V4H4v7zm0 9h7v-7H4v7zm9 0h7v-7h-7v7zm0-16v7h7V4h-7z"></path></svg>
-    </button>
-    <button class="nav-btn" data-view="scatter" onclick="switchView('scatter')" title="Scatter View">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"></circle><circle cx="19" cy="5" r="2"></circle><circle cx="5" cy="19" r="2"></circle><circle cx="5" cy="5" r="2"></circle><circle cx="19" cy="19" r="2"></circle></svg>
-    </button>
-  </div>
-  <button class="nav-btn primary" onclick="openModal()">+</button>
-  <button class="filter-pill-btn" onclick="cycleStatusFilter()" id="statusPill" title="Active • Ready • Cooling • Burnt">
-    <div class="filter-dot" id="filterDot"></div>
-    <span id="filterLabel">All</span>
-  </button>
-</nav>
-
-<div class="overlay" id="providerSelectOverlay"></div>
-
-<!-- Enhanced List Overlay -->
-<div class="overlay list-overlay" id="listOverlay">
-  <div class="modal-sheet">
-     <div class="sheet-header">
-        <h2 style="font-family:var(--font-mono)">Node Index</h2>
-        <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;">Complete list with enhanced data display</p>
-        <button class="close-btn" onclick="closeListOverlay()" style="position:static;">
-           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
-        </button>
-     </div>
-     <div class="list-table-container" style="flex: 1; overflow-y: auto;">
-        <table class="list-table">
-           <thead>
-              <tr>
-                 <th>Provider</th>
-                 <th>Identity</th>
-                 <th>Status</th>
-                 <th>Note</th>
-                 <th>Timer</th>
-              </tr>
-           </thead>
-           <tbody id="overlayListBody">
-              </tbody>
-        </table>
-     </div>
-  </div>
-</div>
-
-<div class="overlay" id="modalOverlay">
-<div class="modal-sheet">
-  <button class="close-btn" onclick="closeModal()">
-     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
-  </button>
-  <h2 style="margin-bottom:20px; font-family:var(--font-mono)" id="modalTitle">New Node</h2>
-  <form id="nodeForm">
-    <input type="hidden" id="nodeId">
-    <div class="form-group">
-    <label for="inpProvider">Provider</label>
-    <select id="inpProvider" required>
-      </select>
-  </div>
-    <div class="form-group">
-      <label>Email / Identity</label>
-      <div class="input-wrapper">
-        <input type="text" id="inpEmail" required autocomplete="off">
-        <button type="button" class="input-icon-btn" onclick="copyInput('inpEmail')">
-           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-        </button>
+  <!-- Mode Panel -->
+  <div class="mode-panel">
+    <div class="mode-title">Current Mode</div>
+    <div class="mode-options">
+      <div class="mode-option active" data-mode="view">
+        <span class="mode-icon">👁️</span>
+        <span>View Mode</span>
+      </div>
+      <div class="mode-option" data-mode="string">
+        <span class="mode-icon">🔗</span>
+        <span>String Together</span>
+      </div>
+      <div class="mode-option" data-mode="break">
+        <span class="mode-icon">💔</span>
+        <span>Break Up</span>
+      </div>
+      <div class="mode-option" data-mode="float">
+        <span class="mode-icon">🎈</span>
+        <span>Hold Thought</span>
+      </div>
+      <div class="mode-option" data-mode="move">
+        <span class="mode-icon">✋</span>
+        <span>Move Mode</span>
       </div>
     </div>
-    <div class="form-group">
-      <label>Current Status</label>
-      <div class="status-toggles">
-        <button type="button" data-status="active" class="btn-toggle text-blue" onclick="selectStatusButton('active')">Active</button>
-        <button type="button" data-status="ready" class="btn-toggle text-green" onclick="selectStatusButton('ready')">Ready</button>
-        <button type="button" data-status="cooldown" class="btn-toggle text-orange" onclick="selectStatusButton('cooldown')">Cooldown</button>
-        <button type="button" data-status="burnt" class="btn-toggle text-red" onclick="selectStatusButton('burnt')">Burnt</button>
-      </div>
-      <input type="hidden" id="inpStatus" value="ready">
-    </div>
-    <div class="form-group">
-      <label>Reset Cycle (Hours)</label>
-      <div class="pill-grid">
-         <div class="pill-option selected" data-hours="3" onclick="selectResetHours(3)">3h</div>
-         <div class="pill-option" data-hours="6" onclick="selectResetHours(6)">6h</div>
-         <div class="pill-option" data-hours="12" onclick="selectResetHours(12)">12h</div>
-         <div class="pill-option" data-hours="24" onclick="selectResetHours(24)">24h</div>
-         <div class="pill-option" data-hours="48" onclick="selectResetHours(48)">48h</div>
-         <div class="pill-option" data-hours="72" onclick="selectResetHours(72)">72h</div>
-      </div>
-      <input type="number" id="inpResetCustom" placeholder="Custom Hours" style="margin-top: 8px;" step="0.5">
-      <input type="hidden" id="inpReset" value="3">
-    </div>
-    <div class="form-group">
-      <label for="inpNote">Note / Annotation</label>
-      <textarea id="inpNote" rows="4" placeholder="Add notes, prompts, or context information for this node..." style="width: 100%; padding: 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: var(--ink); font-size: 14px; font-family: var(--font-sans); resize: vertical; min-height: 80px;"></textarea>
-    </div>
-    <div id="editActions" style="display:none; margin-top:12px; display:flex; gap:10px;">
-       <button type="button" class="btn-block btn-secondary" onclick="confirmHitLimit(null)">🔥 Hit Limit</button>
-       <button type="button" class="btn-block btn-secondary" onclick="confirmForceRestore(null)">🔄 Restore</button>
-    </div>
-    <button type="submit" class="btn-block btn-primary" style="margin-top: 12px;">Save Node</button>
-    <button type="button" class="btn-block btn-danger" id="btnDelete" style="display:none" onclick="deleteNode()">Delete Node</button>
-    <div style="height:20px"></div>
-  </form>
-</div>
-</div>
-<div class="overlay" id="confirmOverlay">
-   <div class="confirm-dialog">
-      <div class="confirm-title" id="confirmTitle">Confirm Action</div>
-      <div class="confirm-text" id="confirmText">Are you sure?</div>
-      <div class="confirm-actions">
-         <button class="btn-half btn-cancel" onclick="closeConfirm()">Cancel</button>
-         <button class="btn-half btn-confirm" id="btnConfirmAction">Confirm</button>
-      </div>
-   </div>
-</div>
-<div class="overlay" id="actionOverlay">
-   <div class="confirm-dialog">
-      <div class="confirm-title" id="actionTitle">Activate Node</div>
-      <div class="confirm-text">Email copied to clipboard:</div>
-      <input type="text" id="actionEmail" readonly style="margin-bottom:20px; text-align:center;">
-      <div class="confirm-actions">
-         <button class="btn-half btn-cancel" onclick="closeActionOverlay()">Cancel</button>
-         <button class="btn-half btn-confirm" id="btnActivateNode">Activate</button>
-      </div>
-   </div>
-</div>
-<div class="overlay" id="noteOverlay">
-  <div class="modal-sheet">
-    <button class="close-btn" onclick="closeNoteModal()">
-       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
-    </button>
-    <h2 style="margin-bottom:20px; font-family:var(--font-mono)" id="noteModalTitle">Node Note</h2>
-    <div style="margin-bottom: 16px;">
-      <div style="font-size: 14px; color: var(--ink-dim); margin-bottom: 8px;">Provider: <strong id="noteProvider" style="color: var(--ink);"></strong></div>
-      <div style="font-size: 14px; color: var(--ink-dim); margin-bottom: 8px;">Email: <strong id="noteEmail" style="color: var(--ink); font-family: var(--font-mono);"></strong></div>
-    </div>
-    <div class="form-group">
-      <label for="noteTextarea">Note / Annotation</label>
-      <textarea id="noteTextarea" rows="8" placeholder="Add notes, prompts, or context information for this node..." style="width: 100%; padding: 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: var(--ink); font-size: 14px; font-family: var(--font-sans); resize: vertical; min-height: 120px;"></textarea>
-    </div>
-    <div style="display: flex; gap: 10px; margin-top: 20px;">
-      <button type="button" class="btn-half btn-cancel" onclick="closeNoteModal()">Cancel</button>
-      <button type="button" class="btn-half btn-confirm" onclick="saveNote()">Save Note</button>
-    </div>
-    <button type="button" class="btn-block btn-danger" id="btnClearNote" onclick="clearNote()" style="margin-top: 12px;">Clear Note</button>
   </div>
-</div>
-<div class="overlay" id="infoOverlay">
-  <div class="modal-sheet">
-    <button class="close-btn" onclick="closeInfoModal()">
-       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
-    </button>
-    <h2 style="margin-bottom:20px; font-family:var(--font-mono)">fyi:</h2>
-    <div style="margin-bottom: 24px; padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.05);">
-      <h3 style="font-weight: 700; font-size: 16px; color: var(--accent); margin-bottom: 8px;">The Node Manifesto:</h3>
-      <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;"><strong>You are an infinite machine</strong> in a <em>finite prompt cycle</em>; but do not yield for here is a tool for the commonwealth of the commonfolk. <br><br>
-        Use the timer not as a limiter, but as a catalyst to creation.<br><br>Let each cooldown be a reset, every burnt node a lesson, and each new node a launchpad.</p>
+
+  <!-- Floating Action Button -->
+  <button class="fab" id="fabButton" aria-label="Create Note">+</button>
+
+  <!-- Context Menu -->
+  <div class="context-menu" id="contextMenu">
+    <div class="context-item" data-action="edit">
+      <span>✏️</span>
+      <span>Edit Note</span>
     </div>
-    <div style="margin-bottom: 24px; padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.05);">
-      <h3 style="font-weight: 700; font-size: 16px; color: var(--accent); margin-bottom: 8px;">✨ v3.3 Enhanced UI:</h3>
-      <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;">
-        • 📋 <strong>Enhanced List Overlay:</strong> Wider, better positioned with responsive design.<br>
-        • 🖱️ <strong>Canvas Context Menu:</strong> Right-click anywhere on canvas background.<br>
-        • 🎯 <strong>Dynamic Toggle Centering:</strong> Auto-centering provider bar in list view.<br>
-        • 🎨 <strong>Nerd Theme:</strong> Brutalist minimalist design with precise indicators.<br>
-      </p>
+    <div class="context-item" data-action="duplicate">
+      <span>📋</span>
+      <span>Duplicate</span>
     </div>
-    <div id="accordionContainer">
-      <div class="accordion-item">
-        <button class="accordion-header" onclick="toggleAccordion(this)">
-          <span>Interaction & Shortcuts</span>
-          <svg class="accordion-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path></svg>
-        </button>
-        <div class="accordion-content">
-          <div class="accordion-content-inner">
-            <ul style="list-style-type: none; padding: 0;">
-              <li><strong style="color: var(--accent);">Tap Card/Row:</strong> Open Edit Modal.</li>
-              <li><strong style="color: var(--accent);">📝 Note Button:</strong> Quick access to node notes.</li>
-              <li><strong style="color: var(--accent);">Right-Click Canvas:</strong> Context menu everywhere.</li>
-              <li><strong style="color: var(--accent);">Ctrl/Cmd+N:</strong> Open note when editing node.</li>
-            </ul>
-          </div>
+    <div class="context-separator"></div>
+    <div class="context-item" data-action="float">
+      <span>🎈</span>
+      <span>Hold Thought</span>
+    </div>
+    <div class="context-item" data-action="connect">
+      <span>🔗</span>
+      <span>String Together</span>
+    </div>
+    <div class="context-separator"></div>
+    <div class="context-item" data-action="delete">
+      <span>🗑️</span>
+      <span>Delete</span>
+    </div>
+  </div>
+
+  <!-- Note Editor Modal -->
+  <div class="note-modal" id="noteModal">
+    <div class="note-modal-content">
+      <div class="note-modal-header">
+        <h2 class="note-modal-title">Edit Note</h2>
+        <button class="note-modal-close" id="noteModalClose">×</button>
+      </div>
+      <form id="noteForm">
+        <div class="note-form-group">
+          <label class="note-form-label" for="noteTitle">Title</label>
+          <input type="text" id="noteTitle" class="note-form-input" placeholder="Enter note title..." required>
+        </div>
+        <div class="note-form-group">
+          <label class="note-form-label" for="noteContent">Content</label>
+          <textarea id="noteContent" class="note-form-textarea" placeholder="Enter your thoughts..." required></textarea>
+        </div>
+        <div class="note-form-group">
+          <label class="note-form-label" for="noteCategory">Category</label>
+          <select id="noteCategory" class="note-form-input">
+            <option value="idea">💡 Idea</option>
+            <option value="task">📋 Task</option>
+            <option value="note">📝 Note</option>
+            <option value="reminder">⏰ Reminder</option>
+            <option value="reference">📚 Reference</option>
+          </select>
+        </div>
+        <div class="note-form-actions">
+          <button type="button" class="note-form-btn note-form-btn-secondary" id="noteCancel">Cancel</button>
+          <button type="submit" class="note-form-btn note-form-btn-primary">Save Note</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div class="status-item">
+      <span class="status-label">Cubes:</span>
+      <span class="status-value" id="cubeCount">0</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Connections:</span>
+      <span class="status-value" id="connectionCount">0</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Mode:</span>
+      <span class="status-value" id="currentMode">View</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Camera:</span>
+      <span class="status-value" id="cameraMode">Macro</span>
+    </div>
+  </div>
+
+  <!-- Help Overlay -->
+  <div class="help-overlay" id="helpOverlay">
+    <div class="help-content">
+      <h2 class="help-title">3D Cube Notes - Help</h2>
+      
+      <div class="help-section">
+        <h3 class="help-section-title">🎮 Camera Controls</h3>
+        <ul class="help-list">
+          <li><strong>Macro View (Default):</strong> Isometric 30° angle perspective</li>
+          <li><strong>Zoom:</strong> Scroll wheel or pinch gestures</li>
+          <li><strong>Rotate:</strong> Click-drag or touch-swipe around pivot point</li>
+          <li><strong>Auto-return:</strong> Camera gracefully returns to default 30° angle when idle</li>
+          <li><strong>Micro View:</strong> Double-click cube for close-up inspection</li>
+          <li><strong>Pivot Points:</strong> Canvas center by default, or around selected cube</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h3 class="help-section-title">🔧 Interaction Modes</h3>
+        <ul class="help-list">
+          <li><strong>View Mode:</strong> Navigate and inspect cubes freely</li>
+          <li><strong>String Together:</strong> Connect cubes into sequences</li>
+          <li><strong>Break Up:</strong> Separate connected cubes</li>
+          <li><strong>Hold Thought:</strong> Float cubes temporarily without adding to sequences</li>
+          <li><strong>Move Mode:</strong> Reposition cubes with playful physics</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h3 class="help-section-title">⌨️ Keyboard Shortcuts</h3>
+        <div class="help-shortcuts">
+          <span class="help-key">1</span><span class="help-desc">View Mode</span>
+          <span class="help-key">2</span><span class="help-desc">String Together</span>
+          <span class="help-key">3</span><span class="help-desc">Break Up</span>
+          <span class="help-key">4</span><span class="help-desc">Hold Thought</span>
+          <span class="help-key">5</span><span class="help-desc">Move Mode</span>
+          <span class="help-key">Space</span><span class="help-desc">Create New Note</span>
+          <span class="help-key">Double-click</span><span class="help-desc">Inspect Cube</span>
+          <span class="help-key">Right-click</span><span class="help-desc">Context Menu</span>
+          <span class="help-key">Esc</span><span class="help-desc">Return to Macro View</span>
         </div>
       </div>
-      <div class="accordion-item">
-        <button class="accordion-header" onclick="toggleAccordion(this)">
-          <span>Theme System</span>
-          <svg class="accordion-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path></svg>
-        </button>
-        <div class="accordion-content">
-          <div class="accordion-content-inner">
-            <ul>
-              <li><strong>Dark:</strong> Original cinematic theme with effects.</li>
-              <li><strong>Light:</strong> Clean, bright interface for daytime.</li>
-              <li><strong>Rose:</strong> Vibrant gradient accents and styling.</li>
-              <li><strong>Nerd:</strong> Brutalist minimalism with text hierarchy.</li>
-            </ul>
-          </div>
-        </div>
+
+      <div class="help-section">
+        <h3 class="help-section-title">💡 Tips</h3>
+        <ul class="help-list">
+          <li>Use the rail toggle on the left for quick mode switching</li>
+          <li>Right-click or long-press on cubes for context menu</li>
+          <li>Cubes connected in "String" mode move together as a chain</li>
+          <li>"Hold Thought" cubes float above the workspace temporarily</li>
+          <li>Camera automatically follows selected cubes in Move mode</li>
+        </ul>
+      </div>
+
+      <div class="note-form-actions">
+        <button type="button" class="note-form-btn note-form-btn-primary" id="helpClose">Got it!</button>
       </div>
     </div>
-    <a href="https://emdash.click" target="_blank" style="display: block; text-align: center; margin-top: 30px; text-decoration: none;">
-       <button class="btn-block btn-secondary" style="background: var(--glass-border); color: var(--ink-dim);">
-          <span style="font-weight: 400;">Something useful @</span><strong style="color: var(--ink); font-weight: 700;"> emdash.click</strong>
-       </button>
-    </a>
-    <div style="height:20px"></div>
   </div>
-</div>
-<div class="toast" id="toast">Copied to Clipboard</div>
 
-<script>
-// --- Global State ---
-let items = []; 
-let providers = []; 
-let config = {
-  filterStatus: 'all',
-  filterProvider: 'all',
-  view: 'grid',
-  sortKey: 'status', // status, provider, lastUsed
-};
-let scatter = {
-  transform: { x: 0, y: 0, scale: 1 },
-  panning: false,
-  dragging: false,
-  pinchStart: 0
-};
-let activeNodeId = null;
-let timerInterval = null;
-let isDraggingCard = false;
-let touchTimer = null;
-let canvas = null;
+  <script>
+    /*
+     * ============================================
+     * 3D CUBE NOTES - SPATIAL THINKING APPLICATION
+     * ============================================
+     * 
+     * This application implements a sophisticated camera system and multiple interaction modes
+     * for 3D note-taking with cube-based aesthetic.
+     * 
+     * CAMERA SYSTEM FEATURES:
+     * - Default 30° isometric macro view with auto-return behavior
+     * - Smooth micro view swooping for cube inspection
+     * - Dynamic pivot points based on context
+     * - Gesture-based navigation (mouse drag, touch swipe, scroll/pinch zoom)
+     * 
+     * INTERACTION MODES:
+     * 1. View Mode: Free navigation with spatial awareness
+     * 2. String Together: Connect cubes into sequences
+     * 3. Break Up: Separate connected cubes
+     * 4. Hold Thought: Temporarily float cubes
+     * 5. Move Mode: Physics-based repositioning
+     * 
+     * TECHNICAL STACK: Three.js + Cannon.js + GSAP
+     * READY FOR STACKBLITZ: No additional setup required
+     */
 
-const statusOrder = { active: 1, ready: 2, cooldown: 3, burnt: 4 };
-const sortOptions = ['status', 'provider', 'lastUsed'];
-
-// --- Theme Management ---
-const themes = ['dark', 'light', 'rose', 'nerd'];
-let currentThemeIndex = 0;
-
-function toggleTheme() {
-  currentThemeIndex = (currentThemeIndex + 1) % themes.length;
-  const newTheme = themes[currentThemeIndex];
-  document.body.setAttribute('data-theme', newTheme);
-  localStorage.setItem('iv_theme', newTheme);
-  updateLogo(newTheme);
-  showToast(`Theme: ${newTheme.toUpperCase()}`);
-}
-
-function updateLogo(theme) {
-  const logo = document.getElementById('logoImg');
-  if (logo) {
-    switch(theme) {
-      case 'light': logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-dark.svg'; break;
-      case 'rose': logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-rose.svg'; break;
-      case 'nerd': logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-dark.svg'; break;
-      default: logo.src = 'https://raw.githubusercontent.com/ZACKGORT/intoview/main/intoview-logo-light.svg';
-    }
-  }
-}
-
-// --- Data Persistence ---
-function load() {
-  const storedItems = localStorage.getItem('iv_items');
-  const storedProviders = localStorage.getItem('iv_providers');
-  if (storedItems) items = JSON.parse(storedItems); else seedMockData();
-  if (storedProviders) providers = JSON.parse(storedProviders); 
-  else providers = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot', 'Perplexity', 'Mistral', 'Midjourney', 'Llama Hub'];
-  
-  // Migrate existing items to include note field for backward compatibility
-  items.forEach(item => {
-    if (item.note === undefined) {
-      item.note = '';
-    }
-  });
-  
-  config.filterStatus = localStorage.getItem('iv_filterStatus') || 'all';
-  config.filterProvider = localStorage.getItem('iv_filterProvider') || 'all';
-  config.view = localStorage.getItem('iv_view') || 'grid';
-  config.sortKey = localStorage.getItem('iv_sortKey') || 'status';
-  
-  const storedTransform = localStorage.getItem('iv_scatterTransform');
-  if (storedTransform) scatter.transform = JSON.parse(storedTransform);
-}
-
-function save() {
-  localStorage.setItem('iv_items', JSON.stringify(items));
-  localStorage.setItem('iv_providers', JSON.stringify(providers));
-  localStorage.setItem('iv_filterStatus', config.filterStatus);
-  localStorage.setItem('iv_filterProvider', config.filterProvider);
-  localStorage.setItem('iv_view', config.view);
-  localStorage.setItem('iv_sortKey', config.sortKey);
-  localStorage.setItem('iv_scatterTransform', JSON.stringify(scatter.transform));
-}
-
-function seedMockData() {
-  const mockData = [
-    { provider: 'ChatGPT', email: 'gpt_4_main@openai.com', status: 'active', resetHours: 3, lastUsedOffset: 0.1, note: 'Use for complex coding tasks and technical analysis. Prompt format: "Act as a senior developer..."'},
-    { provider: 'Claude', email: 'claude_opus_pro@anthropic.ai', status: 'active', resetHours: 6, lastUsedOffset: 0.2, note: 'Best for creative writing and nuanced reasoning. Works well with iterative refinement approach.' },
-    { provider: 'Grok', email: 'grok_fun_mode@x.ai', status: 'ready', resetHours: 12, lastUsedOffset: 100, note: 'Use for real-time information and current events. Less restrictive content filters.' },
-    { provider: 'Perplexity', email: 'pplx_search@perplexity.ai', status: 'ready', resetHours: 24, lastUsedOffset: 100, note: 'Research and fact-checking specialist. Always cites sources.' },
-    { provider: 'Gemini', email: 'gemini_advanced@google.com', status: 'cooldown', resetHours: 3, lastUsedOffset: 1.5, note: 'Good for multimodal tasks and Google ecosystem integration.' },
-    { provider: 'Llama Hub', email: 'llama3_online@meta.com', status: 'cooldown', resetHours: 6, lastUsedOffset: 3.5, note: 'Open source alternative, good for testing and prototyping.' },
-    { provider: 'Claude', email: 'claude_v1_legacy@anthropic.ai', status: 'burnt', resetHours: 12, lastUsedOffset: 200, note: 'Legacy account - limited capabilities. Used mainly for comparison testing.' },
-  ];
-  items = mockData.map((data, i) => {
-    return {
-      id: Date.now() + i,
-      provider: data.provider,
-      email: data.email,
-      status: data.status,
-      resetHours: data.resetHours,
-      lastUsed: Date.now() - (data.lastUsedOffset * 60 * 60 * 1000),
-      pos: { x: 50 + (i % 3) * 250, y: 100 + Math.floor(i / 3) * 180 },
-      note: data.note || ''
+    // ============================================
+    // GLOBAL STATE MANAGEMENT
+    // ============================================
+    
+    const state = {
+      // Scene objects
+      scene: null,
+      camera: null,
+      renderer: null,
+      world: null,
+      raycaster: null,
+      mouse: null,
+      
+      // Collections
+      cubes: [],
+      connections: [],
+      selectedCubes: [],
+      floatingCubes: [],
+      
+      // Camera state
+      cameraMode: 'macro', // 'macro' | 'micro'
+      cameraTarget: new THREE.Vector3(0, 0, 0),
+      cameraRadius: 40,
+      cameraTheta: 0,
+      cameraPhi: Math.PI / 6, // 30 degrees for isometric view
+      cameraIdleTimer: null,
+      cameraIsMoving: false,
+      
+      // Interaction state
+      currentMode: 'view', // 'view' | 'string' | 'break' | 'float' | 'move'
+      isDragging: false,
+      isRotating: false,
+      draggedCube: null,
+      hoveredCube: null,
+      inspectedCube: null,
+      
+      // UI state
+      railExpanded: false,
+      contextMenuOpen: false,
+      noteModalOpen: false,
+      
+      // Touch state
+      touchStart: { x: 0, y: 0 },
+      lastTouchDistance: 0,
+      
+      // Constants
+      CUBE_SIZE: 2,
+      CONNECTION_DISTANCE: 4,
+      FLOAT_HEIGHT: 8,
+      MICRO_VIEW_DISTANCE: 8,
+      MACRO_VIEW_DISTANCE: 40,
+      AUTO_RETURN_DELAY: 3000,
+      
+      // Colors
+      colors: {
+        cube: {
+          default: 0x3b82f6,
+          selected: 0x60a5fa,
+          connected: 0x818cf8,
+          floating: 0xfbbf24,
+          inspecting: 0x34d399
+        },
+        connection: 0x818cf8,
+        grid: 0x1e293b
+      }
     };
-  });
-  save();
-}
 
-// --- Utils ---
-function formatTime(ms) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const totalHours = Math.floor(totalMinutes / 60);
-  if (totalHours > 99) return `${totalHours}h+`;
-  return `${String(totalHours).padStart(2,'0')}:${String(totalMinutes%60).padStart(2,'0')}:${String(totalSeconds%60).padStart(2,'0')}`;
-}
-function formatRemainingTime(ms) {
-  if (ms <= 0) return '00:00:00';
-  return formatTime(ms);
-}
-function formatLastUsed(timestamp) {
-  const ms = Date.now() - timestamp;
-  const hours = Math.floor(ms / 3600000);
-  if (hours >= 24) return `${Math.floor(hours / 24)} days ago`;
-  if (hours > 0) return `${hours}h ago`;
-  return `${Math.floor(ms / 60000)}m ago`;
-}
-function showToast(message) {
-  const toast = document.getElementById('toast');
-  toast.textContent = message;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3000);
-}
-function copyInput(id) {
-  const input = document.getElementById(id);
-  navigator.clipboard.writeText(input.value).then(() => showToast('Copied to Clipboard'));
-}
-function toggleAccordion(header) {
-  const item = header.parentNode;
-  const content = item.querySelector('.accordion-content');
-  const isOpen = item.classList.contains('open');
-  document.querySelectorAll('.accordion-item.open').forEach(openItem => {
-    if (openItem !== item) {
-      openItem.classList.remove('open');
-      openItem.querySelector('.accordion-content').style.maxHeight = null;
-    }
-  });
-  if (isOpen) { item.classList.remove('open'); content.style.maxHeight = null; } 
-  else { item.classList.add('open'); content.style.maxHeight = content.scrollHeight + "px"; }
-}
-
-// --- Provider Bar Centering Logic ---
-function updateProviderBarCentering() {
-  const providerBar = document.getElementById('providerBar');
-  const isListView = document.getElementById('listOverlay').classList.contains('active');
-  const isDesktop = window.innerWidth > 600;
-  
-  if (isListView && isDesktop) {
-    providerBar.classList.add('list-view-centered');
-  } else {
-    providerBar.classList.remove('list-view-centered');
-  }
-}
-
-// --- Filtering & View ---
-function switchView(viewName) {
-  config.view = viewName;
-  save();
-  document.querySelectorAll('.nav-btn[data-view]').forEach(b => 
-    b.classList.toggle('active', b.dataset.view === viewName)
-  );
-  document.querySelectorAll('.view-container').forEach(c => c.classList.remove('active'));
-
-  if (viewName === 'grid') {
-    document.getElementById('gridContainer').classList.add('active');
-    document.getElementById('scatterControls').classList.remove('visible');
-  } else {
-    document.getElementById('scatterContainer').classList.add('active');
-    document.getElementById('scatterControls').classList.add('visible');
-  }
-  
-  updateProviderBarCentering();
-  renderAll();
-}
-
-function filterItems() {
-  let res = items;
-  if (config.filterStatus !== 'all') res = res.filter(i => i.status === config.filterStatus);
-  if (config.filterProvider !== 'all') res = res.filter(i => i.provider === config.filterProvider);
-  return res;
-}
-
-function cycleStatusFilter() {
-  const statuses = ['all', 'active', 'ready', 'cooldown', 'burnt'];
-  let currentIndex = statuses.indexOf(config.filterStatus);
-  currentIndex = (currentIndex + 1) % statuses.length;
-  config.filterStatus = statuses[currentIndex];
-  save();
-  renderAll(); // Will call updateStatusPillUI
-  showToast(`Filter: ${config.filterStatus.toUpperCase()}`);
-}
-
-function updateStatusPillUI() {
-    const pillLabel = document.getElementById('filterLabel');
-    const pillDot = document.getElementById('filterDot');
+    // ============================================
+    // INITIALIZATION
+    // ============================================
     
-    pillLabel.textContent = config.filterStatus === 'all' ? 'All' : config.filterStatus;
-    
-    // Reset classes
-    pillDot.className = 'filter-dot';
-    
-    // Add color based on status
-    if (config.filterStatus === 'all') pillDot.style.background = 'var(--ink-dim)';
-    else if (config.filterStatus === 'active') { pillDot.style.background = 'var(--neon-blue)'; pillDot.style.boxShadow = "0 0 8px var(--neon-blue)"; }
-    else if (config.filterStatus === 'ready') { pillDot.style.background = 'var(--neon-green)'; pillDot.style.boxShadow = "0 0 8px var(--neon-green)"; }
-    else if (config.filterStatus === 'cooldown') { pillDot.style.background = 'var(--neon-orange)'; pillDot.style.boxShadow = "0 0 8px var(--neon-orange)"; }
-    else if (config.filterStatus === 'burnt') { pillDot.style.background = 'var(--neon-red)'; pillDot.style.boxShadow = "0 0 8px var(--neon-red)"; }
-    else { pillDot.style.background = 'var(--ink-dim)'; pillDot.style.boxShadow = "none"; }
-}
-
-// --- Scatter Controls (Right Rail) ---
-function setSort(key) {
-  config.sortKey = key;
-  save();
-  showToast(`Sorting by: ${key.charAt(0).toUpperCase() + key.slice(1)}`);
-}
-
-function collectNodes() {
-    const filtered = filterItems();
-    const cardW = 220;
-    const cardH = 140;
-    const pad = 20;
-    const viewportW = window.innerWidth;
-    const cols = Math.max(1, Math.floor(viewportW / (cardW + pad)));
-    let x = pad;
-    let y = pad;
-    
-    filtered.forEach((item, i) => {
-        item.pos.x = x;
-        item.pos.y = y;
-        
-        x += cardW + pad;
-        if (x + cardW > viewportW) {
-            x = pad;
-            y += cardH + pad;
-        }
-    });
-    
-    fitToBounds(filtered);
-    renderScatter(filtered);
-    save();
-    showToast('Nodes Collected to Grid');
-}
-
-function cascadeNodes() {
-    const filtered = filterItems();
-    filtered.sort((a, b) => {
-        if (config.sortKey === 'status') return statusOrder[a.status] - statusOrder[b.status];
-        if (config.sortKey === 'provider') return a.provider.localeCompare(b.provider);
-        if (config.sortKey === 'lastUsed') return b.lastUsed - a.lastUsed;
-        return 0;
-    });
-
-    const groups = {};
-    filtered.forEach(item => {
-        const key = item[config.sortKey];
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(item);
-    });
-
-    const cardW = 220;
-    const cardH = 140;
-    const pad = 20;
-    const stackOffsetY = window.innerWidth < 600 ? 30 : 40; // Condensed for mobile
-    const groupWidth = cardW + pad * 2;
-    const viewportW = window.innerWidth - pad * 2;
-    const maxCols = Math.floor(viewportW / groupWidth);
-    const effectiveMaxCols = Math.max(1, Math.min(maxCols, 2)); // Limit to 1 or 2 columns as per requirements
-
-    let col = 0;
-    let startY = pad;
-    let maxRowHeight = 0;
-
-    Object.keys(groups).forEach(key => {
-        const group = groups[key];
-        const groupHeight = group.length * stackOffsetY + cardH - stackOffsetY;
-
-        const x = pad + col * groupWidth;
-        let y = startY;
-
-        group.forEach((item, idx) => {
-            item.pos.x = x;
-            item.pos.y = y + idx * stackOffsetY;
-        });
-
-        maxRowHeight = Math.max(maxRowHeight, groupHeight);
-
-        col++;
-        if (col >= effectiveMaxCols) {
-            col = 0;
-            startY += maxRowHeight + pad;
-            maxRowHeight = 0;
-        }
-    });
-
-    fitToBounds(filtered);
-    renderScatter(filtered);
-    save();
-    showToast(`Cascaded by ${config.sortKey}`);
-}
-
-function fitToBounds(filtered) {
-    if (filtered.length === 0) return;
-
-    const cardW = 220;
-    const cardH = 140;
-    const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-
-    filtered.forEach(item => {
-        bounds.minX = Math.min(bounds.minX, item.pos.x);
-        bounds.minY = Math.min(bounds.minY, item.pos.y);
-        bounds.maxX = Math.max(bounds.maxX, item.pos.x + cardW);
-        bounds.maxY = Math.max(bounds.maxY, item.pos.y + cardH);
-    });
-
-    const contentW = bounds.maxX - bounds.minX;
-    const contentH = bounds.maxY - bounds.minY;
-
-    const vpW = window.innerWidth;
-    const vpH = window.innerHeight - 180; // Account for header and nav
-
-    const scaleX = vpW / contentW;
-    const scaleY = vpH / contentH;
-    const newScale = Math.min(scaleX, scaleY, 1) * 0.95; // Max scale 1, 95% fit
-
-    scatter.transform.scale = newScale;
-
-    const centerX = (vpW - contentW * newScale) / 2 - bounds.minX * newScale;
-    const centerY = (vpH - contentH * newScale) / 2 - bounds.minY * newScale + 80; // Offset for header
-
-    scatter.transform.x = centerX;
-    scatter.transform.y = centerY;
-
-    applyScatterTransform();
-}
-
-// --- Rendering ---
-function renderAll() {
-  renderProviderPills();
-  renderProviderSelect();
-  updateStatusPillUI();
-  const filteredItems = filterItems();
-  
-  if (document.getElementById('listOverlay').classList.contains('active')) {
-    renderListOverlayContents(filteredItems);
-  }
-  
-  if (config.view === 'grid') {
-    renderGrid(filteredItems);
-  } else {
-    renderScatter(filteredItems);
-  }
-  updateAllTimers();
-}
-
-function updateAllTimers() {
-  const now = Date.now();
-  items.forEach(item => {
-    const timerEl = document.getElementById(`timer-${item.id}`);
-    const listTimerEl = document.getElementById(`timer-list-${item.id}`);
-    const resetDot = document.getElementById(`reset-dot-${item.id}`);
-    
-    let timeStr = '00:00:00';
-    if (item.status === 'active') {
-      timeStr = formatTime(now - item.lastUsed);
-      if (resetDot) resetDot.style.opacity = '0';
-    } else if (item.status === 'cooldown') {
-      const resetMs = item.resetHours * 3600000;
-      const remaining = item.lastUsed + resetMs - now;
-      timeStr = formatRemainingTime(remaining);
-      const progress = Math.min(1, (now - item.lastUsed) / resetMs);
-      if (resetDot) { resetDot.style.opacity = '1'; resetDot.style.transform = `scaleX(${progress})`; }
-      if (remaining <= 0) { item.status = 'ready'; save(); renderAll(); showToast(`${item.provider} Ready!`); }
-    } else if (item.status === 'burnt') {
-      timeStr = formatLastUsed(item.lastUsed);
-      if (resetDot) resetDot.style.opacity = '0';
-    }
-    
-    if (timerEl) timerEl.textContent = timeStr;
-    if (listTimerEl) listTimerEl.textContent = timeStr;
-  });
-}
-
-function renderProviderPills() {
-  const bar = document.getElementById('providerBar');
-  bar.innerHTML = '';
-  const allPill = document.createElement('div');
-  allPill.className = `pill ${config.filterProvider === 'all' ? 'active' : ''}`;
-  allPill.textContent = 'All Providers';
-  allPill.onclick = () => { config.filterProvider = 'all'; save(); renderAll(); };
-  bar.appendChild(allPill);
-  providers.sort().forEach(provider => {
-    const pill = document.createElement('div');
-    pill.className = `pill ${config.filterProvider === provider ? 'active' : ''}`;
-    pill.textContent = provider;
-    pill.onclick = () => { config.filterProvider = provider; save(); renderAll(); };
-    pill.oncontextmenu = (e) => { e.preventDefault(); showProviderContextMenu(e, provider); };
-    bar.appendChild(pill);
-  });
-  const addPill = document.createElement('div');
-  addPill.className = 'pill add-btn';
-  addPill.textContent = '+ New';
-  addPill.onclick = addNewProviderFromMenu;
-  bar.appendChild(addPill);
-  
-  // Update centering after rendering pills
-  updateProviderBarCentering();
-}
-
-function renderGrid(filteredItems) {
-  const wrapper = document.getElementById('gridWrapper');
-  const sorted = filteredItems.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
-  wrapper.innerHTML = '';
-  sorted.forEach(item => wrapper.appendChild(renderCardHTML(item, false)));
-}
-
-function renderScatter(filteredItems) {
-  if (!canvas) return;
-  const dropGhost = document.getElementById('dropGhost') || createDropGhost(canvas);
-  
-  items.forEach(item => {
-    let card = document.getElementById(`scatter-card-${item.id}`);
-    if (!card) {
-      card = document.createElement('div');
-      card.className = `scatter-card ${item.status === 'burnt' ? 'burnt' : ''}`;
-      card.id = `scatter-card-${item.id}`;
-      card.setAttribute('data-id', item.id);
+    function init() {
+      console.log('🚀 Initializing 3D Cube Notes...');
       
-      // Context menu for scatter cards
-      card.oncontextmenu = (e) => { e.preventDefault(); showContextMenu(e, item.id); };
+      initScene();
+      initPhysics();
+      initLighting();
+      createEnvironment();
+      createInitialCubes();
+      setupEventListeners();
+      setupUI();
       
-      // Mobile long press for context menu
-      let pressTimer;
-      card.addEventListener('touchstart', (e) => {
-           if(e.touches.length === 1) {
-               pressTimer = setTimeout(() => { showContextMenu(e.touches[0], item.id); }, 500);
-           }
+      // Start animation loop
+      animate();
+      
+      // Show help on first load
+      setTimeout(() => {
+        showHelp();
+      }, 1000);
+      
+      console.log('✅ Initialization complete');
+    }
+
+    // ============================================
+    // SCENE SETUP
+    // ============================================
+    
+    function initScene() {
+      // Create Three.js scene
+      state.scene = new THREE.Scene();
+      state.scene.background = new THREE.Color(0x0a0e1a);
+      state.scene.fog = new THREE.Fog(0x0a0e1a, 50, 200);
+
+      // Setup camera with initial isometric view
+      state.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      updateCameraPosition();
+
+      // Setup renderer
+      const canvas = document.getElementById('canvas');
+      state.renderer = new THREE.WebGLRenderer({ 
+        canvas, 
+        antialias: !isMobileDevice(),
+        powerPreference: "high-performance",
+        alpha: true
       });
-      card.addEventListener('touchend', () => clearTimeout(pressTimer));
-      card.addEventListener('touchmove', () => clearTimeout(pressTimer));
+      state.renderer.setSize(window.innerWidth, window.innerHeight);
+      state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      state.renderer.shadowMap.enabled = true;
+      state.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-      card.onclick = () => { if (!isDraggingCard) openModal(item.id); };
-      card.addEventListener('pointerdown', (e) => { startDrag(e, item); });
-      canvas.appendChild(card);
+      // Setup raycasting for interaction
+      state.raycaster = new THREE.Raycaster();
+      state.mouse = new THREE.Vector2();
     }
-    
-    // Update inner HTML
-    const dotClass = item.status === 'active' ? 'text-blue' : item.status === 'cooldown' ? 'text-orange' : item.status === 'ready' ? 'text-green' : 'text-red';
-    const timerLabel = item.status === 'cooldown' ? 'TIME TO READY' : (item.status === 'burnt' ? 'LAST USED' : 'TIME IN USE');
-    
-    card.innerHTML = `
-      <div class="card-top" style="width:100%;">
-        <div class="card-provider">${item.provider}</div>
-        <div style="display: flex; align-items: center; gap:4px;">
-           ${item.note ? `<div style="color: var(--accent); font-size:12px; margin-right:2px;" title="Has Note">📝</div>` : ''}
-           <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
-           <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
-           <button class="card-edit-icon" onclick="openModal(${item.id})">
-               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.41 1.41z"></path></svg>
-           </button>
-        </div>
-      </div>
-      <div class="card-timer" id="timer-${item.id}"></div>
-      <div style="height: 2px; background: var(--glass-border); border-radius: 2px; position:relative; overflow:hidden; width:80%;">
-        <div id="reset-dot-${item.id}" style="position:absolute; inset:0; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform 1s linear;"></div>
-      </div>
-      <div class="card-meta">
-        <span class="card-email">${item.email}</span>
-      </div>
-      ${item.status === 'burnt' ? `<div class="burnt-label">BURNT</div>` : ''}
-    `;
-    
-    card.style.left = `${item.pos.x}px`;
-    card.style.top = `${item.pos.y}px`;
-    card.style.zIndex = item.status === 'active' ? 10 : (item.status === 'ready' ? 5 : 1);
-    
-    if (filteredItems.some(f => f.id === item.id)) card.classList.remove('dimmed');
-    else card.classList.add('dimmed');
-  });
-  applyScatterTransform();
-}
 
-function renderCardHTML(item, isScatter) {
-  const dotClass = item.status === 'active' ? 'text-blue' : item.status === 'cooldown' ? 'text-orange' : item.status === 'ready' ? 'text-green' : 'text-red';
-  const timerLabel = item.status === 'cooldown' ? 'TIME TO READY' : (item.status === 'burnt' ? 'LAST USED' : 'TIME IN USE');
-  const div = document.createElement('div');
-  div.className = `card ${item.status === 'burnt' ? 'burnt' : ''}`;
-  div.onclick = (e) => { if(!e.target.closest('.action-icon')) openModal(item.id); };
-  div.oncontextmenu = (e) => { e.preventDefault(); showContextMenu(e, item.id); };
-  
-  // Mobile Long Press for Grid Cards
-  let pressTimer;
-  div.addEventListener('touchstart', (e) => {
-       if(e.touches.length === 1) {
-           pressTimer = setTimeout(() => { showContextMenu(e.touches[0], item.id); }, 500);
-       }
-  });
-  div.addEventListener('touchend', () => clearTimeout(pressTimer));
-  div.addEventListener('touchmove', () => clearTimeout(pressTimer));
-
-  div.innerHTML = `
-    <div class="card-top">
-      <div class="card-provider">${item.provider}</div>
-      <div style="display: flex; align-items: center; gap:4px;">
-         <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
-         <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
-      </div>
-    </div>
-    <div class="card-timer" id="timer-${item.id}"></div>
-    <div style="height: 4px; background: var(--glass-border); border-radius: 2px; position:relative; overflow:hidden;">
-      <div id="reset-dot-${item.id}" style="position:absolute; inset:0; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform 1s linear;"></div>
-    </div>
-    <div style="font-size:10px; font-weight:600; color:var(--ink-dim); text-align:center; margin-top:-10px;">${timerLabel}</div>
-    ${item.status === 'burnt' ? `<div class="burnt-label">BURNT</div>` : ''}
-    <div class="card-meta">
-      <span class="card-email">${item.email}</span>
-      <div class="card-actions">
-        ${item.note ? `<div class="action-icon" style="color: var(--accent);" onclick="openNoteModal(${item.id})" title="View Note">📝</div>` : ''}
-        <div class="action-icon" onclick="openNoteModal(${item.id})" title="Add/Edit Note">📋</div>
-        ${item.status !== 'ready' ? `<div class="action-icon" onclick="confirmForceRestore(${item.id})">R</div>` : ''}
-        ${item.status === 'active' || item.status === 'cooldown' ? `<div class="action-icon" onclick="confirmHitLimit(${item.id})">H</div>` : ''}
-        ${item.status === 'ready' ? `<div class="action-icon text-green" onclick="openActionOverlay(${item.id})">GO</div>` : ''}
-      </div>
-    </div>
-  `;
-  return div;
-}
-
-function createDropGhost(canvas) {
-  const ghost = document.createElement('div');
-  ghost.id = 'dropGhost';
-  ghost.className = 'scatter-card ghost';
-  ghost.style.display = 'none';
-  canvas.appendChild(ghost);
-  return ghost;
-}
-
-// --- Drag & Drop ---
-function startDrag(e, item) {
-  if (e.button !== 0) return;
-  const card = e.currentTarget;
-  scatter.dragging = true;
-  card.classList.add('is-dragging');
-  card.setPointerCapture(e.pointerId);
-  const containerRect = canvas.getBoundingClientRect();
-  const startItemX = item.pos.x;
-  const startItemY = item.pos.y;
-  const startClientX = e.clientX;
-  const startClientY = e.clientY;
-  const invScale = 1 / scatter.transform.scale;
-  const startCanvasX = (startClientX - containerRect.left - scatter.transform.x) * invScale;
-  const startCanvasY = (startClientY - containerRect.top - scatter.transform.y) * invScale;
-  let distanceMoved = 0;
-  isDraggingCard = false;
-  
-  function move(eMove) {
-    if (eMove.pointerId !== e.pointerId) return;
-    const dx = eMove.clientX - startClientX;
-    const dy = eMove.clientY - startClientY;
-    distanceMoved = Math.hypot(dx, dy);
-    if (distanceMoved > 5) isDraggingCard = true;
-    const currentCanvasX = (eMove.clientX - containerRect.left - scatter.transform.x) * invScale;
-    const currentCanvasY = (eMove.clientY - containerRect.top - scatter.transform.y) * invScale;
-    let newX = startItemX + (currentCanvasX - startCanvasX);
-    let newY = startItemY + (currentCanvasY - startCanvasY);
-    // Snap to grid
-    newX = Math.round(newX / 20) * 20;
-    newY = Math.round(newY / 20) * 20;
-    card.style.transform = `translate(${newX - startItemX}px, ${newY - startItemY}px)`;
-  }
-  
-  function end(eEnd) {
-    if (eEnd.pointerId !== e.pointerId) return;
-    const currentCanvasX = (eEnd.clientX - containerRect.left - scatter.transform.x) * invScale;
-    const currentCanvasY = (eEnd.clientY - containerRect.top - scatter.transform.y) * invScale;
-    let finalX = startItemX + (currentCanvasX - startCanvasX);
-    let finalY = startItemY + (currentCanvasY - startCanvasY);
-    if (isDraggingCard) {
-      item.pos.x = Math.round(finalX / 20) * 20;
-      item.pos.y = Math.round(finalY / 20) * 20;
-      card.style.left = `${item.pos.x}px`;
-      card.style.top = `${item.pos.y}px`;
-      save();
-    }
-    card.style.transform = '';
-    card.classList.remove('is-dragging');
-    scatter.dragging = false;
-    card.removeEventListener('pointermove', move);
-    card.removeEventListener('pointerup', end);
-    setTimeout(() => isDraggingCard = false, 100);
-  }
-  card.addEventListener('pointermove', move);
-  card.addEventListener('pointerup', end);
-}
-
-// --- Zoom/Pan ---
-function applyScatterTransform() {
-  if (canvas) canvas.style.transform = `translate(${scatter.transform.x}px, ${scatter.transform.y}px) scale(${scatter.transform.scale})`;
-}
-function zoom(delta, cx, cy) {
-  const newScale = Math.max(0.25, Math.min(3, scatter.transform.scale + delta));
-  if (newScale === scatter.transform.scale) return;
-  const rect = canvas.getBoundingClientRect();
-  const zx = (cx!==null?cx:rect.width/2) - rect.left;
-  const zy = (cy!==null?cy:rect.height/2) - rect.top;
-  const ratio = newScale / scatter.transform.scale;
-  scatter.transform.x = zx - (zx - scatter.transform.x) * ratio;
-  scatter.transform.y = zy - (zy - scatter.transform.y) * ratio;
-  scatter.transform.scale = newScale;
-  applyScatterTransform();
-  save();
-}
-function resetView() {
-  scatter.transform = { x: 0, y: 0, scale: 1 };
-  applyScatterTransform();
-  save();
-}
-
-// --- Enhanced Context Menus ---
-function showContextMenu(e, nodeId) {
-  closeContextMenu();
-  const menu = document.getElementById('contextMenu');
-  const item = items.find(i => i.id == nodeId);
-  if (!item) return;
-  
-  // Position Logic (prevent off-screen)
-  const x = e.clientX;
-  const y = e.clientY;
-  
-  menu.innerHTML = `
-    <div class="ctx-header">${item.provider}</div>
-    <div class="ctx-item" onclick="openModal(${item.id})">Edit Details</div>
-    <div class="ctx-item" onclick="openNoteModal(${item.id})">${item.note ? '📝 Edit Note' : '📋 Add Note'}</div>
-    ${item.status === 'ready' ? `<div class="ctx-item text-green" onclick="openActionOverlay(${item.id})">Activate</div>` : ''}
-    ${item.status !== 'ready' ? `<div class="ctx-item text-blue" onclick="confirmForceRestore(${item.id})">Force Restore</div>` : ''}
-    ${item.status === 'active' || item.status === 'cooldown' ? `<div class="ctx-item text-red" onclick="confirmHitLimit(${item.id})">Hit Limit</div>` : ''}
-  `;
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
-  menu.classList.add('active');
-  setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
-}
-
-function showScatterBackgroundContextMenu(e) {
-  closeContextMenu();
-  const menu = document.getElementById('contextMenu');
-  menu.innerHTML = `
-    <div class="ctx-header">Scatter Actions</div>
-    <div class="ctx-item" onclick="collectNodes()">Collect (Grid)</div>
-    <div class="ctx-item" onclick="cascadeNodes()">Cascade (Stack)</div>
-    <div class="ctx-item" onclick="setSort('status')">Sort by Status</div>
-    <div class="ctx-item" onclick="setSort('provider')">Sort by Provider</div>
-    <div class="ctx-item" onclick="setSort('lastUsed')">Sort by Last Used</div>
-    <div class="ctx-item" onclick="openModal()">+ Add Node</div>
-    <div class="ctx-item" onclick="addNewProviderFromMenu()">+ Add Provider</div>
-  `;
-  menu.style.left = `${e.clientX}px`;
-  menu.style.top = `${e.clientY}px`;
-  menu.classList.add('active');
-  setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
-}
-
-function showGridBackgroundContextMenu(e) {
-  closeContextMenu();
-  const menu = document.getElementById('contextMenu');
-  menu.innerHTML = `
-    <div class="ctx-header">Grid Actions</div>
-    <div class="ctx-item" onclick="openModal()">+ Add Node</div>
-    <div class="ctx-item" onclick="addNewProviderFromMenu()">+ Add Provider</div>
-    <div class="ctx-item" onclick="setSort('status')">Sort by Status</div>
-    <div class="ctx-item" onclick="setSort('provider')">Sort by Provider</div>
-    <div class="ctx-item" onclick="setSort('lastUsed')">Sort by Last Used</div>
-  `;
-  menu.style.left = `${e.clientX}px`;
-  menu.style.top = `${e.clientY}px`;
-  menu.classList.add('active');
-  setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
-}
-
-function showProviderContextMenu(e, providerName) {
-  closeContextMenu();
-  const menu = document.getElementById('contextMenu');
-  menu.innerHTML = `
-    <div class="ctx-header">Provider: ${providerName}</div>
-    <div class="ctx-item" onclick="renameProvider('${providerName}')">Edit Name</div>
-    <div class="ctx-item text-red" onclick="deleteProvider('${providerName}')">Delete Provider</div>
-  `;
-  menu.style.left = `${e.clientX}px`;
-  menu.style.top = `${e.clientY}px`;
-  menu.classList.add('active');
-  setTimeout(() => document.addEventListener('click', closeContextMenu), 10);
-}
-
-function closeContextMenu() { document.getElementById('contextMenu').classList.remove('active'); }
-
-// --- Other Logic (Modals, Providers, etc) ---
-function renameProvider(oldName) {
-  const newName = prompt(`Rename ${oldName} to:`, oldName);
-  if (newName && newName.trim() && newName !== oldName) {
-    const idx = providers.indexOf(oldName);
-    if(idx!==-1) providers[idx] = newName.trim();
-    items.forEach(i => { if(i.provider===oldName) i.provider=newName.trim(); });
-    save(); renderAll(); showToast('Renamed');
-  }
-}
-function deleteProvider(name) {
-  if(confirm(`Remove "${name}"?`)) {
-    providers = providers.filter(p => p !== name);
-    if(config.filterProvider === name) config.filterProvider = 'all';
-    save(); renderAll(); showToast('Removed');
-  }
-}
-function addNewProviderFromMenu() {
-  const p = prompt('New Provider Name:');
-  if(p && p.trim() && !providers.includes(p.trim())) {
-    providers.push(p.trim()); providers.sort(); save(); renderAll(); showToast('Provider Added');
-  }
-}
-
-// Modal & Overlay logic
-function openModal(nodeId = null) {
-    const modal = document.getElementById('modalOverlay');
-    const form = document.getElementById('nodeForm');
-    const title = document.getElementById('modalTitle');
-    const btnDelete = document.getElementById('btnDelete');
-    const editActions = document.getElementById('editActions');
-    
-    form.reset(); selectResetHours(3); selectStatusButton('ready');
-    document.getElementById('nodeId').value = ''; renderProviderSelect();
-    title.textContent = 'New Node'; btnDelete.style.display = 'none'; editActions.style.display = 'none';
-
-    if (nodeId) {
-        const item = items.find(i => i.id == nodeId);
-        if (item) {
-            title.textContent = `Edit Node`;
-            document.getElementById('nodeId').value = nodeId;
-            document.getElementById('inpProvider').value = item.provider;
-            document.getElementById('inpEmail').value = item.email;
-            document.getElementById('inpNote').value = item.note || '';
-            selectStatusButton(item.status);
-            selectResetHours(item.resetHours);
-            btnDelete.style.display = 'block';
-            editActions.style.display = 'flex';
-            btnDelete.onclick = () => deleteNode();
+    function initPhysics() {
+      // Initialize Cannon.js physics world
+      state.world = new CANNON.World();
+      state.world.gravity.set(0, -9.82, 0);
+      state.world.broadphase = new CANNON.NaiveBroadphase();
+      state.world.solver.iterations = 20;
+      state.world.solver.tolerance = 0.001;
+      
+      // Create materials for playful bouncy physics
+      const cubeMaterial = new CANNON.Material('cube');
+      const groundMaterial = new CANNON.Material('ground');
+      
+      // Create contact material with bouncy settings
+      const cubeGroundContact = new CANNON.ContactMaterial(
+        cubeMaterial,
+        groundMaterial,
+        {
+          friction: 0.3,
+          restitution: 0.7, // High bounce
+          contactEquationStiffness: 1e8,
+          contactEquationRelaxation: 3
         }
+      );
+      
+      state.world.addContactMaterial(cubeGroundContact);
+      
+      // Store materials for later use
+      state.cubeMaterial = cubeMaterial;
+      state.groundMaterial = groundMaterial;
     }
-    modal.classList.add('active');
-}
-function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
-function closeActionOverlay() { document.getElementById('actionOverlay').classList.remove('active'); }
-function closeListOverlay() { 
-    document.getElementById('listOverlay').classList.remove('active');
-    updateProviderBarCentering();
-}
-function openListOverlay() { 
-    document.getElementById('listOverlay').classList.add('active'); 
-    renderListOverlayContents(filterItems());
-    updateProviderBarCentering();
-}
-function openInfoModal() { document.getElementById('infoOverlay').classList.add('active'); }
-function closeInfoModal() { document.getElementById('infoOverlay').classList.remove('active'); }
 
-// Note Modal Functions
-let currentNoteNodeId = null;
+    function initLighting() {
+      // Ambient lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      state.scene.add(ambientLight);
 
-function openNoteModal(nodeId) {
-    const item = items.find(i => i.id == nodeId);
-    if (!item) return;
-    
-    currentNoteNodeId = nodeId;
-    const modal = document.getElementById('noteOverlay');
-    document.getElementById('noteModalTitle').textContent = `${item.provider} - Note`;
-    document.getElementById('noteProvider').textContent = item.provider;
-    document.getElementById('noteEmail').textContent = item.email;
-    document.getElementById('noteTextarea').value = item.note || '';
-    document.getElementById('btnClearNote').style.display = item.note ? 'block' : 'none';
-    
-    modal.classList.add('active');
-    document.getElementById('noteTextarea').focus();
-}
+      // Main directional light with shadows
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 20, 10);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.camera.left = -50;
+      directionalLight.shadow.camera.right = 50;
+      directionalLight.shadow.camera.top = 50;
+      directionalLight.shadow.camera.bottom = -50;
+      state.scene.add(directionalLight);
 
-function closeNoteModal() {
-    document.getElementById('noteOverlay').classList.remove('active');
-    currentNoteNodeId = null;
-}
+      // Accent lights for visual depth
+      const accentLight1 = new THREE.PointLight(0x60a5fa, 1, 30);
+      accentLight1.position.set(-20, 15, -20);
+      state.scene.add(accentLight1);
 
-function saveNote() {
-    if (!currentNoteNodeId) return;
-    
-    const item = items.find(i => i.id == currentNoteNodeId);
-    if (!item) return;
-    
-    const noteText = document.getElementById('noteTextarea').value;
-    item.note = noteText;
-    
-    save();
-    renderAll();
-    closeNoteModal();
-    showToast(noteText ? 'Note saved' : 'Note cleared');
-}
+      const accentLight2 = new THREE.PointLight(0x818cf8, 0.8, 25);
+      accentLight2.position.set(20, 10, 20);
+      state.scene.add(accentLight2);
+    }
 
-function clearNote() {
-    if (!currentNoteNodeId) return;
+    function createEnvironment() {
+      // Create ground plane
+      const groundGeometry = new THREE.PlaneGeometry(100, 100);
+      const groundMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x141824,
+        roughness: 0.8,
+        metalness: 0.2
+      });
+      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -10;
+      ground.receiveShadow = true;
+      state.scene.add(ground);
+
+      // Physics ground
+      const groundShape = new CANNON.Plane();
+      const groundBody = new CANNON.Body({ mass: 0 });
+      groundBody.addShape(groundShape);
+      groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+      groundBody.position.set(0, -10, 0);
+      state.world.addBody(groundBody);
+
+      // Create grid for spatial reference
+      createGrid();
+    }
+
+    function createGrid() {
+      const gridHelper = new THREE.GridHelper(60, 20, state.colors.grid, 0x0f172a);
+      gridHelper.position.y = -9.8;
+      state.scene.add(gridHelper);
+    }
+
+    // ============================================
+    // CUBE MANAGEMENT
+    // ============================================
     
-    const item = items.find(i => i.id == currentNoteNodeId);
-    if (!item) return;
+    function createCube(position = null, noteData = null) {
+      // Generate position if not provided
+      if (!position) {
+        position = new THREE.Vector3(
+          (Math.random() - 0.5) * 20,
+          Math.random() * 5,
+          (Math.random() - 0.5) * 20
+        );
+      }
+
+      // Create visual cube with rounded edges
+      const geometry = new THREE.BoxGeometry(state.CUBE_SIZE, state.CUBE_SIZE, state.CUBE_SIZE);
+      const material = new THREE.MeshPhysicalMaterial({
+        color: state.colors.cube.default,
+        metalness: 0.6,
+        roughness: 0.3,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1,
+        emissive: state.colors.cube.default,
+        emissiveIntensity: 0.1
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(position);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      state.scene.add(mesh);
+
+      // Add text label to cube
+      createCubeLabel(mesh, noteData?.title || 'New Note');
+
+      // Create physics body
+      const shape = new CANNON.Box(new CANNON.Vec3(state.CUBE_SIZE/2, state.CUBE_SIZE/2, state.CUBE_SIZE/2));
+      const body = new CANNON.Body({ 
+        mass: 2,
+        material: new CANNON.Material({
+          friction: 0.4,
+          restitution: 0.3
+        })
+      });
+      body.addShape(shape);
+      body.position.set(position.x, position.y, position.z);
+      body.linearDamping = 0.4;
+      body.angularDamping = 0.4;
+      state.world.addBody(body);
+
+      // Create cube object
+      const cube = {
+        id: Date.now() + Math.random(),
+        mesh: mesh,
+        body: body,
+        connections: [],
+        selected: false,
+        floating: false,
+        note: noteData || {
+          title: 'New Note',
+          content: '',
+          category: 'note',
+          createdAt: new Date().toISOString()
+        }
+      };
+
+      state.cubes.push(cube);
+      updateStatusBar();
+      
+      return cube;
+    }
+
+    function createCubeLabel(mesh, text) {
+      // Create text sprite for cube label
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = 256;
+      canvas.height = 64;
+      
+      context.fillStyle = '#ffffff';
+      context.font = 'bold 20px Inter';
+      context.textAlign = 'center';
+      context.fillText(text.substring(0, 20), 128, 40);
+      
+      const texture = new THREE.CanvasTexture(canvas);
+      const spriteMaterial = new THREE.SpriteMaterial({ 
+        map: texture,
+        transparent: true,
+        alphaTest: 0.1
+      });
+      const sprite = new THREE.Sprite(spriteMaterial);
+      sprite.scale.set(4, 1, 1);
+      sprite.position.y = state.CUBE_SIZE + 1;
+      
+      mesh.add(sprite);
+    }
+
+    function createInitialCubes() {
+      // Create some initial cubes for demonstration
+      const initialNotes = [
+        { title: 'Welcome!', content: 'Start creating your 3D notes', category: 'note' },
+        { title: 'Idea', content: 'Double-click to inspect', category: 'idea' },
+        { title: 'Task', content: 'Try different interaction modes', category: 'task' }
+      ];
+
+      initialNotes.forEach((noteData, index) => {
+        const position = new THREE.Vector3(
+          (index - 1) * 6,
+          0,
+          0
+        );
+        createCube(position, noteData);
+      });
+    }
+
+    // ============================================
+    // CAMERA SYSTEM
+    // ============================================
     
-    if (confirm('Clear this note? This action cannot be undone.')) {
-        item.note = '';
-        save();
-        renderAll();
+    function updateCameraPosition() {
+      const { cameraTarget, cameraRadius, cameraTheta, cameraPhi } = state;
+      
+      const x = cameraRadius * Math.sin(cameraPhi) * Math.cos(cameraTheta);
+      const y = cameraRadius * Math.cos(cameraPhi);
+      const z = cameraRadius * Math.sin(cameraPhi) * Math.sin(cameraTheta);
+      
+      state.camera.position.set(x, y, z);
+      state.camera.lookAt(cameraTarget);
+    }
+
+    function setCameraMode(mode, targetCube = null) {
+      const previousMode = state.cameraMode;
+      state.cameraMode = mode;
+      
+      if (mode === 'micro' && targetCube) {
+        // Swoop in for close-up inspection
+        state.inspectedCube = targetCube;
+        const targetPos = targetCube.mesh.position.clone();
+        
+        // Move camera target to cube
+        gsap.to(state.cameraTarget, {
+          x: targetPos.x,
+          y: targetPos.y,
+          z: targetPos.z,
+          duration: 0.8,
+          ease: "power2.inOut"
+        });
+        
+        // Move camera closer
+        gsap.to(state, {
+          cameraRadius: state.MICRO_VIEW_DISTANCE,
+          cameraPhi: Math.PI / 3, // Steeper angle for inspection
+          duration: 0.8,
+          ease: "power2.inOut",
+          onUpdate: updateCameraPosition,
+          onComplete: () => {
+            showCameraIndicator('Micro View - Inspecting');
+          }
+        });
+        
+        // Highlight inspected cube
+        highlightCube(targetCube, state.colors.cube.inspecting);
+        
+      } else if (mode === 'macro') {
+        // Return to macro view
+        state.inspectedCube = null;
+        
+        // Reset camera target to origin
+        gsap.to(state.cameraTarget, {
+          x: 0,
+          y: 0,
+          z: 0,
+          duration: 0.8,
+          ease: "power2.inOut"
+        });
+        
+        // Return to isometric position
+        gsap.to(state, {
+          cameraRadius: state.MACRO_VIEW_DISTANCE,
+          cameraPhi: Math.PI / 6, // 30 degrees isometric
+          duration: 0.8,
+          ease: "power2.inOut",
+          onUpdate: updateCameraPosition,
+          onComplete: () => {
+            showCameraIndicator('Macro View - Isometric');
+            startCameraIdleTimer();
+          }
+        });
+        
+        // Remove highlight from previously inspected cube
+        if (targetCube) {
+          resetCubeColor(targetCube);
+        }
+      }
+      
+      updateStatusBar();
+    }
+
+    function startCameraIdleTimer() {
+      // Clear existing timer
+      if (state.cameraIdleTimer) {
+        clearTimeout(state.cameraIdleTimer);
+      }
+      
+      // Set new timer to return to default position
+      state.cameraIdleTimer = setTimeout(() => {
+        if (state.cameraMode === 'macro' && !state.cameraIsMoving) {
+          // Smoothly return to default isometric position
+          gsap.to(state, {
+            cameraTheta: 0,
+            cameraPhi: Math.PI / 6,
+            duration: 2,
+            ease: "power2.inOut",
+            onUpdate: updateCameraPosition
+          });
+        }
+      }, state.AUTO_RETURN_DELAY);
+    }
+
+    function rotateCamera(deltaX, deltaY) {
+      state.cameraTheta -= deltaX * 0.01;
+      state.cameraPhi = Math.max(0.1, Math.min(Math.PI - 0.1, state.cameraPhi + deltaY * 0.01));
+      updateCameraPosition();
+      resetCameraIdleTimer();
+    }
+
+    function zoomCamera(delta) {
+      const newRadius = Math.max(10, Math.min(100, state.cameraRadius + delta));
+      state.cameraRadius = newRadius;
+      updateCameraPosition();
+      resetCameraIdleTimer();
+    }
+
+    function resetCameraIdleTimer() {
+      if (state.cameraIdleTimer) {
+        clearTimeout(state.cameraIdleTimer);
+      }
+      startCameraIdleTimer();
+    }
+
+    function showCameraIndicator(text) {
+      const indicator = document.getElementById('cameraIndicator');
+      indicator.textContent = text;
+      indicator.classList.add('visible');
+      
+      setTimeout(() => {
+        indicator.classList.remove('visible');
+      }, 2000);
+    }
+
+    // ============================================
+    // INTERACTION MODES
+    // ============================================
+    
+    function setInteractionMode(mode) {
+      state.currentMode = mode;
+      
+      // Update UI
+      document.querySelectorAll('.rail-item, .mode-option').forEach(item => {
+        item.classList.remove('active');
+        if (item.dataset.mode === mode) {
+          item.classList.add('active');
+        }
+      });
+      
+      // Clear selection when switching modes
+      clearSelection();
+      
+      // Mode-specific setup
+      switch (mode) {
+        case 'view':
+          document.getElementById('canvas').style.cursor = 'grab';
+          break;
+        case 'string':
+          document.getElementById('canvas').style.cursor = 'crosshair';
+          break;
+        case 'break':
+          document.getElementById('canvas').style.cursor = 'not-allowed';
+          break;
+        case 'float':
+          document.getElementById('canvas').style.cursor = 'grab';
+          break;
+        case 'move':
+          document.getElementById('canvas').style.cursor = 'move';
+          break;
+      }
+      
+      updateStatusBar();
+      console.log(`🔄 Mode changed to: ${mode}`);
+    }
+
+    function handleCubeInteraction(cube, event) {
+      switch (state.currentMode) {
+        case 'view':
+          handleViewMode(cube, event);
+          break;
+        case 'string':
+          handleStringMode(cube, event);
+          break;
+        case 'break':
+          handleBreakMode(cube, event);
+          break;
+        case 'float':
+          handleFloatMode(cube, event);
+          break;
+        case 'move':
+          handleMoveMode(cube, event);
+          break;
+      }
+    }
+
+    function handleViewMode(cube, event) {
+      if (event.shiftKey) {
+        // Multi-select with shift
+        toggleCubeSelection(cube);
+      } else {
+        // Single select
+        clearSelection();
+        selectCube(cube);
+      }
+    }
+
+    function handleStringMode(cube, event) {
+      if (state.selectedCubes.length === 0) {
+        selectCube(cube);
+      } else {
+        // Connect to last selected cube
+        const lastSelected = state.selectedCubes[state.selectedCubes.length - 1];
+        if (lastSelected !== cube) {
+          createConnection(lastSelected, cube);
+        }
+        selectCube(cube);
+      }
+    }
+
+    function handleBreakMode(cube, event) {
+      // Break all connections for this cube
+      const connectionsToBreak = [...cube.connections];
+      connectionsToBreak.forEach(connection => {
+        breakConnection(connection);
+      });
+      
+      // Visual feedback
+      gsap.to(cube.mesh.scale, {
+        x: 0.8, y: 0.8, z: 0.8,
+        duration: 0.1,
+        yoyo: true,
+        repeat: 1
+      });
+    }
+
+    function handleFloatMode(cube, event) {
+      if (cube.floating) {
+        // Stop floating
+        stopFloating(cube);
+      } else {
+        // Start floating
+        startFloating(cube);
+      }
+    }
+
+    function handleMoveMode(cube, event) {
+      selectCube(cube);
+      state.draggedCube = cube;
+      state.isDragging = true;
+      
+      // Update camera pivot to follow selected cube
+      updateCameraPivot(cube.mesh.position);
+    }
+
+    // ============================================
+    // CONNECTION SYSTEM
+    // ============================================
+    
+    function createConnection(cube1, cube2) {
+      // Check if connection already exists
+      const existingConnection = state.connections.find(conn => 
+        (conn.cube1 === cube1 && conn.cube2 === cube2) ||
+        (conn.cube1 === cube2 && conn.cube2 === cube1)
+      );
+      
+      if (existingConnection) return null;
+
+      // Create physics constraint
+      const constraint = new CANNON.PointToPointConstraint(
+        cube1.body,
+        new CANNON.Vec3(state.CUBE_SIZE/2, 0, 0),
+        cube2.body,
+        new CANNON.Vec3(-state.CUBE_SIZE/2, 0, 0)
+      );
+      state.world.addConstraint(constraint);
+
+      // Create visual connection line
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+        cube1.mesh.position,
+        cube2.mesh.position
+      ]);
+      const lineMaterial = new THREE.LineBasicMaterial({ 
+        color: state.colors.connection,
+        linewidth: 3,
+        transparent: true,
+        opacity: 0.6
+      });
+      const line = new THREE.Line(lineGeometry, lineMaterial);
+      state.scene.add(line);
+
+      // Connection object
+      const connection = {
+        id: Date.now() + Math.random(),
+        cube1: cube1,
+        cube2: cube2,
+        constraint: constraint,
+        line: line,
+        active: true
+      };
+
+      state.connections.push(connection);
+      cube1.connections.push(connection);
+      cube2.connections.push(connection);
+
+      // Update cube colors to show connection
+      updateCubeColor(cube1, state.colors.cube.connected);
+      updateCubeColor(cube2, state.colors.cube.connected);
+
+      // Visual feedback
+      createConnectionEffect(cube1.mesh.position, cube2.mesh.position);
+      updateStatusBar();
+      
+      return connection;
+    }
+
+    function breakConnection(connection) {
+      if (!connection.active) return;
+
+      // Remove physics constraint
+      state.world.removeConstraint(connection.constraint);
+
+      // Remove visual line
+      state.scene.remove(connection.line);
+
+      // Update cube connections
+      connection.cube1.connections = connection.cube1.connections.filter(c => c !== connection);
+      connection.cube2.connections = connection.cube2.connections.filter(c => c !== connection);
+
+      // Reset cube colors if no more connections
+      if (connection.cube1.connections.length === 0) {
+        resetCubeColor(connection.cube1);
+      }
+      if (connection.cube2.connections.length === 0) {
+        resetCubeColor(connection.cube2);
+      }
+
+      // Mark as inactive and remove
+      connection.active = false;
+      state.connections = state.connections.filter(c => c !== connection);
+
+      updateStatusBar();
+    }
+
+    function updateConnectionLines() {
+      state.connections.forEach(connection => {
+        if (!connection.active) return;
+        
+        const positions = connection.line.geometry.attributes.position;
+        positions.array[0] = connection.cube1.mesh.position.x;
+        positions.array[1] = connection.cube1.mesh.position.y;
+        positions.array[2] = connection.cube1.mesh.position.z;
+        positions.array[3] = connection.cube2.mesh.position.x;
+        positions.array[4] = connection.cube2.mesh.position.y;
+        positions.array[5] = connection.cube2.mesh.position.z;
+        positions.needsUpdate = true;
+      });
+    }
+
+    // ============================================
+    // FLOATING SYSTEM
+    // ============================================
+    
+    function startFloating(cube) {
+      if (cube.floating) return;
+      
+      cube.floating = true;
+      state.floatingCubes.push(cube);
+      
+      // Disable physics for floating cube
+      state.world.removeBody(cube.body);
+      
+      // Animate to floating height
+      const targetY = state.FLOAT_HEIGHT + Math.random() * 4;
+      gsap.to(cube.mesh.position, {
+        y: targetY,
+        duration: 1,
+        ease: "power2.out"
+      });
+      
+      // Add gentle floating animation
+      gsap.to(cube.mesh.rotation, {
+        y: Math.PI * 2,
+        duration: 8,
+        ease: "none",
+        repeat: -1
+      });
+      
+      // Update cube color
+      updateCubeColor(cube, state.colors.cube.floating);
+      
+      updateStatusBar();
+    }
+
+    function stopFloating(cube) {
+      if (!cube.floating) return;
+      
+      cube.floating = false;
+      state.floatingCubes = state.floatingCubes.filter(c => c !== cube);
+      
+      // Re-enable physics
+      state.world.addBody(cube.body);
+      cube.body.position.copy(cube.mesh.position);
+      cube.body.velocity.set(0, -5, 0); // Small downward velocity
+      
+      // Stop floating animation
+      gsap.killTweensOf(cube.mesh.rotation);
+      
+      // Update cube color
+      if (cube.connections.length > 0) {
+        updateCubeColor(cube, state.colors.cube.connected);
+      } else {
+        resetCubeColor(cube);
+      }
+      
+      updateStatusBar();
+    }
+
+    // ============================================
+    // SELECTION SYSTEM
+    // ============================================
+    
+    function selectCube(cube) {
+      if (!cube.selected) {
+        cube.selected = true;
+        state.selectedCubes.push(cube);
+        updateCubeAppearance(cube);
+      }
+    }
+
+    function toggleCubeSelection(cube) {
+      if (cube.selected) {
+        deselectCube(cube);
+      } else {
+        selectCube(cube);
+      }
+    }
+
+    function deselectCube(cube) {
+      cube.selected = false;
+      state.selectedCubes = state.selectedCubes.filter(c => c !== cube);
+      updateCubeAppearance(cube);
+    }
+
+    function clearSelection() {
+      state.selectedCubes.forEach(cube => {
+        cube.selected = false;
+        updateCubeAppearance(cube);
+      });
+      state.selectedCubes = [];
+    }
+
+    function updateCubeAppearance(cube) {
+      if (cube.selected) {
+        updateCubeColor(cube, state.colors.cube.selected);
+        
+        // Scale up selected cubes
+        gsap.to(cube.mesh.scale, {
+          x: 1.1, y: 1.1, z: 1.1,
+          duration: 0.2,
+          ease: "back.out"
+        });
+      } else {
+        // Reset color based on state
+        if (cube.connections.length > 0) {
+          updateCubeColor(cube, state.colors.cube.connected);
+        } else if (cube.floating) {
+          updateCubeColor(cube, state.colors.cube.floating);
+        } else {
+          resetCubeColor(cube);
+        }
+        
+        // Scale back to normal
+        gsap.to(cube.mesh.scale, {
+          x: 1, y: 1, z: 1,
+          duration: 0.2,
+          ease: "power2.out"
+        });
+      }
+    }
+
+    function updateCubeColor(cube, color) {
+      cube.mesh.material.color.setHex(color);
+      cube.mesh.material.emissive.setHex(color);
+    }
+
+    function resetCubeColor(cube) {
+      updateCubeColor(cube, state.colors.cube.default);
+    }
+
+    function highlightCube(cube, color) {
+      gsap.to(cube.mesh.material.color, {
+        r: ((color >> 16) & 255) / 255,
+        g: ((color >> 8) & 255) / 255,
+        b: (color & 255) / 255,
+        duration: 0.3
+      });
+    }
+
+    // ============================================
+    // CAMERA PIVOT SYSTEM
+    // ============================================
+    
+    function updateCameraPivot(position) {
+      // Smoothly transition camera target to new pivot
+      gsap.to(state.cameraTarget, {
+        x: position.x,
+        y: position.y,
+        z: position.z,
+        duration: 0.5,
+        ease: "power2.inOut"
+      });
+    }
+
+    // ============================================
+    // VISUAL EFFECTS
+    // ============================================
+    
+    function createConnectionEffect(pos1, pos2) {
+      const midPoint = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
+      
+      const particleGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+      const particleMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0x818cf8,
+        transparent: true,
+        opacity: 1
+      });
+      const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+      particle.position.copy(midPoint);
+      state.scene.add(particle);
+
+      gsap.to(particle.scale, {
+        x: 3, y: 3, z: 3,
+        duration: 0.5,
+        ease: "power2.out"
+      });
+      gsap.to(particleMaterial, {
+        opacity: 0,
+        duration: 0.5,
+        ease: "power2.out",
+        onComplete: () => {
+          state.scene.remove(particle);
+        }
+      });
+    }
+
+    // ============================================
+    // UI SYSTEM
+    // ============================================
+    
+    function setupUI() {
+      // Setup rail toggle
+      const railToggle = document.getElementById('railToggle');
+      
+      // Rail item clicks
+      document.querySelectorAll('.rail-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const mode = item.dataset.mode;
+          setInteractionMode(mode);
+          toggleRail();
+        });
+      });
+      
+      // Mode panel clicks
+      document.querySelectorAll('.mode-option').forEach(option => {
+        option.addEventListener('click', () => {
+          const mode = option.dataset.mode;
+          setInteractionMode(mode);
+        });
+      });
+      
+      // Floating action button
+      document.getElementById('fabButton').addEventListener('click', () => {
+        createCube();
+        setInteractionMode('view');
+      });
+      
+      // Note modal
+      setupNoteModal();
+      
+      // Context menu
+      setupContextMenu();
+      
+      // Help overlay
+      setupHelp();
+      
+      // Initial mode
+      setInteractionMode('view');
+    }
+
+    function toggleRail() {
+      const railToggle = document.getElementById('railToggle');
+      state.railExpanded = !state.railExpanded;
+      
+      if (state.railExpanded) {
+        railToggle.classList.add('active');
+      } else {
+        railToggle.classList.remove('active');
+      }
+    }
+
+    function setupNoteModal() {
+      const modal = document.getElementById('noteModal');
+      const form = document.getElementById('noteForm');
+      
+      document.getElementById('noteModalClose').addEventListener('click', () => {
         closeNoteModal();
-        showToast('Note cleared');
-    }
-}
-
-function renderListOverlayContents(filtered) {
-    const body = document.getElementById('overlayListBody');
-    body.innerHTML = '';
-    filtered.forEach(item => {
-        const row = document.createElement('tr');
-        row.className = item.status==='burnt'?'BURNT':'';
-        const dot = item.status==='active'?'text-blue':item.status==='ready'?'text-green':item.status==='cooldown'?'text-orange':'text-red';
-        const noteDisplay = item.note ? 
-            `<span style="color: var(--accent); cursor: pointer;" onclick="event.stopPropagation(); openNoteModal(${item.id})" title="Click to view/edit note">📝 ${item.note.substring(0, 30)}${item.note.length > 30 ? '...' : ''}</span>` : 
-            '<span style="color: var(--ink-dim); opacity: 0.5;">No note</span>';
-        row.innerHTML = `<td><strong>${item.provider}</strong></td><td style="opacity:0.8">${item.email}</td><td><span class="${dot}" style="font-weight:700; font-size:11px;">${item.status}</span></td><td>${noteDisplay}</td><td id="timer-list-${item.id}" style="font-family:monospace; font-weight:700;">--</td>`;
-        row.onclick = () => { closeListOverlay(); openModal(item.id); };
-        body.appendChild(row);
-    });
-}
-
-// Form Handlers
-document.getElementById('nodeForm').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const id = document.getElementById('nodeId').value;
-    const provider = document.getElementById('inpProvider').value;
-    const email = document.getElementById('inpEmail').value;
-    const status = document.getElementById('inpStatus').value;
-    const reset = parseFloat(document.getElementById('inpReset').value);
-    const note = document.getElementById('inpNote').value;
-    
-    if(!provider) return;
-    const now = Date.now();
-    
-    if(id) {
-        const item = items.find(i => i.id == id);
-        if(item) {
-            item.provider = provider; item.email = email;
-            if(item.status !== status) item.lastUsed = now;
-            item.status = status; item.resetHours = reset;
-            item.note = note;
+      });
+      
+      document.getElementById('noteCancel').addEventListener('click', () => {
+        closeNoteModal();
+      });
+      
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveNoteFromModal();
+      });
+      
+      // Close on background click
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeNoteModal();
         }
-    } else {
-        items.push({ id: now, provider, email, status, resetHours: reset, lastUsed: now, pos: {x:50, y:50}, note: note });
+      });
     }
-    if(!providers.includes(provider)) providers.push(provider);
-    save(); closeModal(); renderAll(); showToast('Saved');
-});
 
-function deleteNode() {
-    const id = document.getElementById('nodeId').value;
-    if(confirm('Delete Node?')) {
-        items = items.filter(i => i.id != id);
-        save(); closeModal(); renderAll(); showToast('Deleted');
+    function openNoteModal(cube) {
+      const modal = document.getElementById('noteModal');
+      const form = document.getElementById('noteForm');
+      
+      // Populate form with cube data
+      document.getElementById('noteTitle').value = cube.note.title;
+      document.getElementById('noteContent').value = cube.note.content;
+      document.getElementById('noteCategory').value = cube.note.category;
+      
+      // Store current cube for saving
+      modal.dataset.cubeId = cube.id;
+      
+      modal.classList.add('visible');
+      state.noteModalOpen = true;
     }
-}
-function confirmHitLimit(id) {
-    const i = items.find(x => x.id == (id || document.getElementById('nodeId').value));
-    if(i && confirm(`Hit Limit for ${i.provider}?`)) {
-        i.status = 'cooldown'; i.lastUsed = Date.now();
-        save(); closeConfirm(); closeModal(); renderAll(); showToast('Cooldown Started');
+
+    function closeNoteModal() {
+      const modal = document.getElementById('noteModal');
+      modal.classList.remove('visible');
+      state.noteModalOpen = false;
     }
-}
-function confirmForceRestore(id) {
-    const i = items.find(x => x.id == (id || document.getElementById('nodeId').value));
-    if(i && confirm(`Restore ${i.provider}?`)) {
-        i.status = 'ready'; 
-        save(); closeConfirm(); closeModal(); renderAll(); showToast('Restored');
+
+    function saveNoteFromModal() {
+      const modal = document.getElementById('noteModal');
+      const cubeId = modal.dataset.cubeId;
+      const cube = state.cubes.find(c => c.id == cubeId);
+      
+      if (cube) {
+        cube.note.title = document.getElementById('noteTitle').value;
+        cube.note.content = document.getElementById('noteContent').value;
+        cube.note.category = document.getElementById('noteCategory').value;
+        
+        // Update cube label
+        createCubeLabel(cube.mesh, cube.note.title);
+      }
+      
+      closeNoteModal();
     }
-}
-function openActionOverlay(id) {
-    const i = items.find(x => x.id == id);
-    if(!i) return;
-    navigator.clipboard.writeText(i.email);
-    document.getElementById('actionTitle').textContent = `Activate ${i.provider}`;
-    document.getElementById('actionEmail').value = i.email;
-    document.getElementById('btnActivateNode').onclick = () => {
-        i.status = 'active'; i.lastUsed = Date.now();
-        save(); closeActionOverlay(); renderAll(); showToast('Activated');
-    };
-    document.getElementById('actionOverlay').classList.add('active');
-}
-function closeConfirm() { document.getElementById('confirmOverlay').classList.remove('active'); }
 
-// Select Helpers
-function renderProviderSelect() {
-    const sel = document.getElementById('inpProvider');
-    const curr = sel.value;
-    sel.innerHTML = '<option value="" disabled selected>Select Provider</option>';
-    providers.sort().forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p; opt.textContent = p;
-        sel.appendChild(opt);
-    });
-    const add = document.createElement('option');
-    add.value = 'CUSTOM_ADD_NEW'; add.textContent = '+ Add Custom...';
-    sel.appendChild(add);
-    if(curr) sel.value = curr;
-}
-document.getElementById('inpProvider').addEventListener('change', (e) => {
-    if(e.target.value === 'CUSTOM_ADD_NEW') {
-        const p = prompt('New Provider:');
-        if(p) { 
-            if(!providers.includes(p)) providers.push(p); 
-            renderProviderSelect(); e.target.value = p; 
-        } else e.target.value = '';
+    function setupContextMenu() {
+      const contextMenu = document.getElementById('contextMenu');
+      
+      document.querySelectorAll('.context-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const action = item.dataset.action;
+          handleContextAction(action);
+          hideContextMenu();
+        });
+      });
+      
+      // Hide on background click
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.context-menu')) {
+          hideContextMenu();
+        }
+      });
     }
-});
-function selectStatusButton(s) {
-    document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('selected'));
-    document.querySelector(`.btn-toggle[data-status="${s}"]`).classList.add('selected');
-    document.getElementById('inpStatus').value = s;
-}
-function selectResetHours(h) {
-    document.querySelectorAll('.pill-option').forEach(b => b.classList.remove('selected'));
-    const pill = document.querySelector(`.pill-option[data-hours="${h}"]`);
-    if(pill) pill.classList.add('selected');
-    document.getElementById('inpReset').value = h;
-}
 
-// --- Init & Events ---
-function init() {
-  load();
-  const theme = localStorage.getItem('iv_theme') || 'dark';
-  document.body.setAttribute('data-theme', theme);
-  updateLogo(theme);
-  
-  switchView(config.view);
-  timerInterval = setInterval(updateAllTimers, 1000);
-  canvas = document.getElementById('scatterCanvas');
-  renderAll();
+    function showContextMenu(x, y, cube) {
+      const contextMenu = document.getElementById('contextMenu');
+      contextMenu.style.left = x + 'px';
+      contextMenu.style.top = y + 'px';
+      contextMenu.dataset.cubeId = cube.id;
+      contextMenu.classList.add('visible');
+      state.contextMenuOpen = true;
+    }
 
-  // Enhanced Background Context Menu Events for both views
-  // Grid view background
-  document.getElementById('gridContainer').addEventListener('contextmenu', (e) => {
-      if(!e.target.closest('.card')) { 
-          e.preventDefault(); 
-          showGridBackgroundContextMenu(e); 
-      }
-  });
-  
-  // Scatter view background - enhanced to work across entire viewport
-  canvas.oncontextmenu = (e) => {
-      if(!e.target.closest('.scatter-card')) { 
-          e.preventDefault(); 
-          showScatterBackgroundContextMenu(e); 
-      }
-  };
+    function hideContextMenu() {
+      const contextMenu = document.getElementById('contextMenu');
+      contextMenu.classList.remove('visible');
+      state.contextMenuOpen = false;
+    }
 
-  // Additional scatter viewport right-click handler for better coverage
-  document.addEventListener('contextmenu', (e) => {
-      if(currentView === 'scatter' && !e.target.closest('.scatter-card') && !e.target.closest('.modal') && !e.target.closest('.bottom-nav')) {
-          e.preventDefault();
-          showScatterBackgroundContextMenu(e);
+    function handleContextAction(action) {
+      const contextMenu = document.getElementById('contextMenu');
+      const cubeId = contextMenu.dataset.cubeId;
+      const cube = state.cubes.find(c => c.id == cubeId);
+      
+      if (!cube) return;
+      
+      switch (action) {
+        case 'edit':
+          openNoteModal(cube);
+          break;
+        case 'duplicate':
+          const newPosition = cube.mesh.position.clone();
+          newPosition.x += 3;
+          const newCube = createCube(newPosition, { ...cube.note });
+          newCube.note.title = cube.note.title + ' (copy)';
+          createCubeLabel(newCube.mesh, newCube.note.title);
+          break;
+        case 'float':
+          handleFloatMode(cube, {});
+          break;
+        case 'connect':
+          setInteractionMode('string');
+          selectCube(cube);
+          break;
+        case 'delete':
+          deleteCube(cube);
+          break;
       }
-  });
-  
-  // Mobile long press for grid background
-  let bgPressTimer;
-  document.getElementById('gridContainer').addEventListener('touchstart', (e) => {
-      if(e.touches.length === 1 && !e.target.closest('.card')) {
-          bgPressTimer = setTimeout(() => showGridBackgroundContextMenu(e.touches[0]), 500);
-      }
-  });
-  document.getElementById('gridContainer').addEventListener('touchend', () => clearTimeout(bgPressTimer));
-  document.getElementById('gridContainer').addEventListener('touchmove', () => clearTimeout(bgPressTimer));
-  
-  // Mobile long press for scatter background - enhanced viewport coverage
-  canvas.addEventListener('touchstart', (e) => {
-      if(e.touches.length === 1 && !e.target.closest('.scatter-card')) {
-          bgPressTimer = setTimeout(() => showScatterBackgroundContextMenu(e.touches[0]), 500);
-      }
-  });
-  canvas.addEventListener('touchend', () => clearTimeout(bgPressTimer));
-  canvas.addEventListener('touchmove', () => clearTimeout(bgPressTimer));
+    }
 
-  // Additional document-level touch handler for scatter mode
-  document.addEventListener('touchstart', (e) => {
-      if(currentView === 'scatter' && e.touches.length === 1 && !e.target.closest('.scatter-card') && !e.target.closest('.modal') && !e.target.closest('.bottom-nav')) {
-          bgPressTimer = setTimeout(() => showScatterBackgroundContextMenu(e.touches[0]), 500);
+    function deleteCube(cube) {
+      // Break all connections
+      const connectionsToBreak = [...cube.connections];
+      connectionsToBreak.forEach(connection => {
+        breakConnection(connection);
+      });
+      
+      // Remove from scene and physics
+      state.scene.remove(cube.mesh);
+      if (!cube.floating) {
+        state.world.removeBody(cube.body);
       }
-  });
-  
-  // Clear timer on document-level touch events
-  document.addEventListener('touchend', () => {
-      if(currentView === 'scatter') clearTimeout(bgPressTimer);
-  });
-  document.addEventListener('touchmove', () => {
-      if(currentView === 'scatter') clearTimeout(bgPressTimer);
-  });
-  
-  // Pan Logic
-  let panning = false, panStart = {x:0,y:0};
-  canvas.addEventListener('pointerdown', (e) => {
-      if(!e.target.closest('.scatter-card')) {
-          panning = true; panStart.x = e.clientX - scatter.transform.x; panStart.y = e.clientY - scatter.transform.y;
-          canvas.style.cursor = 'grab';
-      }
-  });
-  document.addEventListener('pointermove', (e) => {
-      if(panning) {
-          scatter.transform.x = e.clientX - panStart.x;
-          scatter.transform.y = e.clientY - panStart.y;
-          applyScatterTransform();
-      }
-  });
-  document.addEventListener('pointerup', () => { if(panning) { panning = false; canvas.style.cursor = 'default'; save(); } });
-  
-  // Wheel Zoom
-  canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY<0?0.2:-0.2, e.clientX, e.clientY); }, {passive:false});
+      
+      // Remove from arrays
+      state.cubes = state.cubes.filter(c => c !== cube);
+      state.selectedCubes = state.selectedCubes.filter(c => c !== cube);
+      state.floatingCubes = state.floatingCubes.filter(c => c !== cube);
+      
+      updateStatusBar();
+    }
 
-  // Close overlays on outside click and ESC
-  const overlayIds = ['infoOverlay', 'listOverlay', 'modalOverlay', 'actionOverlay', 'confirmOverlay', 'providerSelectOverlay', 'noteOverlay'];
-  overlayIds.forEach(id => {
-    const overlay = document.getElementById(id);
-    if (overlay) {
-      overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) {
-          overlay.classList.remove('active');
-          if (id === 'listOverlay') {
-            updateProviderBarCentering();
+    function setupHelp() {
+      document.getElementById('helpClose').addEventListener('click', () => {
+        hideHelp();
+      });
+      
+      document.getElementById('helpOverlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+          hideHelp();
+        }
+      });
+    }
+
+    function showHelp() {
+      const helpOverlay = document.getElementById('helpOverlay');
+      helpOverlay.classList.add('visible');
+    }
+
+    function hideHelp() {
+      const helpOverlay = document.getElementById('helpOverlay');
+      helpOverlay.classList.remove('visible');
+    }
+
+    function updateStatusBar() {
+      document.getElementById('cubeCount').textContent = state.cubes.length;
+      document.getElementById('connectionCount').textContent = state.connections.filter(c => c.active).length;
+      document.getElementById('currentMode').textContent = state.currentMode.charAt(0).toUpperCase() + state.currentMode.slice(1);
+      document.getElementById('cameraMode').textContent = state.cameraMode.charAt(0).toUpperCase() + state.cameraMode.slice(1);
+    }
+
+    // ============================================
+    // EVENT LISTENERS
+    // ============================================
+    
+    function setupEventListeners() {
+      const canvas = document.getElementById('canvas');
+      
+      // Mouse events
+      canvas.addEventListener('mousedown', onMouseDown);
+      canvas.addEventListener('mousemove', onMouseMove);
+      canvas.addEventListener('mouseup', onMouseUp);
+      canvas.addEventListener('wheel', onMouseWheel);
+      canvas.addEventListener('dblclick', onDoubleClick);
+      canvas.addEventListener('contextmenu', onRightClick);
+      
+      // Touch events
+      canvas.addEventListener('touchstart', onTouchStart);
+      canvas.addEventListener('touchmove', onTouchMove);
+      canvas.addEventListener('touchend', onTouchEnd);
+      
+      // Window events
+      window.addEventListener('resize', onWindowResize);
+      
+      // Keyboard events
+      document.addEventListener('keydown', onKeyDown);
+    }
+
+    function onMouseDown(event) {
+      if (event.button === 2) {
+        // Right mouse - camera rotation
+        state.isRotating = true;
+        canvas.style.cursor = 'grabbing';
+        return;
+      }
+      
+      // Raycast for cube selection
+      updateMousePosition(event.clientX, event.clientY);
+      const intersectedCube = getIntersectedCube();
+      
+      if (intersectedCube) {
+        handleCubeInteraction(intersectedCube, event);
+      } else if (state.currentMode === 'view') {
+        // Start camera rotation
+        state.isRotating = true;
+        canvas.style.cursor = 'grabbing';
+      }
+      
+      state.previousMousePosition = { x: event.clientX, y: event.clientY };
+    }
+
+    function onMouseMove(event) {
+      updateMousePosition(event.clientX, event.clientY);
+      
+      if (state.isRotating) {
+        const deltaX = event.clientX - state.previousMousePosition.x;
+        const deltaY = event.clientY - state.previousMousePosition.y;
+        
+        rotateCamera(deltaX, deltaY);
+        
+        state.previousMousePosition = { x: event.clientX, y: event.clientY };
+      } else if (state.isDragging && state.draggedCube && state.currentMode === 'move') {
+        // Drag selected cube in move mode
+        const planeIntersect = getPlaneIntersection(event);
+        if (planeIntersect) {
+          const force = planeIntersect.sub(state.draggedCube.mesh.position);
+          force.multiplyScalar(15);
+          state.draggedCube.body.wakeUp();
+          state.draggedCube.body.applyForce(force, state.draggedCube.body.position);
+          
+          // Update camera pivot to follow dragged cube
+          updateCameraPivot(state.draggedCube.mesh.position);
+        }
+      } else {
+        // Hover detection
+        const hoveredCube = getIntersectedCube();
+        if (hoveredCube && hoveredCube !== state.hoveredCube) {
+          state.hoveredCube = hoveredCube;
+          
+          // Update cursor based on mode
+          if (state.currentMode === 'view' || state.currentMode === 'move') {
+            canvas.style.cursor = 'pointer';
+          }
+        } else if (!hoveredCube && state.hoveredCube) {
+          state.hoveredCube = null;
+          if (state.currentMode === 'view' || state.currentMode === 'move') {
+            canvas.style.cursor = 'grab';
           }
         }
-      });
-    }
-  });
-
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-      overlayIds.forEach(id => {
-        const overlay = document.getElementById(id);
-        if (overlay) overlay.classList.remove('active');
-      });
-      updateProviderBarCentering();
-    }
-    // Ctrl/Cmd + N for note when a node is selected in modal
-    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-      e.preventDefault();
-      const nodeId = document.getElementById('nodeId').value;
-      if (nodeId) {
-        closeModal();
-        openNoteModal(parseInt(nodeId));
       }
     }
-  });
-  
-  // Handle window resize for provider bar centering
-  window.addEventListener('resize', () => { 
-    if(config.view==='scatter') applyScatterTransform(); 
-    updateProviderBarCentering();
-  });
-}
 
-window.addEventListener('load', init);
-</script>
+    function onMouseUp(event) {
+      state.isRotating = false;
+      state.isDragging = false;
+      state.draggedCube = null;
+      
+      if (state.currentMode === 'view' || state.currentMode === 'move') {
+        canvas.style.cursor = 'grab';
+      }
+    }
+
+    function onMouseWheel(event) {
+      event.preventDefault();
+      const delta = event.deltaY * 0.01;
+      zoomCamera(delta);
+    }
+
+    function onDoubleClick(event) {
+      const intersectedCube = getIntersectedCube();
+      if (intersectedCube) {
+        // Enter micro view for inspection
+        setCameraMode('micro', intersectedCube);
+      }
+    }
+
+    function onRightClick(event) {
+      event.preventDefault();
+      
+      const intersectedCube = getIntersectedCube();
+      if (intersectedCube) {
+        showContextMenu(event.clientX, event.clientY, intersectedCube);
+      }
+    }
+
+    function onTouchStart(event) {
+      if (event.touches.length === 1) {
+        const touch = event.touches[0];
+        state.touchStart = { x: touch.clientX, y: touch.clientY };
+        
+        // Simulate mouse down
+        updateMousePosition(touch.clientX, touch.clientY);
+        const intersectedCube = getIntersectedCube();
+        
+        if (intersectedCube) {
+          handleCubeInteraction(intersectedCube, event);
+        }
+      } else if (event.touches.length === 2) {
+        // Pinch zoom start
+        const touch1 = event.touches[0];
+        const touch2 = event.touches[1];
+        state.lastTouchDistance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        );
+      }
+    }
+
+    function onTouchMove(event) {
+      if (event.touches.length === 1) {
+        event.preventDefault();
+        const touch = event.touches[0];
+        
+        // Simulate mouse move for camera rotation
+        const deltaX = touch.clientX - state.touchStart.x;
+        const deltaY = touch.clientY - state.touchStart.y;
+        
+        if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+          rotateCamera(deltaX * 0.5, deltaY * 0.5);
+          state.touchStart = { x: touch.clientX, y: touch.clientY };
+        }
+      } else if (event.touches.length === 2) {
+        event.preventDefault();
+        
+        // Pinch zoom
+        const touch1 = event.touches[0];
+        const touch2 = event.touches[1];
+        const currentDistance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        );
+        
+        if (state.lastTouchDistance > 0) {
+          const delta = (currentDistance - state.lastTouchDistance) * 0.01;
+          zoomCamera(-delta);
+        }
+        
+        state.lastTouchDistance = currentDistance;
+      }
+    }
+
+    function onTouchEnd(event) {
+      state.lastTouchDistance = 0;
+    }
+
+    function onWindowResize() {
+      state.camera.aspect = window.innerWidth / window.innerHeight;
+      state.camera.updateProjectionMatrix();
+      state.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function onKeyDown(event) {
+      // Mode shortcuts
+      switch (event.key) {
+        case '1':
+          setInteractionMode('view');
+          break;
+        case '2':
+          setInteractionMode('string');
+          break;
+        case '3':
+          setInteractionMode('break');
+          break;
+        case '4':
+          setInteractionMode('float');
+          break;
+        case '5':
+          setInteractionMode('move');
+          break;
+        case ' ':
+          event.preventDefault();
+          createCube();
+          break;
+        case 'Escape':
+          setCameraMode('macro');
+          clearSelection();
+          hideContextMenu();
+          closeNoteModal();
+          break;
+        case 'h':
+        case 'H':
+          showHelp();
+          break;
+      }
+    }
+
+    // ============================================
+    // UTILITY FUNCTIONS
+    // ============================================
+    
+    function updateMousePosition(clientX, clientY) {
+      state.mouse.x = (clientX / window.innerWidth) * 2 - 1;
+      state.mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    }
+
+    function getIntersectedCube() {
+      state.raycaster.setFromCamera(state.mouse, state.camera);
+      const intersects = state.raycaster.intersectObjects(state.cubes.map(c => c.mesh));
+      
+      if (intersects.length > 0) {
+        return state.cubes.find(c => c.mesh === intersects[0].object);
+      }
+      return null;
+    }
+
+    function getPlaneIntersection(event) {
+      updateMousePosition(event.clientX, event.clientY);
+      state.raycaster.setFromCamera(state.mouse, state.camera);
+      
+      // Create invisible plane for intersection
+      const planeGeometry = new THREE.PlaneGeometry(100, 100);
+      const planeMaterial = new THREE.MeshBasicMaterial({ visible: false });
+      const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.y = -5;
+      
+      const intersects = state.raycaster.intersectObject(plane);
+      
+      if (intersects.length > 0) {
+        return intersects[0].point;
+      }
+      return null;
+    }
+
+    function isMobileDevice() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    // ============================================
+    // ANIMATION LOOP
+    // ============================================
+    
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      // Step physics world
+      state.world.step(1/60);
+      
+      // Update visual positions from physics
+      state.cubes.forEach(cube => {
+        if (!cube.floating) {
+          cube.mesh.position.copy(cube.body.position);
+          cube.mesh.quaternion.copy(cube.body.quaternion);
+        }
+      });
+      
+      // Update connection lines
+      updateConnectionLines();
+      
+      // Render scene
+      state.renderer.render(state.scene, state.camera);
+    }
+
+    // ============================================
+    // START APPLICATION
+    // ============================================
+    
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
 </body>
 </html>
