@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
-  <title>IntoView: N.O.D.E. v3.1</title>
+  <title>N.O.D.E. v3.3 - NOW NOTED</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -90,7 +90,6 @@
     }
 
     
-
     /* Vignette - Dark corners */
     body::after {
       content: '';
@@ -271,6 +270,8 @@
       width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
       border-radius: 6px; background: rgba(255,255,255,0.05); cursor: pointer;
       color: var(--ink-dim); transition: 0.2s;
+      font-size: 12px;
+      font-weight: 700;
     }
     .action-icon:hover { background: var(--accent); color: #000; }
    
@@ -461,15 +462,15 @@
     }
     .input-icon-btn:hover { color: var(--accent); background: rgba(255,255,255,0.1); }
     [data-theme="rose"] .input-icon-btn:hover { color: var(--rose-primary); }
-    input, select {
+    input, select, textarea {
       width: 100%; padding: 16px;
       background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
       border-radius: 12px; color: var(--ink); font-size: 16px;
       font-family: var(--font-sans); padding-right: 32px;
       -webkit-appearance: none; -moz-appearance: none; appearance: none;
     }
-    input:focus, select:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.1); }
-    [data-theme="rose"] input:focus, [data-theme="rose"] select:focus {
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.1); }
+    [data-theme="rose"] input:focus, [data-theme="rose"] select:focus, [data-theme="rose"] textarea:focus {
       border-color: var(--rose-primary);
       background: rgba(255, 141, 161, 0.1);
     }
@@ -559,7 +560,7 @@
    
     /* SCATTER CONTROLS (RIGHT RAIL) */
     .scatter-controls {
-      position: fixed; bottom: 33%; right: 20px; display: none; flex-direction: column; gap: 10px; z-index: 201;
+      position: fixed; bottom: 33vh; right: 20px; display: none; flex-direction: column; gap: 10px; z-index: 201;
     }
     .scatter-controls.visible { display: flex; }
     .control-btn { 
@@ -620,6 +621,7 @@
     #listOverlay .modal-sheet { height: 90vh; max-height: 90vh; display: flex; flex-direction: column; margin-top: 6.66em;}
     .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0; }
   </style>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
 <body data-theme="dark">
 <header class="app-header">
@@ -686,7 +688,7 @@
   <div class="modal-sheet">
      <div class="sheet-header">
         <h2 style="font-family:var(--font-mono)">Node Index</h2>
-        <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;">You know, this little list defeats the entire rest of this app build <strong>#mvp</strong></p>
+        <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;">Complete list with notes support</p>
         <button class="close-btn" onclick="closeListOverlay()" style="position:static;">
            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
         </button>
@@ -698,6 +700,7 @@
                  <th>Provider</th>
                  <th>Identity</th>
                  <th>Status</th>
+                 <th>Note</th>
                  <th>Timer</th>
               </tr>
            </thead>
@@ -753,6 +756,10 @@
       <input type="number" id="inpResetCustom" placeholder="Custom Hours" style="margin-top: 8px;" step="0.5">
       <input type="hidden" id="inpReset" value="3">
     </div>
+    <div class="form-group">
+      <label for="inpNote">Note / Annotation</label>
+      <textarea id="inpNote" rows="4" placeholder="Add notes, prompts, or context information for this node..." style="width: 100%; padding: 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: var(--ink); font-size: 14px; font-family: var(--font-sans); resize: vertical; min-height: 80px;"></textarea>
+    </div>
     <div id="editActions" style="display:none; margin-top:12px; display:flex; gap:10px;">
        <button type="button" class="btn-block btn-secondary" onclick="confirmHitLimit(null)">🔥 Hit Limit</button>
        <button type="button" class="btn-block btn-secondary" onclick="confirmForceRestore(null)">🔄 Restore</button>
@@ -784,6 +791,27 @@
       </div>
    </div>
 </div>
+<div class="overlay" id="noteOverlay">
+  <div class="modal-sheet">
+    <button class="close-btn" onclick="closeNoteModal()">
+       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+    </button>
+    <h2 style="margin-bottom:20px; font-family:var(--font-mono)" id="noteModalTitle">Node Note</h2>
+    <div style="margin-bottom: 16px;">
+      <div style="font-size: 14px; color: var(--ink-dim); margin-bottom: 8px;">Provider: <strong id="noteProvider" style="color: var(--ink);"></strong></div>
+      <div style="font-size: 14px; color: var(--ink-dim); margin-bottom: 8px;">Email: <strong id="noteEmail" style="color: var(--ink); font-family: var(--font-mono);"></strong></div>
+    </div>
+    <div class="form-group">
+      <label for="noteTextarea">Note / Annotation</label>
+      <textarea id="noteTextarea" rows="8" placeholder="Add notes, prompts, or context information for this node..." style="width: 100%; padding: 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: var(--ink); font-size: 14px; font-family: var(--font-sans); resize: vertical; min-height: 120px;"></textarea>
+    </div>
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+      <button type="button" class="btn-half btn-cancel" onclick="closeNoteModal()">Cancel</button>
+      <button type="button" class="btn-half btn-confirm" onclick="saveNote()">Save Note</button>
+    </div>
+    <button type="button" class="btn-block btn-danger" id="btnClearNote" onclick="clearNote()" style="margin-top: 12px;">Clear Note</button>
+  </div>
+</div>
 <div class="overlay" id="infoOverlay">
   <div class="modal-sheet">
     <button class="close-btn" onclick="closeInfoModal()">
@@ -791,16 +819,17 @@
     </button>
     <h2 style="margin-bottom:20px; font-family:var(--font-mono)">fyi:</h2>
     <div style="margin-bottom: 24px; padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.05);">
-      <h3 style="font-weight: 700; font-size: 16px; color: var(--ink2); margin-bottom: 8px;">The Node Manifesto:</h3>
+      <h3 style="font-weight: 700; font-size: 16px; color: var(--accent); margin-bottom: 8px;">The Node Manifesto:</h3>
       <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;"><strong>You are an infinite machine</strong> in a <em>finite prompt cycle</em>; but do not yield for here is a tool for the commonwealth of the commonfolk. <br><br>
         Use the timer not as a limiter, but as a catalyst to creation.<br><br>Let each cooldown be a reset, every burnt node a lesson, and each new node a launchpad.</p>
     </div>
     <div style="margin-bottom: 24px; padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.05);">
-      <h3 style="font-weight: 700; font-size: 16px; color: var(--ink2); margin-bottom: 8px;">✨ v3.1 Updates:</h3>
+      <h3 style="font-weight: 700; font-size: 16px; color: var(--accent); margin-bottom: 8px;">✨ v3.2 with Notes:</h3>
       <p style="font-size: 14px; color: var(--ink-dim); line-height: 1.5;">
-        • 🎥 <strong>Cinematic:</strong> Enhanced vignette & edge blur on all themes.<br>
-        • 🃏 <strong>Cascade:</strong> Auto-stack nodes like solitaire cards (by Status, Provider, etc).<br>
-        • 🎛️ <strong>Controls:</strong> Right-rail shortcuts for Collect, Cascade, and Sorting.<br>
+        • 📝 <strong>Note Feature:</strong> Add notes to any node for prompts and context.<br>
+        • 📋 <strong>Quick Access:</strong> Note buttons on cards and in context menus.<br>
+        • 💾 <strong>Persistent:</strong> Notes save automatically with node data.<br>
+        • 🎯 <strong>Use Case:</strong> Save prompts to reload your cognitive state.<br>
       </p>
     </div>
     <div id="accordionContainer">
@@ -813,9 +842,9 @@
           <div class="accordion-content-inner">
             <ul style="list-style-type: none; padding: 0;">
               <li><strong style="color: var(--accent);">Tap Card/Row:</strong> Open Edit Modal.</li>
-              <li><strong style="color: var(--accent);">Long Press (Mobile) / Right Click:</strong> Context Menu.</li>
-              <li><strong style="color: var(--accent);">Sort Button:</strong> Cycles Sort (Status -> Provider -> Last Used).</li>
-              <li><strong style="color: var(--accent);">Cascade Button:</strong> Stacks cards based on current Sort.</li>
+              <li><strong style="color: var(--accent);">📝 Note Button:</strong> Quick access to node notes.</li>
+              <li><strong style="color: var(--accent);">Long Press / Right Click:</strong> Context Menu.</li>
+              <li><strong style="color: var(--accent);">Ctrl/Cmd+N:</strong> Open note when editing node.</li>
             </ul>
           </div>
         </div>
@@ -828,9 +857,9 @@
         <div class="accordion-content">
           <div class="accordion-content-inner">
             <ul>
-              <li style="color: var(--neon-green);">**Active:** Actively in use. Timer shows 00:00:00.</li>
-              <li style="color: var(--neon-blue);">**Ready:** Ready to use. Timer shows 00:00:00.</li>
-              <li style="color: var(--neon-orange);">**Cooldown:** Waiting for reset. Timer counts down.</li>
+              <li style="color: var(--neon-green);">**Ready:** Available for use.</li>
+              <li style="color: var(--neon-blue);">**Active:** Currently in use.</li>
+              <li style="color: var(--neon-orange);">**Cooldown:** Waiting for reset.</li>
               <li style="color: var(--neon-red);">**Burnt:** Permanently defunct.</li>
             </ul>
           </div>
@@ -904,6 +933,13 @@ function load() {
   if (storedProviders) providers = JSON.parse(storedProviders); 
   else providers = ['ChatGPT', 'Claude', 'Gemini', 'Grok', 'Copilot', 'Perplexity', 'Mistral', 'Midjourney', 'Llama Hub'];
   
+  // Migrate existing items to include note field for backward compatibility
+  items.forEach(item => {
+    if (item.note === undefined) {
+      item.note = '';
+    }
+  });
+  
   config.filterStatus = localStorage.getItem('iv_filterStatus') || 'all';
   config.filterProvider = localStorage.getItem('iv_filterProvider') || 'all';
   config.view = localStorage.getItem('iv_view') || 'grid';
@@ -925,13 +961,13 @@ function save() {
 
 function seedMockData() {
   const mockData = [
-    { provider: 'ChatGPT', email: 'gpt_4_main@openai.com', status: 'active', resetHours: 3, lastUsedOffset: 0.1 },
-    { provider: 'Claude', email: 'claude_opus_pro@anthropic.ai', status: 'active', resetHours: 6, lastUsedOffset: 0.2 },
-    { provider: 'Grok', email: 'grok_fun_mode@x.ai', status: 'ready', resetHours: 12, lastUsedOffset: 100 },
-    { provider: 'Perplexity', email: 'pplx_search@perplexity.ai', status: 'ready', resetHours: 24, lastUsedOffset: 100 },
-    { provider: 'Gemini', email: 'gemini_advanced@google.com', status: 'cooldown', resetHours: 3, lastUsedOffset: 1.5 },
-    { provider: 'Llama Hub', email: 'llama3_online@meta.com', status: 'cooldown', resetHours: 6, lastUsedOffset: 3.5 },
-    { provider: 'Claude', email: 'claude_v1_legacy@anthropic.ai', status: 'burnt', resetHours: 12, lastUsedOffset: 200 },
+    { provider: 'ChatGPT', email: 'gpt_4_main@openai.com', status: 'active', resetHours: 3, lastUsedOffset: 0.1, note: 'Use for complex coding tasks and technical analysis. Prompt format: "Act as a senior developer..."'},
+    { provider: 'Claude', email: 'claude_opus_pro@anthropic.ai', status: 'active', resetHours: 6, lastUsedOffset: 0.2, note: 'Best for creative writing and nuanced reasoning. Works well with iterative refinement approach.' },
+    { provider: 'Grok', email: 'grok_fun_mode@x.ai', status: 'ready', resetHours: 12, lastUsedOffset: 100, note: 'Use for real-time information and current events. Less restrictive content filters.' },
+    { provider: 'Perplexity', email: 'pplx_search@perplexity.ai', status: 'ready', resetHours: 24, lastUsedOffset: 100, note: 'Research and fact-checking specialist. Always cites sources.' },
+    { provider: 'Gemini', email: 'gemini_advanced@google.com', status: 'cooldown', resetHours: 3, lastUsedOffset: 1.5, note: 'Good for multimodal tasks and Google ecosystem integration.' },
+    { provider: 'Llama Hub', email: 'llama3_online@meta.com', status: 'cooldown', resetHours: 6, lastUsedOffset: 3.5, note: 'Open source alternative, good for testing and prototyping.' },
+    { provider: 'Claude', email: 'claude_v1_legacy@anthropic.ai', status: 'burnt', resetHours: 12, lastUsedOffset: 200, note: 'Legacy account - limited capabilities. Used mainly for comparison testing.' },
   ];
   items = mockData.map((data, i) => {
     return {
@@ -941,7 +977,8 @@ function seedMockData() {
       status: data.status,
       resetHours: data.resetHours,
       lastUsed: Date.now() - (data.lastUsedOffset * 60 * 60 * 1000),
-      pos: { x: 50 + (i % 3) * 250, y: 100 + Math.floor(i / 3) * 180 }
+      pos: { x: 50 + (i % 3) * 250, y: 100 + Math.floor(i / 3) * 180 },
+      note: data.note || ''
     };
   });
   save();
@@ -1285,6 +1322,7 @@ function renderScatter(filteredItems) {
       <div class="card-top" style="width:100%;">
         <div class="card-provider">${item.provider}</div>
         <div style="display: flex; align-items: center; gap:4px;">
+           ${item.note ? `<div style="color: var(--accent); font-size:12px; margin-right:2px;" title="Has Note">📝</div>` : ''}
            <div class="status-dot ${dotClass}" style="margin-right:4px;"></div>
            <div style="font-size:11px; font-weight:600; text-transform:uppercase; color: ${dotClass.replace('text-', 'var(--neon-')}">${item.status}</div>
            <button class="card-edit-icon" onclick="openModal(${item.id})">
@@ -1347,6 +1385,8 @@ function renderCardHTML(item, isScatter) {
     <div class="card-meta">
       <span class="card-email">${item.email}</span>
       <div class="card-actions">
+        ${item.note ? `<div class="action-icon" style="color: var(--accent);" onclick="openNoteModal(${item.id})" title="View Note">📝</div>` : ''}
+        <div class="action-icon" onclick="openNoteModal(${item.id})" title="Add/Edit Note">📋</div>
         ${item.status !== 'ready' ? `<div class="action-icon" onclick="confirmForceRestore(${item.id})">R</div>` : ''}
         ${item.status === 'active' || item.status === 'cooldown' ? `<div class="action-icon" onclick="confirmHitLimit(${item.id})">H</div>` : ''}
         ${item.status === 'ready' ? `<div class="action-icon text-green" onclick="openActionOverlay(${item.id})">GO</div>` : ''}
@@ -1459,7 +1499,8 @@ function showContextMenu(e, nodeId) {
   
   menu.innerHTML = `
     <div class="ctx-header">${item.provider}</div>
-    <div class="ctx-item" onclick="openModal(${item.id})">Node Details</div>
+    <div class="ctx-item" onclick="openModal(${item.id})">Edit Details</div>
+    <div class="ctx-item" onclick="openNoteModal(${item.id})">${item.note ? '📝 Edit Note' : '📋 Add Note'}</div>
     ${item.status === 'ready' ? `<div class="ctx-item text-green" onclick="openActionOverlay(${item.id})">Activate</div>` : ''}
     ${item.status !== 'ready' ? `<div class="ctx-item text-blue" onclick="confirmForceRestore(${item.id})">Force Restore</div>` : ''}
     ${item.status === 'active' || item.status === 'cooldown' ? `<div class="ctx-item text-red" onclick="confirmHitLimit(${item.id})">Hit Limit</div>` : ''}
@@ -1529,7 +1570,7 @@ function addNewProviderFromMenu() {
   }
 }
 
-// Modal & Overlay logic mostly unchanged, just ensure they call renderAll()
+// Modal & Overlay logic
 function openModal(nodeId = null) {
     const modal = document.getElementById('modalOverlay');
     const form = document.getElementById('nodeForm');
@@ -1544,10 +1585,11 @@ function openModal(nodeId = null) {
     if (nodeId) {
         const item = items.find(i => i.id == nodeId);
         if (item) {
-            title.textContent = `Node details:`;
+            title.textContent = `Edit Node`;
             document.getElementById('nodeId').value = nodeId;
             document.getElementById('inpProvider').value = item.provider;
             document.getElementById('inpEmail').value = item.email;
+            document.getElementById('inpNote').value = item.note || '';
             selectStatusButton(item.status);
             selectResetHours(item.resetHours);
             btnDelete.style.display = 'block';
@@ -1563,6 +1605,61 @@ function closeListOverlay() { document.getElementById('listOverlay').classList.r
 function openListOverlay() { document.getElementById('listOverlay').classList.add('active'); renderListOverlayContents(filterItems()); }
 function openInfoModal() { document.getElementById('infoOverlay').classList.add('active'); }
 function closeInfoModal() { document.getElementById('infoOverlay').classList.remove('active'); }
+
+// Note Modal Functions
+let currentNoteNodeId = null;
+
+function openNoteModal(nodeId) {
+    const item = items.find(i => i.id == nodeId);
+    if (!item) return;
+    
+    currentNoteNodeId = nodeId;
+    const modal = document.getElementById('noteOverlay');
+    document.getElementById('noteModalTitle').textContent = `${item.provider} - Note`;
+    document.getElementById('noteProvider').textContent = item.provider;
+    document.getElementById('noteEmail').textContent = item.email;
+    document.getElementById('noteTextarea').value = item.note || '';
+    document.getElementById('btnClearNote').style.display = item.note ? 'block' : 'none';
+    
+    modal.classList.add('active');
+    document.getElementById('noteTextarea').focus();
+}
+
+function closeNoteModal() {
+    document.getElementById('noteOverlay').classList.remove('active');
+    currentNoteNodeId = null;
+}
+
+function saveNote() {
+    if (!currentNoteNodeId) return;
+    
+    const item = items.find(i => i.id == currentNoteNodeId);
+    if (!item) return;
+    
+    const noteText = document.getElementById('noteTextarea').value;
+    item.note = noteText;
+    
+    save();
+    renderAll();
+    closeNoteModal();
+    showToast(noteText ? 'Note saved' : 'Note cleared');
+}
+
+function clearNote() {
+    if (!currentNoteNodeId) return;
+    
+    const item = items.find(i => i.id == currentNoteNodeId);
+    if (!item) return;
+    
+    if (confirm('Clear this note? This action cannot be undone.')) {
+        item.note = '';
+        save();
+        renderAll();
+        closeNoteModal();
+        showToast('Note cleared');
+    }
+}
+
 function renderListOverlayContents(filtered) {
     const body = document.getElementById('overlayListBody');
     body.innerHTML = '';
@@ -1570,7 +1667,10 @@ function renderListOverlayContents(filtered) {
         const row = document.createElement('tr');
         row.className = item.status==='burnt'?'BURNT':'';
         const dot = item.status==='active'?'text-blue':item.status==='ready'?'text-green':item.status==='cooldown'?'text-orange':'text-red';
-        row.innerHTML = `<td><strong>${item.provider}</strong></td><td style="opacity:0.8">${item.email}</td><td><span class="${dot}" style="font-weight:700; font-size:11px;">${item.status}</span></td><td id="timer-list-${item.id}" style="font-family:monospace; font-weight:700;">--</td>`;
+        const noteDisplay = item.note ? 
+            `<span style="color: var(--accent); cursor: pointer;" onclick="event.stopPropagation(); openNoteModal(${item.id})" title="Click to view/edit note">📝 ${item.note.substring(0, 30)}${item.note.length > 30 ? '...' : ''}</span>` : 
+            '<span style="color: var(--ink-dim); opacity: 0.5;">No note</span>';
+        row.innerHTML = `<td><strong>${item.provider}</strong></td><td style="opacity:0.8">${item.email}</td><td><span class="${dot}" style="font-weight:700; font-size:11px;">${item.status}</span></td><td>${noteDisplay}</td><td id="timer-list-${item.id}" style="font-family:monospace; font-weight:700;">--</td>`;
         row.onclick = () => { closeListOverlay(); openModal(item.id); };
         body.appendChild(row);
     });
@@ -1584,6 +1684,7 @@ document.getElementById('nodeForm').addEventListener('submit', (e) => {
     const email = document.getElementById('inpEmail').value;
     const status = document.getElementById('inpStatus').value;
     const reset = parseFloat(document.getElementById('inpReset').value);
+    const note = document.getElementById('inpNote').value;
     
     if(!provider) return;
     const now = Date.now();
@@ -1594,9 +1695,10 @@ document.getElementById('nodeForm').addEventListener('submit', (e) => {
             item.provider = provider; item.email = email;
             if(item.status !== status) item.lastUsed = now;
             item.status = status; item.resetHours = reset;
+            item.note = note;
         }
     } else {
-        items.push({ id: now, provider, email, status, resetHours: reset, lastUsed: now, pos: {x:50, y:50} });
+        items.push({ id: now, provider, email, status, resetHours: reset, lastUsed: now, pos: {x:50, y:50}, note: note });
     }
     if(!providers.includes(provider)) providers.push(provider);
     save(); closeModal(); renderAll(); showToast('Saved');
@@ -1719,7 +1821,7 @@ function init() {
   canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY<0?0.2:-0.2, e.clientX, e.clientY); }, {passive:false});
 
   // Close overlays on outside click and ESC
-  const overlayIds = ['infoOverlay', 'listOverlay', 'modalOverlay', 'actionOverlay', 'confirmOverlay', 'providerSelectOverlay'];
+  const overlayIds = ['infoOverlay', 'listOverlay', 'modalOverlay', 'actionOverlay', 'confirmOverlay', 'providerSelectOverlay', 'noteOverlay'];
   overlayIds.forEach(id => {
     const overlay = document.getElementById(id);
     if (overlay) {
@@ -1737,6 +1839,15 @@ function init() {
         const overlay = document.getElementById(id);
         if (overlay) overlay.classList.remove('active');
       });
+    }
+    // Ctrl/Cmd + N for note when a node is selected in modal
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault();
+      const nodeId = document.getElementById('nodeId').value;
+      if (nodeId) {
+        closeModal();
+        openNoteModal(parseInt(nodeId));
+      }
     }
   });
 }
