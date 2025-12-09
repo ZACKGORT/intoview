@@ -37,7 +37,7 @@
         .bottom-bar input{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:8px 12px;border-radius:6px;font-family:inherit;width:300px;}
         .bottom-bar button{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:10px;font-family:inherit;transition:0.2s}
         .bottom-bar button:hover{background:rgba(255,255,255,0.1);border-color:var(--accent)}
-        .pills{position:fixed;bottom:5.25rem;;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:100}
+        .pills{position:fixed;bottom:5.25rem;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:100}
     </style>
 </head>
 <body>
@@ -54,8 +54,6 @@
         <button class="btn active" data-p="std">STD</button>
         <button class="btn" data-p="top">TOP</button>
         <button class="btn" data-p="side">SIDE</button>
-        <button class="btn" data-p="iso">ISO</button>
-        <button class="btn" id="invert">Invert Time</button>
     </div>
     <div class="top-bar">
         <input id="search" type="text" placeholder="Search tasks...">
@@ -130,10 +128,9 @@
       }
 
       /* ---------- Config & Scene ---------- */
-      const CFG={cam:{eye:{y:40}},preset:{std:{o:new THREE.Vector3(0,8,20),r:new THREE.Euler(-0.3,0,0)},top:{o:new THREE.Vector3(0,50,0.1),r:new THREE.Euler(-Math.PI/2,0,0)},side:{o:new THREE.Vector3(30,5,0),r:new THREE.Euler(0,-Math.PI/2,0)},iso:{o:new THREE.Vector3(20,20,20),r:new THREE.Euler(-0.6,-0.8,0)}}};
+      const CFG={cam:{eye:{y:40}},preset:{std:{o:new THREE.Vector3(0,8,20),r:new THREE.Euler(-0.3,0,0)},top:{o:new THREE.Vector3(0,50,0.1),r:new THREE.Euler(-Math.PI/2,0,0)},side:{o:new THREE.Vector3(80,0,0),r:new THREE.Euler(0,-Math.PI/2,0)}}};
 
       const sc = new THREE.Scene();
-      // Lighting look from the neon scene:
       sc.background = new THREE.Color(0x000000);
       sc.fog = new THREE.FogExp2(0x000000, 0.009);
 
@@ -152,7 +149,6 @@
       world.broadphase = new CANNON.NaiveBroadphase();
       const mat = new CANNON.Material();
       world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, { friction: 0.3, restitution: 0.5 }));
-
 
       /* ---------- State ---------- */
       const rig = { mode: 'std', preset: 'std', piv: new THREE.Vector3(), tPiv: new THREE.Vector3() };
@@ -201,7 +197,7 @@
       /* ---------- Ground (material updated to neon scene style, but kept at same y -4) ---------- */
       const gnd = new THREE.Mesh(
           new THREE.PlaneGeometry(40, 100),
-          new THREE.MeshStandardMaterial({ color: 0x000, roughness: 0.85, metalness: 0.95, envMapIntensity: 1.3 })
+          new THREE.MeshStandardMaterial({ color: 0x0f0f1f, roughness: 0.85, metalness: 0.95, envMapIntensity: 1.3 })
       );
       gnd.rotation.x = -Math.PI / 2;
       gnd.position.y = -4;
@@ -242,9 +238,8 @@
 
               const g = new THREE.BoxGeometry(sz, sz, sz);
 
-              // new neon cube material per cube (random hue, high emissive)
               const hue = Math.random();
-              const color = new THREE.Color().setHSL(hue, 1.0, 0.5); // saturated neon-ish
+              const color = new THREE.Color().setHSL(hue, 1.0, 0.5);
               const baseMat = new THREE.MeshPhysicalMaterial({
                   color: color,
                   metalness: 1.0,
@@ -257,7 +252,12 @@
                   envMapIntensity: 1.6
               });
 
-              this.oMat = Array(6).fill(baseMat);
+              this.baseMat = baseMat;
+              this.pMat = pMat.clone();
+              this.sMat = sMat.clone();
+              this.oMat = Array(6).fill(this.baseMat);
+              this.intensities = { def: 3.0, pk: 0.6, sup: 2.0 };
+
               this.m = new THREE.Mesh(g, this.oMat);
               this.m.position.set(x, y, z);
               this.m.castShadow = true;
@@ -271,24 +271,42 @@
               sc.add(this.m);
 
               const sh = new CANNON.Box(new CANNON.Vec3(sz / 2, sz / 2, sz / 2));
-              this.b = new CANNON.Body({ mass: 2, material: mat });
+              this.b = new CANNON.Body({ mass: 2, material: mat, type: CANNON.Body.DYNAMIC });
               this.b.addShape(sh);
               this.b.position.set(x, y, z);
               this.b.linearDamping = 0.3;
               this.b.angularDamping = 0.3;
               world.addBody(this.b);
           }
+          updateTextSprite() {
+              if (this.textSprite) this.m.remove(this.textSprite);
+              if (!this.text) return;
+              const canvas = document.createElement('canvas');
+              canvas.width = 256;
+              canvas.height = 128;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 32px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.fillText(this.text, 128, 64);
+              const map = new THREE.CanvasTexture(canvas);
+              const spriteMat = new THREE.SpriteMaterial({map});
+              this.textSprite = new THREE.Sprite(spriteMat);
+              this.textSprite.scale.set(4,2,1);
+              this.textSprite.position.set(0, this.sz/2 + 1, 0);
+              this.m.add(this.textSprite);
+          }
           click() {
               if (this.st === 'def') {
-                  this.m.material = Array(6).fill(pMat);
+                  this.m.material = Array(6).fill(this.pMat);
                   this.st = 'pk';
                   gsap.to(this.m.scale, { x: 1.1, y: 1.1, z: 1.1, duration: 0.2, ease: "back.out" });
               } else if (this.st === 'pk') {
-                  this.m.material = Array(6).fill(sMat);
+                  this.m.material = Array(6).fill(this.sMat);
                   this.st = 'sup';
                   gsap.to(this.m.scale, { x: 1.3, y: 1.3, z: 1.3, duration: 0.3, yoyo: true, repeat: 5, ease: "sine.inOut" });
               } else {
-                  this.m.material = this.oMat;
+                  this.m.material = Array(6).fill(this.baseMat);
                   this.st = 'def';
                   gsap.to(this.m.scale, { x: 1, y: 1, z: 1, duration: 0.2, ease: "power2.out" });
               }
@@ -303,10 +321,10 @@
               if (tm.sel === this) { tm.sel = null; document.getElementById('info').classList.remove('active'); }
           }
           hov() {
-              this.m.material.forEach(m => { if (m && m.emissive) m.emissive.setHex(0x333333); });
+              this.m.material.forEach(m => { if (m) m.emissiveIntensity = this.intensities[this.st] * 1.5; });
           }
           unhov() {
-              this.m.material.forEach(m => { if (m && m.emissive) m.emissive.setHex(0x000000); });
+              this.m.material.forEach(m => { if (m) m.emissiveIntensity = this.intensities[this.st]; });
           }
           launch(tp) {
               const d = new THREE.Vector3().subVectors(tp, this.b.position);
@@ -357,10 +375,31 @@
           }
       }
 
-      /* ---------- Initial cubes ---------- */
-      for (let i = 0; i < 12; i++) {
-          const c = new Cube((Math.random() - 0.5) * 20, Math.random() * 4 + 1, (Math.random() - 0.5) * 60);
-          tm.cubes.push(c);
+      /* ---------- Load saved tasks ---------- */
+      const saved = localStorage.getItem('punt-tasks');
+      if (saved) {
+          const data = JSON.parse(saved);
+          data.forEach(d => {
+              const c = new Cube(d.pos.x, d.pos.y, d.pos.z);
+              c.text = d.text;
+              c.updateTextSprite();
+              c.b.quaternion.set(d.quat.x, d.quat.y, d.quat.z, d.quat.w);
+              c.pri = d.pri;
+              c.sPri(d.pri);
+              c.st = d.st;
+              if (c.st === 'pk') c.m.material = Array(6).fill(c.pMat);
+              else if (c.st === 'sup') c.m.material = Array(6).fill(c.sMat);
+              c.puls = d.puls;
+              if (c.puls) c.tPuls();
+              c.z_target = d.z_target;
+              c.hard = d.hard;
+              tm.cubes.push(c);
+          });
+      } else {
+          for (let i = 0; i < 12; i++) {
+              const c = new Cube((Math.random() - 0.5) * 20, Math.random() * 4 + 1, (Math.random() - 0.5) * 60);
+              tm.cubes.push(c);
+          }
       }
 
       function shake() {
@@ -372,11 +411,22 @@
           });
       }
 
+      function createGrid(scale) {
+          // Placeholder for grid scaling logic if needed
+      }
+
       /* ---------- Raycaster & helpers ---------- */
-      const rc = new THREE.Raycaster(), ms = new THREE.Vector2();
+      const rc = new THREE.Raycaster(), ms = new THREE.Vector2(), intersect = new THREE.Vector3();
       function upMs(e) { ms.x = (e.clientX / innerWidth) * 2 - 1; ms.y = -(e.clientY / innerHeight) * 2 + 1; }
       function getC() { rc.setFromCamera(ms, cam); const in_ = rc.intersectObjects(tm.cubes.map(c => c.m)); return in_.length > 0 ? in_[0].object.userData.cube : null; }
-      function getG() { rc.setFromCamera(ms, cam); const in_ = rc.intersectObject(gnd); return in_.length > 0 ? in_[0].point : null; }
+      function getG(e) {
+          upMs(e);
+          rc.setFromCamera(ms, cam);
+          const planeY = tm.drag ? tm.drag.b.position.y : 0;
+          const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY);
+          if (rc.ray.intersectPlane(plane, intersect)) return intersect;
+          return null;
+      }
 
       /* ---------- Controls / events (kept) ---------- */
       addEventListener('wheel', e => {
@@ -396,16 +446,12 @@
           const hc = getC();
           if (hc !== tm.hov) { if (tm.hov) tm.hov.unhov(); tm.hov = hc; if (hc) hc.hov(); }
           if (tm.drag && e.buttons & 1) {
-              const gp = getG();
+              const gp = getG(e);
               if (gp) {
-                  tm.drag.b.position.x = gp.x;
-                  tm.drag.b.position.z = gp.z;
-                  tm.drag.b.velocity.x = 0;
-                  tm.drag.b.velocity.z = 0;
-                  tm.drag.b.wakeUp();
+                  tm.drag.b.position.copy(gp);
               }
           } else if (isPanning && e.buttons & 1) {
-              const gp = getG();
+              const gp = getG(e);
               if (gp && panStartIntersect) {
                   const delta = new THREE.Vector3().subVectors(gp, panStartIntersect);
                   rig.tPiv.sub(delta);
@@ -417,7 +463,7 @@
       addEventListener('mousedown', e => {
           upMs(e);
           if (tm.launch && tm.lSrc) {
-              const gp = getG();
+              const gp = getG(e);
               if (gp) {
                   gp.y = tm.lSrc.b.position.y;
                   tm.lSrc.launch(gp);
@@ -432,8 +478,11 @@
               c.click();
               c.sel();
               tm.drag = c;
+              c.originalY = c.b.position.y;
+              c.b.type = CANNON.Body.KINEMATIC;
+              gsap.to(c.b.position, { y: c.originalY + 3, duration: 0.2, ease: "power2.out" });
           } else {
-              const gp = getG();
+              const gp = getG(e);
               if (gp) {
                   isPanning = true;
                   panStartIntersect = gp.clone();
@@ -443,7 +492,17 @@
           }
       });
 
-      addEventListener('mouseup', () => { tm.drag = null; isPanning = false; panStartIntersect = null; });
+      addEventListener('mouseup', () => {
+          if (tm.drag) {
+              const c = tm.drag;
+              gsap.to(c.b.position, { y: c.originalY, duration: 0.3, ease: "power1.in", onComplete: () => {
+                  c.b.type = CANNON.Body.DYNAMIC;
+              } });
+          }
+          tm.drag = null;
+          isPanning = false;
+          panStartIntersect = null;
+      });
       addEventListener('contextmenu', e => { e.preventDefault(); upMs(e); const c = getC(); if (c) { const m = document.getElementById('ctx'); m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px'; m.classList.add('active'); tm.sel = c; } });
       addEventListener('click', () => { document.getElementById('ctx').classList.remove('active'); });
 
@@ -485,10 +544,18 @@
 
       setInterval(() => {
           const s = 0.8;
-          if (k.ArrowUp) rig.tPiv.z -= s;
-          if (k.ArrowDown) rig.tPiv.z += s;
-          if (k.ArrowLeft) rig.tPiv.x -= s;
-          if (k.ArrowRight) rig.tPiv.x += s;
+          if (rig.preset === 'side' && tm.sel) {
+              if (k.ArrowLeft) tm.sel.b.position.z -= s;
+              if (k.ArrowRight) tm.sel.b.position.z += s;
+              if (k.ArrowUp) tm.sel.b.position.y += s;
+              if (k.ArrowDown) tm.sel.b.position.y -= s;
+              tm.sel.b.wakeUp();
+          } else {
+              if (k.ArrowUp) rig.tPiv.z -= s;
+              if (k.ArrowDown) rig.tPiv.z += s;
+              if (k.ArrowLeft) rig.tPiv.x -= s;
+              if (k.ArrowRight) rig.tPiv.x += s;
+          }
       }, 16);
 
       document.querySelectorAll('[data-p]').forEach(b => {
@@ -566,7 +633,8 @@
       function cTick() {
           hist.shift(); hist.push({ x: mX, y: mY });
           cs.forEach((c, i) => {
-              const cur = hist[i], nx = hist[i + 1] || hist[tl - 1];
+              const cur = hist[i];
+              const nx = hist[i + 1] || hist[tl - 1];
               cur.x += (nx.x - cur.x) * 0.35;
               cur.y += (nx.y - cur.y) * 0.35;
               const s = Math.max(0.22, (tl - i) / tl * 1.2);
