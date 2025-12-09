@@ -2,183 +2,189 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>3D Physics Scene</title>
-  
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
-  <script src="https://cdn.babylonjs.com/cannon.js"></script>
-  
-  <style>
-    /* BASIC STYLES FOR THE SCENE TO WORK */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Magnetic Neon Blocks — with Floating Labels</title>
 
+  <!-- Inter: modern, sleek typeface -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.babylonjs.com/cannon.js"></script>
+
+  <style>
+    :root {
+      --bg: #000000;
+      --grid-major: #004444;
+      --grid-minor: #002222;
+      --accent: #00ff88;
+      --glass: rgba(10,10,20,0.7);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0a0a0f;
-      color: #fff;
+      background: var(--bg);
+      touch-action: none;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #eee;
     }
-
     #canvas {
       display: block;
       width: 100vw;
       height: 100vh;
       cursor: grab;
     }
+    #canvas.grabbing { cursor: grabbing; }
+    #canvas.hovering { cursor: pointer; }
 
-    #canvas.grabbing {
-      cursor: grabbing;
-    }
-    
-    /* UI OVERLAY & STATUS BAR */
     #ui-overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      inset: 0;
       pointer-events: none;
-    }
-    
-    #status-bar {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 14px;
-      color: #fff;
+      z-index: 300;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
     }
 
+    /* Label styles */
     .block-label {
       position: absolute;
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, -100%) translateZ(0);
       pointer-events: none;
       white-space: nowrap;
-      padding: 4px 8px;
-      border-radius: 4px;
-      background: rgba(0, 0, 0, 0.75);
-      border: 1px solid #00ff88;
-      opacity: 0; /* Managed by GSAP/JS */
-      transition: border-color 0.2s;
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(12,12,20,0.85), rgba(8,8,14,0.75));
+      border: 1px solid rgba(0,255,136,0.08);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.6), 0 0 18px rgba(0,255,136,0.06) inset;
+      color: #eafff3;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.2px;
+      backdrop-filter: blur(6px) saturate(1.1);
+      opacity: 0;
+      transform-origin: 50% 100%;
+      will-change: transform, opacity, left, top;
+      transition: transform 0.18s cubic-bezier(.2,.9,.2,1), opacity 0.18s ease;
     }
 
-    .block-label.active {
-      border-color: #ffd700;
-    }
-    
-    .block-label .main {
-      font-weight: bold;
-      color: #00ff88;
-    }
-    
     .block-label .sub {
-      font-size: 10px;
-      color: #aaa;
-    }
-    
-    /* Context Menu */
-    #context-menu {
-      position: absolute;
-      background: rgba(15, 15, 25, 0.95);
-      border: 1px solid #333;
-      border-radius: 4px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      padding: 5px;
-      min-width: 180px;
-      z-index: 1000;
-      display: none;
-      pointer-events: auto;
-    }
-    
-    .context-menu-item {
-      padding: 8px 12px;
-      cursor: pointer;
-      font-size: 14px;
-      color: #ddd;
-      transition: background 0.1s;
-      border-radius: 3px;
-    }
-    
-    .context-menu-item:hover {
-      background: rgba(255, 255, 255, 0.1);
-    }
-    
-    .context-menu-item strong {
-      float: right;
-      font-weight: normal;
-      color: #00ff88;
-    }
-    
-    .context-menu-item.danger strong {
-      color: #ff6b6b;
+      display: block;
+      font-weight: 400;
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 4px;
     }
 
-    /* FAB */
-    .fab {
+    /* larger label when active */
+    .block-label.active {
+      transform: translate(-50%, -110%) scale(1.05);
+      opacity: 1;
+    }
+
+    #magneticIndicator {
+      position: fixed;
+      pointer-events: none;
+      z-index: 200;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ffcc00 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      mix-blend-mode: screen;
+    }
+
+    #fab {
       position: fixed;
       bottom: 32px;
       right: 32px;
-      width: 64px;
-      height: 64px;
-      background: #00ff88;
+      width: 68px;
+      height: 68px;
       border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      color: #000;
+      font-size: 38px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 0 40px rgba(0,255,136,0.7);
+      z-index: 100;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 32px;
-      color: #0a0a0f;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-      transition: transform 0.1s, background 0.1s;
-      z-index: 10;
+      transition: transform 0.2s, box-shadow 0.2s;
       pointer-events: auto;
     }
+    #fab:hover { transform: scale(1.1); box-shadow: 0 0 60px rgba(0,255,136,0.9); }
+    #fab:active { transform: scale(0.95); }
 
-    .fab:hover {
-      background: #00cc6a;
-      transform: scale(1.05);
+    #statusBar {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(10, 10, 20, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(80, 80, 100, 0.4);
+      border-radius: 12px;
+      padding: 16px 20px;
+      color: #eee;
+      font-size: 14px;
+      z-index: 100;
+      min-width: 200px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      pointer-events: auto;
     }
+    .status-item { margin: 6px 0; display:flex; justify-content:space-between; align-items:center; }
+    .status-label { opacity: 0.7; margin-right: 12px; }
+    .status-value { font-weight: 600; color: var(--accent); }
 
-    /* Magnetic Indicator */
-    #magneticIndicator {
+    .context-menu {
       position: absolute;
-      border: 2px dashed #00ff88;
-      border-radius: 50%;
-      opacity: 0;
-      transition: opacity 0.1s;
-      pointer-events: none;
+      background: rgba(10, 10, 20, 0.98);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(80, 80, 100, 0.4);
+      border-radius: 14px;
+      padding: 8px 0;
+      min-width: 220px;
+      z-index: 200;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.9);
+      font-size: 15px;
+      color: #eee;
+      display: none;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
     }
+    .context-menu-item {
+      padding: 14px 24px;
+      cursor: pointer;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .context-menu-item:hover { background: rgba(80, 80, 140, 0.5); }
+    .context-menu-item.danger:hover { background: rgba(200, 50, 50, 0.4); color: #ff6b6b; }
   </style>
 </head>
 <body>
+  
   <canvas id="canvas"></canvas>
-  <div id="ui-overlay">
-    <div id="status-bar">
-      Blocks: <span id="blockCount">0</span> |
-      Magnetic: <span id="magneticStatus">OFF</span> |
-      Force Push: <span id="forceStatus">Normal</span> |
-      **Camera: <span id="cameraStatus">Overhead (C)</span>** </div>
-
-    <div id="magneticIndicator"></div>
-
-    <div id="context-menu"></div>
-
-    <div class="fab" id="fab" title="Click to add a cube, Shift+Click for 5 cubes">
-      +
+  <div id="ui-overlay"></div>
+  <div id="magneticIndicator"></div>
+  <button id="fab" title="Add blocks (Shift+Click for 5)">+</button>
+  <div id="statusBar">
+    <div class="status-item">
+      <span class="status-label">Blocks:</span>
+      <span class="status-value" id="blockCount">0</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Magnetic:</span>
+      <span class="status-value" id="magneticStatus">OFF</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Force:</span>
+      <span class="status-value" id="forceStatus">Normal</span>
     </div>
   </div>
+  <div id="context-menu" class="context-menu"></div>
 
   <script>
-    // ===========================================
-    // START OF MODIFIED JAVASCRIPT
-    // ===========================================
     let scene, camera, renderer, world;
     let raycaster, mouse = new THREE.Vector2();
     let cubes = [];
@@ -205,8 +211,7 @@
       targetZoom: 0
     };
 
-    // === NEW/MODIFIED CAMERA CONFIGURATION ===
-    const OVERHEAD_CAM_CONFIG = {
+    let currentCamConfig = {
       y: 62,
       z: 0.001,
       rotX: -Math.PI / 2 + 0.0001
@@ -218,56 +223,20 @@
       rotX: -0.43
     };
 
-    // isCameraOverhead holds the persistent state (toggled by 'C')
-    let isCameraOverhead = true; 
-
-    // currentCamConfig initializes to Overhead and is the variable GSAP modifies
-    let currentCamConfig = { ...OVERHEAD_CAM_CONFIG }; 
-    // =========================================
-
     let isShiftPressed = false;
 
-    const faceNormals = [
-      new THREE.Vector3(0, 1, 0), // 1 (top)
-      new THREE.Vector3(0, 0, 1), // 2
-      new THREE.Vector3(1, 0, 0), // 3
-      new THREE.Vector3(-1, 0, 0), // 4
-      new THREE.Vector3(0, 0, -1), // 5
-      new THREE.Vector3(0, -1, 0)  // 6 (bottom)
-    ];
-
-    let lastTime = 0;
-
-    const groundMaterial = new CANNON.Material('ground');
-    const cubeMaterial = new CANNON.Material('cube');
-    const contactMaterial = new CANNON.ContactMaterial(groundMaterial, cubeMaterial, {
-      friction: 0.4,
-      restitution: 0.3
-    });
-
-    // === MODIFIED: Now updates the Camera Status in the UI ===
     function updateStatusBar() {
       document.getElementById('blockCount').textContent = cubes.length;
       document.getElementById('magneticStatus').textContent = magneticMode ? 'ON' : 'OFF';
       document.getElementById('magneticStatus').style.color = magneticMode ? '#00ff88' : '#ff6b6b';
       document.getElementById('forceStatus').textContent = forcePushMode ? 'JEDI' : 'Normal';
       document.getElementById('forceStatus').style.color = forcePushMode ? '#ffd700' : '#00ff88';
-
-      // Update camera status
-      const camStatusText = isCameraOverhead ? 'Overhead (C)' : 'Ground (C)';
-      const camStatusColor = isCameraOverhead ? '#00ff88' : '#ffd700';
-      const camStatusEl = document.getElementById('cameraStatus');
-      if (camStatusEl) {
-          camStatusEl.textContent = camStatusText;
-          camStatusEl.style.color = camStatusColor;
-      }
     }
-    // ... rest of init() and helper functions ...
 
     function init() {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x000000);
-      scene.fog = new THREE.FogExp2(0x000000, 0.011);
+      scene.fog = new THREE.FogExp2(0x000000, 0.009);
 
       camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -279,10 +248,9 @@
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
       world = new CANNON.World();
-      world.gravity.set(0, -50, 0);
+      world.gravity.set(0, -125, 0);
       world.broadphase = new CANNON.NaiveBroadphase();
       world.solver.iterations = 15;
-      world.addContactMaterial(contactMaterial);
 
       // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.5));
@@ -320,7 +288,8 @@
       scene.add(groundMesh);
 
       const groundShape = new CANNON.Plane();
-      const groundBody = new CANNON.Body({ mass: 0, material: groundMaterial });
+      // Increased friction from 0.4 to 1.0 for the ground
+      const groundBody = new CANNON.Body({ mass: 0, material: new CANNON.Material({ friction: 2.0, restitution: 1.0 }) });
       groundBody.addShape(groundShape);
       groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI / 2);
       groundBody.position.y = -10;
@@ -335,7 +304,7 @@
       const wallDistance = BOUNDARY_LIMIT + halfThickness;
       const wallSpanHalf = BOUNDARY_LIMIT + 20;
 
-      const wallMaterial = groundMaterial; // Use same as ground
+      const wallMaterial = new CANNON.Material({ friction: 0.3, restitution: 0.5 });
 
       // North / South walls
       const nsShape = new CANNON.Box(new CANNON.Vec3(wallSpanHalf, halfHeight, halfThickness));
@@ -385,7 +354,7 @@
       }
 
       updateStatusBar();
-      animate(0);
+      animate();
     }
 
     function createCube(position) {
@@ -418,48 +387,21 @@
       scene.add(mesh);
 
       const shape = new CANNON.Box(new CANNON.Vec3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2));
-      const body = new CANNON.Body({ mass: 1, material: cubeMaterial });
+      // Increased friction from 0.5 to 1.0 for the cubes
+      const cubeMaterial = new CANNON.Material({ friction: 3.33, restitution: 0.999 });
+      const body = new CANNON.Body({ mass: 2.222, material: cubeMaterial });
       body.addShape(shape);
       body.position.copy(position);
-      body.linearDamping = 0.01;
-      body.angularDamping = 0.01;
-      body.allowSleep = true;
-      body.sleepSpeedLimit = 0.5;
-      body.sleepTimeLimit = 0.5;
+      body.linearDamping = 0.555;
+      body.angularDamping = 0.999;
       world.addBody(body);
 
-      // Create a label element for this dice
-      const labelEl = createLabelElement(`Dice ${++labelIdCounter}`, mesh);
+      // Create a label element for this cube
+      const labelEl = createLabelElement(`Block ${++labelIdCounter}`, mesh);
       // Add subtle subtext data (world coordinates)
       labelEl.querySelector('.sub').textContent = formatPos(position);
 
-      const cube = { mesh, body, connections: [], labelEl, labelId: labelIdCounter };
-
-      body.addEventListener('sleep', (event) => {
-        const quat = new THREE.Quaternion(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
-        const up = new THREE.Vector3(0, 1, 0);
-        let maxDot = -Infinity;
-        let topFace = 0;
-        for (let i = 0; i < faceNormals.length; i++) {
-          const normal = faceNormals[i].clone().applyQuaternion(quat);
-          const dot = normal.dot(up);
-          if (dot > maxDot) {
-            maxDot = dot;
-            topFace = i + 1;
-          }
-        }
-        if (maxDot < 0.98) {
-          // Perturb to continue rolling
-          body.velocity.set(Math.random() * 0.2 - 0.1, Math.random() * 0.2 - 0.1, Math.random() * 0.2 - 0.1);
-          body.angularVelocity.set(Math.random() * 0.2 - 0.1, Math.random() * 0.2 - 0.1, Math.random() * 0.2 - 0.1);
-          body.wakeUp();
-        } else {
-          // Update label with top face
-          cube.labelEl.querySelector('.main').textContent = `Top face: ${topFace}`;
-          cube.labelEl.querySelector('.sub').textContent = formatPos(cube.mesh.position);
-        }
-      });
-
+      const cube = { mesh, body, connections: [], labelEl };
       cubes.push(cube);
       updateStatusBar();
       return cube;
@@ -568,7 +510,11 @@
           cube.body.velocity.z *= -0.5;
           needsCorrection = true;
         }
-        // Removed y boundary check to allow physics to handle ground collision
+        if (pos.y < -8) {
+          pos.y = -8;
+          cube.body.velocity.y = Math.abs(cube.body.velocity.y) * 0.3;
+          needsCorrection = true;
+        }
         
         if (needsCorrection) {
           cube.body.wakeUp();
@@ -621,7 +567,7 @@
           ⚡ Force Push: <strong>${forcePushMode ? 'JEDI' : 'Normal'}</strong>
         </div>
         <div class="context-menu-item danger" data-action="clear">
-          🗑️ Clear All Dice
+          🗑️ Clear All Blocks
         </div>
       `;
       menu.style.display = 'block';
@@ -656,7 +602,7 @@
         } else if (action === 'force') {
           forcePushMode = !forcePushMode;
         } else if (action === 'clear') {
-          if (confirm('Clear all dice? This cannot be undone.')) {
+          if (confirm('Clear all blocks? This cannot be undone.')) {
             cubes.forEach(c => {
               scene.remove(c.mesh);
               if (c.labelEl && c.labelEl.parentNode) c.labelEl.parentNode.removeChild(c.labelEl);
@@ -776,7 +722,7 @@
           const cube = cubes.find(c => c.mesh === intersects[0].object);
           const normal = intersects[0].face.normal.clone();
           normal.transformDirection(cube.mesh.matrixWorld);
-          const strength = forcePushMode ? -444 : 0;
+          const strength = forcePushMode ? 85 : 12;
           const impulse = new CANNON.Vec3(normal.x, normal.y, normal.z).scale(strength);
           cube.body.applyImpulse(impulse, cube.body.position);
           cube.body.wakeUp();
@@ -901,14 +847,10 @@
       });
     }
 
-    function animate(time) {
+    function animate() {
       requestAnimationFrame(animate);
 
-      const dt = (time - lastTime) / 1000;
-      if (dt > 0) {
-        world.step(1/60, dt, 3);
-      }
-      lastTime = time;
+      world.step(1/60);
 
       cubes.forEach(cube => {
         cube.mesh.position.copy(cube.body.position);
