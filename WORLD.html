@@ -1,124 +1,749 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STACK: Note System | Rig Refactor</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
-    <style>
-        :root { --bg: #0f1014; --glass: rgba(255, 255, 255, 0.05); --accent: #83ff83; --active: #FF1493; }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: var(--bg); overflow: hidden; color: white; font-family: 'JetBrains Mono', monospace; }
-        #canvas { display: block; width: 100vw; height: 100vh; }
-        .hud { position: fixed; bottom: 20px; left: 20px; pointer-events: none; font-size: 11px; opacity: 0.6; }
-        .key { color: var(--accent); font-weight: bold; }
-        .mode-status { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); 
-                       background: var(--glass); padding: 8px 16px; border-radius: 20px; 
-                       border: 1px solid rgba(255,255,255,0.1); opacity: 0; transition: 0.3s; }
-        .mode-status.active { opacity: 1; color: var(--active); border-color: var(--active); }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Magnetic Neon Blocks</title>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.babylonjs.com/cannon.js"></script>
+  <style>
+    :root {
+      --bg: #000000;
+      --grid-major: #004444;
+      --grid-minor: #002222;
+      --accent: #00ff88;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      overflow: hidden;
+      background: var(--bg);
+      touch-action: none;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    #canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: grab;
+    }
+    #canvas.grabbing { cursor: grabbing; }
+    #canvas.hovering { cursor: pointer; }
+    #magneticIndicator {
+      position: fixed;
+      pointer-events: none;
+      z-index: 200;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ffcc00 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      mix-blend-mode: screen;
+    }
+    #fab {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      color: #000;
+      font-size: 38px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 0 40px rgba(0,255,136,0.7);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    #fab:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 60px rgba(0,255,136,0.9);
+    }
+    #fab:active {
+      transform: scale(0.95);
+    }
+    #statusBar {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(10, 10, 20, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(80, 80, 100, 0.4);
+      border-radius: 12px;
+      padding: 16px 20px;
+      color: #eee;
+      font-size: 14px;
+      z-index: 100;
+      min-width: 200px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .status-item {
+      margin: 6px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-label {
+      opacity: 0.7;
+      margin-right: 12px;
+    }
+    .status-value {
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .context-menu {
+      position: absolute;
+      background: rgba(10, 10, 20, 0.98);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(80, 80, 100, 0.4);
+      border-radius: 14px;
+      padding: 8px 0;
+      min-width: 220px;
+      z-index: 200;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.9);
+      font-size: 15px;
+      color: #eee;
+      display: none;
+    }
+    .context-menu-item {
+      padding: 14px 24px;
+      cursor: pointer;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .context-menu-item:hover { 
+      background: rgba(80, 80, 140, 0.5); 
+    }
+    .context-menu-item.danger:hover {
+      background: rgba(200, 50, 50, 0.4);
+      color: #ff6b6b;
+    }
+  </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
-    <div id="modeTag" class="mode-status">MOVE MODE: BIRDS-EYE</div>
-    <div class="hud">
-        [SCROLL] Zoom Micro/Macro | <span class="key">[SHIFT]</span> Move Mode | [ARROWS] Magnetic Nav
+  <canvas id="canvas"></canvas>
+  <div id="magneticIndicator"></div>
+  <button id="fab" title="Add blocks (Shift+Click for 5)">+</button>
+  <div id="statusBar">
+    <div class="status-item">
+      <span class="status-label">Blocks:</span>
+      <span class="status-value" id="blockCount">0</span>
     </div>
+    <div class="status-item">
+      <span class="status-label">Magnetic:</span>
+      <span class="status-value" id="magneticStatus">OFF</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Force:</span>
+      <span class="status-value" id="forceStatus">Normal</span>
+    </div>
+  </div>
+  <div id="context-menu" class="context-menu"></div>
 
-    <script>
-        const CONFIG = {
-            grid: 3.33,
-            camera: {
-                micro: { y: -1, z: 12, rotX: -0.1 },
-                macro: { y: 10, z: 35, rotX: -0.52 }, // ~30 deg
-                birdsEye: { y: 40, z: 0, rotX: -Math.PI/2 }
-            }
-        };
+  <script>
+    let scene, camera, renderer, world;
+    let raycaster, mouse = new THREE.Vector2();
+    let cubes = [];
+    let connections = [];
+    let draggedCube = null;
+    let hoveredCube = null;
+    let isDragging = false;
+    let isRotating = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let magneticMode = false;
+    let forcePushMode = false;
 
-        // Standard Three.js Initialization (PRESERVED)
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0f1014);
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
+    const CUBE_SIZE = 2;
+    const MAGNETIC_RANGE = 4.5;
+    const BREAK_THRESHOLD = 18;
+    const MAX_PIVOT = 80;
+    const BOUNDARY_LIMIT = 90;
 
-        // Rig State
-        const Rig = {
-            zoom: 0.5, targetZoom: 0.5,
-            mode: 'standard', // standard | birdsEye
-            pivot: new THREE.Vector3(0, 0, 0),
-            targetPivot: new THREE.Vector3(0, 0, 0)
-        };
+    const Rig = {
+      pivot: new THREE.Vector3(0, 0, 0),
+      targetPivot: new THREE.Vector3(0, 0, 0),
+      zoom: 0,
+      targetZoom: 0
+    };
 
-        // Lighting & Environment
-        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-        const grid = new THREE.GridHelper(100, 30, 0x333333, 0x222222);
-        grid.position.y = -4;
-        scene.add(grid);
+    let currentCamConfig = {
+      y: 62,
+      z: 0.001,
+      rotX: -Math.PI / 2 + 0.0001
+    };
 
-        // Logic Loop (Physics + Rig Update)
-        function update() {
-            // Rig: Zoom Interpolation
-            Rig.zoom += (Rig.targetZoom - Rig.zoom) * 0.1;
-            Rig.pivot.lerp(Rig.targetPivot, 0.1); // Magnetic guide pull
+    const groundCamConfig = {
+      y: 9.5,
+      z: 27,
+      rotX: -0.43
+    };
 
-            if (Rig.mode === 'standard') {
-                const y = THREE.MathUtils.lerp(CONFIG.camera.micro.y, CONFIG.camera.macro.y, Rig.zoom);
-                const z = THREE.MathUtils.lerp(CONFIG.camera.micro.z, CONFIG.camera.macro.z, Rig.zoom);
-                const rx = THREE.MathUtils.lerp(CONFIG.camera.micro.rotX, CONFIG.camera.macro.rotX, Rig.zoom);
-                
-                camera.position.set(Rig.pivot.x, Rig.pivot.y + y, Rig.pivot.z + z);
-                camera.rotation.x = rx;
-            } else {
-                // Birds-Eye Snap
-                camera.position.lerp(new THREE.Vector3(Rig.pivot.x, CONFIG.camera.birdsEye.y, Rig.pivot.z + 0.1), 0.1);
-                camera.lookAt(Rig.pivot);
-            }
+    let isShiftPressed = false;
 
-            renderer.render(scene, camera);
-            requestAnimationFrame(update);
+    function updateStatusBar() {
+      document.getElementById('blockCount').textContent = cubes.length;
+      document.getElementById('magneticStatus').textContent = magneticMode ? 'ON' : 'OFF';
+      document.getElementById('magneticStatus').style.color = magneticMode ? '#00ff88' : '#ff6b6b';
+      document.getElementById('forceStatus').textContent = forcePushMode ? 'JEDI' : 'Normal';
+      document.getElementById('forceStatus').style.color = forcePushMode ? '#ffd700' : '#00ff88';
+    }
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+      scene.fog = new THREE.FogExp2(0x000000, 0.005);
+
+      camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+      const canvas = document.getElementById('canvas');
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      world = new CANNON.World();
+      world.gravity.set(0, -80, 0);
+      world.broadphase = new CANNON.NaiveBroadphase();
+      world.solver.iterations = 15;
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+      dirLight.position.set(15, 40, 15);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      scene.add(dirLight);
+
+      // Neon point lights
+      const neon1 = new THREE.PointLight(0x00ffff, 5, 80);
+      neon1.position.set(-25, 20, -25);
+      scene.add(neon1);
+      const neon2 = new THREE.PointLight(0xff00ff, 5, 80);
+      neon2.position.set(25, 20, 25);
+      scene.add(neon2);
+      const neon3 = new THREE.PointLight(0x00ff88, 4.5, 70);
+      neon3.position.set(0, 30, 0);
+      scene.add(neon3);
+
+      // Ground
+      const groundGeo = new THREE.PlaneGeometry(220, 220);
+      const groundMat = new THREE.MeshStandardMaterial({ 
+        color: 0x0f0f1f, 
+        roughness: 0.85, 
+        metalness: 0.95,
+        envMapIntensity: 1.3
+      });
+      const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.y = -10;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      const groundShape = new CANNON.Plane();
+      const groundBody = new CANNON.Body({ mass: 0, material: new CANNON.Material({ friction: 0.4, restitution: 0.3 }) });
+      groundBody.addShape(groundShape);
+      groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI / 2);
+      groundBody.position.y = -10;
+      world.addBody(groundBody);
+
+      // Containment walls
+      const WALL_THICKNESS = 8;
+      const WALL_HEIGHT = 80;
+      const halfThickness = WALL_THICKNESS / 2;
+      const halfHeight = WALL_HEIGHT / 2;
+      const wallY = -10 + halfHeight;
+      const wallDistance = BOUNDARY_LIMIT + halfThickness;
+      const wallSpanHalf = BOUNDARY_LIMIT + 20;
+
+      const wallMaterial = new CANNON.Material({ friction: 0.3, restitution: 0.5 });
+
+      // North / South walls
+      const nsShape = new CANNON.Box(new CANNON.Vec3(wallSpanHalf, halfHeight, halfThickness));
+      let wallBody = new CANNON.Body({mass: 0, material: wallMaterial});
+      wallBody.addShape(nsShape);
+      wallBody.position.set(0, wallY, wallDistance);
+      world.addBody(wallBody);
+
+      wallBody = new CANNON.Body({mass: 0, material: wallMaterial});
+      wallBody.addShape(nsShape);
+      wallBody.position.set(0, wallY, -wallDistance);
+      world.addBody(wallBody);
+
+      // East / West walls
+      const ewShape = new CANNON.Box(new CANNON.Vec3(halfThickness, halfHeight, wallSpanHalf));
+      wallBody = new CANNON.Body({mass: 0, material: wallMaterial});
+      wallBody.addShape(ewShape);
+      wallBody.position.set(wallDistance, wallY, 0);
+      world.addBody(wallBody);
+
+      wallBody = new CANNON.Body({mass: 0, material: wallMaterial});
+      wallBody.addShape(ewShape);
+      wallBody.position.set(-wallDistance, wallY, 0);
+      world.addBody(wallBody);
+
+      // Grid
+      const grid = new THREE.GridHelper(220, 110, 0x004444, 0x002222);
+      grid.position.y = -9.98;
+      scene.add(grid);
+
+      raycaster = new THREE.Raycaster();
+
+      setupEventListeners();
+      
+      const fab = document.getElementById('fab');
+      fab.addEventListener('click', (e) => {
+        if (e.shiftKey) {
+          addRandomCube(5);
+        } else {
+          addRandomCube();
+        }
+      });
+
+      // Initial blocks
+      for (let i = 0; i < 15; i++) {
+        setTimeout(() => addRandomCube(), i * 200);
+      }
+
+      updateStatusBar();
+      animate();
+    }
+
+    function createCube(position) {
+      if (!position) {
+        position = new THREE.Vector3(
+          (Math.random() - 0.5) * 50,
+          25 + Math.random() * 20,
+          (Math.random() - 0.5) * 50
+        );
+      }
+
+      const geometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+      const hue = Math.random();
+      const color = new THREE.Color().setHSL(hue, 1.0, 0.5);
+      const material = new THREE.MeshPhysicalMaterial({
+        color: color,
+        metalness: 1.0,
+        roughness: 0.05,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.0,
+        emissive: color,
+        emissiveIntensity: 3.0,
+        envMapIntensity: 1.6
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(position);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      const shape = new CANNON.Box(new CANNON.Vec3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2));
+      const cubeMaterial = new CANNON.Material({ friction: 0.5, restitution: 0.4 });
+      const body = new CANNON.Body({ mass: 1.5, material: cubeMaterial });
+      body.addShape(shape);
+      body.position.copy(position);
+      body.linearDamping = 0.25;
+      body.angularDamping = 0.3;
+      world.addBody(body);
+
+      const cube = { mesh, body, connections: [] };
+      cubes.push(cube);
+      updateStatusBar();
+      return cube;
+    }
+
+    function addRandomCube(count = 1) {
+      const actualCount = Math.min(count, 10);
+      for (let i = 0; i < actualCount; i++) {
+        setTimeout(() => createCube(), i * 120);
+      }
+    }
+
+    function hasConnection(c1, c2) {
+      return connections.some(conn => 
+        (conn.cube1 === c1 && conn.cube2 === c2) ||
+        (conn.cube1 === c2 && conn.cube2 === c1)
+      );
+    }
+
+    function createConnection(c1, c2) {
+      if (hasConnection(c1, c2)) return;
+
+      const constraint = new CANNON.PointToPointConstraint(
+        c1.body, new CANNON.Vec3(0, 0, 0), 
+        c2.body, new CANNON.Vec3(0, 0, 0),
+        5
+      );
+      world.addConstraint(constraint);
+
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([c1.mesh.position, c2.mesh.position]),
+        new THREE.LineBasicMaterial({ 
+          color: 0x00ff88, 
+          transparent: true, 
+          opacity: 0.8,
+          linewidth: 2
+        })
+      );
+      scene.add(line);
+
+      const connection = { cube1: c1, cube2: c2, constraint, line };
+      connections.push(connection);
+      c1.connections.push(connection);
+      c2.connections.push(connection);
+
+      // Snap glow effect
+      const mid = new THREE.Vector3().addVectors(c1.mesh.position, c2.mesh.position).multiplyScalar(0.5);
+      const glow = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 16, 16), 
+        new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 1 })
+      );
+      glow.position.copy(mid);
+      scene.add(glow);
+      gsap.to(glow.scale, { x: 7, y: 7, z: 7, duration: 0.5, ease: "power2.out" });
+      gsap.to(glow.material, { opacity: 0, duration: 0.6, onComplete: () => scene.remove(glow) });
+    }
+
+    function breakConnection(conn) {
+      if (!conn) return;
+      world.removeConstraint(conn.constraint);
+      scene.remove(conn.line);
+      conn.cube1.connections = conn.cube1.connections.filter(c => c !== conn);
+      conn.cube2.connections = conn.cube2.connections.filter(c => c !== conn);
+      connections = connections.filter(c => c !== conn);
+    }
+
+    function updateConnectionLines() {
+      connections.forEach(conn => {
+        const pos = conn.line.geometry.attributes.position;
+        pos.array[0] = conn.cube1.mesh.position.x;
+        pos.array[1] = conn.cube1.mesh.position.y;
+        pos.array[2] = conn.cube1.mesh.position.z;
+        pos.array[3] = conn.cube2.mesh.position.x;
+        pos.array[4] = conn.cube2.mesh.position.y;
+        pos.array[5] = conn.cube2.mesh.position.z;
+        pos.needsUpdate = true;
+      });
+    }
+
+    function enforceBoundaries() {
+      cubes.forEach(cube => {
+        const pos = cube.body.position;
+        let needsCorrection = false;
+        
+        if (Math.abs(pos.x) > BOUNDARY_LIMIT) {
+          pos.x = Math.sign(pos.x) * BOUNDARY_LIMIT;
+          cube.body.velocity.x *= -0.5;
+          needsCorrection = true;
+        }
+        if (Math.abs(pos.z) > BOUNDARY_LIMIT) {
+          pos.z = Math.sign(pos.z) * BOUNDARY_LIMIT;
+          cube.body.velocity.z *= -0.5;
+          needsCorrection = true;
+        }
+        if (pos.y < -8) {
+          pos.y = -8;
+          cube.body.velocity.y = Math.abs(cube.body.velocity.y) * 0.3;
+          needsCorrection = true;
+        }
+        
+        if (needsCorrection) {
+          cube.body.wakeUp();
+        }
+      });
+    }
+
+    function getIntersects(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      return raycaster.intersectObjects(cubes.map(c => c.mesh));
+    }
+
+    function getPlaneIntersection(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const intersect = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(plane, intersect)) return intersect;
+      return null;
+    }
+
+    function updateMagneticIndicator(cube) {
+      const el = document.getElementById('magneticIndicator');
+      if (cube && magneticMode) {
+        const vec = cube.mesh.position.clone().project(camera);
+        const x = (vec.x * 0.5 + 0.5) * window.innerWidth;
+        const y = (vec.y * -0.5 + 0.5) * window.innerHeight;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.width = '80px';
+        el.style.height = '80px';
+        el.style.marginLeft = '-40px';
+        el.style.marginTop = '-40px';
+        el.style.opacity = '0.8';
+      } else {
+        el.style.opacity = '0';
+      }
+    }
+
+    function showContextMenu(x, y) {
+      const menu = document.getElementById('context-menu');
+      menu.innerHTML = `
+        <div class="context-menu-item" data-action="magnetic">
+          🧲 Magnetic Mode: <strong>${magneticMode ? 'ON' : 'OFF'}</strong>
+        </div>
+        <div class="context-menu-item" data-action="force">
+          ⚡ Force Push: <strong>${forcePushMode ? 'JEDI' : 'Normal'}</strong>
+        </div>
+        <div class="context-menu-item danger" data-action="clear">
+          🗑️ Clear All Blocks
+        </div>
+      `;
+      menu.style.display = 'block';
+      menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
+      menu.style.top = `${Math.min(y, window.innerHeight - 150)}px`;
+
+      setTimeout(() => {
+        document.addEventListener('click', hideContextMenu);
+      }, 0);
+    }
+
+    function hideContextMenu() {
+      const menu = document.getElementById('context-menu');
+      menu.style.display = 'none';
+      document.removeEventListener('click', hideContextMenu);
+    }
+
+    function setupEventListeners() {
+      const canvas = document.getElementById('canvas');
+      const menu = document.getElementById('context-menu');
+
+      menu.addEventListener('click', (e) => {
+        const item = e.target.closest('.context-menu-item');
+        if (!item) return;
+        
+        const action = item.dataset.action;
+        if (action === 'magnetic') {
+          magneticMode = !magneticMode;
+          if (!magneticMode) {
+            connections.slice().forEach(c => breakConnection(c));
+          }
+        } else if (action === 'force') {
+          forcePushMode = !forcePushMode;
+        } else if (action === 'clear') {
+          if (confirm('Clear all blocks? This cannot be undone.')) {
+            cubes.forEach(c => {
+              scene.remove(c.mesh);
+              world.removeBody(c.body);
+            });
+            connections.forEach(c => {
+              scene.remove(c.line);
+              world.removeConstraint(c.constraint);
+            });
+            cubes = [];
+            connections = [];
+          }
+        }
+        updateStatusBar();
+        hideContextMenu();
+      });
+
+      canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 2) { 
+          isRotating = true; 
+          previousMousePosition = { x: e.clientX, y: e.clientY }; 
+          canvas.style.cursor = 'grabbing';
+          return; 
+        }
+        const intersects = getIntersects(e);
+        if (intersects.length > 0) {
+          draggedCube = cubes.find(c => c.mesh === intersects[0].object);
+          isDragging = true;
+          canvas.classList.add('grabbing');
+        }
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (isRotating) {
+          const dx = e.clientX - previousMousePosition.x;
+          const dy = e.clientY - previousMousePosition.y;
+          Rig.targetPivot.x -= dx * 0.12;
+          Rig.targetPivot.z -= dy * 0.12;
+          Rig.targetPivot.x = THREE.MathUtils.clamp(Rig.targetPivot.x, -MAX_PIVOT, MAX_PIVOT);
+          Rig.targetPivot.z = THREE.MathUtils.clamp(Rig.targetPivot.z, -MAX_PIVOT, MAX_PIVOT);
+          previousMousePosition = { x: e.clientX, y: e.clientY };
+          return;
         }
 
-        // Input: Zoom Past Thresholds
-        window.addEventListener('wheel', (e) => {
-            Rig.targetZoom += e.deltaY * 0.001;
-            Rig.targetZoom = Math.max(-0.2, Math.min(1.2, Rig.targetZoom)); // 20% over-extension
-        });
+        if (isDragging && draggedCube) {
+          const planeIntersect = getPlaneIntersection(e);
+          if (planeIntersect) {
+            const forceVec = planeIntersect.clone().sub(draggedCube.mesh.position).multiplyScalar(50);
+            draggedCube.body.applyForce(new CANNON.Vec3(forceVec.x, forceVec.y, forceVec.z), draggedCube.body.position);
+            draggedCube.body.wakeUp();
+          }
+          return;
+        }
 
-        // Input: Move Mode (SHIFT)
-        const keys = {};
-        window.addEventListener('keydown', (e) => {
-            keys[e.key] = true;
-            if (e.key === 'Shift') {
-                Rig.mode = 'birdsEye';
-                document.getElementById('modeTag').classList.add('active');
+        const intersects = getIntersects(e);
+        if (intersects.length > 0) {
+          hoveredCube = cubes.find(c => c.mesh === intersects[0].object);
+          canvas.classList.add('hovering');
+        } else {
+          hoveredCube = null;
+          canvas.classList.remove('hovering');
+        }
+        updateMagneticIndicator(hoveredCube);
+      });
+
+      canvas.addEventListener('mouseup', () => {
+        isDragging = false;
+        isRotating = false;
+        draggedCube = null;
+        canvas.classList.remove('grabbing');
+        canvas.style.cursor = 'grab';
+      });
+
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        Rig.targetZoom += e.deltaY * 0.002;
+        Rig.targetZoom = Math.max(-0.5, Math.min(1.6, Rig.targetZoom));
+      }, { passive: false });
+
+      canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const intersects = getIntersects(e);
+        if (intersects.length > 0) {
+          const cube = cubes.find(c => c.mesh === intersects[0].object);
+          const normal = intersects[0].face.normal.clone();
+          normal.transformDirection(cube.mesh.matrixWorld);
+          const strength = forcePushMode ? 85 : 12;
+          const impulse = new CANNON.Vec3(normal.x, normal.y, normal.z).scale(strength);
+          cube.body.applyImpulse(impulse, cube.body.position);
+          cube.body.wakeUp();
+        } else {
+          showContextMenu(e.clientX, e.clientY);
+        }
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift' && !isShiftPressed) {
+          isShiftPressed = true;
+          gsap.to(currentCamConfig, { ...groundCamConfig, duration: 0.7, ease: "power2.out" });
+        }
+        if (e.key === 'm' || e.key === 'M') {
+          magneticMode = !magneticMode;
+          if (!magneticMode) {
+            connections.slice().forEach(c => breakConnection(c));
+          }
+          updateStatusBar();
+        }
+        if (e.key === 'f' || e.key === 'F') {
+          forcePushMode = !forcePushMode;
+          updateStatusBar();
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        if (e.key === 'Shift' && isShiftPressed) {
+          isShiftPressed = false;
+          gsap.to(currentCamConfig, { 
+            y: 62, 
+            z: 0.001, 
+            rotX: -Math.PI / 2 + 0.0001, 
+            duration: 0.8, 
+            ease: "power2.inOut" 
+          });
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Touch support
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          const touch = e.touches[0];
+          const fakeEvent = { clientX: touch.clientX, clientY: touch.clientY, button: 0 };
+          canvas.dispatchEvent(new MouseEvent('mousedown', fakeEvent));
+        }
+      }, { passive: true });
+
+      canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1) {
+          const touch = e.touches[0];
+          const fakeEvent = { clientX: touch.clientX, clientY: touch.clientY };
+          canvas.dispatchEvent(new MouseEvent('mousemove', fakeEvent));
+        }
+      }, { passive: true });
+
+      canvas.addEventListener('touchend', () => {
+        canvas.dispatchEvent(new MouseEvent('mouseup', {}));
+      }, { passive: true });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      world.step(1/60);
+
+      cubes.forEach(cube => {
+        cube.mesh.position.copy(cube.body.position);
+        cube.mesh.quaternion.copy(cube.body.quaternion);
+      });
+
+      enforceBoundaries();
+      updateConnectionLines();
+
+      if (magneticMode) {
+        for (let i = 0; i < cubes.length - 1; i++) {
+          for (let j = i + 1; j < cubes.length; j++) {
+            const a = cubes[i], b = cubes[j];
+            const dist = a.mesh.position.distanceTo(b.mesh.position);
+            
+            if (dist < MAGNETIC_RANGE && !hasConnection(a, b)) {
+              createConnection(a, b);
             }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            keys[e.key] = false;
-            if (e.key === 'Shift') {
-                Rig.mode = 'standard';
-                document.getElementById('modeTag').classList.remove('active');
+            
+            if (dist > BREAK_THRESHOLD) {
+              const conn = connections.find(c => 
+                (c.cube1 === a && c.cube2 === b) || (c.cube1 === b && c.cube2 === a)
+              );
+              if (conn) breakConnection(conn);
             }
-        });
+          }
+        }
+      }
 
-        // Navigation Physics (Magnetic Pull)
-        setInterval(() => {
-            const speed = 0.5;
-            if (keys['ArrowUp']) Rig.targetPivot.z -= speed;
-            if (keys['ArrowDown']) Rig.targetPivot.z += speed;
-            if (keys['ArrowLeft']) Rig.targetPivot.x -= speed;
-            if (keys['ArrowRight']) Rig.targetPivot.x += speed;
-        }, 16);
+      Rig.pivot.lerp(Rig.targetPivot, 0.18);
+      Rig.zoom += (Rig.targetZoom - Rig.zoom) * 0.18;
 
-        // REFACTOR: Grid click spawn REMOVED.
-        // Hover raycasting logic would insert here as preserved code.
+      let y = currentCamConfig.y;
+      let z = currentCamConfig.z;
+      const zoomFactor = 0.5 + Rig.zoom * 0.9;
+      y *= zoomFactor;
+      z *= zoomFactor;
 
-        update();
-    </script>
+      camera.position.set(Rig.pivot.x, Rig.pivot.y + y, Rig.pivot.z + z);
+      camera.rotation.x = currentCamConfig.rotX;
+      camera.lookAt(Rig.pivot);
+
+      renderer.render(scene, camera);
+    }
+
+    init();
+  </script>
 </body>
 </html>
