@@ -19,6 +19,8 @@
       --grid-minor: #002222;
       --accent: #00ff88;
       --glass: rgba(10,10,20,0.7);
+      --pink: #00ff88;
+      --neon-blue: #00ffff;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -94,7 +96,7 @@
 
     #fab {
       position: fixed;
-      bottom: 32px;
+      top: 32px;
       right: 32px;
       width: 68px;
       height: 68px;
@@ -160,6 +162,65 @@
     }
     .context-menu-item:hover { background: rgba(80, 80, 140, 0.5); }
     .context-menu-item.danger:hover { background: rgba(200, 50, 50, 0.4); color: #ff6b6b; }
+
+    /* --- FAB / Joystick (Centered) --- */
+    .fab-zone {
+      position: fixed;
+      bottom: 5.55em;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 80px;
+      z-index: 200;
+      cursor: grab;
+      perspective: 600px;
+    }
+    .fab-zone:active { cursor: grabbing; }
+
+    .fab-cube {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transform: rotateX(-25deg) rotateY(-45deg);
+      pointer-events: none;
+      transition: transform 0.1s;
+    }
+    .f-face {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: rgba(0, 255, 136, 0.15); /* Glassy Green */
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 15px var(--accent), inset 0 0 10px var(--accent);
+      left: 20px;
+      top: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #fff;
+      backface-visibility: visible;
+    }
+    /* Cube construction */
+    .f-face:nth-child(1) { transform: rotateY(0deg) translateZ(20px); }
+    .f-face:nth-child(2) { transform: rotateY(90deg) translateZ(20px); }
+    .f-face:nth-child(3) { transform: rotateY(180deg) translateZ(20px); }
+    .f-face:nth-child(4) { transform: rotateY(-90deg) translateZ(20px); }
+    .f-face:nth-child(5) { transform: rotateX(90deg) translateZ(20px); background: rgba(0, 255, 136, 0.3); }
+    .f-face:nth-child(6) { transform: rotateX(-90deg) translateZ(20px); }
+
+    .fab-hint {
+      position: absolute;
+      bottom: -16px;
+      width: 100%;
+      text-align: center;
+      font-size: 9px;
+      color: rgba(255,255,255,0.5);
+      pointer-events: none;
+    }
+
+    body.fab-active #fab, body.fab-active #statusBar { pointer-events: none; opacity: 0.5; }
   </style>
 </head>
 <body>
@@ -183,6 +244,18 @@
     </div>
   </div>
   <div id="context-menu" class="context-menu"></div>
+
+  <div class="fab-zone" id="joystick">
+    <div class="fab-cube" id="joy-cube">
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+    </div>
+    <div class="fab-hint">NAV</div>
+  </div>
 
   <script>
     let scene, camera, renderer, world;
@@ -216,6 +289,8 @@
       z: 0.001,
       rotX: -Math.PI / 2 + 0.0001
     };
+
+    const initialCamConfig = {...currentCamConfig};
 
     const groundCamConfig = {
       y: 9.5,
@@ -428,6 +503,20 @@
       }
     }
 
+    function repositionCubes() {
+      cubes.forEach(cube => {
+        const position = new THREE.Vector3(
+          (Math.random() - 0.5) * 50,
+          25 + Math.random() * 20,
+          (Math.random() - 0.5) * 50
+        );
+        cube.body.position.copy(position);
+        cube.body.velocity.set(0,0,0);
+        cube.body.angularVelocity.set(0,0,0);
+        cube.mesh.position.copy(position);
+      });
+    }
+
     function hasConnection(c1, c2) {
       return connections.some(conn => 
         (conn.cube1 === c1 && conn.cube2 === c2) ||
@@ -566,6 +655,15 @@
         <div class="context-menu-item" data-action="force">
           ⚡ Force Push: <strong>${forcePushMode ? 'JEDI' : 'Normal'}</strong>
         </div>
+        <div class="context-menu-item" data-action="resetView">
+          🔄 Reset View
+        </div>
+        <div class="context-menu-item" data-action="reposition">
+          📍 Reposition Blocks
+        </div>
+        <div class="context-menu-item" data-action="refocus">
+          🎯 Refocus Center
+        </div>
         <div class="context-menu-item danger" data-action="clear">
           🗑️ Clear All Blocks
         </div>
@@ -585,6 +683,22 @@
       document.removeEventListener('click', hideContextMenu);
     }
 
+    function resetView() {
+      Rig.targetPivot.set(0, 0, 0);
+      Rig.targetZoom = 0;
+      gsap.to(currentCamConfig, { 
+        y: initialCamConfig.y, 
+        z: initialCamConfig.z, 
+        rotX: initialCamConfig.rotX, 
+        duration: 0.8, 
+        ease: "power2.inOut" 
+      });
+    }
+
+    function refocusCenter() {
+      Rig.targetPivot.set(0, 0, 0);
+    }
+
     function setupEventListeners() {
       const canvas = document.getElementById('canvas');
       const menu = document.getElementById('context-menu');
@@ -601,6 +715,12 @@
           }
         } else if (action === 'force') {
           forcePushMode = !forcePushMode;
+        } else if (action === 'resetView') {
+          resetView();
+        } else if (action === 'reposition') {
+          repositionCubes();
+        } else if (action === 'refocus') {
+          refocusCenter();
         } else if (action === 'clear') {
           if (confirm('Clear all blocks? This cannot be undone.')) {
             cubes.forEach(c => {
@@ -801,6 +921,56 @@
       canvas.addEventListener('touchend', () => {
         canvas.dispatchEvent(new MouseEvent('mouseup', {}));
       }, { passive: true });
+
+      // FAB joystick setup
+      const joy = { el: document.getElementById('joy-cube'), zone: document.getElementById('joystick'), active: false, start: {x:0, y:0} };
+
+      function handleJoy(x, y) {
+        const max = 40;
+        let dx = x - joy.start.x, dy = y - joy.start.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if(dist > max) { const r = max/dist; dx*=r; dy*=r; }
+
+        joy.el.style.transform = `rotateX(${-25 + (dy/max*45)}deg) rotateY(${-45 + (dx/max*45)}deg)`;
+        
+        const speed = 0.8;
+        if (isShiftPressed && hoveredCube) {
+          hoveredCube.body.position.y += dy / max * speed;
+          hoveredCube.body.position.z += dx / max * speed;
+          hoveredCube.body.wakeUp();
+        } else {
+          Rig.targetPivot.x += dx / max * speed;
+          Rig.targetPivot.z += dy / max * speed;
+        }
+      }
+
+      function startJoy(x, y) {
+        joy.active = true; joy.start = {x, y};
+        joy.el.style.transition = 'none';
+        document.body.classList.add('fab-active'); 
+      }
+
+      function endJoy() {
+        joy.active = false;
+        joy.el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        joy.el.style.transform = `rotateX(-25deg) rotateY(-45deg)`;
+        document.body.classList.remove('fab-active');
+      }
+
+      joy.zone.addEventListener('mousedown', e => { startJoy(e.clientX, e.clientY); e.stopPropagation(); });
+      joy.zone.addEventListener('touchstart', e => { if (e.touches.length > 0) startJoy(e.touches[0].clientX, e.touches[0].clientY); e.stopPropagation(); });
+      
+      window.addEventListener('mousemove', e => { if(joy.active) handleJoy(e.clientX, e.clientY); });
+      window.addEventListener('touchmove', e => { if(joy.active && e.touches.length === 1) handleJoy(e.touches[0].clientX, e.touches[0].clientY); });
+      
+      window.addEventListener('mouseup', endJoy);
+      window.addEventListener('touchend', endJoy);
+
+      // Right-click on FAB to open context menu
+      joy.zone.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showContextMenu(e.clientX, e.clientY);
+      });
     }
 
     function updateLabels() {
