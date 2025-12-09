@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>3D Kanban Board</title>
+
+  <!-- Inter: modern, sleek typeface -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.babylonjs.com/cannon.js"></script>
+
+  <style>
+    :root {
+      --bg: #000000;
+      --grid-major: #004444;
+      --grid-minor: #002222;
+      --accent: #00ff88;
+      --glass: rgba(10,10,20,0.7);
+      --pink: #00ff88;
+      --neon-blue: #00ffff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      overflow: hidden;
+      background: var(--bg);
+      touch-action: none;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #eee;
+    }
+    #canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: grab;
+    }
+    #canvas.grabbing { cursor: grabbing; }
+    #canvas.hovering { cursor: pointer; }
+
+    #ui-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 300;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    /* Label styles */
+    .block-label {
+      position: absolute;
+      transform: translate(-50%, -100%) translateZ(0);
+      pointer-events: none;
+      white-space: nowrap;
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(12,12,20,0.85), rgba(8,8,14,0.75));
+      border: 1px solid rgba(0,255,136,0.08);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.6), 0 0 18px rgba(0,255,136,0.06) inset;
+      color: #eafff3;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.2px;
+      backdrop-filter: blur(6px) saturate(1.1);
+      opacity: 0;
+      transform-origin: 50% 100%;
+      will-change: transform, opacity, left, top;
+      transition: transform 0.18s cubic-bezier(.2,.9,.2,1), opacity 0.18s ease;
+    }
+
+    .block-label .sub {
+      display: block;
+      font-weight: 400;
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+
+    /* larger label when active */
+    .block-label.active {
+      transform: translate(-50%, -110%) scale(1.05);
+      opacity: 1;
+    }
+
+    #magneticIndicator {
+      position: fixed;
+      pointer-events: none;
+      z-index: 200;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ffcc00 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      mix-blend-mode: screen;
+    }
+
+    #context-menu {
+      position: absolute;
+      background: rgba(10, 10, 20, 0.98);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(80, 80, 100, 0.4);
+      border-radius: 14px;
+      padding: 8px 0;
+      min-width: 220px;
+      z-index: 200;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.9);
+      font-size: 15px;
+      color: #eee;
+      display: none;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+    }
+    .context-menu-item {
+      padding: 14px 24px;
+      cursor: pointer;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .context-menu-item:hover { background: rgba(80, 80, 140, 0.5); }
+    .context-menu-item.danger:hover { background: rgba(200, 50, 50, 0.4); color: #ff6b6b; }
+
+    /* --- FAB / Joystick (Centered) --- */
+    .fab-zone {
+      position: fixed;
+      bottom: 5.55em;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 80px;
+      z-index: 200;
+      cursor: grab;
+      perspective: 600px;
+    }
+    .fab-zone:active { cursor: grabbing; }
+
+    .fab-cube {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transform: rotateX(-25deg) rotateY(-45deg);
+      pointer-events: none;
+      transition: transform 0.1s;
+    }
+    .f-face {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: rgba(0, 255, 136, 0.15); /* Glassy Green */
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 15px var(--accent), inset 0 0 10px var(--accent);
+      left: 20px;
+      top: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #fff;
+      backface-visibility: visible;
+    }
+    /* Cube construction */
+    .f-face:nth-child(1) { transform: rotateY(0deg) translateZ(20px); }
+    .f-face:nth-child(2) { transform: rotateY(90deg) translateZ(20px); }
+    .f-face:nth-child(3) { transform: rotateY(180deg) translateZ(20px); }
+    .f-face:nth-child(4) { transform: rotateY(-90deg) translateZ(20px); }
+    .f-face:nth-child(5) { transform: rotateX(90deg) translateZ(20px); background: rgba(0, 255, 136, 0.3); }
+    .f-face:nth-child(6) { transform: rotateX(-90deg) translateZ(20px); }
+
+    .fab-hint {
+      position: absolute;
+      bottom: -16px;
+      width: 100%;
+      text-align: center;
+      font-size: 9px;
+      color: rgba(255,255,255,0.5);
+      pointer-events: none;
+    }
+
+    body.fab-active #fab, body.fab-active #statusBar { pointer-events: none; opacity: 0.5; }
+  </style>
+</head>
+<body>
+  
+  <canvas id="canvas"></canvas>
+  <div id="ui-overlay"></div>
+  <div id="magneticIndicator"></div>
+  <div id="context-menu" class="context-menu"></div>
+
+  <div class="fab-zone" id="joystick">
+    <div class="fab-cube" id="joy-cube">
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+      <div class="f-face"></div>
+    </div>
+    <div class="fab-hint">ADD</div>
+  </div>
+
+  <script>
+    let scene, camera, renderer, world;
+    let raycaster = new THREE.Raycaster();
+    let mouse = new THREE.Vector2();
+    let cards = [];
+    let draggedCard = null;
+    let hoveredCard = null;
+    let isDragging = false;
+    let isRotating = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let labelIdCounter = 0;
+    let panning = false;
+    let panStart = {x:0, y:0};
+    let scatter = {transform: {x:0, y:0, scale:1}};
+
+    const CUBE_SIZE = 2;
+    const MAX_PIVOT = 80;
+    const BOUNDARY_LIMIT = 90;
+
+    const Rig = {
+      pivot: new THREE.Vector3(0, 0, 0),
+      targetPivot: new THREE.Vector3(0, 0, 0),
+      zoom: 0,
+      targetZoom: 0
+    };
+
+    let currentCamConfig = {
+      y: 62,
+      z: 0.001,
+      rotX: -Math.PI / 2 + 0.0001
+    };
+
+    const initialCamConfig = {...currentCamConfig};
+
+    const groundCamConfig = {
+      y: 9.5,
+      z: 27,
+      rotX: -0.43
+    };
+
+    let isShiftPressed = false;
+
+    const QUADRANTS = {
+      backlog: {minX: -110, maxX: 0, minZ: 0, maxZ: 110, labelPos: new THREE.Vector3(-55, -9.9, 55)},    // Top-left
+      todo: {minX: 0, maxX: 110, minZ: 0, maxZ: 110, labelPos: new THREE.Vector3(55, -9.9, 55)},       // Top-right
+      inprogress: {minX: -110, maxX: 0, minZ: -110, maxZ: 0, labelPos: new THREE.Vector3(-55, -9.9, -55)}, // Bottom-left
+      done: {minX: 0, maxX: 110, minZ: -110, maxZ: 0, labelPos: new THREE.Vector3(55, -9.9, -55)}        // Bottom-right
+    };
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+      scene.fog = new THREE.FogExp2(0x000000, 0.009);
+
+      camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+      const canvas = document.getElementById('canvas');
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      world = new CANNON.World();
+      world.gravity.set(0, -125, 0);
+      world.broadphase = new CANNON.NaiveBroadphase();
+      world.solver.iterations = 15;
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+      dirLight.position.set(15, 40, 15);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      scene.add(dirLight);
+
+      // Neon point lights for quadrants
+      const quadrantLights = {
+        backlog: new THREE.PointLight(0xff0000, 2, 100),  // Red for backlog
+        todo: new THREE.PointLight(0xffff00, 2, 100),     // Yellow for todo
+        inprogress: new THREE.PointLight(0x00ffff, 2, 100), // Cyan for inprogress
+        done: new THREE.PointLight(0x00ff00, 2, 100)      // Green for done
+      };
+      quadrantLights.backlog.position.set(-55, 20, 55);
+      quadrantLights.todo.position.set(55, 20, 55);
+      quadrantLights.inprogress.position.set(-55, 20, -55);
+      quadrantLights.done.position.set(55, 20, -55);
+      Object.values(quadrantLights).forEach(light => scene.add(light));
+
+      // Ground
+      const groundGeo = new THREE.PlaneGeometry(220, 220);
+      const groundMat = new THREE.MeshStandardMaterial({ 
+        color: 0x0f0f1f, 
+        roughness: 0.85, 
+        metalness: 0.95,
+        envMapIntensity: 1.3
+      });
+      const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.y = -10;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      const groundShape = new CANNON.Plane();
+      const groundBody = new CANNON.Body({ mass: 0, material: new CANNON.Material({ friction: 2.0, restitution: 1.0 }) });
+      groundBody.addShape(groundShape);
+      groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI / 2);
+      groundBody.position.y = -10;
+      world.addBody(groundBody);
+
+      // Containment walls
+      const WALL_THICKNESS = 8;
+      const WALL_HEIGHT = 80;
+      const halfThickness = WALL_THICKNESS / 2;
+      const halfHeight = WALL_HEIGHT / 2;
+      const wallY = -10 + halfHeight;
+      const wallDistance = BOUNDARY_LIMIT + halfThickness;
+      const wallSpanHalf = BOUNDARY_LIMIT + 20;
+
+      const wallMaterial = new CANNON.Material({ friction: 0.3, restitution: 0.5 });
+
+      // North / South walls
+      const nsShape = new CANNON.Box(new CANNON.Vec3(wallSpanHalf, halfHeight, halfThickness));
+      let wallBody = new CANNON.Body({mass: 0, material: wallMaterial});
+      wallBody.addShape(nsShape);
+      wallBody.position.set(0, wallY, wallDistance);
+      world.addBody(wallBody);
+
+      wallBody = new CANNON.Body({mass: 0, material: wallMaterial});
+      wallBody.addShape(nsShape);
+      wallBody.position.set(0, wallY, -wallDistance);
+      world.addBody(wallBody);
+
+      // East / West walls
+      const ewShape = new CANNON.Box(new CANNON.Vec3(halfThickness, halfHeight, wallSpanHalf));
+      wallBody = new CANNON.Body({mass: 0, material: wallMaterial});
+      wallBody.addShape(ewShape);
+      wallBody.position.set(wallDistance, wallY, 0);
+      world.addBody(wallBody);
+
+      wallBody = new CANNON.Body({mass: 0, material: wallMaterial});
+      wallBody.addShape(ewShape);
+      wallBody.position.set(-wallDistance, wallY, 0);
+      world.addBody(wallBody);
+
+      // Grid
+      const grid = new THREE.GridHelper(220, 110, 0x004444, 0x002222);
+      grid.position.y = -9.98;
+      scene.add(grid);
+
+      // Add quadrant labels (2D for simplicity)
+      for (let status in QUADRANTS) {
+        const labelEl = document.createElement('div');
+        labelEl.className = 'block-label';
+        labelEl.innerHTML = status.toUpperCase();
+        labelEl.style.fontSize = '20px';
+        labelEl.style.opacity = '0.5';
+        document.getElementById('ui-overlay').appendChild(labelEl);
+        QUADRANTS[status].labelEl = labelEl;
+      }
+
+      raycaster = new THREE.Raycaster();
+
+      setupEventListeners();
+      setupBottomNav();
+
+      load();
+      cards.forEach(createCardCube);
+
+      animate();
+    }
+
+    // Clamp helper
+    Math.clamp = function(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    };
+
+    // Data Persistence
+    function load() {
+      const storedCards = localStorage.getItem('kanbanCards');
+      if (storedCards) cards = JSON.parse(storedCards);
+    }
+
+    function save() {
+      localStorage.setItem('kanbanCards', JSON.stringify(cards));
+    }
+
+    // Create Card Cube
+    function createCardCube(cardData) {
+      const geometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+      const hue = Math.random();
+      const color = new THREE.Color().setHSL(hue, 1.0, 0.5);
+      const material = new THREE.MeshPhysicalMaterial({
+        color: color,
+        metalness: 1.0,
+        roughness: 0.05,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.0,
+        emissive: color,
+        emissiveIntensity: 3.0,
+        envMapIntensity: 1.6
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      const shape = new CANNON.Box(new CANNON.Vec3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2));
+      const cubeMaterial = new CANNON.Material({ friction: 3.33, restitution: 0.999 });
+      const body = new CANNON.Body({ mass: 2.222, material: cubeMaterial });
+      body.addShape(shape);
+      body.linearDamping = 0.555;
+      body.angularDamping = 0.999;
+      world.addBody(body);
+
+      // Position in quadrant
+      const quad = QUADRANTS[cardData.status];
+      body.position.set(
+        Math.random() * (quad.maxX - quad.minX) + quad.minX,
+        CUBE_SIZE / 2,
+        Math.random() * (quad.maxZ - quad.minZ) + quad.minZ
+      );
+
+      // Label
+      const labelEl = createLabelElement(cardData.title || 'Untitled', cardData.desc || '');
+      cardData.mesh.userData.labelEl = labelEl;
+
+      cardData.mesh = mesh;
+      cardData.body = body;
+      cardData.labelEl = labelEl;
+    }
+
+    function createLabelElement(mainText, subText) {
+      const container = document.getElementById('ui-overlay');
+      const el = document.createElement('div');
+      el.className = 'block-label';
+      el.innerHTML = `<div class="main">${mainText}</div><div class="sub">${subText}</div>`;
+      container.appendChild(el);
+      return el;
+    }
+
+    // Add New Card (FAB handler)
+    function addNewCard() {
+      const category = prompt('Select category: backlog, todo, inprogress, done');
+      if (!['backlog', 'todo', 'inprogress', 'done'].includes(category)) return;
+      const title = prompt('Title:');
+      const desc = prompt('Description:');
+      const newCard = {id: Date.now(), title, desc, status: category, lastUpdated: Date.now()};
+      cards.push(newCard);
+      createCardCube(newCard);
+      newCard.body.position.y = 50; // Drop from above
+      save();
+    }
+
+    // Drag Handlers
+    function handleDragStart(e) {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(cards.map(c => c.mesh));
+      if (intersects.length > 0) {
+        draggedCard = cards.find(c => c.mesh === intersects[0].object);
+        isDragging = true;
+        canvas.classList.add('grabbing');
+      }
+    }
+
+    function handleDragMove(e) {
+      if (isDragging && draggedCard) {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -9.98); // Ground plane
+        const intersection = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, intersection);
+
+        if (intersection) {
+          const forceVec = intersection.clone().sub(draggedCard.mesh.position).multiplyScalar(50);
+          draggedCard.body.applyForce(new CANNON.Vec3(forceVec.x, forceVec.y, forceVec.z), draggedCard.body.position);
+          draggedCard.body.wakeUp();
+        }
+      }
+    }
+
+    function handleDragEnd() {
+      if (isDragging && draggedCard) {
+        isDragging = false;
+        const newStatus = getStatusFromPosition(draggedCard.body.position);
+        draggedCard.status = newStatus;
+        enforceQuadrantBoundaries(draggedCard);
+        save();
+      }
+      draggedCard = null;
+      canvas.classList.remove('grabbing');
+    }
+
+    function getStatusFromPosition(pos) {
+      for (let status in QUADRANTS) {
+        const q = QUADRANTS[status];
+        if (pos.x >= q.minX && pos.x <= q.maxX && pos.z >= q.minZ && pos.z <= q.maxZ) return status;
+      }
+      return 'backlog';
+    }
+
+    function enforceQuadrantBoundaries(card) {
+      const q = QUADRANTS[card.status];
+      card.body.position.x = Math.clamp(card.body.position.x, q.minX, q.maxX);
+      card.body.position.z = Math.clamp(card.body.position.z, q.minZ, q.maxZ);
+    }
+
+    // Status Visuals
+    function applyStatusVisuals(card) {
+      const elevations = {backlog: 1, todo: 5, inprogress: 10, done: 15};
+      const pulseSpeed = (card.status === 'inprogress') ? 500 : 1000;
+      card.body.position.y = elevations[card.status] + Math.sin(Date.now() / pulseSpeed) * 0.5;
+      card.mesh.material.emissiveIntensity = (card.status === 'inprogress') ? 5.0 : 1.0;
+      if (hoveredCard === card) {
+        card.labelEl.classList.add('active');
+        card.labelEl.style.opacity = 1;
+        card.labelEl.querySelector('.main').textContent = card.title || 'Untitled';
+        card.labelEl.querySelector('.sub').textContent = card.desc || '';
+      } else {
+        card.labelEl.classList.remove('active');
+        card.labelEl.style.opacity = 0;
+      }
+    }
+
+    // Zoom for Details
+    function handleDoubleClick(e) {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(cards.map(c => c.mesh));
+      if (intersects.length > 0) {
+        const card = cards.find(c => c.mesh === intersects[0].object);
+        zoomToCard(card);
+      }
+    }
+
+    function zoomToCard(card) {
+      gsap.to(camera.position, {x: card.body.position.x, y: 10, z: card.body.position.z + 5, duration: 0.5, onUpdate: () => camera.lookAt(card.body.position)});
+      // Add 3D text for details
+      const loader = new THREE.FontLoader();
+      loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function(font) {
+        const titleGeo = new THREE.TextGeometry(card.title || 'Untitled', {font, size: 1, height: 0.2});
+        const titleMat = new THREE.MeshBasicMaterial({color: 0xffffff});
+        const titleMesh = new THREE.Mesh(titleGeo, titleMat);
+        titleMesh.position.copy(card.mesh.position).add(new THREE.Vector3(-2, CUBE_SIZE + 1, 0));
+        scene.add(titleMesh);
+
+        const descGeo = new THREE.TextGeometry(card.desc || '', {font, size: 0.5, height: 0.1});
+        const descMat = new THREE.MeshBasicMaterial({color: 0xffffff});
+        const descMesh = new THREE.Mesh(descGeo, descMat);
+        descMesh.position.copy(card.mesh.position).add(new THREE.Vector3(-2, CUBE_SIZE, 0));
+        scene.add(descMesh);
+
+        setTimeout(() => { scene.remove(titleMesh); scene.remove(descMesh); resetCamera(); }, 5000);
+      });
+    }
+
+    function resetCamera() {
+      gsap.to(camera.position, {x: 0, y: 62, z: 0.001, duration: 0.8, onUpdate: () => camera.lookAt(new THREE.Vector3(0,0,0))});
+    }
+
+    // Bottom Nav Setup
+    function setupBottomNav() {
+      const fabZone = document.getElementById('joystick');
+      fabZone.addEventListener('click', addNewCard);
+    }
+
+    function setupEventListeners() {
+      const canvas = document.getElementById('canvas');
+      canvas.addEventListener('mousedown', handleDragStart);
+      canvas.addEventListener('mousemove', (e) => {
+        if (isDragging) handleDragMove(e);
+        else updateHovered(e);
+      });
+      canvas.addEventListener('mouseup', handleDragEnd);
+      canvas.addEventListener('dblclick', handleDoubleClick);
+
+      canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(cards.map(c => c.mesh));
+        if (intersects.length > 0) {
+          const card = cards.find(c => c.mesh === intersects[0].object);
+          showContextMenu(e.clientX, e.clientY, card);
+        }
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift' && !isShiftPressed) {
+          isShiftPressed = true;
+          gsap.to(currentCamConfig, { ...groundCamConfig, duration: 0.7, ease: "power2.out" });
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        if (e.key === 'Shift' && isShiftPressed) {
+          isShiftPressed = false;
+          gsap.to(currentCamConfig, { 
+            y: 62, 
+            z: 0.001, 
+            rotX: -Math.PI / 2 + 0.0001, 
+            duration: 0.8, 
+            ease: "power2.inOut" 
+          });
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Pan and zoom for scatter-like view if needed
+      canvas.addEventListener('pointerdown', (e) => {
+        if (!draggedCard) {
+          panning = true;
+          panStart.x = e.clientX - Rig.targetPivot.x;
+          panStart.y = e.clientY - Rig.targetPivot.z;
+        }
+      });
+      document.addEventListener('pointermove', (e) => {
+        if (panning) {
+          Rig.targetPivot.x = e.clientX - panStart.x;
+          Rig.targetPivot.z = e.clientY - panStart.y;
+        }
+      });
+      document.addEventListener('pointerup', () => panning = false);
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        Rig.targetZoom += e.deltaY * 0.002;
+        Rig.targetZoom = Math.clamp(Rig.targetZoom, -0.5, 1.6);
+      }, { passive: false });
+    }
+
+    function updateHovered(e) {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(cards.map(c => c.mesh));
+      if (intersects.length > 0) {
+        hoveredCard = cards.find(c => c.mesh === intersects[0].object);
+        canvas.classList.add('hovering');
+      } else {
+        hoveredCard = null;
+        canvas.classList.remove('hovering');
+      }
+    }
+
+    // Context Menu
+    function showContextMenu(x, y, card) {
+      const menu = document.getElementById('context-menu');
+      menu.innerHTML = `
+        <div class="context-menu-item" onclick="editCard(${card.id})">Edit</div>
+        <div class="context-menu-item" onclick="zoomToCard(${card.id})">View</div>
+        <div class="context-menu-item danger" onclick="deleteCard(${card.id})">Delete</div>
+        <div class="context-menu-item" onclick="activateCard(${card.id})">Activate</div>
+      `;
+      menu.style.display = 'block';
+      menu.style.left = `${x}px`;
+      menu.style.top = `${y}px`;
+
+      setTimeout(() => {
+        document.addEventListener('click', hideContextMenu);
+      }, 0);
+    }
+
+    function hideContextMenu() {
+      const menu = document.getElementById('context-menu');
+      menu.style.display = 'none';
+      document.removeEventListener('click', hideContextMenu);
+    }
+
+    function editCard(id) {
+      const card = cards.find(c => c.id === id);
+      if (card) {
+        card.title = prompt('New Title:', card.title);
+        card.desc = prompt('New Desc:', card.desc);
+        card.lastUpdated = Date.now();
+        save();
+      }
+    }
+
+    function deleteCard(id) {
+      const card = cards.find(c => c.id === id);
+      if (card) {
+        scene.remove(card.mesh);
+        world.removeBody(card.body);
+        document.getElementById('ui-overlay').removeChild(card.labelEl);
+        cards = cards.filter(c => c.id !== id);
+        save();
+      }
+    }
+
+    function activateCard(id) {
+      const card = cards.find(c => c.id === id);
+      if (card) {
+        card.status = 'inprogress';
+        enforceQuadrantBoundaries(card);
+        save();
+      }
+    }
+
+    // Update Labels (including quadrant labels)
+    function updateLabels() {
+      const halfW = window.innerWidth / 2;
+      const halfH = window.innerHeight / 2;
+
+      cards.forEach(card => {
+        if (!card.labelEl) return;
+        const pos = card.mesh.position.clone();
+        pos.y += (CUBE_SIZE * 0.6) + 0.8;
+        const projected = pos.project(camera);
+        const behind = projected.z > 1 || projected.z < -1;
+        const x = (projected.x * halfW) + halfW;
+        const y = (-projected.y * halfH) + halfH;
+
+        const clampedX = Math.clamp(x, 10, window.innerWidth - 10);
+        const clampedY = Math.clamp(y, 10, window.innerHeight - 10);
+
+        card.labelEl.style.left = `${clampedX}px`;
+        card.labelEl.style.top = `${clampedY}px`;
+
+        if (behind || !card.labelEl.classList.contains('active')) {
+          card.labelEl.style.opacity = '0';
+        }
+      });
+
+      // Update quadrant labels
+      for (let status in QUADRANTS) {
+        const pos = QUADRANTS[status].labelPos.clone();
+        const projected = pos.project(camera);
+        const behind = projected.z > 1 || projected.z < -1;
+        const x = (projected.x * halfW) + halfW;
+        const y = (-projected.y * halfH) + halfH;
+
+        const clampedX = Math.clamp(x, 10, window.innerWidth - 10);
+        const clampedY = Math.clamp(y, 10, window.innerHeight - 10);
+
+        QUADRANTS[status].labelEl.style.left = `${clampedX}px`;
+        QUADRANTS[status].labelEl.style.top = `${clampedY}px`;
+
+        if (behind) {
+          QUADRANTS[status].labelEl.style.opacity = '0';
+        } else {
+          QUADRANTS[status].labelEl.style.opacity = '0.5';
+        }
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      world.step(1/60);
+
+      cards.forEach(card => {
+        card.mesh.position.copy(card.body.position);
+        card.mesh.quaternion.copy(card.body.quaternion);
+        applyStatusVisuals(card);
+      });
+
+      updateLabels();
+
+      Rig.pivot.lerp(Rig.targetPivot, 0.18);
+      Rig.zoom += (Rig.targetZoom - Rig.zoom) * 0.18;
+
+      let y = currentCamConfig.y;
+      let z = currentCamConfig.z;
+      const zoomFactor = 0.5 + Rig.zoom * 0.9;
+      y *= zoomFactor;
+      z *= zoomFactor;
+
+      camera.position.set(Rig.pivot.x, Rig.pivot.y + y, Rig.pivot.z + z);
+      camera.rotation.x = currentCamConfig.rotX;
+      camera.lookAt(Rig.pivot);
+
+      renderer.render(scene, camera);
+    }
+
+    // Helper functions from TOP.html
+    function getIntersects(e) {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      return raycaster.intersectObjects(cards.map(c => c.mesh));
+    }
+
+    function getPlaneIntersection(e) {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -9.98);
+      const intersection = new THREE.Vector3();
+      raycaster.ray.intersectPlane(plane, intersection);
+      return intersection;
+    }
+
+    init();
+  </script>
+</body>
+</html>
