@@ -3,23 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Magnetic Neon Blocks</title>
+  <title>Magnetic Neon Blocks — with Floating Labels</title>
+
+  <!-- Inter: modern, sleek typeface -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.babylonjs.com/cannon.js"></script>
+
   <style>
     :root {
       --bg: #000000;
       --grid-major: #004444;
       --grid-minor: #002222;
       --accent: #00ff88;
+      --glass: rgba(10,10,20,0.7);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       overflow: hidden;
       background: var(--bg);
       touch-action: none;
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #eee;
     }
     #canvas {
       display: block;
@@ -29,6 +36,51 @@
     }
     #canvas.grabbing { cursor: grabbing; }
     #canvas.hovering { cursor: pointer; }
+
+    #ui-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 300;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    /* Label styles */
+    .block-label {
+      position: absolute;
+      transform: translate(-50%, -100%) translateZ(0);
+      pointer-events: none;
+      white-space: nowrap;
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(12,12,20,0.85), rgba(8,8,14,0.75));
+      border: 1px solid rgba(0,255,136,0.08);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.6), 0 0 18px rgba(0,255,136,0.06) inset;
+      color: #eafff3;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.2px;
+      backdrop-filter: blur(6px) saturate(1.1);
+      opacity: 0;
+      transform-origin: 50% 100%;
+      will-change: transform, opacity, left, top;
+      transition: transform 0.18s cubic-bezier(.2,.9,.2,1), opacity 0.18s ease;
+    }
+
+    .block-label .sub {
+      display: block;
+      font-weight: 400;
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+
+    /* larger label when active */
+    .block-label.active {
+      transform: translate(-50%, -110%) scale(1.05);
+      opacity: 1;
+    }
+
     #magneticIndicator {
       position: fixed;
       pointer-events: none;
@@ -39,6 +91,7 @@
       transition: opacity 0.2s ease;
       mix-blend-mode: screen;
     }
+
     #fab {
       position: fixed;
       bottom: 32px;
@@ -58,14 +111,11 @@
       align-items: center;
       justify-content: center;
       transition: transform 0.2s, box-shadow 0.2s;
+      pointer-events: auto;
     }
-    #fab:hover {
-      transform: scale(1.1);
-      box-shadow: 0 0 60px rgba(0,255,136,0.9);
-    }
-    #fab:active {
-      transform: scale(0.95);
-    }
+    #fab:hover { transform: scale(1.1); box-shadow: 0 0 60px rgba(0,255,136,0.9); }
+    #fab:active { transform: scale(0.95); }
+
     #statusBar {
       position: fixed;
       top: 20px;
@@ -80,25 +130,42 @@
       z-index: 100;
       min-width: 200px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      pointer-events: auto;
     }
-    .status-item {
-      margin: 6px 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .status-item { margin: 6px 0; display:flex; justify-content:space-between; align-items:center; }
+    .status-label { opacity: 0.7; margin-right: 12px; }
+    .status-value { font-weight: 600; color: var(--accent); }
+
+    .context-menu {
+      position: absolute;
+      background: rgba(10, 10, 20, 0.98);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(80, 80, 100, 0.4);
+      border-radius: 14px;
+      padding: 8px 0;
+      min-width: 220px;
+      z-index: 200;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.9);
+      font-size: 15px;
+      color: #eee;
+      display: none;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
     }
-    .status-label {
-      opacity: 0.7;
-      margin-right: 12px;
+    .context-menu-item {
+      padding: 14px 24px;
+      cursor: pointer;
+      transition: background 0.15s;
+      user-select: none;
     }
-    .status-value {
-      font-weight: 600;
-      color: var(--accent);
-    }
+    .context-menu-item:hover { background: rgba(80, 80, 140, 0.5); }
+    .context-menu-item.danger:hover { background: rgba(200, 50, 50, 0.4); color: #ff6b6b; }
   </style>
 </head>
 <body>
+  
   <canvas id="canvas"></canvas>
+  <div id="ui-overlay"></div>
   <div id="magneticIndicator"></div>
   <button id="fab" title="Add blocks (Shift+Click for 5)">+</button>
   <div id="statusBar">
@@ -115,6 +182,7 @@
       <span class="status-value" id="forceStatus">Normal</span>
     </div>
   </div>
+  <div id="context-menu" class="context-menu"></div>
 
   <script>
     let scene, camera, renderer, world;
@@ -128,6 +196,7 @@
     let previousMousePosition = { x: 0, y: 0 };
     let magneticMode = false;
     let forcePushMode = false;
+    let labelIdCounter = 0;
 
     const CUBE_SIZE = 2;
     const MAGNETIC_RANGE = 4.5;
@@ -167,7 +236,7 @@
     function init() {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x000000);
-      scene.fog = new THREE.FogExp2(0x000000, 0.005);
+      scene.fog = new THREE.FogExp2(0x000000, 0.0066);
 
       camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -219,7 +288,8 @@
       scene.add(groundMesh);
 
       const groundShape = new CANNON.Plane();
-      const groundBody = new CANNON.Body({ mass: 0, material: new CANNON.Material({ friction: 1.4, restitution: 0.0 }) });
+      // Increased friction from 0.4 to 1.0 for the ground
+      const groundBody = new CANNON.Body({ mass: 0, material: new CANNON.Material({ friction: 2.0, restitution: 1.0 }) });
       groundBody.addShape(groundShape);
       groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI / 2);
       groundBody.position.y = -10;
@@ -234,7 +304,7 @@
       const wallDistance = BOUNDARY_LIMIT + halfThickness;
       const wallSpanHalf = BOUNDARY_LIMIT + 20;
 
-      const wallMaterial = new CANNON.Material({ friction: 0.9, restitution: 0.5 });
+      const wallMaterial = new CANNON.Material({ friction: 0.3, restitution: 0.5 });
 
       // North / South walls
       const nsShape = new CANNON.Box(new CANNON.Vec3(wallSpanHalf, halfHeight, halfThickness));
@@ -317,18 +387,38 @@
       scene.add(mesh);
 
       const shape = new CANNON.Box(new CANNON.Vec3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2));
-      const cubeMaterial = new CANNON.Material({ friction: 0.5, restitution: 0.1 });
-      const body = new CANNON.Body({ mass: 1.5, material: cubeMaterial });
+      // Increased friction from 0.5 to 1.0 for the cubes
+      const cubeMaterial = new CANNON.Material({ friction: 3.33, restitution: 0.999 });
+      const body = new CANNON.Body({ mass: 2.222, material: cubeMaterial });
       body.addShape(shape);
       body.position.copy(position);
-      body.linearDamping = 0.25;
-      body.angularDamping = 0.3;
+      body.linearDamping = 0.555;
+      body.angularDamping = 0.999;
       world.addBody(body);
 
-      const cube = { mesh, body, connections: [] };
+      // Create a label element for this cube
+      const labelEl = createLabelElement(`Block ${++labelIdCounter}`, mesh);
+      // Add subtle subtext data (world coordinates)
+      labelEl.querySelector('.sub').textContent = formatPos(position);
+
+      const cube = { mesh, body, connections: [], labelEl };
       cubes.push(cube);
       updateStatusBar();
       return cube;
+    }
+
+    function createLabelElement(text, mesh) {
+      const container = document.getElementById('ui-overlay');
+      const el = document.createElement('div');
+      el.className = 'block-label';
+      el.innerHTML = `<div class="main">${text}</div><div class="sub">…</div>`;
+      el.style.opacity = '0';
+      container.appendChild(el);
+      return el;
+    }
+
+    function formatPos(v3) {
+      return `${v3.x.toFixed(1)}, ${v3.y.toFixed(1)}, ${v3.z.toFixed(1)}`;
     }
 
     function addRandomCube(count = 1) {
@@ -467,8 +557,70 @@
       }
     }
 
+    function showContextMenu(x, y) {
+      const menu = document.getElementById('context-menu');
+      menu.innerHTML = `
+        <div class="context-menu-item" data-action="magnetic">
+          🧲 Magnetic Mode: <strong>${magneticMode ? 'ON' : 'OFF'}</strong>
+        </div>
+        <div class="context-menu-item" data-action="force">
+          ⚡ Force Push: <strong>${forcePushMode ? 'JEDI' : 'Normal'}</strong>
+        </div>
+        <div class="context-menu-item danger" data-action="clear">
+          🗑️ Clear All Blocks
+        </div>
+      `;
+      menu.style.display = 'block';
+      menu.style.left = `${x}px`;
+      menu.style.top = `${y}px`;
+
+      setTimeout(() => {
+        document.addEventListener('click', hideContextMenu);
+      }, 0);
+    }
+
+    function hideContextMenu() {
+      const menu = document.getElementById('context-menu');
+      menu.style.display = 'none';
+      document.removeEventListener('click', hideContextMenu);
+    }
+
     function setupEventListeners() {
       const canvas = document.getElementById('canvas');
+      const menu = document.getElementById('context-menu');
+
+      menu.addEventListener('click', (e) => {
+        const item = e.target.closest('.context-menu-item');
+        if (!item) return;
+        
+        const action = item.dataset.action;
+        if (action === 'magnetic') {
+          magneticMode = !magneticMode;
+          if (!magneticMode) {
+            connections.slice().forEach(c => breakConnection(c));
+          }
+        } else if (action === 'force') {
+          forcePushMode = !forcePushMode;
+        } else if (action === 'clear') {
+          if (confirm('Clear all blocks? This cannot be undone.')) {
+            cubes.forEach(c => {
+              scene.remove(c.mesh);
+              if (c.labelEl && c.labelEl.parentNode) c.labelEl.parentNode.removeChild(c.labelEl);
+              world.removeBody(c.body);
+            });
+            connections.forEach(c => {
+              scene.remove(c.line);
+              world.removeConstraint(c.constraint);
+            });
+            cubes = [];
+            connections = [];
+            labelIdCounter = 0;
+            updateStatusBar();
+          }
+        }
+        updateStatusBar();
+        hideContextMenu();
+      });
 
       canvas.addEventListener('mousedown', (e) => {
         if (e.button === 2) { 
@@ -482,6 +634,11 @@
           draggedCube = cubes.find(c => c.mesh === intersects[0].object);
           isDragging = true;
           canvas.classList.add('grabbing');
+          // show label when dragging
+          if (draggedCube && draggedCube.labelEl) {
+            draggedCube.labelEl.classList.add('active');
+            gsap.to(draggedCube.labelEl, { opacity: 1, duration: 0.12 });
+          }
         }
       });
 
@@ -509,9 +666,28 @@
 
         const intersects = getIntersects(e);
         if (intersects.length > 0) {
-          hoveredCube = cubes.find(c => c.mesh === intersects[0].object);
+          const newHovered = cubes.find(c => c.mesh === intersects[0].object);
+          if (hoveredCube !== newHovered) {
+            // hide previous hovered label
+            if (hoveredCube && hoveredCube.labelEl) {
+              hoveredCube.labelEl.classList.remove('active');
+              gsap.to(hoveredCube.labelEl, { opacity: 0, duration: 0.12 });
+            }
+            hoveredCube = newHovered;
+            if (hoveredCube && hoveredCube.labelEl) {
+              hoveredCube.labelEl.classList.add('active');
+              // update subtext with live coords
+              hoveredCube.labelEl.querySelector('.sub').textContent = formatPos(hoveredCube.mesh.position);
+              gsap.to(hoveredCube.labelEl, { opacity: 1, duration: 0.12 });
+            }
+          }
           canvas.classList.add('hovering');
         } else {
+          // remove hover
+          if (hoveredCube && hoveredCube.labelEl) {
+            hoveredCube.labelEl.classList.remove('active');
+            gsap.to(hoveredCube.labelEl, { opacity: 0, duration: 0.12 });
+          }
           hoveredCube = null;
           canvas.classList.remove('hovering');
         }
@@ -521,6 +697,12 @@
       canvas.addEventListener('mouseup', () => {
         isDragging = false;
         isRotating = false;
+        if (draggedCube && draggedCube.labelEl) {
+          // when released, keep label visible briefly then fade
+          gsap.to(draggedCube.labelEl, { opacity: 0, delay: 0.4, duration: 0.22, onComplete: () => {
+            if (draggedCube) draggedCube.labelEl.classList.remove('active');
+          }});
+        }
         draggedCube = null;
         canvas.classList.remove('grabbing');
         canvas.style.cursor = 'grab';
@@ -532,6 +714,7 @@
         Rig.targetZoom = Math.max(-0.5, Math.min(1.6, Rig.targetZoom));
       }, { passive: false });
 
+      // Right-click is now exclusively for Force Push on a block, or nothing otherwise.
       canvas.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         const intersects = getIntersects(e);
@@ -543,6 +726,14 @@
           const impulse = new CANNON.Vec3(normal.x, normal.y, normal.z).scale(strength);
           cube.body.applyImpulse(impulse, cube.body.position);
           cube.body.wakeUp();
+          // briefly show label when force pushed
+          if (cube.labelEl) {
+            cube.labelEl.classList.add('active');
+            cube.labelEl.querySelector('.sub').textContent = formatPos(cube.mesh.position);
+            gsap.killTweensOf(cube.labelEl);
+            gsap.to(cube.labelEl, { opacity: 1, duration: 0.08 });
+            gsap.to(cube.labelEl, { opacity: 0, delay: 0.5, duration: 0.28, onComplete: () => cube.labelEl.classList.remove('active') });
+          }
         }
       });
 
@@ -551,13 +742,20 @@
           isShiftPressed = true;
           gsap.to(currentCamConfig, { ...groundCamConfig, duration: 0.7, ease: "power2.out" });
         }
+        
+        // M key toggles the context menu
         if (e.key === 'm' || e.key === 'M') {
-          magneticMode = !magneticMode;
-          if (!magneticMode) {
-            connections.slice().forEach(c => breakConnection(c));
-          }
-          updateStatusBar();
+            e.preventDefault();
+            const menu = document.getElementById('context-menu');
+            if (menu.style.display === 'block') {
+                hideContextMenu();
+            } else {
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                showContextMenu(centerX, centerY);
+            }
         }
+
         if (e.key === 'f' || e.key === 'F') {
           forcePushMode = !forcePushMode;
           updateStatusBar();
@@ -605,6 +803,50 @@
       }, { passive: true });
     }
 
+    function updateLabels() {
+      // position each label by projecting the cube's world position to screen space
+      const overlay = document.getElementById('ui-overlay');
+      if (!overlay) return;
+
+      const halfW = window.innerWidth / 2;
+      const halfH = window.innerHeight / 2;
+
+      cubes.forEach(cube => {
+        if (!cube.labelEl) return;
+        const pos = cube.mesh.position.clone();
+        // lift label a bit above the cube
+        pos.y += (CUBE_SIZE * 0.6) + 0.8;
+        const projected = pos.project(camera);
+        // if behind camera, hide
+        const behind = projected.z > 1 || projected.z < -1;
+        const x = (projected.x * halfW) + halfW;
+        const y = (-projected.y * halfH) + halfH;
+
+        // update subtext (live coordinates) if active/hovered
+        if (cube === hoveredCube || cube === draggedCube) {
+          cube.labelEl.querySelector('.sub').textContent = formatPos(cube.mesh.position);
+        }
+
+        // clamp on-screen positions
+        const clampedX = Math.max(10, Math.min(window.innerWidth - 10, x));
+        const clampedY = Math.max(10, Math.min(window.innerHeight - 10, y));
+
+        cube.labelEl.style.left = `${clampedX}px`;
+        cube.labelEl.style.top = `${clampedY}px`;
+
+        // if label is active we keep it visible; otherwise keep it hidden to reduce clutter
+        if (behind) {
+          cube.labelEl.style.opacity = '0';
+          cube.labelEl.style.pointerEvents = 'none';
+        } else {
+          // If active class exists, opacity is managed via GSAP / transitions; otherwise ensure hidden
+          if (!cube.labelEl.classList.contains('active')) {
+            cube.labelEl.style.opacity = '0';
+          }
+        }
+      });
+    }
+
     function animate() {
       requestAnimationFrame(animate);
 
@@ -637,6 +879,9 @@
           }
         }
       }
+
+      // update labels each frame
+      updateLabels();
 
       Rig.pivot.lerp(Rig.targetPivot, 0.18);
       Rig.zoom += (Rig.targetZoom - Rig.zoom) * 0.18;
