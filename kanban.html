@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Unnecessarily 3D Kanban</title>
-    
+    <title>Enhanced Interactive 3D Kanban</title>
+   
     <!-- CDN Dependencies -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
@@ -16,880 +16,404 @@
     <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/VignetteShader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/RGBShiftShader.js"></script>
-    
+   
     <style>
-        /* === CORE VARIABLES & THEMES === */
-        :root {
-            /* Neon Theme (Default) */
-            --bg-primary: #0f1014;
-            --bg-secondary: #1a1b2e;
-            --accent-neon: #39FF14;
-            --accent-pink: #FF1493;
-            --accent-cyan: #00ffff;
-            --accent-yellow: #FFFF00;
-            --accent-red: #FF0044;
-            --accent-purple: #9D4EDD;
-            --text-primary: #ffffff;
-            --text-secondary: rgba(255,255,255,0.7);
-            --border-color: rgba(255,255,255,0.2);
-            --shadow-neon: 0 0 15px var(--accent-pink);
-            --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-            --pink: #FF1493;
-            --neon-blue: #00ffff;
-            --neon-green: #00FF00;
-            --neon-yellow: #FFFF00;
-            --neon-red: #FF0044;
-        }
-
-        [data-theme="pastel"] {
-            --bg-primary: #f8f9fa;
-            --bg-secondary: #e9ecef;
-            --accent-neon: #74c69d;
-            --accent-pink: #f8961e;
-            --accent-cyan: #4cc9f0;
-            --accent-yellow: #f9c74f;
-            --accent-red: #f94144;
-            --text-primary: #212529;
-            --text-secondary: rgba(33,37,41,0.7);
-            --border-color: rgba(33,37,41,0.2);
-            --shadow-neon: 0 0 15px var(--accent-pink);
-        }
-
-        [data-theme="midnight"] {
-            --bg-primary: #0a0e27;
-            --bg-secondary: #151932;
-            --accent-neon: #00d4ff;
-            --accent-pink: #ff006e;
-            --accent-cyan: #00f5ff;
-            --accent-yellow: #ffbe0b;
-            --accent-red: #fb5607;
-            --text-primary: #ffffff;
-            --text-secondary: rgba(255,255,255,0.6);
-        }
-
-        /* === GLOBAL STYLES === */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        body {
-            background: var(--bg-primary);
-            overflow: hidden;
-            color: var(--text-primary);
-            font-family: 'Inter', Ministers-Regular, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            cursor: none;
-            overscroll-behavior: none;
-            transition: all 0.3s var(--transition-smooth);
-        }
-
-        #canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-            outline: none;
-        }
-
-        /* === ENHANCED CURSOR SYSTEM === */
-        #cursor {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            pointer-events: none;
-            z-index: 9999;
-            transition: opacity 0.2s;
-        }
-
-        .c-circle {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: radial-gradient(circle, var(--accent-pink), transparent);
-            opacity: 0.6;
-            mix-blend-mode: screen;
-        }
-
-        .c-center {
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--accent-pink);
-            opacity: 1;
-            mix-blend-mode: screen;
-            transform: translate(-50%, -50%);
-            box-shadow: var(--shadow-neon);
-            z-index: 10000;
-            transition: background 0.3s;
-        }
-
-        .c-ring {
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            border: 2px solid var(--accent-pink);
-            opacity: 0.8;
-            mix-blend-mode: screen;
-            transform: translate(-50%, -50%);
-            box-shadow: var(--shadow-neon);
-            z-index: 9999;
-            transition: border-color 0.3s, box-shadow 0.3s;
-        }
-
-        /* === ENHANCED JOYSTICK SYSTEM === */
-        .fab-zone {
-            position: fixed;
-            bottom: 9.9rem;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80px;
-            height: 80px;
-            z-index: 200;
-            cursor: grab;
-            perspective: 600px;
-            transition: bottom 0.3s var(--transition-smooth);
-        }
-
-        .fab-zone:active {
-            cursor: grabbing;
-        }
-
-        .fab-halo {
-            position: absolute;
-            left: -40px;
-            top: -40px;
-            width: 160px;
-            height: 160px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(255,20,147,0.2), transparent);
-            opacity: 0;
-            transition: opacity 0.1s;
-            animation: idleColorCycle 8s linear infinite;
-        }
-
-        @keyframes idleColorCycle {
-            0% { background: radial-gradient(circle, rgba(255,20,147,0.2), transparent); }
-            25% { background: radial-gradient(circle, rgba(0,255,255,0.2), transparent); }
-            50% { background: radial-gradient(circle, rgba(0,255,0,0.2), transparent); }
-            75% { background: radial-gradient(circle, rgba(255,255,0,0.2), transparent); }
-            100% { background: radial-gradient(circle, rgba(255,20,147,0.2), transparent); }
-        }
-
-        .fab-cube {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            transform-style: preserve-3d;
-            transform: rotateX(-25deg) rotateY(-45deg);
-            pointer-events: none;
-            transition: transform 0.1s;
-        }
-
-        .f-face {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 20, 147, 0.15);
-            border: 2px solid var(--accent-pink);
-            box-shadow: var(--shadow-neon), inset 0 0 10px var(--accent-pink);
-            left: 20px;
-            top: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            color: #fff;
-            backface-visibility: visible;
-            transition: all 0.3s;
-        }
-
-        .f-face:nth-child(1) { transform: rotateY(0deg) translateZ(20px); }
-        .f-face:nth-child(2) { transform: rotateY(90deg) translateZ(20px); }
-        .f-face:nth-child(3) { transform: rotateY(180deg) translateZ(20px); }
-        .f-face:nth-child(4) { transform: rotateY(-90deg) translateZ(20px); }
-        .f-face:nth-child(5) { transform: rotateX(90deg) translateZ(20px); background: rgba(255, 20, 147, 0.3); }
-        .f-face:nth-child(6) { transform: rotateX(-90deg) translateZ(20px); }
-
-        .fab-hint {
-            position: absolute;
-            bottom: -16px;
-            width: 100%;
-            text-align: center;
-            font-size: 9px;
-            color: var(--text-secondary);
-            pointer-events: none;
-        }
-
-        /* === MOBILE OPTIMIZATIONS === */
-        @media (max-width: 768px) {
-            .fab-zone {
-                bottom: 20px;
-                transform: translateX(-50%) scale(0.9);
-            }
-        }
-
-        /* === UI ELEMENTS === */
-        .reset-zone {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 100;
-            width: 60px;
-            height: 60px;
-            background: radial-gradient(circle, var(--accent-neon), transparent);
-            border: 2px dashed var(--accent-neon);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0.3;
-            transition: all 0.3s;
-            font-size: 24px;
-            cursor: pointer;
-        }
-
-        .reset-zone:hover {
-            opacity: 1;
-            transform: scale(1.1);
-            box-shadow: 0 0 20px var(--accent-neon);
-        }
-
-        .trash-zone {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            z-index: 100;
-            width: 60px;
-            height: 60px;
-            background: radial-gradient(circle, var(--accent-red), transparent);
-            border: 2px dashed var(--accent-red);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0.3;
-            transition: all 0.3s;
-            font-size: 24px;
-            pointer-events: none;
-        }
-
-        .trash-zone.active {
-            opacity: 1;
-            transform: scale(1.2);
-            box-shadow: 0 0 20px var(--accent-red);
-            pointer-events: auto;
-        }
-
-        .center-helper {
-            position: fixed;
-            bottom: 1.5rem;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 90;
-            font-size: 10px;
-            color: var(--text-secondary);
-            text-align: center;
-            pointer-events: none;
-        }
-
-        @media (max-width: 768px) {
-            .center-helper {
-                display: none;
-            }
-        }
-
-        .coords {
-            position: fixed;
-            bottom: 5rem;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            color: var(--accent-neon);
-            background: rgba(0,0,0,0.6);
-            padding: 4px 8px;
-            border-radius: 4px;
-            border: 1px solid rgba(57, 255, 20, 0.3);
-            z-index: 90;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-            text-align: center;
-        }
-
-        body.fab-active .coords {
-            opacity: 1;
-        }
-
-        /* === HEADER === */
-        .header-top {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 20px;
-            z-index: 100;
-            background: rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-        }
-
-        .logo-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .logo-cube {
-            width: 40px;
-            height: 40px;
-            position: relative;
-            perspective: 600px;
-        }
-
-        .logo-cube .fab-cube {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            transform-style: preserve-3d;
-            transform: rotateX(-25deg) rotateY(-45deg);
-            animation: spin 6s linear infinite;
-        }
-
-        .logo-cube .f-face {
-            width: 20px;
-            height: 20px;
-            left: 10px;
-            top: 10px;
-            animation: cycle-colors 10s linear infinite;
-        }
-
-        @keyframes cycle-colors {
-            0% {background: rgba(255, 20, 147, 0.15);border-color: var(--pink);box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);}
-            20% {background: rgba(0, 255, 255, 0.15);border-color: var(--neon-blue);box-shadow: 0 0 15px var(--neon-blue), inset 0 0 10px var(--neon-blue);}
-            40% {background: rgba(0, 255, 0, 0.15);border-color: var(--neon-green);box-shadow: 0 0 15px var(--neon-green), inset 0 0 10px var(--neon-green);}
-            60% {background: rgba(255, 255, 0, 0.15);border-color: var(--neon-yellow);box-shadow: 0 0 15px var(--neon-yellow), inset 0 0 10px var(--neon-yellow);}
-            80% {background: rgba(255, 0, 68, 0.15);border-color: var(--neon-red);box-shadow: 0 0 15px var(--neon-red), inset 0 0 10px var(--neon-red);}
-            100% {background: rgba(255, 20, 147, 0.15);border-color: var(--pink);box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);}
-        }
-
-        .logo-text {
-            font-size: 12px;
-            color: rgba(255,255,255,0.7);
-        }
-
-        .search-wrapper {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-        }
-
-        .search-wrapper input {
-            background: rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: #fff;
-            padding: 8px 12px;
-            border-radius: 6px;
-            width: 200px;
-            text-align: center;
-            font-size: 12px;
-            cursor: text;
-        }
-
-        .controls-wrapper {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .theme-toggle {
-            background: rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: #fff;
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: 0.2s;
-            font-size: 12px;
-        }
-
-        .theme-toggle:hover {
-            box-shadow: 0 0 5px var(--accent-pink);
-        }
-
-        /* === INFO OVERLAY SYSTEM === */
-        .info-trigger {
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            z-index: 100;
-            width: 40px;
-            height: 40px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 18px;
-            font-weight: bold;
-        }
-
-        .info-trigger:hover {
-            transform: scale(1.1);
-            box-shadow: var(--shadow-neon);
-        }
-
-        .info-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(10px);
-            z-index: 1000;
-            display: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .info-overlay.active {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 1;
-        }
-
-        .info-content {
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 32px;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-            transform: scale(0.9);
-            transition: transform 0.3s;
-        }
-
-        .info-overlay.active .info-content {
-            transform: scale(1);
-        }
-
-        .accordion-item {
-            border-bottom: 1px solid var(--border-color);
-            padding: 16px 0;
-        }
-
-        .accordion-header {
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 18px;
-            margin-bottom: 8px;
-            transition: color 0.3s;
-        }
-
-        .accordion-header:hover {
-            color: var(--accent-pink);
-        }
-
-        .accordion-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        .accordion-item.open .accordion-content {
-            max-height: 500px;
-        }
-
-        .close-btn {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: none;
-            border: none;
-            color: var(--text-primary);
-            font-size: 32px;
-            cursor: pointer;
-            transition: transform 0.3s;
-        }
-
-        .close-btn:hover {
-            transform: rotate(90deg);
-        }
-
-        /* === QUADRANT SYSTEM === */
-        .quad-container {
-            position: fixed;
-            left: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            z-index: 100;
-        }
-
-        .quad-icon {
-            width: 30px;
-            height: 30px;
-            position: relative;
-            perspective: 300px;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .quad-icon:hover {
-            transform: scale(1.2);
-        }
-
-        .quad-icon:active {
-            transform: scale(0.9);
-        }
-
-        .quad-cube {
-            width: 100%;
-            height: 100%;
-            transform-style: preserve-3d;
-            transform: rotateX(-25deg) rotateY(-45deg);
-            animation: spin 6s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotateX(-25deg) rotateY(315deg); }
-        }
-
-        .q-face {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            left: 5px;
-            top: 5px;
-            backface-visibility: visible;
-            opacity: 0.8;
-        }
-
-        .q-face:nth-child(1) { transform: rotateY(0deg) translateZ(10px); }
-        .q-face:nth-child(2) { transform: rotateY(90deg) translateZ(10px); }
-        .q-face:nth-child(3) { transform: rotateY(180deg) translateZ(10px); }
-        .q-face:nth-child(4) { transform: rotateY(-90deg) translateZ(10px); }
-        .q-face:nth-child(5) { transform: rotateX(90deg) translateZ(10px); }
-        .q-face:nth-child(6) { transform: rotateX(-90deg) translateZ(10px); }
-
-        .quad-icon.todo .q-face { 
-            background: rgba(255,255,0,0.2); 
-            border: 1px solid var(--accent-yellow); 
-            box-shadow: 0 0 5px var(--accent-yellow); 
-        }
-        .quad-icon.prog .q-face { 
-            background: rgba(0,255,255,0.2); 
-            border: 1px solid var(--accent-cyan); 
-            box-shadow: 0 0 5px var(--accent-cyan); 
-        }
-        .quad-icon.done .q-face { 
-            background: rgba(0,255,0,0.2); 
-            border: 1px solid var(--accent-neon); 
-            box-shadow: 0 0 5px var(--accent-neon); 
-        }
-        .quad-icon.back .q-face { 
-            background: rgba(255,0,68,0.2); 
-            border: 1px solid var(--accent-red); 
-            box-shadow: 0 0 5px var(--accent-red); 
-        }
-
-        .quad-label {
-            position: absolute;
-            left: 40px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 12px;
-            color: var(--text-primary);
-            white-space: nowrap;
-        }
-
-        /* === VIEW TOGGLES === */
-        .view-toggles {
-            position: fixed;
-            top: 50%;
-            right: 20px;
-            transform: translateY(-50%);
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            z-index: 100;
-        }
-
-        .view-btn {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.3s;
-        }
-
-        .view-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-neon);
-        }
-
-        .view-btn.active {
-            border-color: var(--accent-pink);
-            color: var(--accent-pink);
-            box-shadow: 0 0 10px rgba(255,20,147,0.3);
-        }
-
-        /* === PHYSICS CONTROLS === */
-        .physics-controls {
-            position: fixed;
-            bottom: 20%;
-            right: 20px;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .physics-btn {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.3s;
-        }
-
-        .physics-btn:hover {
-            transform: scale(1.05);
-            box-shadow: var(--shadow-neon);
-        }
-
-        .physics-btn.active {
-            background: var(--accent-purple);
-            border-color: var(--accent-purple);
-        }
-
-        /* === STATS DISPLAY === */
-        .stats-display {
-            position: fixed;
-            top: 100px;
-            left: 47.5%;
-            z-index: 100;
-            background: rgba(0,0,0,0.7);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 12px;
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            color: var(--accent-neon);
-            min-width: 150px;
-        }
-
-        .stat-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 4px;
-        }
-
-        .stat-label {
-            color: var(--text-secondary);
-        }
-
-        .stat-value {
-            color: var(--accent-neon);
-            font-weight: bold;
-        }
-
-        /* === EFFECTS CONTROLS === */
-        .effects-toggle {
-            position: fixed;
-            top: 140px;
-            right: 20px;
-            z-index: 100;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 12px;
-        }
-
-        .effects-toggle:hover {
-            transform: scale(1.05);
-            box-shadow: var(--shadow-neon);
-        }
-
-        /* === MOBILE FOCUS RELEASE === */
-        .mobile-release-btn {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: var(--accent-pink);
-            color: white;
-            border: none;
-            border-radius: 20px;
-            padding: 12px 24px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            z-index: 200;
-            display: none;
-            opacity: 0;
-            transition: all 0.3s;
-        }
-
-        .mobile-release-btn.visible {
-            display: block;
-            opacity: 1;
-        }
-
-        /* === TASK EDITOR === */
-        .task-editor {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-            z-index: 1000;
-            display: none;
-            opacity: 0;
-            transition: all 0.3s;
-            min-width: 300px;
-        }
-
-        .task-editor.active {
-            display: block;
-            opacity: 1;
-        }
-
-        .task-editor h3 {
-            margin-bottom: 16px;
-            color: var(--accent-pink);
-        }
-
-        .task-editor input {
-            width: 100%;
-            background: rgba(0,0,0,0.3);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            padding: 8px;
-            border-radius: 6px;
-            margin-bottom: 12px;
-        }
-
-        .task-editor-buttons {
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-        }
-
-        .task-editor-buttons button {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .task-editor-buttons button:hover {
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-neon);
-        }
-
-        /* Interaction States */
-        body.fab-active #cursor { opacity: 0; }
-        body.fab-active .btn, body.fab-active input { pointer-events: none; opacity: 0.5; }
-
-        /* === LOADING SCREEN === */
-        .loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: var(--bg-primary);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            transition: opacity 0.5s;
-        }
-
-        .loading-cube {
-            width: 60px;
-            height: 60px;
-            perspective: 300px;
-            margin-bottom: 20px;
-        }
-
-        .loading-cube .fab-cube {
-            width: 100%;
-            height: 100%;
-            transform-style: preserve-3d;
-            transform: rotateX(-25deg) rotateY(-45deg);
-            animation: spin 1s linear infinite;
-        }
-
-        .loading-text {
-            color: var(--text-primary);
-            font-size: 18px;
-            opacity: 0.8;
-        }
-
-        /* === PERFORMANCE OPTIMIZATIONS === */
-        @media (max-width: 768px) {
-            .stats-display, .physics-controls {
-                display: none;
-            }
-            
-            .header-top {
-                padding: 8px 12px;
-            }
-            
-            .search-wrapper input {
-                width: 150px;
-                font-size: 11px;
-            }
-        }
-
-        /* === ACCESSIBILITY === */
-        @media (prefers-reduced-motion: reduce) {
-            * {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-        }
+/* === CORE VARIABLES & THEMES === */
+:root{
+    /* Neon Theme (Default) */
+    --bg-primary: #0f1014;
+    --bg-secondary: #1a1b2e;
+    --accent-neon: #39FF14;
+    --accent-pink: #FF1493;
+    --accent-cyan: #00ffff;
+    --accent-yellow: #FFFF00;
+    --accent-red: #FF0044;
+    --accent-purple: #9D4EDD;
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255,255,255,0.7);
+    --border-color: rgba(255,255,255,0.2);
+    --shadow-neon: 0 0 15px var(--accent-pink);
+    --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --pink: #FF1493;
+    --neon-blue: #00ffff;
+    --neon-green: #00FF00;
+    --neon-yellow: #FFFF00;
+    --neon-red: #FF0044;
+    /* header sizing used to position things relative to header */
+    --header-height: 64px;
+    --header-padding-vertical: 10px;
+    --header-padding-horizontal: 20px;
+    --header-height-mobile: 72px; /* slightly taller when stacked on mobile */
+}
+/* alternate themes */
+[data-theme="pastel"]{
+    --bg-primary: #f8f9fa;
+    --bg-secondary: #e9ecef;
+    --accent-neon: #74c69d;
+    --accent-pink: #f8961e;
+    --accent-cyan: #4cc9f0;
+    --accent-yellow: #f9c74f;
+    --accent-red: #f94144;
+    --text-primary: #212529;
+    --text-secondary: rgba(33,37,41,0.7);
+    --border-color: rgba(33,37,41,0.2);
+    --shadow-neon: 0 0 15px var(--accent-pink);
+}
+[data-theme="midnight"]{
+    --bg-primary: #0a0e27;
+    --bg-secondary: #151932;
+    --accent-neon: #00d4ff;
+    --accent-pink: #ff006e;
+    --accent-cyan: #00f5ff;
+    --accent-yellow: #ffbe0b;
+    --accent-red: #fb5607;
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255,255,255,0.6);
+}
+/* === GLOBAL STYLES === */
+*{ margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-user-select:none; }
+html,body{ height:100%; }
+body{
+    background:var(--bg-primary);
+    overflow:hidden;
+    color:var(--text-primary);
+    font-family:'Inter', Ministers-Regular, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    cursor:none;
+    overscroll-behavior:none;
+    transition: all 0.3s var(--transition-smooth);
+}
+/* Canvas full-viewport */
+#canvas{ display:block; width:100vw; height:100vh; outline:none; }
+/* === ENHANCED CURSOR SYSTEM === */
+#cursor{ position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:9999; transition:opacity 0.2s; }
+.c-circle{ position:absolute; width:20px; height:20px; border-radius:50%; background:radial-gradient(circle, var(--accent-pink), transparent); opacity:0.6; mix-blend-mode:screen; }
+.c-center{ position:absolute; width:8px; height:8px; border-radius:50%; background:var(--accent-pink); opacity:1; mix-blend-mode:screen; transform:translate(-50%,-50%); box-shadow:var(--shadow-neon); z-index:10000; transition:background 0.3s; }
+.c-ring{ position:absolute; width:24px; height:24px; border-radius:50%; border:2px solid var(--accent-pink); opacity:0.8; mix-blend-mode:screen; transform:translate(-50%,-50%); box-shadow:var(--shadow-neon); z-index:9999; transition:border-color 0.3s, box-shadow 0.3s; }
+/* === ENHANCED JOYSTICK SYSTEM === */
+.fab-zone{
+    position:fixed;
+    bottom:9.9rem;
+    left:50%;
+    transform:translateX(-50%);
+    width:80px;
+    height:80px;
+    z-index:200;
+    cursor:grab;
+    perspective:600px;
+    transition:bottom 0.3s var(--transition-smooth);
+}
+.fab-zone:hover .fab-halo{
+    opacity: 0.3;
+    box-shadow: 0 0 20px var(--accent-pink);
+}
+.fab-zone:active{ cursor:grabbing; }
+.fab-halo{
+    position:absolute; left:-40px; top:-40px; width:160px; height:160px; border-radius:50%;
+    background:radial-gradient(circle, rgba(255,20,147,0.2), transparent);
+    opacity:0; transition:opacity 0.1s; animation: idleColorCycle 8s linear infinite;
+}
+@keyframes idleColorCycle{
+    0% { background: radial-gradient(circle, rgba(255,20,147,0.2), transparent); }
+    25% { background: radial-gradient(circle, rgba(0,255,255,0.2), transparent); }
+    50% { background: radial-gradient(circle, rgba(0,255,0,0.2), transparent); }
+    75% { background: radial-gradient(circle, rgba(255,255,0,0.2), transparent); }
+    100% { background: radial-gradient(circle, rgba(255,20,147,0.2), transparent); }
+}
+.fab-cube{ width:100%; height:100%; position:relative; transform-style:preserve-3d; transform:rotateX(-25deg) rotateY(-45deg); pointer-events:none; transition:transform 0.1s; }
+.f-face{
+    position:absolute; width:40px; height:40px; background:rgba(255,20,147,0.15);
+    border:2px solid var(--accent-pink); box-shadow:var(--shadow-neon), inset 0 0 10px var(--accent-pink);
+    left:20px; top:20px; display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; backface-visibility:visible; transition:all 0.3s;
+}
+.f-face:nth-child(1){ transform: rotateY(0deg) translateZ(20px); }
+.f-face:nth-child(2){ transform: rotateY(90deg) translateZ(20px); }
+.f-face:nth-child(3){ transform: rotateY(180deg) translateZ(20px); }
+.f-face:nth-child(4){ transform: rotateY(-90deg) translateZ(20px); }
+.f-face:nth-child(5){ transform: rotateX(90deg) translateZ(20px); background:rgba(255,20,147,0.3); }
+.f-face:nth-child(6){ transform: rotateX(-90deg) translateZ(20px); }
+.fab-hint{ position:absolute; bottom:-16px; width:100%; text-align:center; font-size:9px; color:var(--text-secondary); pointer-events:none; }
+/* === MOBILE OPTIMIZATIONS === */
+@media (max-width:768px){
+    .fab-zone{ bottom:20px; transform:translateX(-50%) scale(0.9); }
+}
+/* === UI ELEMENTS === */
+.reset-zone{
+    position:fixed; bottom:20px; right:20px; z-index:100; width:60px; height:60px;
+    background:radial-gradient(circle, var(--accent-neon), transparent); border:2px dashed var(--accent-neon); border-radius:50%;
+    display:flex; align-items:center; justify-content:center; opacity:0.3; transition:all 0.3s; font-size:24px; cursor:pointer;
+}
+.reset-zone:hover{ opacity:1; transform:scale(1.1); box-shadow:0 0 20px var(--accent-neon); }
+.trash-zone{
+    position:fixed; bottom:20px; left:20px; z-index:100; width:60px; height:60px;
+    background:radial-gradient(circle, var(--accent-red), transparent); border:2px dashed var(--accent-red); border-radius:50%;
+    display:flex; align-items:center; justify-content:center; opacity:0.3; transition:all 0.3s; font-size:24px; pointer-events:none;
+}
+.trash-zone.active{ opacity:1; transform:scale(1.2); box-shadow:0 0 20px var(--accent-red); pointer-events:auto; }
+.center-helper{
+    position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%); z-index:90; font-size:10px; color:var(--text-secondary); text-align:center; pointer-events:none;
+}
+@media (max-width:768px){ .center-helper{ display:none; } }
+.coords{
+    position:fixed; bottom:5rem; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; gap:2px; font-family:'Courier New', monospace; font-size:12px;
+    color:var(--accent-neon); background:rgba(0,0,0,0.6); padding:4px 8px; border-radius:4px; border:1px solid rgba(57,255,20,0.3); z-index:90; pointer-events:none; opacity:0; transition:opacity 0.2s; text-align:center;
+}
+body.fab-active .coords{ opacity:1; }
+/* === HEADER ===
+   Using CSS Grid so the search is always visually and mathematically centered.
+   The header creates a 3-column grid: [1fr][auto][1fr] so center column is the search.
+   Controls (info + effects + other controls) now live in the right controls-wrapper.
+*/
+.header-top{
+    position:fixed;
+    top:0;
+    left:0;
+    width:100vw;
+    display:grid;
+    grid-template-columns: 1fr auto 1fr; /* logo | search | controls */
+    grid-auto-rows: auto;
+    align-items:center;
+    gap:12px;
+    padding: var(--header-padding-vertical) var(--header-padding-horizontal);
+    min-height: var(--header-height);
+    z-index:100;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(10px);
+}
+/* logo left, aligned start */
+.logo-wrapper{ display:flex; align-items:center; gap:8px; justify-self:start; }
+/* logo cube sizing */
+.logo-cube{ width:28px; height:28px; position:relative; perspective:600px; }
+.logo-cube .fab-cube{ width:100%; height:100%; position:relative; transform-style:preserve-3d; transform: rotateX(-25deg) rotateY(-45deg); animation: spin 6s linear infinite; }
+.logo-cube .f-face{ width:14px; height:14px; left:7px; top:7px; animation: cycle-colors 10s linear infinite; }
+/* logo text */
+.logo-text{ font-size:12px; color:rgba(255,255,255,0.7); }
+/* Search wrapper centered by grid column */
+.search-wrapper{ justify-self:center; display:flex; align-items:center; width:100%; max-width:480px; padding:0 8px; }
+.search-wrapper input{
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    width: 260px; /* default width */
+    text-align: center;
+    font-size: 12px;
+    cursor: text;
+    transition: width 0.25s var(--transition-smooth), box-shadow 0.25s;
+    box-shadow: none;
+}
+.search-wrapper input:focus{ outline:none; box-shadow: 0 0 12px rgba(255,20,147,0.12); }
+/* Controls wrapper right aligned - now contains info + effects + any other controls */
+.controls-wrapper{ display:flex; gap:8px; align-items:center; justify-self:end; }
+/* THEME TOGGLE - hidden completely */
+.theme-toggle{ display:none !important; visibility:hidden !important; width:0 !important; height:0 !important; padding:0 !important; margin:0 !important; border:0 !important; }
+/* Info Trigger & Effects Toggle moved into header controls (no fixed positioning) */
+.info-trigger{
+    /* moved from fixed to inline control */
+    position:relative;
+    width:36px;
+    height:36px;
+    background:var(--bg-secondary);
+    border:1px solid var(--border-color);
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    transition: all 0.2s;
+    font-size:16px;
+    font-weight:600;
+    color:var(--text-primary);
+}
+.info-trigger:hover{ transform:scale(1.06); box-shadow: var(--shadow-neon); }
+/* Effects toggle as a compact pill control inside header */
+.effects-toggle{
+    position:relative;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    min-width:78px;
+    height:36px;
+    padding:6px 10px;
+    background: var(--bg-secondary);
+    border:1px solid var(--border-color);
+    border-radius:10px;
+    cursor:pointer;
+    transition: all 0.2s;
+    font-size:12px;
+    color:var(--text-primary);
+}
+.effects-toggle:hover{ transform:translateY(-2px); box-shadow: var(--shadow-neon); }
+/* optional icon + label inside effects toggle */
+.effects-toggle .label{ display:inline-block; font-weight:600; }
+.effects-toggle .dot{ width:8px; height:8px; border-radius:50%; background:var(--accent-neon); box-shadow:0 0 6px rgba(57,255,20,0.25); }
+/* === INFO OVERLAY SYSTEM === */
+.info-overlay{
+    position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8);
+    backdrop-filter: blur(10px); z-index:1000; display:none; opacity:0; transition:opacity 0.3s;
+}
+.info-overlay.active{ display:flex; align-items:center; justify-content:center; opacity:1; }
+.info-content{
+    background:var(--bg-primary); border:1px solid var(--border-color); border-radius:16px; padding:32px; max-width:600px; max-height:80vh; overflow-y:auto;
+    transform:scale(0.9); transition:transform 0.3s;
+}
+.info-overlay.active .info-content{ transform:scale(1); }
+/* accordion */
+.accordion-item{ border-bottom:1px solid var(--border-color); padding:16px 0; }
+.accordion-header{ cursor:pointer; font-weight:600; font-size:18px; margin-bottom:8px; transition:color 0.3s; }
+.accordion-header:hover{ color: var(--accent-pink); }
+.accordion-content{ max-height:0; overflow:hidden; transition:max-height 0.3s; color:var(--text-secondary); line-height:1.6; }
+.accordion-item.open .accordion-content{ max-height:500px; }
+.close-btn{
+    position:absolute; top:20px; right:20px; background:none; border:none; color:var(--text-primary); font-size:32px; cursor:pointer; transition:transform 0.3s;
+}
+.close-btn:hover{ transform:rotate(90deg); }
+/* === QUADRANT SYSTEM === */
+.quad-container{
+    position:fixed; left:20px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:20px; z-index:100;
+}
+.quad-icon{ width:30px; height:30px; position:relative; perspective:300px; cursor:pointer; transition:transform 0.2s; }
+.quad-icon:hover{ transform:scale(1.2); }
+.quad-icon:active{ transform:scale(0.9); }
+.quad-cube{ width:100%; height:100%; transform-style:preserve-3d; transform: rotateX(-25deg) rotateY(-45deg); animation: spin 6s linear infinite; }
+@keyframes spin{ to{ transform: rotateX(-25deg) rotateY(315deg); } }
+.q-face{ position:absolute; width:20px; height:20px; left:5px; top:5px; backface-visibility:visible; opacity:0.8; }
+.q-face:nth-child(1){ transform: rotateY(0deg) translateZ(10px); }
+.q-face:nth-child(2){ transform: rotateY(90deg) translateZ(10px); }
+.q-face:nth-child(3){ transform: rotateY(180deg) translateZ(10px); }
+.q-face:nth-child(4){ transform: rotateY(-90deg) translateZ(10px); }
+.q-face:nth-child(5){ transform: rotateX(90deg) translateZ(10px); }
+.q-face:nth-child(6){ transform: rotateX(-90deg) translateZ(10px); }
+.quad-label{ position:absolute; left:40px; top:50%; transform:translateY(-50%); font-size:12px; color:var(--text-primary); white-space:nowrap; }
+/* quadrant color variants */
+.quad-icon.todo .q-face{ background:rgba(255,255,0,0.2); border:1px solid var(--accent-yellow); box-shadow:0 0 5px var(--accent-yellow); }
+.quad-icon.prog .q-face{ background:rgba(0,255,255,0.2); border:1px solid var(--accent-cyan); box-shadow:0 0 5px var(--accent-cyan); }
+.quad-icon.done .q-face{ background:rgba(0,255,0,0.2); border:1px solid var(--accent-neon); box-shadow:0 0 5px var(--accent-neon); }
+.quad-icon.back .q-face{ background:rgba(255,0,68,0.2); border:1px solid var(--accent-red); box-shadow:0 0 5px var(--accent-red); }
+/* === VIEW TOGGLES === */
+.view-toggles{
+    position:fixed; top:50%; right:20px; transform:translateY(-50%); display:flex; flex-direction:column; gap:8px; z-index:100;
+}
+.view-btn{ background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary); padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; transition:all 0.3s; }
+.view-btn:hover{ transform:translateY(-2px); box-shadow:var(--shadow-neon); }
+.view-btn.active{ border-color:var(--accent-pink); color:var(--accent-pink); box-shadow:0 0 10px rgba(255,20,147,0.3); }
+/* === EFFECTS TOGGLE (if shown elsewhere) === */
+/* when effects toggle is used outside header it will still fall back to original fixed position if needed */
+/* but by default we use the header-styled version above; keep this as fallback */
+.effects-toggle.floating{
+    position:fixed; top:140px; right:20px; z-index:100; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:8px; padding:8px; cursor:pointer; transition:all 0.3s; font-size:12px;
+}
+.effects-toggle.floating:hover{ transform:scale(1.05); box-shadow:var(--shadow-neon); }
+/* === MOBILE FOCUS RELEASE === */
+.mobile-release-btn{
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--accent-pink); color:white; border:none; border-radius:20px; padding:12px 24px; font-size:14px; font-weight:600; cursor:pointer; z-index:200; display:none; opacity:0; transition:all 0.3s;
+}
+.mobile-release-btn.visible{ display:block; opacity:1; }
+/* === TASK EDITOR === */
+.task-editor{
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-primary); border:1px solid var(--border-color); border-radius:12px; padding:20px; z-index:1000; display:none; opacity:0; transition:all 0.3s; min-width:300px;
+}
+.task-editor.active{ display:block; opacity:1; }
+.task-editor h3{ margin-bottom:16px; color:var(--accent-pink); }
+.task-editor input{ width:100%; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); color:var(--text-primary); padding:8px; border-radius:6px; margin-bottom:12px; }
+/* task editor buttons */
+.task-editor-buttons{ display:flex; gap:8px; justify-content:flex-end; }
+.task-editor-buttons button{ background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary); padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.3s; }
+.task-editor-buttons button:hover{ transform:translateY(-1px); box-shadow:var(--shadow-neon); }
+/* Interaction States */
+body.fab-active #cursor{ opacity:0; }
+body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
+/* === LOADING SCREEN === */
+.loading-screen{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:var(--bg-primary); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:10000; transition:opacity 0.5s; }
+.loading-cube{ width:60px; height:60px; perspective:300px; margin-bottom:20px; }
+.loading-cube .fab-cube{ width:100%; height:100%; transform-style:preserve-3d; transform: rotateX(-25deg) rotateY(-45deg); animation: spin 1s linear infinite; }
+.loading-text{ color:var(--text-primary); font-size:18px; opacity:0.8; }
+/* === STATS DISPLAY (Centered below search + mobile optimized) ===
+   Key behavior:
+   - Positioned relative to viewport, centered horizontally
+   - Placed directly below the header using --header-height variable
+   - On narrow screens it shrinks and moves slightly to avoid overlapping stacked header content
+*/
+.stats-display{
+    position:fixed;
+    top: calc(var(--header-height) + 12px); /* header height + small gap */
+    left:50%;
+    transform: translateX(-50%);
+    z-index:100;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--accent-neon);
+    min-width: 140px;
+    text-align:center;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap:4px;
+    align-items: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+}
+/* stat item layout inside stats-display */
+.stat-item{ display:flex; justify-content:space-between; width:100%; gap:8px; align-items:center; }
+.stat-label{ color:var(--text-secondary); font-size:11px; white-space:nowrap; flex:1; text-align:left; padding-left:6px; }
+.stat-value{ color:var(--accent-neon); font-weight:bold; font-size:12px; text-align:right; padding-right:6px; }
+/* For very small widths we let the stats sit below the header but slightly higher bottom fallback */
+@media (max-width:768px){
+    :root{ --header-height: var(--header-height-mobile); }
+    .header-top{
+        padding:8px 12px;
+        /* stacked layout when narrow: logo, search, controls */
+        grid-template-columns: 1fr;
+        grid-auto-rows: auto;
+        row-gap:8px;
+        align-items:center;
+    }
+    .logo-wrapper{ justify-self:center; }
+    .search-wrapper{ order:2; justify-self:center; width:100%; padding:0; }
+    .search-wrapper input{ width:100%; max-width:420px; font-size:11px; padding:6px 10px; text-align:left; }
+    .controls-wrapper{ justify-self:center; order:3; gap:6px; }
+    /* info trigger and effects toggle will sit in the centered controls row */
+    .controls-wrapper .info-trigger{ width:36px; height:36px; }
+    .controls-wrapper .effects-toggle{ min-width:72px; height:34px; padding:6px 8px; border-radius:8px; }
+    /* stats should still be visible and centered but reduce size and move a bit down so it doesn't overlap search when header stacks */
+    .stats-display{
+        top: calc(var(--header-height) + 8px);
+        font-size:10px;
+        padding:6px 8px;
+        min-width: 120px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+    }
+    .stat-label{ font-size:10px; }
+    .stat-value{ font-size:11px; }
+}
+/* extra small phones */
+@media (max-width:480px){
+    .header-top{ padding:6px 8px; }
+    .logo-cube{ width:24px; height:24px; }
+    .logo-text{ font-size:9px; }
+    .search-wrapper input{ font-size:10px; padding:5px 8px; }
+    .stats-display{ top: calc(var(--header-height) + 6px); padding:6px 8px; min-width: 110px; }
+    .stat-label{ font-size:9px; }
+    .stat-value{ font-size:10px; }
+    /* keep header controls compact */
+    .controls-wrapper{ gap:6px; }
+    .effects-toggle{ min-width:64px; height:32px; padding:4px 8px; border-radius:8px; font-size:11px; }
+}
+/* === VIEW TOGGLES/MISC RESPONSIVENESS === */
+@media (prefers-reduced-motion: reduce){ *{ animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; } }
+/* === MISC UTILITIES (kept from original) === */
+@keyframes cycle-colors{
+    0% {background: rgba(255,20,147,0.15);border-color: var(--pink);box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);}
+    20% {background: rgba(0,255,255,0.15);border-color: var(--neon-blue);box-shadow: 0 0 15px var(--neon-blue), inset 0 0 10px var(--neon-blue);}
+    40% {background: rgba(0,255,0,0.15);border-color: var(--neon-green);box-shadow: 0 0 15px var(--neon-green), inset 0 0 10px var(--neon-green);}
+    60% {background: rgba(255,255,0,0.15);border-color: var(--neon-yellow);box-shadow: 0 0 15px var(--neon-yellow), inset 0 0 10px var(--neon-yellow);}
+    80% {background: rgba(255,0,68,0.15);border-color: var(--neon-red);box-shadow: 0 0 15px var(--neon-red), inset 0 0 10px var(--neon-red);}
+    100% {background: rgba(255,20,147,0.15);border-color: var(--pink);box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);}
+}
     </style>
 </head>
 <body>
@@ -903,13 +427,12 @@
         </div>
         <div class="loading-text">Initializing Enhanced 3D Kanban...</div>
     </div>
-
     <!-- Main Canvas -->
     <canvas id="canvas"></canvas>
-    
+   
     <!-- Enhanced Cursor System -->
     <div id="cursor"></div>
-    
+   
     <!-- Enhanced Joystick with Dynamic Colors -->
     <div class="fab-zone" id="joystick">
         <div class="fab-halo"></div>
@@ -923,33 +446,25 @@
         </div>
         <div class="fab-hint">NAV</div>
     </div>
-    
+   
     <!-- UI Elements -->
     <div class="info-trigger" id="info-btn">i</div>
-    
+   
     <div class="trash-zone" id="trash-zone">🗑️</div>
-    
+   
     <div class="reset-zone" id="reset-zone">↻</div>
-    
+   
     <div class="center-helper">
         Use joystick to navigate • Click cubes to focus • Double-click to edit
     </div>
-    
+   
     <!-- Coordinates Display -->
     <div class="coords" id="coord-display">
         <div>X:0.0</div>
         <div>Y:0.0</div>
         <div>Z:0.0</div>
     </div>
-    
-    <!-- Physics Controls
-    <div class="physics-controls">
-        <button class="physics-btn" id="gravity-toggle">Gravity: ON</button>
-        <button class="physics-btn" id="explosion-btn">💥 Explode</button>
-        <button class="physics-btn" id="freeze-btn">❄️ Freeze</button>
-        <button class="physics-btn" id="tornado-btn">🌪️ Tornado</button>
-    </div> -->
-    
+   
     <!-- Stats Display -->
     <div class="stats-display">
         <div class="stat-item">
@@ -960,30 +475,25 @@
             <span class="stat-label">FPS:</span>
             <span class="stat-value" id="fps-counter">60</span>
         </div>
-        <div class="stat-item">
-            <span class="stat-label">Physics:</span>
-            <span class="stat-value" id="physics-status">Active</span>
-        </div>
     </div>
-    
+   
     <!-- View Toggles -->
     <div class="view-toggles">
         <button class="view-btn active" data-view="quarterback">Quarterback</button>
         <button class="view-btn" data-view="skycam">Skycam</button>
         <button class="view-btn" data-view="sideline">Sideline</button>
-        <button class="view-btn" data-view="fps">First Person</button>
     </div>
-    
+   
     <!-- Effects Toggle -->
     <div class="effects-toggle" id="effects-toggle">
         Effects: ON
     </div>
-    
+   
     <!-- Mobile Focus Release Button -->
     <button class="mobile-release-btn" id="mobile-release">
         Tap to Release Focus
     </button>
-    
+   
     <!-- Quadrant Icons -->
     <div class="quad-container">
         <div class="quad-icon prog" onclick="spawn('prog')" title="Spawn In-Progress">
@@ -1015,33 +525,30 @@
             <span class="quad-label">Backlog</span>
         </div>
     </div>
-    
+   
     <!-- Header -->
     <div class="header-top">
-        <div class="logo-wrapper">
-            <div class="logo-cube">
-                <div class="fab-cube">
-                    <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
-                    <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
-                </div>
+      <div class="logo-wrapper">
+        <div class="logo-cube">
+            <div class="fab-cube">
+                <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
+                <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
             </div>
-            <div class="logo-text">intoview:kanban</div>
         </div>
+        <div class="logo-text">intoview:kanban</div>
+    </div>
         <div class="search-wrapper">
             <input id="search" type="text" placeholder="Search Tasks...">
         </div>
-        <div class="controls-wrapper">
-            <button class="theme-toggle" id="theme-toggle">🌙 Neon</button>
-        </div>
     </div>
-    
+   
     <!-- Info Overlay with Accordion -->
     <div class="info-overlay" id="info-overlay">
         <div class="info-content">
             <button class="close-btn" id="close-info">&times;</button>
-            
+           
             <h2 style="margin-bottom: 24px; color: var(--accent-pink);">Enhanced 3D Kanban System</h2>
-            
+           
             <div class="accordion-item open">
                 <div class="accordion-header">🎮 Enhanced Controls</div>
                 <div class="accordion-content">
@@ -1065,7 +572,7 @@
                     </ul>
                 </div>
             </div>
-            
+           
             <div class="accordion-item">
                 <div class="accordion-header">🎨 Themes</div>
                 <div class="accordion-content">
@@ -1075,18 +582,17 @@
                     <p>Toggle between themes using the theme button in the header.</p>
                 </div>
             </div>
-            
+           
             <div class="accordion-item">
                 <div class="accordion-header">📷 Camera Views</div>
                 <div class="accordion-content">
                     <p><strong>Quarterback:</strong> Standard third-person perspective.</p>
                     <p><strong>Skycam:</strong> Top-down view for strategic overview.</p>
                     <p><strong>Sideline:</strong> Side view for lateral analysis.</p>
-                    <p><strong>First Person:</strong> Immersive FPS-style navigation.</p>
                     <p>Long-press view buttons for alternate focus perspectives.</p>
                 </div>
             </div>
-            
+           
             <div class="accordion-item">
                 <div class="accordion-header">🔧 Physics Features</div>
                 <div class="accordion-content">
@@ -1100,7 +606,7 @@
                     </ul>
                 </div>
             </div>
-            
+           
             <div class="accordion-item">
                 <div class="accordion-header">💡 Tips & Tricks</div>
                 <div class="accordion-content">
@@ -1117,7 +623,6 @@
             </div>
         </div>
     </div>
-
     <!-- Task Editor Modal -->
     <div class="task-editor" id="task-editor">
         <h3>Edit Task</h3>
@@ -1127,98 +632,87 @@
             <button id="save-edit">Save</button>
         </div>
     </div>
-
     <script>
         // === ENHANCED CONFIGURATION ===
         const CFG = {
-            cam: { 
-                eye: { y: 40 } 
+            cam: {
+                eye: { y: 40 }
             },
             preset: {
-                quarterback: { 
-                    o: new THREE.Vector3(0, 12, 25), 
-                    r: new THREE.Euler(-0.4, 0, 0) 
+                quarterback: {
+                    o: new THREE.Vector3(0, 12, 25),
+                    r: new THREE.Euler(-0.4, 0, 0)
                 },
-                skycam: { 
-                    o: new THREE.Vector3(0, 60, 1), 
-                    r: new THREE.Euler(-Math.PI / 2, 0, 0) 
+                skycam: {
+                    o: new THREE.Vector3(0, 60, 1),
+                    r: new THREE.Euler(-Math.PI / 2, 0, 0)
                 },
-                sideline: { 
-                    o: new THREE.Vector3(60, 8, 0), 
-                    r: new THREE.Euler(0, Math.PI / 2, 0) 
-                },
-                fps: {
-                    o: new THREE.Vector3(0, 5, 0),
-                    r: new THREE.Euler(0, 0, 0)
+                sideline: {
+                    o: new THREE.Vector3(60, 8, 0),
+                    r: new THREE.Euler(0, Math.PI / 2, 0)
                 }
             },
             colors: {
                 todo: 0xFFFF00, // Yellow
                 prog: 0x00FFFF, // Cyan
                 done: 0x00FF00, // Green
-                back: 0xFF0044  // Red-Pink
+                back: 0xFF0044 // Red-Pink
             },
             quadrantColors: {
                 todo: '#FFFF00',
-                prog: '#00FFFF', 
+                prog: '#00FFFF',
                 done: '#00FF00',
                 back: '#FF0044'
             }
         };
-
         // === SCENE SETUP ===
         const sc = new THREE.Scene();
         sc.background = new THREE.Color(0x000000);
         sc.fog = new THREE.FogExp2(0x000000, 0.0007);
-
         const cam = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 10077);
-
-        const rend = new THREE.WebGLRenderer({ 
-            canvas: document.getElementById('canvas'), 
-            antialias: true 
+        const rend = new THREE.WebGLRenderer({
+            canvas: document.getElementById('canvas'),
+            antialias: true
         });
         rend.setSize(innerWidth, innerHeight);
         rend.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         rend.shadowMap.enabled = true;
         rend.shadowMap.type = THREE.PCFSoftShadowMap;
-
         // === ENHANCED POST-PROCESSING SETUP ===
         let composer, renderPass, vignettePass, rgbShiftPass;
-        
+       
         function initPostProcessing() {
             composer = new THREE.EffectComposer(rend);
             renderPass = new THREE.RenderPass(sc, cam);
             composer.addPass(renderPass);
-            
+           
             // Vignette effect
             vignettePass = new THREE.ShaderPass(THREE.VignetteShader);
             vignettePass.uniforms.offset.value = 0.8;
             vignettePass.uniforms.darkness.value = 1.8;
             composer.addPass(vignettePass);
-            
+           
             // RGB Shift effect for enhanced visuals
             rgbShiftPass = new THREE.ShaderPass(THREE.RGBShiftShader);
             rgbShiftPass.uniforms.amount.value = 0.0015;
             composer.addPass(rgbShiftPass);
         }
-        
+       
         initPostProcessing();
-
         // === PHYSICS WORLD ===
         const world = new CANNON.World();
         world.gravity.set(0, -19.81, 0);
         world.broadphase = new CANNON.NaiveBroadphase();
         const mat = new CANNON.Material();
-        world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, { 
-            friction: 0.6, 
-            restitution: 0.2 
+        world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, {
+            friction: 0.6,
+            restitution: 0.2
         }));
-
         // === ENHANCED APPLICATION STATE ===
-        const rig = { 
-            mode: 'quarterback', 
-            preset: 'quarterback', 
-            piv: new THREE.Vector3(), 
+        const rig = {
+            mode: 'quarterback',
+            preset: 'quarterback',
+            piv: new THREE.Vector3(),
             tPiv: new THREE.Vector3(),
             isMobile: window.innerWidth <= 768,
             effectsEnabled: true,
@@ -1226,17 +720,16 @@
             physicsFrozen: false,
             currentTheme: 'neon'
         };
-        
-        const tm = { 
-            cubes: [], 
-            sel: null, 
-            hov: null, 
-            drag: null, 
-            launch: false, 
+       
+        const tm = {
+            cubes: [],
+            sel: null,
+            hov: null,
+            drag: null,
+            launch: false,
             lSrc: null,
             editingCube: null
         };
-
         let distanceScale = 1;
         let isPanning = false;
         let panStartIntersect = null;
@@ -1244,7 +737,6 @@
         let frameCount = 0;
         let lastTime = performance.now();
         let fps = 60;
-
         // === QUADRANT POSITIONS ===
         const quads = {
             todo: { x: 25, z: -25 },
@@ -1252,75 +744,64 @@
             done: { x: 25, z: 25 },
             back: { x: -25, z: 25 }
         };
-
         // === ENHANCED LIGHTING ===
         sc.add(new THREE.AmbientLight(0xffffff, 0.4));
-
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
         dirLight.position.set(20, 50, 20);
         dirLight.castShadow = true;
         dirLight.shadow.mapSize.set(2048, 2048);
         sc.add(dirLight);
-
         const neon1 = new THREE.PointLight(0x00ffff, 4, 90);
         neon1.position.set(-30, 15, -30);
         sc.add(neon1);
-
         const neon2 = new THREE.PointLight(0xff00ff, 4, 90);
         neon2.position.set(30, 15, 30);
         sc.add(neon2);
-
         const neon3 = new THREE.PointLight(0x39FF14, 2, 60);
         neon3.position.set(0, 20, 0);
         sc.add(neon3);
-
         // === ENVIRONMENT MAP ===
-        const cRT = new THREE.WebGLCubeRenderTarget(512, { 
-            format: THREE.RGBFormat, 
-            generateMipmaps: true, 
-            minFilter: THREE.LinearMipmapLinearFilter 
+        const cRT = new THREE.WebGLCubeRenderTarget(512, {
+            format: THREE.RGBFormat,
+            generateMipmaps: true,
+            minFilter: THREE.LinearMipmapLinearFilter
         });
         const cCam = new THREE.CubeCamera(0.1, 1000, cRT);
         sc.add(cCam);
-
         // === ENHANCED FLOOR ===
         const gnd = new THREE.Mesh(
             new THREE.PlaneGeometry(200, 200),
-            new THREE.MeshStandardMaterial({ 
-                color: 0x050508, 
-                roughness: 0.8, 
-                metalness: 0.8, 
-                envMapIntensity: 0.5 
+            new THREE.MeshStandardMaterial({
+                color: 0x050508,
+                roughness: 0.8,
+                metalness: 0.8,
+                envMapIntensity: 0.5
             })
         );
         gnd.rotation.x = -Math.PI / 2;
         gnd.position.y = -4;
         gnd.receiveShadow = true;
         sc.add(gnd);
-
         const gB = new CANNON.Body({ mass: 0, material: mat });
         gB.addShape(new CANNON.Plane());
         gB.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
         gB.position.set(0, -4, 0);
         world.addBody(gB);
-
         // === GRID SYSTEM ===
         const gridGrp = new THREE.Group();
         sc.add(gridGrp);
-
         function createGrid() {
             const mat = new THREE.LineBasicMaterial({ color: 0x222233 });
             const xLine = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(-100, -3.9, 0), 
+                new THREE.Vector3(-100, -3.9, 0),
                 new THREE.Vector3(100, -3.9, 0)
             ]);
             const zLine = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, -3.9, -100), 
+                new THREE.Vector3(0, -3.9, -100),
                 new THREE.Vector3(0, -3.9, 100)
             ]);
             gridGrp.add(new THREE.Line(xLine, mat));
             gridGrp.add(new THREE.Line(zLine, mat));
-
             const addLabel = (txt, x, z, col) => {
                 const c = document.createElement('canvas');
                 c.width = 256;
@@ -1332,43 +813,40 @@
                 ctx.shadowColor = col;
                 ctx.shadowBlur = 10;
                 ctx.fillText(txt, 128, 48);
-                const s = new THREE.Sprite(new THREE.SpriteMaterial({ 
-                    map: new THREE.CanvasTexture(c), 
-                    transparent: true, 
-                    opacity: 0.6 
+                const s = new THREE.Sprite(new THREE.SpriteMaterial({
+                    map: new THREE.CanvasTexture(c),
+                    transparent: true,
+                    opacity: 0.6
                 }));
                 s.position.set(x, 3.33, z);
                 s.scale.set(12, 3, 1);
                 gridGrp.add(s);
             };
-
             addLabel("TO DO", 25, -25, "#FFFF00");
             addLabel("IN PROGRESS", -25, -25, "#00FFFF");
             addLabel("DONE", 25, 25, "#00FF00");
             addLabel("BACKLOG", -25, 25, "#FF0044");
         }
         createGrid();
-
         // === SELECTION RING ===
         const ringGeo = new THREE.RingGeometry(2.3, 2.7, 32);
         ringGeo.rotateX(-Math.PI / 2);
-        const ringMat = new THREE.MeshBasicMaterial({ 
-            color: 0x39FF14, 
-            side: THREE.DoubleSide, 
-            transparent: true, 
-            opacity: 0.8 
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x39FF14,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.8
         });
         const selRing = new THREE.Mesh(ringGeo, ringMat);
         selRing.visible = false;
         sc.add(selRing);
-
         // === ENHANCED CUBE CLASS ===
         class Cube {
             constructor(x, y, z, sz = 2.5) {
                 this.sz = sz;
                 this.st = 'def';
                 this.taskId = Date.now() + Math.random();
-                
+               
                 const baseMat = new THREE.MeshPhysicalMaterial({
                     color: 0x333333,
                     metalness: 0.1,
@@ -1380,22 +858,19 @@
                     envMap: cRT.texture,
                     envMapIntensity: 1.5
                 });
-
                 this.mat = baseMat;
                 this.m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), baseMat);
                 this.m.position.set(x, y, z);
                 this.m.castShadow = true;
                 this.m.receiveShadow = true;
                 this.m.userData.cube = this;
-
                 const ed = new THREE.LineSegments(
-                    new THREE.EdgesGeometry(this.m.geometry), 
+                    new THREE.EdgesGeometry(this.m.geometry),
                     new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 })
                 );
                 this.ed = ed;
                 this.m.add(ed);
                 sc.add(this.m);
-
                 const sh = new CANNON.Box(new CANNON.Vec3(sz / 2, sz / 2, sz / 2));
                 this.b = new CANNON.Body({ mass: 5, material: mat, type: CANNON.Body.DYNAMIC });
                 this.b.addShape(sh);
@@ -1404,10 +879,9 @@
                 this.b.angularDamping = 0.4;
                 this.b.angularFactor = new CANNON.Vec3(0, 0, 0);
                 world.addBody(this.b);
-                
+               
                 this.updateColor();
             }
-
             updateTextSprite() {
                 if (this.textSprite) this.m.remove(this.textSprite);
                 if (!this.text) return;
@@ -1426,7 +900,6 @@
                 this.textSprite.position.set(0, this.sz / 2 + 1, 0);
                 this.m.add(this.textSprite);
             }
-
             getStatus() {
                 const x = this.b.position.x;
                 const z = this.b.position.z;
@@ -1435,7 +908,6 @@
                 if (x > 0 && z > 0) return 'done';
                 return 'back';
             }
-
             updateColor() {
                 const s = this.getStatus();
                 if (this.lastStatus !== s) {
@@ -1446,26 +918,23 @@
                     this.mat.emissiveIntensity = 0.6;
                 }
             }
-
             click() {
-                gsap.to(this.m.scale, { 
-                    x: 1.1, y: 1.1, z: 1.1, 
-                    duration: 0.1, 
-                    yoyo: true, 
-                    repeat: 1 
+                gsap.to(this.m.scale, {
+                    x: 1.1, y: 1.1, z: 1.1,
+                    duration: 0.1,
+                    yoyo: true,
+                    repeat: 1
                 });
             }
-
             sel() {
                 this.ed.material.opacity = 1.0;
                 tm.sel = this;
                 this.upd();
-                
+               
                 if (rig.isMobile) {
                     document.getElementById('mobile-release').classList.add('visible');
                 }
             }
-
             desel() {
                 this.ed.material.opacity = 0.2;
                 if (tm.sel === this) {
@@ -1473,7 +942,6 @@
                     document.getElementById('mobile-release').classList.remove('visible');
                 }
             }
-
             launch(tp) {
                 const d = new THREE.Vector3().subVectors(tp, this.b.position);
                 const ds = d.length();
@@ -1481,17 +949,14 @@
                 this.b.applyImpulse(imp, this.b.position);
                 this.b.angularVelocity.set((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
             }
-
             upd() {
                 // Enhanced info display could be implemented here
             }
-
             tick() {
                 this.m.position.copy(this.b.position);
                 this.m.quaternion.copy(this.b.quaternion);
                 if (!tm.drag || tm.drag !== this) this.updateColor();
             }
-
             rm() {
                 sc.remove(this.m);
                 world.removeBody(this.b);
@@ -1499,7 +964,6 @@
                 if (i > -1) tm.cubes.splice(i, 1);
                 updateStats();
             }
-
             explode() {
                 const force = new CANNON.Vec3(
                     (Math.random() - 0.5) * 50,
@@ -1513,19 +977,16 @@
                     (Math.random() - 0.5) * 20
                 );
             }
-
             freeze() {
                 this.b.type = CANNON.Body.KINEMATIC;
                 this.b.velocity.set(0, 0, 0);
                 this.b.angularVelocity.set(0, 0, 0);
             }
-
             unfreeze() {
                 this.b.type = CANNON.Body.DYNAMIC;
                 this.b.wakeUp();
             }
         }
-
         // === INITIAL CUBES ===
         function initializeCubes() {
             const initialCubes = [
@@ -1538,7 +999,6 @@
                 [10, 20, "UI/UX Design"],
                 [-10, -20, "Deployment"]
             ];
-
             initialCubes.forEach(data => {
                 const c = new Cube(data[0], 5, data[1]);
                 c.text = data[2];
@@ -1548,7 +1008,6 @@
             });
             updateStats();
         }
-
         // === SPAWNER LOGIC ===
         window.spawn = function(zone) {
             let x, z;
@@ -1558,36 +1017,35 @@
                 case 'done': x = 25; z = 25; break;
                 case 'back': x = -25; z = 25; break;
             }
-            
+           
             x += (Math.random() - 0.5) * 5;
             z += (Math.random() - 0.5) * 5;
-            
+           
             const c = new Cube(x, 40, z);
             c.text = "New Task " + (tm.cubes.length + 1);
             c.updateTextSprite();
             c.b.angularVelocity.set(Math.random(), Math.random(), Math.random());
             tm.cubes.push(c);
             updateStats();
-            
+           
             if (rig.tPiv.distanceTo(new THREE.Vector3(x, 0, z)) > 30) {
                 gsap.to(rig.tPiv, { x: x, z: z, duration: 1.5, ease: "power2.out" });
             }
         };
-
         // === ENHANCED RAYCASTING ===
         const rc = new THREE.Raycaster(), ms = new THREE.Vector2(), intersect = new THREE.Vector3();
-        
+       
         function upMs(e) {
             ms.x = (e.clientX / innerWidth) * 2 - 1;
             ms.y = -(e.clientY / innerHeight) * 2 + 1;
         }
-        
+       
         function getC() {
             rc.setFromCamera(ms, cam);
             const in_ = rc.intersectObjects(tm.cubes.map(c => c.m));
             return in_.length > 0 ? in_[0].object.userData.cube : null;
         }
-        
+       
         function getG(e) {
             upMs(e);
             rc.setFromCamera(ms, cam);
@@ -1596,34 +1054,33 @@
             if (rc.ray.intersectPlane(plane, intersect)) return intersect;
             return null;
         }
-
         // === CURSOR SYSTEM ===
         const tl = 14, h = document.getElementById('cursor');
-        
+       
         const centerDot = document.createElement('div');
         centerDot.className = 'c-center';
         h.appendChild(centerDot);
         const centerRing = document.createElement('div');
         centerRing.className = 'c-ring';
         h.appendChild(centerRing);
-        
+       
         for (let i = 0; i < tl; i++) {
             const d = document.createElement('div');
             d.className = 'c-circle';
             h.appendChild(d);
         }
-        
+       
         const cs = h.querySelectorAll('.c-circle');
         let mX = innerWidth / 2, mY = innerHeight / 2;
         const hist = Array(tl).fill(0).map(() => ({ x: mX, y: mY }));
-        
-        addEventListener('pointermove', e => { 
-            mX = e.clientX; 
-            mY = e.clientY; 
+       
+        addEventListener('pointermove', e => {
+            mX = e.clientX;
+            mY = e.clientY;
         }, { passive: true });
-        
+       
         function cTick() {
-            hist.shift(); 
+            hist.shift();
             hist.push({ x: mX, y: mY });
             cs.forEach((c, i) => {
                 const cur = hist[i];
@@ -1633,31 +1090,28 @@
                 const s = Math.max(0.22, (tl - i) / tl * 1.2);
                 c.style.transform = `translate(calc(${cur.x}px - 50%), calc(${cur.y}px - 50%)) scale(${s})`;
             });
-            
+           
             centerDot.style.left = mX + 'px';
             centerDot.style.top = mY + 'px';
             centerRing.style.left = mX + 'px';
             centerRing.style.top = mY + 'px';
-            
+           
             requestAnimationFrame(cTick);
         }
         cTick();
-
         // === ENHANCED JOYSTICK SYSTEM ===
-        const joy = { 
-            el: document.getElementById('joy-cube'), 
-            zone: document.getElementById('joystick'), 
-            active: false, 
-            start: { x: 0, y: 0 } 
+        const joy = {
+            el: document.getElementById('joy-cube'),
+            zone: document.getElementById('joystick'),
+            active: false,
+            start: { x: 0, y: 0 }
         };
-
         function getQuadrantFromPosition(x, z) {
             if (x > 0 && z < 0) return 'todo';
             if (x < 0 && z < 0) return 'prog';
             if (x > 0 && z > 0) return 'done';
             return 'back';
         }
-
         function updateJoystickColor(quadrant) {
             const color = CFG.quadrantColors[quadrant];
             const faces = joy.el.querySelectorAll('.f-face');
@@ -1665,33 +1119,31 @@
                 face.style.borderColor = color;
                 face.style.boxShadow = `0 0 15px ${color}, inset 0 0 10px ${color}`;
             });
-            
+           
             centerDot.style.background = color;
             centerDot.style.boxShadow = `0 0 10px ${color}`;
             centerRing.style.borderColor = color;
             centerRing.style.boxShadow = `0 0 8px ${color}`;
         }
-
         function handleJoy(x, y) {
             const max = 60;
             let dx = x - joy.start.x, dy = y - joy.start.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > max) { 
-                const r = max / dist; 
-                dx *= r; 
-                dy *= r; 
+            if (dist > max) {
+                const r = max / dist;
+                dx *= r;
+                dy *= r;
             }
-
             const intensity = Math.min(dist / max, 1);
             joy.el.style.transform = `rotateX(${-25 + (dy / max * 45)}deg) rotateY(${-45 + (dx / max * 45)}deg) translate(${dx / 3}px, ${dy / 3}px) scale(${1 + intensity * 0.1})`;
             document.querySelector('.fab-halo').style.opacity = intensity * 0.6;
-            
+           
             const currentQuadrant = getQuadrantFromPosition(rig.tPiv.x, rig.tPiv.z);
             updateJoystickColor(currentQuadrant);
-            
+           
             const speed = 0.8;
             const viscosity = 0.15;
-            
+           
             if (rig.isMobile && currentView === 'quarterback') {
                 rig.tPiv.z += dy / max * speed;
                 if (Math.abs(dx) > Math.abs(dy)) {
@@ -1700,30 +1152,17 @@
             } else if (currentView === 'sideline') {
                 rig.tPiv.z += dx / max * speed;
                 rig.tPiv.y -= dy / max * speed;
-            } else if (currentView === 'fps') {
-                // FPS controls
-                cam.rotation.y -= dx / max * 0.05;
-                cam.rotation.x -= dy / max * 0.05;
-                const moveVector = new THREE.Vector3();
-                cam.getWorldDirection(moveVector);
-                moveVector.y = 0;
-                moveVector.normalize();
-                const movement = dy / max * speed;
-                rig.tPiv.x += moveVector.x * movement;
-                rig.tPiv.z += moveVector.z * movement;
             } else {
                 rig.tPiv.x += dx / max * speed;
                 rig.tPiv.z += dy / max * speed;
             }
         }
-
         function startJoy(x, y) {
-            joy.active = true; 
+            joy.active = true;
             joy.start = { x, y };
             joy.el.style.transition = 'none';
             document.body.classList.add('fab-active');
         }
-
         function endJoy() {
             joy.active = false;
             joy.el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
@@ -1731,137 +1170,60 @@
             document.querySelector('.fab-halo').style.opacity = 0;
             document.body.classList.remove('fab-active');
         }
-
         // Joystick event listeners
         if (joy.zone) {
-            joy.zone.addEventListener('mousedown', e => { 
-                startJoy(e.clientX, e.clientY); 
-                e.stopPropagation(); 
+            joy.zone.addEventListener('mousedown', e => {
+                startJoy(e.clientX, e.clientY);
+                e.stopPropagation();
             });
-            joy.zone.addEventListener('touchstart', e => { 
-                startJoy(e.touches[0].clientX, e.touches[0].clientY); 
-                e.stopPropagation(); 
+            joy.zone.addEventListener('touchstart', e => {
+                startJoy(e.touches[0].clientX, e.touches[0].clientY);
+                e.stopPropagation();
             });
         }
-        
-        addEventListener('mousemove', e => { 
-            if (joy.active) handleJoy(e.clientX, e.clientY); 
+       
+        addEventListener('mousemove', e => {
+            if (joy.active) handleJoy(e.clientX, e.clientY);
         });
-        addEventListener('touchmove', e => { 
-            if (joy.active && e.touches.length === 1) handleJoy(e.touches[0].clientX, e.touches[0].clientY); 
+        addEventListener('touchmove', e => {
+            if (joy.active && e.touches.length === 1) handleJoy(e.touches[0].clientX, e.touches[0].clientY);
         });
-        
+       
         addEventListener('mouseup', endJoy);
         addEventListener('touchend', endJoy);
-
         // === ENHANCED THEME SYSTEM ===
         const themes = ['neon', 'pastel', 'midnight'];
         let currentThemeIndex = 0;
-
         function toggleTheme() {
             currentThemeIndex = (currentThemeIndex + 1) % themes.length;
             const newTheme = themes[currentThemeIndex];
             document.documentElement.setAttribute('data-theme', newTheme);
             rig.currentTheme = newTheme;
-            
+           
             const themeBtn = document.getElementById('theme-toggle');
             const icons = ['🌙 Neon', '☀️ Pastel', '🌌 Midnight'];
             themeBtn.textContent = icons[currentThemeIndex];
         }
-
         const themeToggle = document.getElementById('theme-toggle');
         if (themeToggle) {
             themeToggle.addEventListener('click', toggleTheme);
         }
-
-        // === PHYSICS CONTROLS ===
-        function toggleGravity() {
-            rig.gravityEnabled = !rig.gravityEnabled;
-            world.gravity.set(0, rig.gravityEnabled ? -19.81 : 0, 0);
-            document.getElementById('gravity-toggle').textContent = `Gravity: ${rig.gravityEnabled ? 'ON' : 'OFF'}`;
-            document.getElementById('gravity-toggle').classList.toggle('active', !rig.gravityEnabled);
-        }
-
-        function explodeCubes() {
-            tm.cubes.forEach(cube => cube.explode());
-        }
-
-        function toggleFreeze() {
-            rig.physicsFrozen = !rig.physicsFrozen;
-            tm.cubes.forEach(cube => {
-                if (rig.physicsFrozen) {
-                    cube.freeze();
-                } else {
-                    cube.unfreeze();
-                }
-            });
-            document.getElementById('freeze-btn').classList.toggle('active', rig.physicsFrozen);
-            document.getElementById('physics-status').textContent = rig.physicsFrozen ? 'Frozen' : 'Active';
-        }
-
-        function createTornado() {
-            const tornadoCenter = new THREE.Vector3(0, 0, 0);
-            const tornadoForce = 15;
-            const tornadoRadius = 20;
-            
-            tm.cubes.forEach(cube => {
-                const toCenter = new THREE.Vector3().subVectors(tornadoCenter, cube.b.position);
-                const distance = toCenter.length();
-                
-                if (distance < tornadoRadius) {
-                    // Tangential force for spinning
-                    const tangent = new THREE.Vector3(-toCenter.z, 0, toCenter.x).normalize();
-                    const tangentialForce = tangent.multiplyScalar(tornadoForce * (1 - distance / tornadoRadius));
-                    
-                    // Upward force
-                    const upwardForce = new CANNON.Vec3(0, 10 * (1 - distance / tornadoRadius), 0);
-                    
-                    const totalForce = new CANNON.Vec3(
-                        tangentialForce.x + toCenter.x * 0.1,
-                        upwardForce.y,
-                        tangentialForce.z + toCenter.z * 0.1
-                    );
-                    
-                    cube.b.applyImpulse(totalForce, cube.b.position);
-                    cube.b.angularVelocity.set(
-                        (Math.random() - 0.5) * 15,
-                        (Math.random() - 0.5) * 15,
-                        (Math.random() - 0.5) * 15
-                    );
-                }
-            });
-        }
-
-        // Physics control event listeners
-        const gravityToggle = document.getElementById('gravity-toggle');
-        const explosionBtn = document.getElementById('explosion-btn');
-        const freezeBtn = document.getElementById('freeze-btn');
-        const tornadoBtn = document.getElementById('tornado-btn');
-
-        if (gravityToggle) gravityToggle.addEventListener('click', toggleGravity);
-        if (explosionBtn) explosionBtn.addEventListener('click', explodeCubes);
-        if (freezeBtn) freezeBtn.addEventListener('click', toggleFreeze);
-        if (tornadoBtn) tornadoBtn.addEventListener('click', createTornado);
-
         // === TASK EDITOR ===
         const taskEditor = document.getElementById('task-editor');
         const taskInput = document.getElementById('task-input');
         const saveEditBtn = document.getElementById('save-edit');
         const cancelEditBtn = document.getElementById('cancel-edit');
-
         function openTaskEditor(cube) {
             tm.editingCube = cube;
             taskInput.value = cube.text || '';
             taskEditor.classList.add('active');
             taskInput.focus();
         }
-
         function closeTaskEditor() {
             taskEditor.classList.remove('active');
             tm.editingCube = null;
             taskInput.value = '';
         }
-
         function saveTask() {
             if (tm.editingCube && taskInput.value.trim()) {
                 tm.editingCube.text = taskInput.value.trim();
@@ -1869,10 +1231,8 @@
             }
             closeTaskEditor();
         }
-
         if (saveEditBtn) saveEditBtn.addEventListener('click', saveTask);
         if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeTaskEditor);
-
         // === SEARCH FUNCTIONALITY ===
         const searchInput = document.getElementById('search');
         if (searchInput) {
@@ -1889,7 +1249,6 @@
                 });
             });
         }
-
         // === STATS UPDATE ===
         function updateStats() {
             const taskCount = document.getElementById('task-count');
@@ -1897,7 +1256,6 @@
                 taskCount.textContent = tm.cubes.length;
             }
         }
-
         function updateFPS() {
             frameCount++;
             const currentTime = performance.now();
@@ -1911,46 +1269,41 @@
                 lastTime = currentTime;
             }
         }
-
         // === INFO OVERLAY ===
         const infoBtn = document.getElementById('info-btn');
         const infoOverlay = document.getElementById('info-overlay');
         const closeInfo = document.getElementById('close-info');
-
         if (infoBtn) {
             infoBtn.addEventListener('click', () => {
                 infoOverlay.style.display = 'flex';
                 setTimeout(() => infoOverlay.classList.add('active'), 10);
             });
         }
-
         if (closeInfo) {
             closeInfo.addEventListener('click', () => {
                 infoOverlay.classList.remove('active');
                 setTimeout(() => infoOverlay.style.display = 'none', 300);
             });
         }
-
         // Accordion functionality
         document.querySelectorAll('.accordion-header').forEach(header => {
             header.addEventListener('click', () => {
                 const item = header.parentElement;
                 const wasOpen = item.classList.contains('open');
-                
+               
                 document.querySelectorAll('.accordion-item').forEach(i => {
                     i.classList.remove('open');
                 });
-                
+               
                 if (!wasOpen) {
                     item.classList.add('open');
                 }
             });
         });
-
         // === VIEW TOGGLES ===
         document.querySelectorAll('.view-btn').forEach(btn => {
             let pressTimer;
-            
+           
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
@@ -1958,7 +1311,6 @@
                 rig.preset = currentView;
             });
         });
-
         // === RESET FUNCTION ===
         function resetCamera() {
             rig.tPiv.set(0, 0, 0);
@@ -1969,59 +1321,26 @@
             rig.mode = 'quarterback';
             rig.preset = 'quarterback';
             currentView = 'quarterback';
-            
+           
             document.querySelectorAll('.view-btn').forEach(x => x.classList.remove('active'));
             const qbBtn = document.querySelector('.view-btn[data-view="quarterback"]');
             if (qbBtn) qbBtn.classList.add('active');
-            
+           
             if (tm.sel) tm.sel.desel();
-            
-            // Reset any physics state
-            rig.physicsFrozen = false;
-            rig.gravityEnabled = true;
-            world.gravity.set(0, -19.81, 0);
-            
-            // Update UI elements
-            const gravityToggle = document.getElementById('gravity-toggle');
-            if (gravityToggle) {
-                gravityToggle.textContent = 'Gravity: ON';
-                gravityToggle.classList.remove('active');
-            }
-            
-            const freezeBtn = document.getElementById('freeze-btn');
-            if (freezeBtn) {
-                freezeBtn.classList.remove('active');
-            }
-            
-            const physicsStatus = document.getElementById('physics-status');
-            if (physicsStatus) {
-                physicsStatus.textContent = 'Active';
-            }
-            
-            // Unfreeze all cubes if they were frozen
-            tm.cubes.forEach(cube => {
-                if (cube.b.type === CANNON.Body.KINEMATIC && cube !== tm.sel) {
-                    cube.b.type = CANNON.Body.DYNAMIC;
-                    cube.b.wakeUp();
-                }
-            });
         }
-
         const resetZone = document.getElementById('reset-zone');
         if (resetZone) {
             resetZone.addEventListener('click', resetCamera);
         }
-
         // === TRASH ZONE ===
         const trashZone = document.getElementById('trash-zone');
-
         function checkTrashZone(cube, mouseX, mouseY) {
             if (!trashZone) return false;
-            
+           
             const trashRect = trashZone.getBoundingClientRect();
             const isOverTrash = mouseX >= trashRect.left && mouseX <= trashRect.right &&
                                mouseY >= trashRect.top && mouseY <= trashRect.bottom;
-            
+           
             if (isOverTrash) {
                 trashZone.classList.add('active');
                 if (cube && tm.drag === cube) {
@@ -2034,18 +1353,9 @@
             }
             return isOverTrash;
         }
-
-        // === ENHANCED MOUSE EVENTS (PRESERVING ORIGINAL FUNCTIONALITY) ===
+        // === ENHANCED MOUSE EVENTS ===
         let lastClickTime = 0;
         const doubleClickDelay = 300;
-        let rightClickTimer = null;
-
-        // Prevent context menu on right-click for game interaction
-        addEventListener('contextmenu', e => {
-            e.preventDefault();
-            return false;
-        });
-
         addEventListener('wheel', e => {
             if (e.shiftKey) {
                 cam.fov += e.deltaY * 0.05;
@@ -2056,7 +1366,6 @@
                 distanceScale = Math.max(0.3, Math.min(5, distanceScale));
             }
         });
-
         addEventListener('mousemove', e => {
             upMs(e);
             if (tm.drag && e.buttons & 1) {
@@ -2077,105 +1386,20 @@
                 checkTrashZone(null, e.clientX, e.clientY);
             }
         });
-
         addEventListener('mousedown', e => {
             upMs(e);
             const c = getC();
-            
-            // Handle left-click (e.button === 0)
-            if (e.button === 0) {
-                const currentTime = Date.now();
-                
-                if (c) {
-                    // Check for double-click on left-click
-                    if (currentTime - lastClickTime < doubleClickDelay) {
-                        openTaskEditor(c);
-                        lastClickTime = 0;
-                        return;
-                    }
-                    lastClickTime = currentTime;
-                    
-                    // Original left-click behavior
-                    if (tm.sel && tm.sel !== c) tm.sel.desel();
-                    c.click();
-                    c.sel();
-                    tm.drag = c;
-                    c.originalY = c.b.position.y;
-                    c.b.type = CANNON.Body.KINEMATIC;
-                    gsap.to(c.b.position, { y: 3.5, duration: 0.2, ease: "power2.out" });
-                } else {
-                    if (tm.sel) tm.sel.desel();
-                    const gp = getG(e);
-                    if (gp) {
-                        isPanning = true;
-                        panStartIntersect = gp.clone();
-                    }
-                }
-            }
-            // Handle right-click (e.button === 2) 
-            else if (e.button === 2) {
-                e.preventDefault();
-                if (c) {
-                    // Right-click behavior - could launch cube or show context menu
-                    c.click();
-                    
-                    // Launch the cube on right-click (maintaining original physics interaction)
-                    if (tm.sel && tm.sel !== c) tm.sel.desel();
-                    c.sel();
-                    
-                    // Small delay before launch for visual feedback
-                    clearTimeout(rightClickTimer);
-                    rightClickTimer = setTimeout(() => {
-                        if (c && c === tm.sel) {
-                            // Launch towards a random point or towards camera
-                            const launchTarget = new THREE.Vector3(
-                                (Math.random() - 0.5) * 40,
-                                10 + Math.random() * 10,
-                                (Math.random() - 0.5) * 40
-                            );
-                            c.launch(launchTarget);
-                        }
-                    }, 100);
-                }
-            }
-        });
-
-        addEventListener('mouseup', e => {
-            if (e.button === 0) { // Only handle left-click release
-                if (tm.drag) {
-                    const c = tm.drag;
-                    gsap.to(c.b.position, { y: 2, duration: 0.2, ease: "power1.in", onComplete: () => {
-                        c.b.type = CANNON.Body.DYNAMIC;
-                        c.b.wakeUp();
-                    }});
-                }
-                tm.drag = null;
-                isPanning = false;
-            } else if (e.button === 2) { // Handle right-click release
-                clearTimeout(rightClickTimer);
-                rightClickTimer = null;
-            }
-        });
-
-        // === TOUCH EVENTS FOR MOBILE (PRESERVING ORIGINAL FUNCTIONALITY) ===
-        let lastTouchTime = 0;
-        const touchDoubleClickDelay = 400;
-
-        addEventListener('touchstart', e => {
-            upMs(e.touches[0]);
-            const c = getC();
             const currentTime = Date.now();
-            
+           
             if (c) {
-                // Check for double-tap
-                if (currentTime - lastTouchTime < touchDoubleClickDelay) {
+                // Check for double-click
+                if (currentTime - lastClickTime < doubleClickDelay) {
                     openTaskEditor(c);
-                    lastTouchTime = 0;
+                    lastClickTime = 0;
                     return;
                 }
-                lastTouchTime = currentTime;
-                
-                // Original touch behavior
+                lastClickTime = currentTime;
+               
                 if (tm.sel && tm.sel !== c) tm.sel.desel();
                 c.click();
                 c.sel();
@@ -2185,21 +1409,14 @@
                 gsap.to(c.b.position, { y: 3.5, duration: 0.2, ease: "power2.out" });
             } else {
                 if (tm.sel) tm.sel.desel();
-            }
-        });
-
-        addEventListener('touchmove', e => {
-            if (tm.drag && e.touches.length === 1) {
-                upMs(e.touches[0]);
-                const gp = getG({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+                const gp = getG(e);
                 if (gp) {
-                    tm.drag.b.position.copy(gp);
-                    tm.drag.upd();
+                    isPanning = true;
+                    panStartIntersect = gp.clone();
                 }
             }
         });
-
-        addEventListener('touchend', e => {
+        addEventListener('mouseup', () => {
             if (tm.drag) {
                 const c = tm.drag;
                 gsap.to(c.b.position, { y: 2, duration: 0.2, ease: "power1.in", onComplete: () => {
@@ -2208,8 +1425,8 @@
                 }});
             }
             tm.drag = null;
+            isPanning = false;
         });
-
         // === MOBILE FOCUS RELEASE ===
         const mobileReleaseBtn = document.getElementById('mobile-release');
         if (mobileReleaseBtn) {
@@ -2219,7 +1436,6 @@
                 }
             });
         }
-
         // === COORDINATE DISPLAY ===
         function updateCoordinates() {
             const coordDisplay = document.getElementById('coord-display');
@@ -2229,7 +1445,6 @@
                 coordDisplay.children[2].textContent = `Z:${rig.piv.z.toFixed(1)}`;
             }
         }
-
         // === EFFECTS TOGGLE ===
         function toggleEffects() {
             rig.effectsEnabled = !rig.effectsEnabled;
@@ -2238,45 +1453,34 @@
                 effectsToggle.textContent = `Effects: ${rig.effectsEnabled ? 'ON' : 'OFF'}`;
             }
         }
-
         const effectsToggle = document.getElementById('effects-toggle');
         if (effectsToggle) {
             effectsToggle.addEventListener('click', toggleEffects);
         }
-
         // === ENHANCED ANIMATION LOOP ===
         let lt = 0;
         function anim() {
             requestAnimationFrame(anim);
             const ct = performance.now() / 1000, dt = Math.min(ct - lt, 0.1);
             lt = ct;
-
             // Update FPS
             updateFPS();
-
             // Physics simulation
             if (!rig.physicsFrozen) {
                 world.step(1 / 60, dt, 3);
             }
             tm.cubes.forEach(c => c.tick());
-
             // Boundary constraints
             const boundX = 40, boundZ = 40;
             if (rig.tPiv.x > boundX) rig.tPiv.x += (boundX - rig.tPiv.x) * 0.1;
             if (rig.tPiv.x < -boundX) rig.tPiv.x += (-boundX - rig.tPiv.x) * 0.1;
             if (rig.tPiv.z > boundZ) rig.tPiv.z += (boundZ - rig.tPiv.z) * 0.1;
             if (rig.tPiv.z < -boundZ) rig.tPiv.z += (-boundZ - rig.tPiv.z) * 0.1;
-
             // Smooth camera movement
             rig.piv.lerp(rig.tPiv, rig.isMobile ? 0.08 : 0.1);
-
             const p = CFG.preset[currentView];
-            
-            if (currentView === 'fps') {
-                // FPS camera follows rig.piv directly
-                cam.position.copy(rig.piv);
-                cam.position.y = 5;
-            } else if (rig.mode === 'eye') {
+           
+            if (rig.mode === 'eye') {
                 const height = CFG.cam.eye.y * distanceScale;
                 cam.position.lerp(new THREE.Vector3(rig.piv.x, height, rig.piv.z), 0.1);
                 cam.position.y = Math.max(cam.position.y, -3);
@@ -2290,9 +1494,7 @@
                 cam.rotation.y += (p.r.y - cam.rotation.y) * 0.1;
                 cam.rotation.z += (p.r.z - cam.rotation.z) * 0.1;
             }
-
             cCam.update(rend, sc);
-
             // Selection ring
             if (tm.sel && (currentView === 'skycam' || currentView === 'sideline')) {
                 selRing.visible = true;
@@ -2303,9 +1505,7 @@
             } else {
                 selRing.visible = false;
             }
-
             updateCoordinates();
-
             // Render with or without effects
             if (rig.effectsEnabled) {
                 composer.render();
@@ -2313,7 +1513,6 @@
                 rend.render(sc, cam);
             }
         }
-
         // === RESPONSIVE HANDLING ===
         addEventListener('resize', () => {
             cam.aspect = innerWidth / innerHeight;
@@ -2321,14 +1520,13 @@
             rend.setSize(innerWidth, innerHeight);
             if (composer) composer.setSize(innerWidth, innerHeight);
             rig.isMobile = window.innerWidth <= 768;
-            
+           
             if (rig.isMobile && joy.zone) {
                 joy.zone.style.bottom = '20px';
             } else if (joy.zone) {
                 joy.zone.style.bottom = '9.9rem';
             }
         });
-
         // === KEYBOARD CONTROLS ===
         addEventListener('keydown', e => {
             if (e.key === 'Escape') {
@@ -2340,18 +1538,6 @@
             if (e.key === 'r' || e.key === 'R') {
                 resetCamera();
             }
-            if (e.key === 'g' || e.key === 'G') {
-                toggleGravity();
-            }
-            if (e.key === 'f' || e.key === 'F') {
-                toggleFreeze();
-            }
-            if (e.key === 'e' || e.key === 'E') {
-                explodeCubes();
-            }
-            if (e.key === 't' || e.key === 'T') {
-                createTornado();
-            }
             if (taskEditor.classList.contains('active') && e.key === 'Enter') {
                 saveTask();
             }
@@ -2359,12 +1545,11 @@
                 closeTaskEditor();
             }
         });
-
         // === INITIALIZATION ===
         function initialize() {
             initializeCubes();
             anim();
-            
+           
             // Hide loading screen
             const loadingScreen = document.getElementById('loading-screen');
             if (loadingScreen) {
@@ -2375,19 +1560,17 @@
                     }, 500);
                 }, 1000);
             }
-            
+           
             // Check initial mobile state
             if (rig.isMobile && joy.zone) {
                 joy.zone.style.bottom = '20px';
             }
-
             console.log('🚀 Enhanced 3D Kanban System initialized!');
             console.log('📱 Mobile mode:', rig.isMobile);
             console.log('🎨 Current theme:', rig.currentTheme);
             console.log('📷 Current view:', currentView);
             console.log('🎮 Total tasks:', tm.cubes.length);
         }
-
         // Start the application
         initialize();
     </script>
