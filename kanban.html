@@ -95,6 +95,8 @@
             border: 1px solid rgba(57, 255, 20, 0.3); z-index: 90; pointer-events: none;
         }
 
+        .reset {position:fixed; bottom:20px; left:20px; z-index:100;}
+
         @media (max-width: 768px) {
             .hud { display: none; }
             .fab-zone { bottom: 20px; transform: translateX(-50%) scale(0.9); }
@@ -140,10 +142,11 @@
     </div>
 
     <div id="ctx" class="ctx">
-        <div class="ctx-item" data-a="clone">Clone</div>
-        <div class="ctx-item" data-a="edit">Edit Text</div>
+        <div class="ctx-item" data-a="focus">Focus</div>
+        <div class="ctx-item" data-a="edit">Edit</div>
         <div class="ctx-div"></div>
         <div class="ctx-item" data-a="del">Delete</div>
+        <div class="ctx-item" data-a="move">Move To...</div>
     </div>
     <div id="launch" class="launch">LAUNCH MODE: Click target on floor</div>
 
@@ -154,6 +157,8 @@
         </div>
         <div class="fab-hint">NAV</div>
 <div class="coords" id="coord-display">X:0.0 Y:0.0 Z:0.0</div></div>
+
+    <div class="reset"><button class="btn" onclick="resetCam()">RESET</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
@@ -239,6 +244,13 @@
         let distanceScale = 1;
         let isPanning = false;
         let panStartIntersect = null;
+        let anchor = null;
+        const quads = {
+            todo: {x: 25, z: -25},
+            prog: {x: -25, z: -25},
+            done: {x: 25, z: 25},
+            back: {x: -25, z: 25}
+        };
 
         sc.add(new THREE.AmbientLight(0xffffff, 0.4));
 
@@ -478,6 +490,45 @@
             });
         }
 
+        function getQuadFromPoint(p) {
+            const x = p.x, z = p.z;
+            if (x > 0 && z < 0) return 'todo';
+            if (x < 0 && z < 0) return 'prog';
+            if (x > 0 && z > 0) return 'done';
+            return 'back';
+        }
+
+        function setAnchor(quad) {
+            const modeEl = document.getElementById('mode');
+            if (anchor && anchor.quad === quad) {
+                anchor = null;
+                if (rig.mode !== 'eye') modeEl.classList.remove('active');
+            } else {
+                const pos = new THREE.Vector3(quads[quad].x, 0, quads[quad].z);
+                anchor = {pos, quad};
+                gsap.to(rig.tPiv, {x: pos.x, z: pos.z, duration: 1, ease: "power2.out"});
+                modeEl.textContent = 'ANCHOR MODE ACTIVE';
+                modeEl.style.color = 'var(--neon-blue)';
+                modeEl.style.borderColor = 'var(--neon-blue)';
+                modeEl.style.boxShadow = '0 0 15px var(--neon-blue)';
+                modeEl.classList.add('active');
+            }
+        }
+
+        window.resetCam = function() {
+            rig.tPiv.set(0, 0, 0);
+            rig.piv.set(0, 0, 0);
+            distanceScale = 1;
+            cam.fov = 75;
+            cam.updateProjectionMatrix();
+            anchor = null;
+            rig.mode = 'std';
+            rig.preset = 'std';
+            document.querySelectorAll('[data-p]').forEach(x => x.classList.remove('active'));
+            document.querySelector('[data-p="std"]').classList.add('active');
+            document.getElementById('mode').classList.remove('active');
+        }
+
         // --- INTERACTION ---
         const rc = new THREE.Raycaster(), ms = new THREE.Vector2(), intersect = new THREE.Vector3();
         function upMs(e) { ms.x = (e.clientX / innerWidth) * 2 - 1; ms.y = -(e.clientY / innerHeight) * 2 + 1; }
@@ -542,6 +593,7 @@
                 c.b.type = CANNON.Body.KINEMATIC;
                 gsap.to(c.b.position, { y: 3.5, duration: 0.2, ease: "power2.out" });
             } else {
+                if (anchor) return;
                 const gp = getG(e);
                 if (gp) {
                     isPanning = true;
@@ -573,7 +625,13 @@
                 m.style.top = e.clientY + 'px'; 
                 m.classList.add('active'); 
                 tm.sel = c; 
-            } 
+            } else {
+                const gp = getG(e);
+                if (gp) {
+                    const quad = getQuadFromPoint(gp);
+                    setAnchor(quad);
+                }
+            }
         });
         addEventListener('click', () => { document.getElementById('ctx').classList.remove('active'); });
 
@@ -583,17 +641,24 @@
                 const a = it.dataset.a, c = tm.sel;
                 if (!c) return;
                 switch (a) {
-                    case 'clone':
-                        const cl = new Cube(c.b.position.x + 2, 5, c.b.position.z);
-                        cl.text = c.text + " (Copy)";
-                        cl.updateTextSprite();
-                        tm.cubes.push(cl);
+                    case 'focus':
+                        setAnchor(c.getStatus());
                         break;
                     case 'edit':
                         const n = prompt("Edit Task", c.text);
                         if(n) { c.text = n; c.updateTextSprite(); c.upd(); }
                         break;
                     case 'del': c.rm(); tm.sel = null; document.getElementById('info').classList.remove('active'); break;
+                    case 'move':
+                        const target = prompt('Move to which zone? (todo, prog, done, back)', c.getStatus());
+                        if (target && Object.keys(quads).includes(target)) {
+                            let x = quads[target].x + (Math.random() - 0.5) * 5;
+                            let z = quads[target].z + (Math.random() - 0.5) * 5;
+                            c.b.position.set(x, 40, z);
+                            c.b.velocity.set(0, 0, 0);
+                            c.b.angularVelocity.set(Math.random(), Math.random(), Math.random());
+                        }
+                        break;
                 }
             });
         });
@@ -602,20 +667,23 @@
         let focalPos = new THREE.Vector3();
         let focalTarget = new THREE.Vector3();
         addEventListener('keydown', e => {
-            if (e.key === 'Shift') { rig.mode = 'eye'; document.getElementById('mode').classList.add('active'); if(tm.sel){focal = true;focalPos.set(tm.sel.b.position.x, tm.sel.b.position.y + 2, tm.sel.b.position.z + 10);focalTarget.set(tm.sel.b.position.x, tm.sel.b.position.y + 1, tm.sel.b.position.z);gsap.to(bokehPass.uniforms.aperture, {value:0.01, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:2, duration:1});gsap.to({val:distanceScale}, {val:0.3, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});}}
+            if (e.key === 'Shift') { rig.mode = 'eye'; const modeEl = document.getElementById('mode'); modeEl.textContent = 'FOCAL MODE ACTIVE'; modeEl.style.color = 'var(--pink)'; modeEl.style.borderColor = 'var(--pink)'; modeEl.style.boxShadow = '0 0 15px var(--pink)'; modeEl.classList.add('active'); if(tm.sel){focal = true;focalPos.set(tm.sel.b.position.x, tm.sel.b.position.y + 2, tm.sel.b.position.z + 10);focalTarget.set(tm.sel.b.position.x, tm.sel.b.position.y + 1, tm.sel.b.position.z);gsap.to(bokehPass.uniforms.aperture, {value:0.01, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:2, duration:1});gsap.to({val:distanceScale}, {val:0.3, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});}}
             if (e.key === 'l' || e.key === 'L') {
                 if (tm.sel) { tm.launch = true; tm.lSrc = tm.sel; document.getElementById('launch').classList.add('active'); }
             }
             if (e.key === ' ') { e.preventDefault(); shake(); }
-            if (e.key === 'Escape') { tm.launch = false; tm.lSrc = null; document.getElementById('launch').classList.remove('active'); }
+            if (e.key === 'Escape') { tm.launch = false; tm.lSrc = null; document.getElementById('launch').classList.remove('active'); anchor = null; const modeEl = document.getElementById('mode'); if (rig.mode !== 'eye') modeEl.classList.remove('active'); }
         });
-        addEventListener('keyup', e => { if (e.key === 'Shift') { rig.mode = 'std'; document.getElementById('mode').classList.remove('active'); focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); } });
+        addEventListener('keyup', e => { if (e.key === 'Shift') { rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); const modeEl = document.getElementById('mode'); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } } });
 
         document.querySelectorAll('[data-p]').forEach(b => {
             b.addEventListener('click', () => {
                 document.querySelectorAll('[data-p]').forEach(x => x.classList.remove('active'));
                 b.classList.add('active');
                 rig.preset = b.dataset.p;
+                anchor = null;
+                const modeEl = document.getElementById('mode');
+                if (rig.mode !== 'eye') modeEl.classList.remove('active');
             });
         });
 
@@ -659,6 +727,7 @@
 
         const joy = { el: document.getElementById('joy-cube'), zone: document.getElementById('joystick'), active: false, start: {x:0, y:0} };
         function handleJoy(x, y) {
+            if (anchor) return;
             const max = 40;
             let dx = x - joy.start.x, dy = y - joy.start.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
@@ -668,7 +737,10 @@
             rig.tPiv.z += dy / max * 0.8;
             rig.tPiv.x += dx / max * 0.8;
         }
-        function startJoy(x, y) { joy.active = true; joy.start = {x, y}; joy.el.style.transition = 'none'; document.body.classList.add('fab-active'); }
+        function startJoy(x, y) { 
+            if (anchor) return;
+            joy.active = true; joy.start = {x, y}; joy.el.style.transition = 'none'; document.body.classList.add('fab-active'); 
+        }
         function endJoy() { joy.active = false; joy.el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'; joy.el.style.transform = `rotateX(-25deg) rotateY(-45deg) translate(0px, 0px)`; document.querySelector('.fab-halo').style.opacity = 0; document.body.classList.remove('fab-active'); }
         joy.zone.addEventListener('mousedown', e => { startJoy(e.clientX, e.clientY); e.stopPropagation(); });
         addEventListener('mousemove', e => { if(joy.active) handleJoy(e.clientX, e.clientY); });
@@ -689,6 +761,7 @@
             if(rig.tPiv.z > boundZ) rig.tPiv.z += (boundZ - rig.tPiv.z) * 0.1;
             if(rig.tPiv.z < -boundZ) rig.tPiv.z += (-boundZ - rig.tPiv.z) * 0.1;
 
+            if (anchor) rig.tPiv.copy(anchor.pos);
             rig.piv.lerp(rig.tPiv, 0.1);
 
             const p = CFG.preset[rig.preset];
