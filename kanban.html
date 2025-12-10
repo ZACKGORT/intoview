@@ -3,133 +3,379 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>KanBlock/title>
+    <title>Unnecessarily 3D Kanban</title>
+    
+    <!-- CDN Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
+    <!-- Post-processing for visual effects -->
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/VignetteShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/RGBShiftShader.js"></script>
+    
     <style>
-        :root{--bg:#0f1014;--accent:#39FF14;--pink:#FF1493;--neon-blue:#00ffff;--neon-green:#00FF00;--neon-yellow:#FFFF00;--neon-red:#FF0044;--glass:rgba(20,20,30,0.85);}
-        *{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none;}
-        body{background:var(--bg);overflow:hidden;color:#fff;font-family:'Courier New', Courier, monospace;cursor:none;overscroll-behavior:none;}
-        #canvas{display:block;width:100vw;height:100vh;outline:none;}
-        
-        /* --- UI Overlay --- */
-        .hud{position:fixed;bottom:1rem;left:20px;font-size:10px;opacity:0.6;z-index:90;pointer-events:none;font-family:sans-serif; text-shadow: 0 0 5px #000;}
-        .mode-status{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.05);padding:8px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);opacity:0;transition:0.3s;z-index:100;pointer-events:none;}
-        .mode-status.active{opacity:1;color:var(--pink);border-color:var(--pink);box-shadow: 0 0 15px var(--pink);}
-        
-        /* --- LEFT RAIL (SPAWNERS) --- */
-        .quad-left{position:fixed;top:50%;left:20px;transform:translateY(-50%);display:flex;flex-direction:column;gap:16px;z-index:100;}
-        .quad-icon{width:40px;height:40px;position:relative;perspective:300px;cursor:pointer;transition:transform 0.2s;}
-        .quad-icon:hover{transform:scale(1.2);}
-        .quad-icon:active{transform:scale(0.9);}
-        
-        .quad-cube{width:100%;height:100%;transform-style:preserve-3d;transform:rotateX(-25deg) rotateY(-45deg);animation:spin 6s linear infinite;}
-        @keyframes spin{to{transform:rotateX(-25deg) rotateY(315deg);}}
-        
-        .q-face{position:absolute;width:24px;height:24px;left:8px;top:8px;backface-visibility:visible;opacity:0.8;}
-        .q-face:nth-child(1){transform:rotateY(0deg) translateZ(12px);}
-        .q-face:nth-child(2){transform:rotateY(90deg) translateZ(12px);}
-        .q-face:nth-child(3){transform:rotateY(180deg) translateZ(12px);}
-        .q-face:nth-child(4){transform:rotateY(-90deg) translateZ(12px);}
-        .q-face:nth-child(5){transform:rotateX(90deg) translateZ(12px);}
-        .q-face:nth-child(6){transform:rotateX(-90deg) translateZ(12px);}
-        
-        /* Rail Colors */
-        .quad-icon.todo .q-face{background:rgba(255,255,0,0.2);border:1px solid #ffff00;box-shadow:0 0 5px #ffff00;}
-        .quad-icon.prog .q-face{background:rgba(0,255,255,0.2);border:1px solid #00ffff;box-shadow:0 0 5px #00ffff;}
-        .quad-icon.done .q-face{background:rgba(0,255,0,0.2);border:1px solid #00ff00;box-shadow:0 0 5px #00ff00;}
-        .quad-icon.back .q-face{background:rgba(255,0,68,0.2);border:1px solid #ff0044;box-shadow:0 0 5px #ff0044;}
-        
-        /* Right Controls */
-        .presets{position:fixed;top:50%;right:20px;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:100;}
-        .preset-text{cursor:pointer;transition:0.2s;color:rgba(255,255,255,0.7);font-size:12px;display:flex;align-items:center;}
-        .preset-text:hover{color:#fff;background:rgba(255,255,255,0.1);border-radius:4px;padding:4px;}
-        .preset-text.active{color:var(--pink);}
-        .preset-text:before{content:'•';margin-right:4px;color:transparent;}
-        .preset-text.active:before{color:var(--pink);}
-        
-        .top-bar input{background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:8px 12px;border-radius:6px;width:200px;text-align:center;font-size:12px;cursor:text;}
-        
-        /* FAB / Joystick */
-        .fab-zone {position: fixed;bottom: 10rem;left: 50%;transform: translateX(-50%);width: 80px;height: 80px;z-index: 200;cursor: grab;perspective: 600px;}
-        .fab-zone:active { cursor: grabbing; }
-        .fab-cube {width: 100%;height: 100%;position: relative;transform-style: preserve-3d;transform: rotateX(-25deg) rotateY(-45deg);pointer-events: none;transition: transform 0.1s;}
-        .f-face {position: absolute;width: 40px;height: 40px;background: rgba(255, 20, 147, 0.15);border: 2px solid var(--pink);box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);left: 20px;top: 20px;display: flex;align-items: center;justify-content: center;font-size: 20px;color: #fff;backface-visibility: visible;}
+        /* === CORE VARIABLES & THEMES === */
+        :root {
+            /* Neon Theme (Default) */
+            --bg-primary: #0f1014;
+            --bg-secondary: #1a1b2e;
+            --accent-neon: #39FF14;
+            --accent-pink: #FF1493;
+            --accent-cyan: #00ffff;
+            --accent-yellow: #FFFF00;
+            --accent-red: #FF0044;
+            --accent-purple: #9D4EDD;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255,255,255,0.7);
+            --border-color: rgba(255,255,255,0.2);
+            --shadow-neon: 0 0 15px var(--accent-pink);
+            --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+            --pink: #FF1493;
+            --neon-blue: #00ffff;
+            --neon-green: #00FF00;
+            --neon-yellow: #FFFF00;
+            --neon-red: #FF0044;
+        }
+
+        [data-theme="pastel"] {
+            --bg-primary: #f8f9fa;
+            --bg-secondary: #e9ecef;
+            --accent-neon: #74c69d;
+            --accent-pink: #f8961e;
+            --accent-cyan: #4cc9f0;
+            --accent-yellow: #f9c74f;
+            --accent-red: #f94144;
+            --text-primary: #212529;
+            --text-secondary: rgba(33,37,41,0.7);
+            --border-color: rgba(33,37,41,0.2);
+            --shadow-neon: 0 0 15px var(--accent-pink);
+        }
+
+        [data-theme="midnight"] {
+            --bg-primary: #0a0e27;
+            --bg-secondary: #151932;
+            --accent-neon: #00d4ff;
+            --accent-pink: #ff006e;
+            --accent-cyan: #00f5ff;
+            --accent-yellow: #ffbe0b;
+            --accent-red: #fb5607;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255,255,255,0.6);
+        }
+
+        /* === GLOBAL STYLES === */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background: var(--bg-primary);
+            overflow: hidden;
+            color: var(--text-primary);
+            font-family: 'Inter', Ministers-Regular, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            cursor: none;
+            overscroll-behavior: none;
+            transition: all 0.3s var(--transition-smooth);
+        }
+
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            outline: none;
+        }
+
+        /* === ENHANCED CURSOR SYSTEM === */
+        #cursor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+            transition: opacity 0.2s;
+        }
+
+        .c-circle {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--accent-pink), transparent);
+            opacity: 0.6;
+            mix-blend-mode: screen;
+        }
+
+        .c-center {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-pink);
+            opacity: 1;
+            mix-blend-mode: screen;
+            transform: translate(-50%, -50%);
+            box-shadow: var(--shadow-neon);
+            z-index: 10000;
+            transition: background 0.3s;
+        }
+
+        .c-ring {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-pink);
+            opacity: 0.8;
+            mix-blend-mode: screen;
+            transform: translate(-50%, -50%);
+            box-shadow: var(--shadow-neon);
+            z-index: 9999;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        /* === ENHANCED JOYSTICK SYSTEM === */
+        .fab-zone {
+            position: fixed;
+            bottom: 9.9rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 80px;
+            z-index: 200;
+            cursor: grab;
+            perspective: 600px;
+            transition: bottom 0.3s var(--transition-smooth);
+        }
+
+        .fab-zone:active {
+            cursor: grabbing;
+        }
+
+        .fab-halo {
+            position: absolute;
+            left: -40px;
+            top: -40px;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,20,147,0.2), transparent);
+            opacity: 0;
+            transition: opacity 0.1s;
+            animation: idleColorCycle 8s linear infinite;
+        }
+
+        @keyframes idleColorCycle {
+            0% { background: radial-gradient(circle, rgba(255,20,147,0.2), transparent); }
+            25% { background: radial-gradient(circle, rgba(0,255,255,0.2), transparent); }
+            50% { background: radial-gradient(circle, rgba(0,255,0,0.2), transparent); }
+            75% { background: radial-gradient(circle, rgba(255,255,0,0.2), transparent); }
+            100% { background: radial-gradient(circle, rgba(255,20,147,0.2), transparent); }
+        }
+
+        .fab-cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(-25deg) rotateY(-45deg);
+            pointer-events: none;
+            transition: transform 0.1s;
+        }
+
+        .f-face {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 20, 147, 0.15);
+            border: 2px solid var(--accent-pink);
+            box-shadow: var(--shadow-neon), inset 0 0 10px var(--accent-pink);
+            left: 20px;
+            top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #fff;
+            backface-visibility: visible;
+            transition: all 0.3s;
+        }
+
         .f-face:nth-child(1) { transform: rotateY(0deg) translateZ(20px); }
         .f-face:nth-child(2) { transform: rotateY(90deg) translateZ(20px); }
         .f-face:nth-child(3) { transform: rotateY(180deg) translateZ(20px); }
         .f-face:nth-child(4) { transform: rotateY(-90deg) translateZ(20px); }
         .f-face:nth-child(5) { transform: rotateX(90deg) translateZ(20px); background: rgba(255, 20, 147, 0.3); }
         .f-face:nth-child(6) { transform: rotateX(-90deg) translateZ(20px); }
+
         .fab-hint {
-      position: absolute;
-      bottom: -16px;
-      width: 100%;
-      text-align: center;
-      font-size: 9px;
-      color: rgba(255,255,255,0.5);
-      pointer-events: none;
-    }
-    .fab-halo { position: absolute; left: -40px; top: -40px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,20,147,0.2), transparent); opacity: 0; transition: opacity 0.1s; }
-
-        /* Cursor & Info */
-        #cursor{position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;transition:opacity 0.2s;}
-        .c-dot{position:absolute;width:6px;height:6px;background:var(--pink);border-radius:50%;box-shadow:0 0 10px var(--pink);}
-        .c-ring{position:absolute;width:30px;height:30px;border:1px solid rgba(255,255,255,0.5);border-radius:50%;transition:0.1s;}
-        body.hovering .c-ring{border-color:var(--accent);transform: scale(1.5);}
-        body.fab-active #cursor { opacity: 0; }
-        body.fab-active .btn, body.fab-active input, body.fab-active .quad-icon { pointer-events: none; opacity: 0.5; }
-
-        .info{position:fixed;top:80px;right:20px;background:var(--glass);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:16px;min-width:250px;opacity:0;transition:0.3s;z-index:90;pointer-events:none;transform:translateX(20px);}
-        .info.active{opacity:1;transform:translateX(0);}
-        .info h3{font-size:14px;margin-bottom:8px;color:var(--accent);border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;}
-        .info-row{font-size:11px;margin:4px 0;display:flex;justify-content:space-between;color:#ccc;}
-        .info-desc{margin-top:8px;font-size:11px;opacity:0.7;line-height:1.4;}
-        
-        .ctx{position:fixed;background:rgba(20,20,30,0.95);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 0;min-width:180px;display:none;z-index:1000}
-        .ctx.active{display:block}
-        .ctx-item{padding:8px 16px;cursor:pointer;font-size:12px;transition:0.2s}
-        .ctx-item:hover{background:rgba(255,255,255,0.1)}
-        .ctx-div{height:1px;background:rgba(255,255,255,0.1);margin:4px 0}
-        
-        .launch{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(255,170,0,0.2);border:2px solid #fa0;color:#fa0;padding:12px 24px;border-radius:8px;font-size:12px;opacity:0;transition:0.3s;z-index:100}
-        .launch.active{opacity:1}
-        
-        .trash{position:fixed;bottom:30px;right:30px;width:60px;height:60px;border-radius:50%;border:2px dashed rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:24px;transition:0.3s;opacity:0.5;z-index:90;}
-        .trash.active{opacity:1;border-color:var(--neon-red);color:var(--neon-red);background:rgba(255,0,0,0.1);transform:scale(1.1);box-shadow:0 0 20px rgba(255,0,0,0.4);}
-
-        .coords {
-            position: fixed; bottom: 20px; left: 20px;
-            font-family: 'Courier New', Courier, monospace; font-size: 14px;
-            color: var(--accent); background: rgba(0,0,0,0.6);
-            padding: 4px 8px; border-radius: 4px;
-            border: 1px solid rgba(57, 255, 20, 0.3); z-index: 90; pointer-events: none;
+            position: absolute;
+            bottom: -16px;
+            width: 100%;
+            text-align: center;
+            font-size: 9px;
+            color: var(--text-secondary);
+            pointer-events: none;
         }
 
-        .reset {position:fixed; top:20px; right:20px; z-index:100;}
+        /* === MOBILE OPTIMIZATIONS === */
+        @media (max-width: 768px) {
+            .fab-zone {
+                bottom: 20px;
+                transform: translateX(-50%) scale(0.9);
+            }
+        }
+
+        /* === UI ELEMENTS === */
+        .reset-zone {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, var(--accent-neon), transparent);
+            border: 2px dashed var(--accent-neon);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.3;
+            transition: all 0.3s;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .reset-zone:hover {
+            opacity: 1;
+            transform: scale(1.1);
+            box-shadow: 0 0 20px var(--accent-neon);
+        }
+
+        .trash-zone {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, var(--accent-red), transparent);
+            border: 2px dashed var(--accent-red);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.3;
+            transition: all 0.3s;
+            font-size: 24px;
+            pointer-events: none;
+        }
+
+        .trash-zone.active {
+            opacity: 1;
+            transform: scale(1.2);
+            box-shadow: 0 0 20px var(--accent-red);
+            pointer-events: auto;
+        }
+
+        .center-helper {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 90;
+            font-size: 10px;
+            color: var(--text-secondary);
+            text-align: center;
+            pointer-events: none;
+        }
 
         @media (max-width: 768px) {
-            .hud { display: none; }
-            .fab-zone { bottom: 20px; transform: translateX(-50%) scale(0.9); }
-            .quad-left { left: 10px; transform:translateY(-50%) scale(0.8); }
-            .presets { right: 10px; transform:translateY(-50%) scale(0.8); }
-            .top-bar { top: 70px; }
-            .coords { bottom: 10px; left: 10px; font-size: 10px; }
-            .hud, .coords { display: none; }
-            .top-bar { top: 60px; width: 90%; }
-            .search-in { width: 100%; }
+            .center-helper {
+                display: none;
+            }
         }
-.fab-zone .coords { position: absolute; bottom: -40px; left:50%; transform:translateX(-50%); background:none; border:none; font-size:12px; color:rgba(255,255,255,0.5); }
 
-        .header-top{position:fixed;top:0;left:0;width:100vw;display:flex;justify-content:space-between;align-items:center;padding:10px 20px;z-index:100;}
-        .logo-wrapper{display:flex;align-items:center;gap:8px;}
-        .logo-cube {width: 40px;height: 40px;position: relative;perspective: 600px;}
-        .logo-cube .fab-cube {width: 100%;height: 100%;position: relative;transform-style: preserve-3d;transform: rotateX(-25deg) rotateY(-45deg);animation: spin 6s linear infinite;}
-        .logo-cube .f-face {width: 20px;height: 20px;left: 10px;top: 10px;animation: cycle-colors 10s linear infinite;}
-        .logo-cube .f-face:nth-child(1) { transform: rotateY(0deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(2) { transform: rotateY(90deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(3) { transform: rotateY(180deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(4) { transform: rotateY(-90deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(5) { transform: rotateX(90deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(6) { transform: rotateX(-90deg) translateZ(10px); }
+        .coords {
+            position: fixed;
+            bottom: 5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--accent-neon);
+            background: rgba(0,0,0,0.6);
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(57, 255, 20, 0.3);
+            z-index: 90;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            text-align: center;
+        }
+
+        body.fab-active .coords {
+            opacity: 1;
+        }
+
+        /* === HEADER === */
+        .header-top {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-cube {
+            width: 40px;
+            height: 40px;
+            position: relative;
+            perspective: 600px;
+        }
+
+        .logo-cube .fab-cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(-25deg) rotateY(-45deg);
+            animation: spin 6s linear infinite;
+        }
+
+        .logo-cube .f-face {
+            width: 20px;
+            height: 20px;
+            left: 10px;
+            top: 10px;
+            animation: cycle-colors 10s linear infinite;
+        }
+
         @keyframes cycle-colors {
             0% {background: rgba(255, 20, 147, 0.15);border-color: var(--pink);box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);}
             20% {background: rgba(0, 255, 255, 0.15);border-color: var(--neon-blue);box-shadow: 0 0 15px var(--neon-blue), inset 0 0 10px var(--neon-blue);}
@@ -138,37 +384,639 @@
             80% {background: rgba(255, 0, 68, 0.15);border-color: var(--neon-red);box-shadow: 0 0 15px var(--neon-red), inset 0 0 10px var(--neon-red);}
             100% {background: rgba(255, 20, 147, 0.15);border-color: var(--pink);box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);}
         }
-        .logo-text {font-size: 12px; color: rgba(255,255,255,0.7);}
-        .search-wrapper{flex:1;display:flex;justify-content:center;}
-        .search-wrapper input{background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:8px 12px;border-radius:6px;width:200px;text-align:center;font-size:12px;cursor:text;}
-        .reset-wrapper .btn{background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:4px 8px;border-radius:4px;cursor:pointer;transition:0.2s;}
-        .reset-wrapper .btn:hover{box-shadow:0 0 5px var(--accent);}
+
+        .logo-text {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+        }
+
+        .search-wrapper {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+        }
+
+        .search-wrapper input {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            width: 200px;
+            text-align: center;
+            font-size: 12px;
+            cursor: text;
+        }
+
+        .controls-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .theme-toggle {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 12px;
+        }
+
+        .theme-toggle:hover {
+            box-shadow: 0 0 5px var(--accent-pink);
+        }
+
+        /* === INFO OVERLAY SYSTEM === */
+        .info-trigger {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 100;
+            width: 40px;
+            height: 40px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .info-trigger:hover {
+            transform: scale(1.1);
+            box-shadow: var(--shadow-neon);
+        }
+
+        .info-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .info-overlay.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 1;
+        }
+
+        .info-content {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+
+        .info-overlay.active .info-content {
+            transform: scale(1);
+        }
+
+        .accordion-item {
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 0;
+        }
+
+        .accordion-header {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 8px;
+            transition: color 0.3s;
+        }
+
+        .accordion-header:hover {
+            color: var(--accent-pink);
+        }
+
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .accordion-item.open .accordion-content {
+            max-height: 500px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 32px;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .close-btn:hover {
+            transform: rotate(90deg);
+        }
+
+        /* === QUADRANT SYSTEM === */
+        .quad-container {
+            position: fixed;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 100;
+        }
+
+        .quad-icon {
+            width: 30px;
+            height: 30px;
+            position: relative;
+            perspective: 300px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .quad-icon:hover {
+            transform: scale(1.2);
+        }
+
+        .quad-icon:active {
+            transform: scale(0.9);
+        }
+
+        .quad-cube {
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transform: rotateX(-25deg) rotateY(-45deg);
+            animation: spin 6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotateX(-25deg) rotateY(315deg); }
+        }
+
+        .q-face {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            left: 5px;
+            top: 5px;
+            backface-visibility: visible;
+            opacity: 0.8;
+        }
+
+        .q-face:nth-child(1) { transform: rotateY(0deg) translateZ(10px); }
+        .q-face:nth-child(2) { transform: rotateY(90deg) translateZ(10px); }
+        .q-face:nth-child(3) { transform: rotateY(180deg) translateZ(10px); }
+        .q-face:nth-child(4) { transform: rotateY(-90deg) translateZ(10px); }
+        .q-face:nth-child(5) { transform: rotateX(90deg) translateZ(10px); }
+        .q-face:nth-child(6) { transform: rotateX(-90deg) translateZ(10px); }
+
+        .quad-icon.todo .q-face { 
+            background: rgba(255,255,0,0.2); 
+            border: 1px solid var(--accent-yellow); 
+            box-shadow: 0 0 5px var(--accent-yellow); 
+        }
+        .quad-icon.prog .q-face { 
+            background: rgba(0,255,255,0.2); 
+            border: 1px solid var(--accent-cyan); 
+            box-shadow: 0 0 5px var(--accent-cyan); 
+        }
+        .quad-icon.done .q-face { 
+            background: rgba(0,255,0,0.2); 
+            border: 1px solid var(--accent-neon); 
+            box-shadow: 0 0 5px var(--accent-neon); 
+        }
+        .quad-icon.back .q-face { 
+            background: rgba(255,0,68,0.2); 
+            border: 1px solid var(--accent-red); 
+            box-shadow: 0 0 5px var(--accent-red); 
+        }
+
+        .quad-label {
+            position: absolute;
+            left: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            color: var(--text-primary);
+            white-space: nowrap;
+        }
+
+        /* === VIEW TOGGLES === */
+        .view-toggles {
+            position: fixed;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 100;
+        }
+
+        .view-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .view-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-neon);
+        }
+
+        .view-btn.active {
+            border-color: var(--accent-pink);
+            color: var(--accent-pink);
+            box-shadow: 0 0 10px rgba(255,20,147,0.3);
+        }
+
+        /* === PHYSICS CONTROLS === */
+        .physics-controls {
+            position: fixed;
+            bottom: 20%;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .physics-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.3s;
+        }
+
+        .physics-btn:hover {
+            transform: scale(1.05);
+            box-shadow: var(--shadow-neon);
+        }
+
+        .physics-btn.active {
+            background: var(--accent-purple);
+            border-color: var(--accent-purple);
+        }
+
+        /* === STATS DISPLAY === */
+        .stats-display {
+            position: fixed;
+            top: 100px;
+            left: 47.5%;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: var(--accent-neon);
+            min-width: 150px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+        }
+
+        .stat-value {
+            color: var(--accent-neon);
+            font-weight: bold;
+        }
+
+        /* === EFFECTS CONTROLS === */
+        .effects-toggle {
+            position: fixed;
+            top: 140px;
+            right: 20px;
+            z-index: 100;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 12px;
+        }
+
+        .effects-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: var(--shadow-neon);
+        }
+
+        /* === MOBILE FOCUS RELEASE === */
+        .mobile-release-btn {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--accent-pink);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 200;
+            display: none;
+            opacity: 0;
+            transition: all 0.3s;
+        }
+
+        .mobile-release-btn.visible {
+            display: block;
+            opacity: 1;
+        }
+
+        /* === TASK EDITOR === */
+        .task-editor {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            z-index: 1000;
+            display: none;
+            opacity: 0;
+            transition: all 0.3s;
+            min-width: 300px;
+        }
+
+        .task-editor.active {
+            display: block;
+            opacity: 1;
+        }
+
+        .task-editor h3 {
+            margin-bottom: 16px;
+            color: var(--accent-pink);
+        }
+
+        .task-editor input {
+            width: 100%;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+
+        .task-editor-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .task-editor-buttons button {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .task-editor-buttons button:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-neon);
+        }
+
+        /* Interaction States */
+        body.fab-active #cursor { opacity: 0; }
+        body.fab-active .btn, body.fab-active input { pointer-events: none; opacity: 0.5; }
+
+        /* === LOADING SCREEN === */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            transition: opacity 0.5s;
+        }
+
+        .loading-cube {
+            width: 60px;
+            height: 60px;
+            perspective: 300px;
+            margin-bottom: 20px;
+        }
+
+        .loading-cube .fab-cube {
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transform: rotateX(-25deg) rotateY(-45deg);
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            color: var(--text-primary);
+            font-size: 18px;
+            opacity: 0.8;
+        }
+
+        /* === PERFORMANCE OPTIMIZATIONS === */
+        @media (max-width: 768px) {
+            .stats-display, .physics-controls {
+                display: none;
+            }
+            
+            .header-top {
+                padding: 8px 12px;
+            }
+            
+            .search-wrapper input {
+                width: 150px;
+                font-size: 11px;
+            }
+        }
+
+        /* === ACCESSIBILITY === */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loading-screen">
+        <div class="loading-cube">
+            <div class="fab-cube">
+                <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
+                <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
+            </div>
+        </div>
+        <div class="loading-text">Initializing Enhanced 3D Kanban...</div>
+    </div>
+
+    <!-- Main Canvas -->
     <canvas id="canvas"></canvas>
-    <div id="cursor">
-        <div class="c-dot"></div>
-        <div class="c-ring"></div>
-    </div>
-    <div id="mode" class="mode-status">FOCAL MODE ACTIVE</div>
     
-    <div class="hud">[DRAG] Move · [CLICK RAIL] Spawn Cube · [SHIFT+SCROLL] Focal · [SPACE] Shake · [L] Launch</div>
+    <!-- Enhanced Cursor System -->
+    <div id="cursor"></div>
     
-    <div class="quad-left">
-        <div class="quad-icon todo" onclick="spawn('todo')" title="Spawn To-Do"><div class="quad-cube"><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div></div></div>
-        <div class="quad-icon prog" onclick="spawn('prog')" title="Spawn In-Progress"><div class="quad-cube"><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div></div></div>
-        <div class="quad-icon done" onclick="spawn('done')" title="Spawn Completed"><div class="quad-cube"><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div></div></div>
-        <div class="quad-icon back" onclick="spawn('back')" title="Spawn Backlog"><div class="quad-cube"><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div></div></div>
+    <!-- Enhanced Joystick with Dynamic Colors -->
+    <div class="fab-zone" id="joystick">
+        <div class="fab-halo"></div>
+        <div class="fab-cube" id="joy-cube">
+            <div class="f-face"></div>
+            <div class="f-face"></div>
+            <div class="f-face"></div>
+            <div class="f-face"></div>
+            <div class="f-face"></div>
+            <div class="f-face"></div>
+        </div>
+        <div class="fab-hint">NAV</div>
     </div>
-
-    <div class="presets">
-        <div class="preset-text std active" data-p="std" title="Quarterback View">Quarterback</div>
-        <div class="preset-text top" data-p="top" title="Skycam View">Skycam</div>
-        <div class="preset-text side" data-p="side" title="Sideline Coach View">Sideline</div>
-        <div class="preset-text drone" data-p="drone" title="Drone View">Drone</div>
+    
+    <!-- UI Elements -->
+    <div class="info-trigger" id="info-btn">i</div>
+    
+    <div class="trash-zone" id="trash-zone">🗑️</div>
+    
+    <div class="reset-zone" id="reset-zone">↻</div>
+    
+    <div class="center-helper">
+        Use joystick to navigate • Click cubes to focus • Double-click to edit
     </div>
-
+    
+    <!-- Coordinates Display -->
+    <div class="coords" id="coord-display">
+        <div>X:0.0</div>
+        <div>Y:0.0</div>
+        <div>Z:0.0</div>
+    </div>
+    
+    <!-- Physics Controls
+    <div class="physics-controls">
+        <button class="physics-btn" id="gravity-toggle">Gravity: ON</button>
+        <button class="physics-btn" id="explosion-btn">💥 Explode</button>
+        <button class="physics-btn" id="freeze-btn">❄️ Freeze</button>
+        <button class="physics-btn" id="tornado-btn">🌪️ Tornado</button>
+    </div> -->
+    
+    <!-- Stats Display -->
+    <div class="stats-display">
+        <div class="stat-item">
+            <span class="stat-label">Tasks:</span>
+            <span class="stat-value" id="task-count">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">FPS:</span>
+            <span class="stat-value" id="fps-counter">60</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Physics:</span>
+            <span class="stat-value" id="physics-status">Active</span>
+        </div>
+    </div>
+    
+    <!-- View Toggles -->
+    <div class="view-toggles">
+        <button class="view-btn active" data-view="quarterback">Quarterback</button>
+        <button class="view-btn" data-view="skycam">Skycam</button>
+        <button class="view-btn" data-view="sideline">Sideline</button>
+        <button class="view-btn" data-view="fps">First Person</button>
+    </div>
+    
+    <!-- Effects Toggle -->
+    <div class="effects-toggle" id="effects-toggle">
+        Effects: ON
+    </div>
+    
+    <!-- Mobile Focus Release Button -->
+    <button class="mobile-release-btn" id="mobile-release">
+        Tap to Release Focus
+    </button>
+    
+    <!-- Quadrant Icons -->
+    <div class="quad-container">
+        <div class="quad-icon prog" onclick="spawn('prog')" title="Spawn In-Progress">
+            <div class="quad-cube">
+                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
+                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
+            </div>
+            <span class="quad-label">In Progress</span>
+        </div>
+        <div class="quad-icon todo" onclick="spawn('todo')" title="Spawn To-Do">
+            <div class="quad-cube">
+                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
+                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
+            </div>
+            <span class="quad-label">To Do</span>
+        </div>
+        <div class="quad-icon done" onclick="spawn('done')" title="Spawn Completed">
+            <div class="quad-cube">
+                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
+                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
+            </div>
+            <span class="quad-label">Done</span>
+        </div>
+        <div class="quad-icon back" onclick="spawn('back')" title="Spawn Backlog">
+            <div class="quad-cube">
+                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
+                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
+            </div>
+            <span class="quad-label">Backlog</span>
+        </div>
+    </div>
+    
+    <!-- Header -->
     <div class="header-top">
         <div class="logo-wrapper">
             <div class="logo-cube">
@@ -182,132 +1030,230 @@
         <div class="search-wrapper">
             <input id="search" type="text" placeholder="Search Tasks...">
         </div>
-        <div class="reset-wrapper">
-            <button class="btn" onclick="resetCam()">RESET</button>
+        <div class="controls-wrapper">
+            <button class="theme-toggle" id="theme-toggle">🌙 Neon</button>
         </div>
     </div>
-
-    <div id="info" class="info">
-        <h3 id="iTitle">Task</h3>
-        <div class="info-row"><span style="opacity:0.6">Task:</span><span id="iText">-</span></div>
-        <div class="info-row"><span style="opacity:0.6">Position:</span><span id="iPos">0,0,0</span></div>
-        <div class="info-row"><span style="opacity:0.6">Status:</span><span id="iState" style="color:var(--accent)">Default</span></div>
-        <div class="info-desc" id="iDesc">-</div>
-    </div>
-
-    <div id="ctx" class="ctx">
-        <div class="ctx-item" data-a="focus">Focus</div>
-        <div class="ctx-item" data-a="edit">Edit</div>
-        <div class="ctx-div"></div>
-        <div class="ctx-item" data-a="del">Delete</div>
-        <div class="ctx-item" data-a="move">Move To...</div>
-    </div>
-    <div id="launch" class="launch">LAUNCH MODE: Click target on floor</div>
-
-    <div class="trash" id="trash">✕</div>
-
-    <div class="fab-zone" id="joystick">
-        <div class="fab-halo"></div><div class="fab-cube" id="joy-cube">
-            <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
-            <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
-        </div>
-        <div class="fab-hint">NAV</div>
-<div class="coords" id="coord-display">X:0.0 Y:0.0 Z:0.0</div></div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/BokehPass.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/BokehShader.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/VignetteShader.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
     
-    <script>
-        class ThinFilm extends THREE.Texture {
-          constructor(t=520){
-              super();
-              this.thickness = t;
-              this.generate();
-          }
-          generate(){
-              const w=512,h=1;
-              const d=new Uint8Array(w*4);
-              for(let i=0;i<w;i++){
-                  const c=i/w;
-                  const u=Math.pow(1-c,5);
-                  const phase = this.thickness/100 * c * Math.PI * 2;
-                  let r = 0.04 + 0.96*u + (Math.sin(phase)*0.5 + 0.5);
-                  let g = u + (Math.sin(phase + 2*Math.PI/3)*0.5 + 0.5);
-                  let b = u + (Math.sin(phase + 4*Math.PI/3)*0.5 + 0.5);
-                  r = Math.max(0, Math.min(1, r));
-                  g = Math.max(0, Math.min(1, g));
-                  b = Math.max(0, Math.min(1, b));
-                  d[i*4]=Math.floor(r*255);
-                  d[i*4+1]=Math.floor(g*255);
-                  d[i*4+2]=Math.floor(b*255);
-                  d[i*4+3]=255;
-              }
-              this.image={data:d,width:w,height:h};
-              this.magFilter=THREE.LinearFilter;
-              this.minFilter=THREE.LinearFilter;
-              this.wrapS=THREE.ClampToEdgeWrapping;
-              this.wrapT=THREE.ClampToEdgeWrapping;
-              this.needsUpdate=true;
-          }
-      }
+    <!-- Info Overlay with Accordion -->
+    <div class="info-overlay" id="info-overlay">
+        <div class="info-content">
+            <button class="close-btn" id="close-info">&times;</button>
+            
+            <h2 style="margin-bottom: 24px; color: var(--accent-pink);">Enhanced 3D Kanban System</h2>
+            
+            <div class="accordion-item open">
+                <div class="accordion-header">🎮 Enhanced Controls</div>
+                <div class="accordion-content">
+                    <p><strong>Desktop:</strong></p>
+                    <ul style="margin-left: 20px;">
+                        <li>Use the joystick to navigate the scene</li>
+                        <li>Click cubes to focus/unfocus</li>
+                        <li>Double-click cubes to edit task name</li>
+                        <li>Drag cubes to reposition</li>
+                        <li>Scroll to zoom in/out</li>
+                        <li>Shift+Scroll for focal depth</li>
+                        <li>Right-click for context menu</li>
+                    </ul>
+                    <p><strong>Mobile:</strong></p>
+                    <ul style="margin-left: 20px;">
+                        <li>Touch and drag the joystick</li>
+                        <li>Tap cubes to focus</li>
+                        <li>Double-tap to edit</li>
+                        <li>Use "Tap to Release Focus" button when needed</li>
+                        <li>Swipe for camera panning</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="accordion-item">
+                <div class="accordion-header">🎨 Themes</div>
+                <div class="accordion-content">
+                    <p><strong>Neon Theme:</strong> Dark cinematic experience with vibrant neon accents and glowing effects.</p>
+                    <p><strong>Pastel Theme:</strong> Light, clean interface with soft pastel colors for daytime use.</p>
+                    <p><strong>Midnight Theme:</strong> Deep blue variant with cyan accents for night-time work.</p>
+                    <p>Toggle between themes using the theme button in the header.</p>
+                </div>
+            </div>
+            
+            <div class="accordion-item">
+                <div class="accordion-header">📷 Camera Views</div>
+                <div class="accordion-content">
+                    <p><strong>Quarterback:</strong> Standard third-person perspective.</p>
+                    <p><strong>Skycam:</strong> Top-down view for strategic overview.</p>
+                    <p><strong>Sideline:</strong> Side view for lateral analysis.</p>
+                    <p><strong>First Person:</strong> Immersive FPS-style navigation.</p>
+                    <p>Long-press view buttons for alternate focus perspectives.</p>
+                </div>
+            </div>
+            
+            <div class="accordion-item">
+                <div class="accordion-header">🔧 Physics Features</div>
+                <div class="accordion-content">
+                    <ul style="margin-left: 20px;">
+                        <li><strong>Gravity Toggle:</strong> Enable/disable gravity for floating effects</li>
+                        <li><strong>Explosion:</strong> Scatter all cubes with explosive force</li>
+                        <li><strong>Freeze:</strong> Pause all physics animations</li>
+                        <li><strong>Tornado:</strong> Create a swirling vortex effect</li>
+                        <li>Realistic collision detection and response</li>
+                        <li>Viscous "drone mode" camera movement</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="accordion-item">
+                <div class="accordion-header">💡 Tips & Tricks</div>
+                <div class="accordion-content">
+                    <ul style="margin-left: 20px;">
+                        <li>Drag cubes to the trash zone to delete them</li>
+                        <li>Use the reset button to return to default view</li>
+                        <li>Toggle effects for better performance on older devices</li>
+                        <li>The joystick changes color based on your position</li>
+                        <li>Press 'R' for quick reset, 'ESC' to deselect</li>
+                        <li>Search tasks using the search bar</li>
+                        <li>Monitor performance with the FPS counter</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <!-- Task Editor Modal -->
+    <div class="task-editor" id="task-editor">
+        <h3>Edit Task</h3>
+        <input type="text" id="task-input" placeholder="Enter task name...">
+        <div class="task-editor-buttons">
+            <button id="cancel-edit">Cancel</button>
+            <button id="save-edit">Save</button>
+        </div>
+    </div>
+
+    <script>
+        // === ENHANCED CONFIGURATION ===
         const CFG = {
-            cam: { eye: {y:40} },
+            cam: { 
+                eye: { y: 40 } 
+            },
             preset: {
-                std: { o: new THREE.Vector3(0,12,25), r: new THREE.Euler(-0.4,0,0) },
-                top: { o: new THREE.Vector3(0,60,1), r: new THREE.Euler(-Math.PI/2,0,0) },
-                side: { o: new THREE.Vector3(60, 5, 0), r: new THREE.Euler(0, Math.PI/2, 0) },
-                drone: { o: new THREE.Vector3(0,12,25), r: new THREE.Euler(-0.3,0,0) }
+                quarterback: { 
+                    o: new THREE.Vector3(0, 12, 25), 
+                    r: new THREE.Euler(-0.4, 0, 0) 
+                },
+                skycam: { 
+                    o: new THREE.Vector3(0, 60, 1), 
+                    r: new THREE.Euler(-Math.PI / 2, 0, 0) 
+                },
+                sideline: { 
+                    o: new THREE.Vector3(60, 8, 0), 
+                    r: new THREE.Euler(0, Math.PI / 2, 0) 
+                },
+                fps: {
+                    o: new THREE.Vector3(0, 5, 0),
+                    r: new THREE.Euler(0, 0, 0)
+                }
             },
             colors: {
                 todo: 0xFFFF00, // Yellow
                 prog: 0x00FFFF, // Cyan
                 done: 0x00FF00, // Green
                 back: 0xFF0044  // Red-Pink
+            },
+            quadrantColors: {
+                todo: '#FFFF00',
+                prog: '#00FFFF', 
+                done: '#00FF00',
+                back: '#FF0044'
             }
         };
 
+        // === SCENE SETUP ===
         const sc = new THREE.Scene();
         sc.background = new THREE.Color(0x000000);
         sc.fog = new THREE.FogExp2(0x000000, 0.0007);
 
-        const cam = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 10077);
+        const cam = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 10077);
 
-        const rend = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+        const rend = new THREE.WebGLRenderer({ 
+            canvas: document.getElementById('canvas'), 
+            antialias: true 
+        });
         rend.setSize(innerWidth, innerHeight);
         rend.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         rend.shadowMap.enabled = true;
-        rend.shadowMap.type = THREE.PCFSoftShadowMap;var composer = new THREE.EffectComposer(rend);var renderPass = new THREE.RenderPass(sc, cam);composer.addPass(renderPass);var bokehPass = new THREE.BokehPass(sc, cam, { focus: 10, aperture: 0.00001, maxblur: 0.01 });composer.addPass(bokehPass);var vignettePass = new THREE.ShaderPass(THREE.VignetteShader);vignettePass.uniforms.offset.value = 0.8;vignettePass.uniforms.darkness.value = 1.8;composer.addPass(vignettePass);
+        rend.shadowMap.type = THREE.PCFSoftShadowMap;
 
+        // === ENHANCED POST-PROCESSING SETUP ===
+        let composer, renderPass, vignettePass, rgbShiftPass;
+        
+        function initPostProcessing() {
+            composer = new THREE.EffectComposer(rend);
+            renderPass = new THREE.RenderPass(sc, cam);
+            composer.addPass(renderPass);
+            
+            // Vignette effect
+            vignettePass = new THREE.ShaderPass(THREE.VignetteShader);
+            vignettePass.uniforms.offset.value = 0.8;
+            vignettePass.uniforms.darkness.value = 1.8;
+            composer.addPass(vignettePass);
+            
+            // RGB Shift effect for enhanced visuals
+            rgbShiftPass = new THREE.ShaderPass(THREE.RGBShiftShader);
+            rgbShiftPass.uniforms.amount.value = 0.0015;
+            composer.addPass(rgbShiftPass);
+        }
+        
+        initPostProcessing();
+
+        // === PHYSICS WORLD ===
         const world = new CANNON.World();
         world.gravity.set(0, -19.81, 0);
         world.broadphase = new CANNON.NaiveBroadphase();
         const mat = new CANNON.Material();
-        world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, { friction: 0.6, restitution: 0.2 }));
+        world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, { 
+            friction: 0.6, 
+            restitution: 0.2 
+        }));
 
-        const rig = { mode: 'std', preset: 'std', piv: new THREE.Vector3(), tPiv: new THREE.Vector3() };
-        const tm = { cubes: [], sel: null, hov: null, drag: null, launch: false, lSrc: null };
+        // === ENHANCED APPLICATION STATE ===
+        const rig = { 
+            mode: 'quarterback', 
+            preset: 'quarterback', 
+            piv: new THREE.Vector3(), 
+            tPiv: new THREE.Vector3(),
+            isMobile: window.innerWidth <= 768,
+            effectsEnabled: true,
+            gravityEnabled: true,
+            physicsFrozen: false,
+            currentTheme: 'neon'
+        };
+        
+        const tm = { 
+            cubes: [], 
+            sel: null, 
+            hov: null, 
+            drag: null, 
+            launch: false, 
+            lSrc: null,
+            editingCube: null
+        };
 
         let distanceScale = 1;
         let isPanning = false;
         let panStartIntersect = null;
-        let anchor = null;
-        let touchId = -1;
+        let currentView = 'quarterback';
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let fps = 60;
+
+        // === QUADRANT POSITIONS ===
         const quads = {
-            todo: {x: 25, z: -25},
-            prog: {x: -25, z: -25},
-            done: {x: 25, z: 25},
-            back: {x: -25, z: 25}
+            todo: { x: 25, z: -25 },
+            prog: { x: -25, z: -25 },
+            done: { x: 25, z: 25 },
+            back: { x: -25, z: 25 }
         };
 
+        // === ENHANCED LIGHTING ===
         sc.add(new THREE.AmbientLight(0xffffff, 0.4));
 
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
@@ -316,17 +1262,36 @@
         dirLight.shadow.mapSize.set(2048, 2048);
         sc.add(dirLight);
 
-        const neon1 = new THREE.PointLight(0x00ffff, 4, 90); neon1.position.set(-30, 15, -30); sc.add(neon1);
-        const neon2 = new THREE.PointLight(0xff00ff, 4, 90); neon2.position.set(30, 15, 30); sc.add(neon2);
-        
-        const cRT = new THREE.WebGLCubeRenderTarget(512, { format: THREE.RGBFormat, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+        const neon1 = new THREE.PointLight(0x00ffff, 4, 90);
+        neon1.position.set(-30, 15, -30);
+        sc.add(neon1);
+
+        const neon2 = new THREE.PointLight(0xff00ff, 4, 90);
+        neon2.position.set(30, 15, 30);
+        sc.add(neon2);
+
+        const neon3 = new THREE.PointLight(0x39FF14, 2, 60);
+        neon3.position.set(0, 20, 0);
+        sc.add(neon3);
+
+        // === ENVIRONMENT MAP ===
+        const cRT = new THREE.WebGLCubeRenderTarget(512, { 
+            format: THREE.RGBFormat, 
+            generateMipmaps: true, 
+            minFilter: THREE.LinearMipmapLinearFilter 
+        });
         const cCam = new THREE.CubeCamera(0.1, 1000, cRT);
         sc.add(cCam);
 
-        // Floor
+        // === ENHANCED FLOOR ===
         const gnd = new THREE.Mesh(
-          new THREE.PlaneGeometry(200, 200),
-          new THREE.MeshStandardMaterial({ color: 0x050508, roughness: 0.8, metalness: 0.8, envMapIntensity: 0.5 })
+            new THREE.PlaneGeometry(200, 200),
+            new THREE.MeshStandardMaterial({ 
+                color: 0x050508, 
+                roughness: 0.8, 
+                metalness: 0.8, 
+                envMapIntensity: 0.5 
+            })
         );
         gnd.rotation.x = -Math.PI / 2;
         gnd.position.y = -4;
@@ -339,28 +1304,43 @@
         gB.position.set(0, -4, 0);
         world.addBody(gB);
 
-        // --- GRID: KANBAN LAYOUT ---
+        // === GRID SYSTEM ===
         const gridGrp = new THREE.Group();
         sc.add(gridGrp);
 
         function createGrid() {
             const mat = new THREE.LineBasicMaterial({ color: 0x222233 });
-            const xLine = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-100, -3.9, 0), new THREE.Vector3(100, -3.9, 0)]);
-            const zLine = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -3.9, -100), new THREE.Vector3(0, -3.9, 100)]);
+            const xLine = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-100, -3.9, 0), 
+                new THREE.Vector3(100, -3.9, 0)
+            ]);
+            const zLine = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, -3.9, -100), 
+                new THREE.Vector3(0, -3.9, 100)
+            ]);
             gridGrp.add(new THREE.Line(xLine, mat));
             gridGrp.add(new THREE.Line(zLine, mat));
 
             const addLabel = (txt, x, z, col) => {
-                const c = document.createElement('canvas'); c.width = 256; c.height = 64;
-                const ctx = c.getContext('2d'); 
-                ctx.fillStyle = col; ctx.font = 'bold 40px monospace'; ctx.textAlign = 'center'; 
-                ctx.shadowColor = col; ctx.shadowBlur = 10;
+                const c = document.createElement('canvas');
+                c.width = 256;
+                c.height = 64;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = col;
+                ctx.font = 'bold 40px monospace';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = col;
+                ctx.shadowBlur = 10;
                 ctx.fillText(txt, 128, 48);
-                const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent:true, opacity:0.6 }));
-                s.position.set(x, 3.33, z); 
+                const s = new THREE.Sprite(new THREE.SpriteMaterial({ 
+                    map: new THREE.CanvasTexture(c), 
+                    transparent: true, 
+                    opacity: 0.6 
+                }));
+                s.position.set(x, 3.33, z);
                 s.scale.set(12, 3, 1);
                 gridGrp.add(s);
-            }
+            };
 
             addLabel("TO DO", 25, -25, "#FFFF00");
             addLabel("IN PROGRESS", -25, -25, "#00FFFF");
@@ -369,232 +1349,245 @@
         }
         createGrid();
 
-        const ringGeo = new THREE.RingGeometry(2.3, 2.7, 32); ringGeo.rotateX(-Math.PI/2);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0x39FF14, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
-        const selRing = new THREE.Mesh(ringGeo, ringMat); selRing.visible = false; sc.add(selRing);
+        // === SELECTION RING ===
+        const ringGeo = new THREE.RingGeometry(2.3, 2.7, 32);
+        ringGeo.rotateX(-Math.PI / 2);
+        const ringMat = new THREE.MeshBasicMaterial({ 
+            color: 0x39FF14, 
+            side: THREE.DoubleSide, 
+            transparent: true, 
+            opacity: 0.8 
+        });
+        const selRing = new THREE.Mesh(ringGeo, ringMat);
+        selRing.visible = false;
+        sc.add(selRing);
 
-        // --- CUBE LOGIC ---
+        // === ENHANCED CUBE CLASS ===
         class Cube {
-          constructor(x, y, z) {
-              this.sz = 2.5;
-              this.st = 'def';
-              this.desc = "";
-              
-              const baseMat = new THREE.MeshPhysicalMaterial({
-                  color: 0x333333,
-                  metalness: 0.1, roughness: 0.1,
-                  clearcoat: 1.0, clearcoatRoughness: 0,
-                  emissive: 0x000000, emissiveIntensity: 2.0,
-                  envMap: cRT.texture, envMapIntensity: 1.5
-              });
+            constructor(x, y, z, sz = 2.5) {
+                this.sz = sz;
+                this.st = 'def';
+                this.taskId = Date.now() + Math.random();
+                
+                const baseMat = new THREE.MeshPhysicalMaterial({
+                    color: 0x333333,
+                    metalness: 0.1,
+                    roughness: 0.1,
+                    clearcoat: 1.0,
+                    clearcoatRoughness: 0,
+                    emissive: 0x000000,
+                    emissiveIntensity: 2.0,
+                    envMap: cRT.texture,
+                    envMapIntensity: 1.5
+                });
 
-              this.mat = baseMat;
-              this.m = new THREE.Mesh(new THREE.BoxGeometry(this.sz, this.sz, this.sz), baseMat);
-              this.m.position.set(x, y, z);
-              this.m.castShadow = true;
-              this.m.receiveShadow = true;
-              this.m.userData.cube = this;
+                this.mat = baseMat;
+                this.m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), baseMat);
+                this.m.position.set(x, y, z);
+                this.m.castShadow = true;
+                this.m.receiveShadow = true;
+                this.m.userData.cube = this;
 
-              const ed = new THREE.LineSegments(new THREE.EdgesGeometry(this.m.geometry), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 }));
-              this.ed = ed;
-              this.m.add(ed);
-              sc.add(this.m);
+                const ed = new THREE.LineSegments(
+                    new THREE.EdgesGeometry(this.m.geometry), 
+                    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 })
+                );
+                this.ed = ed;
+                this.m.add(ed);
+                sc.add(this.m);
 
-              const sh = new CANNON.Box(new CANNON.Vec3(this.sz / 2, this.sz / 2, this.sz / 2));
-              this.b = new CANNON.Body({ mass: 5, material: mat, type: CANNON.Body.DYNAMIC });
-              this.b.addShape(sh);
-              this.b.position.set(x, y, z);
-              this.b.linearDamping = 0.4;
-              this.b.angularDamping = 0.4; this.b.angularFactor = new CANNON.Vec3(0,0,0);
-              world.addBody(this.b);
-              
-              this.updateColor(); 
-          }
+                const sh = new CANNON.Box(new CANNON.Vec3(sz / 2, sz / 2, sz / 2));
+                this.b = new CANNON.Body({ mass: 5, material: mat, type: CANNON.Body.DYNAMIC });
+                this.b.addShape(sh);
+                this.b.position.set(x, y, z);
+                this.b.linearDamping = 0.4;
+                this.b.angularDamping = 0.4;
+                this.b.angularFactor = new CANNON.Vec3(0, 0, 0);
+                world.addBody(this.b);
+                
+                this.updateColor();
+            }
 
-          updateTextSprite() {
-              if (this.textSprite) this.m.remove(this.textSprite);
-              if (!this.text) return;
-              const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 128;
-              const ctx = canvas.getContext('2d');
-              ctx.fillStyle = '#ffffff'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center';
-              ctx.fillText(this.text, 128, 64);
-              const map = new THREE.CanvasTexture(canvas);
-              const spriteMat = new THREE.SpriteMaterial({map});
-              this.textSprite = new THREE.Sprite(spriteMat);
-              this.textSprite.scale.set(5,2.5,1);
-              this.textSprite.position.set(0, this.sz/2 + 1, 0);
-              this.m.add(this.textSprite);
-          }
+            updateTextSprite() {
+                if (this.textSprite) this.m.remove(this.textSprite);
+                if (!this.text) return;
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 36px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.text, 128, 64);
+                const map = new THREE.CanvasTexture(canvas);
+                const spriteMat = new THREE.SpriteMaterial({ map });
+                this.textSprite = new THREE.Sprite(spriteMat);
+                this.textSprite.scale.set(5, 2.5, 1);
+                this.textSprite.position.set(0, this.sz / 2 + 1, 0);
+                this.m.add(this.textSprite);
+            }
 
-          getStatus() {
-              const x = this.b.position.x;
-              const z = this.b.position.z;
-              if (x > 0 && z < 0) return 'todo';
-              if (x < 0 && z < 0) return 'prog';
-              if (x > 0 && z > 0) return 'done';
-              return 'back';
-          }
+            getStatus() {
+                const x = this.b.position.x;
+                const z = this.b.position.z;
+                if (x > 0 && z < 0) return 'todo';
+                if (x < 0 && z < 0) return 'prog';
+                if (x > 0 && z > 0) return 'done';
+                return 'back';
+            }
 
-          updateColor() {
-              const s = this.getStatus();
-              if (this.lastStatus !== s) {
-                  this.lastStatus = s;
-                  const c = CFG.colors[s];
-                  this.mat.color.setHex(c);
-                  this.mat.emissive.setHex(c);
-                  this.mat.emissiveIntensity = 0.6;
-              }
-          }
+            updateColor() {
+                const s = this.getStatus();
+                if (this.lastStatus !== s) {
+                    this.lastStatus = s;
+                    const c = CFG.colors[s];
+                    this.mat.color.setHex(c);
+                    this.mat.emissive.setHex(c);
+                    this.mat.emissiveIntensity = 0.6;
+                }
+            }
 
-          click() {
-              gsap.to(this.m.scale, { x: 1.1, y: 1.1, z: 1.1, duration: 0.1, yoyo: true, repeat: 1 });
-          }
+            click() {
+                gsap.to(this.m.scale, { 
+                    x: 1.1, y: 1.1, z: 1.1, 
+                    duration: 0.1, 
+                    yoyo: true, 
+                    repeat: 1 
+                });
+            }
 
-          sel() {
-              this.ed.material.opacity = 1.0;
-              tm.sel = this;
-              this.upd();
-          }
+            sel() {
+                this.ed.material.opacity = 1.0;
+                tm.sel = this;
+                this.upd();
+                
+                if (rig.isMobile) {
+                    document.getElementById('mobile-release').classList.add('visible');
+                }
+            }
 
-          desel() {
-              this.ed.material.opacity = 0.2;
-              if (tm.sel === this) { tm.sel = null; document.getElementById('info').classList.remove('active'); }
-          }
+            desel() {
+                this.ed.material.opacity = 0.2;
+                if (tm.sel === this) {
+                    tm.sel = null;
+                    document.getElementById('mobile-release').classList.remove('visible');
+                }
+            }
 
-          launch(tp) {
-              const d = new THREE.Vector3().subVectors(tp, this.b.position);
-              const ds = d.length();
-              const imp = new CANNON.Vec3(d.x * 6, Math.sqrt(ds * 12) + 5, d.z * 6);
-              this.b.applyImpulse(imp, this.b.position);
-              this.b.angularVelocity.set((Math.random()-0.5)*10, (Math.random()-0.5)*10, (Math.random()-0.5)*10);
-          }
+            launch(tp) {
+                const d = new THREE.Vector3().subVectors(tp, this.b.position);
+                const ds = d.length();
+                const imp = new CANNON.Vec3(d.x * 6, Math.sqrt(ds * 12) + 5, d.z * 6);
+                this.b.applyImpulse(imp, this.b.position);
+                this.b.angularVelocity.set((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
+            }
 
-          upd() {
-              const pn = document.getElementById('info');
-              pn.classList.add('active');
-              document.getElementById('iTitle').textContent = 'Task #' + (tm.cubes.indexOf(this) + 1);
-              document.getElementById('iText').textContent = this.text || '-';
-              document.getElementById('iDesc').textContent = this.desc || '-';
-              document.getElementById('iPos').textContent = `${this.b.position.x.toFixed(0)},${this.b.position.z.toFixed(0)}`;
-              document.getElementById('iState').textContent = this.getStatus().toUpperCase();
-          }
+            upd() {
+                // Enhanced info display could be implemented here
+            }
 
-          tick() {
-              this.m.position.copy(this.b.position);
-              this.m.quaternion.copy(this.b.quaternion);
-              if (!tm.drag || tm.drag !== this) this.updateColor();
-          }
+            tick() {
+                this.m.position.copy(this.b.position);
+                this.m.quaternion.copy(this.b.quaternion);
+                if (!tm.drag || tm.drag !== this) this.updateColor();
+            }
 
-          rm() {
-              sc.remove(this.m);
-              world.removeBody(this.b);
-              const i = tm.cubes.indexOf(this);
-              if (i > -1) tm.cubes.splice(i, 1);
-          }
-      }
+            rm() {
+                sc.remove(this.m);
+                world.removeBody(this.b);
+                const i = tm.cubes.indexOf(this);
+                if (i > -1) tm.cubes.splice(i, 1);
+                updateStats();
+            }
 
-        // --- INIT DATA ---
-        const saved = localStorage.getItem('punt-kanban');
-        if (saved) {
-            JSON.parse(saved).forEach(d => {
-                const c = new Cube(d.pos.x, d.pos.y, d.pos.z);
-                c.text = d.text;
-                c.desc = d.desc || "";
-                c.updateTextSprite();
-                c.b.quaternion.set(d.quat.x, d.quat.y, d.quat.z, d.quat.w);
-                tm.cubes.push(c);
-            });
-        } else {
-            // Demo data
-            [[15, -15, "Plan"], [-15, -15, "Coding"], [15, 15, "Deploy"]].forEach(d => {
-                const c = new Cube(d[0], 5, d[1]);
-                c.text = d[2];
-                c.updateTextSprite();
-                tm.cubes.push(c);
-            });
+            explode() {
+                const force = new CANNON.Vec3(
+                    (Math.random() - 0.5) * 50,
+                    Math.random() * 30 + 10,
+                    (Math.random() - 0.5) * 50
+                );
+                this.b.applyImpulse(force, this.b.position);
+                this.b.angularVelocity.set(
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 20
+                );
+            }
+
+            freeze() {
+                this.b.type = CANNON.Body.KINEMATIC;
+                this.b.velocity.set(0, 0, 0);
+                this.b.angularVelocity.set(0, 0, 0);
+            }
+
+            unfreeze() {
+                this.b.type = CANNON.Body.DYNAMIC;
+                this.b.wakeUp();
+            }
         }
 
-        // --- SPAWNER LOGIC ---
+        // === INITIAL CUBES ===
+        function initializeCubes() {
+            const initialCubes = [
+                [15, -15, "Plan Architecture"],
+                [-15, -15, "Implementation"],
+                [15, 15, "Testing"],
+                [-15, 15, "Documentation"],
+                [20, -10, "Database Design"],
+                [-20, 10, "API Development"],
+                [10, 20, "UI/UX Design"],
+                [-10, -20, "Deployment"]
+            ];
+
+            initialCubes.forEach(data => {
+                const c = new Cube(data[0], 5, data[1]);
+                c.text = data[2];
+                c.updateTextSprite();
+                c.b.angularVelocity.set(Math.random(), Math.random(), Math.random());
+                tm.cubes.push(c);
+            });
+            updateStats();
+        }
+
+        // === SPAWNER LOGIC ===
         window.spawn = function(zone) {
             let x, z;
-            // Target specific zones
             switch(zone) {
                 case 'todo': x = 25; z = -25; break;
                 case 'prog': x = -25; z = -25; break;
                 case 'done': x = 25; z = 25; break;
                 case 'back': x = -25; z = 25; break;
             }
-            // Add some jitter so they don't stack perfectly vertical if spammed
+            
             x += (Math.random() - 0.5) * 5;
             z += (Math.random() - 0.5) * 5;
             
-            // Drop from height 40
             const c = new Cube(x, 40, z);
-            c.text = "New Task";
+            c.text = "New Task " + (tm.cubes.length + 1);
             c.updateTextSprite();
             c.b.angularVelocity.set(Math.random(), Math.random(), Math.random());
             tm.cubes.push(c);
+            updateStats();
             
-            // Navigate camera slightly to show the drop if far away
             if (rig.tPiv.distanceTo(new THREE.Vector3(x, 0, z)) > 30) {
-                gsap.to(rig.tPiv, {x:x, z:z, duration: 1.5, ease:"power2.out"});
+                gsap.to(rig.tPiv, { x: x, z: z, duration: 1.5, ease: "power2.out" });
             }
-        }
+        };
 
-        function shake() {
-            tm.cubes.forEach(c => {
-                c.b.wakeUp();
-                const im = new CANNON.Vec3((Math.random()-0.5)*40, 40+Math.random()*40, (Math.random()-0.5)*40);
-                c.b.applyImpulse(im, c.b.position);
-            });
-        }
-
-        function getQuadFromPoint(p) {
-            const x = p.x, z = p.z;
-            if (x > 0 && z < 0) return 'todo';
-            if (x < 0 && z < 0) return 'prog';
-            if (x > 0 && z > 0) return 'done';
-            return 'back';
-        }
-
-        function setAnchor(quad) {
-            const modeEl = document.getElementById('mode');
-            if (anchor && anchor.quad === quad) {
-                anchor = null;
-                if (rig.mode !== 'eye') modeEl.classList.remove('active');
-            } else {
-                const pos = new THREE.Vector3(quads[quad].x, 0, quads[quad].z);
-                anchor = {pos, quad};
-                gsap.to(rig.tPiv, {x: pos.x, z: pos.z, duration: 1, ease: "power2.out"});
-                modeEl.textContent = 'ANCHOR MODE ACTIVE';
-                modeEl.style.color = 'var(--neon-blue)';
-                modeEl.style.borderColor = 'var(--neon-blue)';
-                modeEl.style.boxShadow = '0 0 15px var(--neon-blue)';
-                modeEl.classList.add('active');
-            }
-        }
-
-        window.resetCam = function() {
-            rig.tPiv.set(0, 0, 0);
-            rig.piv.set(0, 0, 0);
-            distanceScale = 1;
-            cam.fov = 75;
-            cam.updateProjectionMatrix();
-            anchor = null;
-            rig.mode = 'std';
-            rig.preset = 'std';
-            document.querySelectorAll('.preset-text').forEach(x => x.classList.remove('active'));
-            document.querySelector('.preset-text.std').classList.add('active');
-            document.getElementById('mode').classList.remove('active');
-            if (rig.mode === 'eye') rig.mode = 'std';
-            focal = false;
-            if (tm.sel) tm.sel.desel();
-        }
-
-        // --- INTERACTION ---
+        // === ENHANCED RAYCASTING ===
         const rc = new THREE.Raycaster(), ms = new THREE.Vector2(), intersect = new THREE.Vector3();
-        function upMs(e) { ms.x = (e.clientX / innerWidth) * 2 - 1; ms.y = -(e.clientY / innerHeight) * 2 + 1; }
-        function getC() { rc.setFromCamera(ms, cam); const in_ = rc.intersectObjects(tm.cubes.map(c => c.m)); return in_.length > 0 ? in_[0].object.userData.cube : null; }
+        
+        function upMs(e) {
+            ms.x = (e.clientX / innerWidth) * 2 - 1;
+            ms.y = -(e.clientY / innerHeight) * 2 + 1;
+        }
+        
+        function getC() {
+            rc.setFromCamera(ms, cam);
+            const in_ = rc.intersectObjects(tm.cubes.map(c => c.m));
+            return in_.length > 0 ? in_[0].object.userData.cube : null;
+        }
+        
         function getG(e) {
             upMs(e);
             rc.setFromCamera(ms, cam);
@@ -604,136 +1597,454 @@
             return null;
         }
 
-        function handlePointerDown(e) {
-            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-            upMs({clientX, clientY});
-            if (tm.launch && tm.lSrc) {
-                const gp = getG({clientX, clientY});
-                if (gp) {
-                    gp.y = tm.lSrc.b.position.y;
-                    tm.lSrc.launch(gp);
-                    tm.launch = false; tm.lSrc = null;
-                    document.getElementById('launch').classList.remove('active');
-                }
-                return;
+        // === CURSOR SYSTEM ===
+        const tl = 14, h = document.getElementById('cursor');
+        
+        const centerDot = document.createElement('div');
+        centerDot.className = 'c-center';
+        h.appendChild(centerDot);
+        const centerRing = document.createElement('div');
+        centerRing.className = 'c-ring';
+        h.appendChild(centerRing);
+        
+        for (let i = 0; i < tl; i++) {
+            const d = document.createElement('div');
+            d.className = 'c-circle';
+            h.appendChild(d);
+        }
+        
+        const cs = h.querySelectorAll('.c-circle');
+        let mX = innerWidth / 2, mY = innerHeight / 2;
+        const hist = Array(tl).fill(0).map(() => ({ x: mX, y: mY }));
+        
+        addEventListener('pointermove', e => { 
+            mX = e.clientX; 
+            mY = e.clientY; 
+        }, { passive: true });
+        
+        function cTick() {
+            hist.shift(); 
+            hist.push({ x: mX, y: mY });
+            cs.forEach((c, i) => {
+                const cur = hist[i];
+                const nx = hist[i + 1] || hist[tl - 1];
+                cur.x += (nx.x - cur.x) * 0.35;
+                cur.y += (nx.y - cur.y) * 0.35;
+                const s = Math.max(0.22, (tl - i) / tl * 1.2);
+                c.style.transform = `translate(calc(${cur.x}px - 50%), calc(${cur.y}px - 50%)) scale(${s})`;
+            });
+            
+            centerDot.style.left = mX + 'px';
+            centerDot.style.top = mY + 'px';
+            centerRing.style.left = mX + 'px';
+            centerRing.style.top = mY + 'px';
+            
+            requestAnimationFrame(cTick);
+        }
+        cTick();
+
+        // === ENHANCED JOYSTICK SYSTEM ===
+        const joy = { 
+            el: document.getElementById('joy-cube'), 
+            zone: document.getElementById('joystick'), 
+            active: false, 
+            start: { x: 0, y: 0 } 
+        };
+
+        function getQuadrantFromPosition(x, z) {
+            if (x > 0 && z < 0) return 'todo';
+            if (x < 0 && z < 0) return 'prog';
+            if (x > 0 && z > 0) return 'done';
+            return 'back';
+        }
+
+        function updateJoystickColor(quadrant) {
+            const color = CFG.quadrantColors[quadrant];
+            const faces = joy.el.querySelectorAll('.f-face');
+            faces.forEach(face => {
+                face.style.borderColor = color;
+                face.style.boxShadow = `0 0 15px ${color}, inset 0 0 10px ${color}`;
+            });
+            
+            centerDot.style.background = color;
+            centerDot.style.boxShadow = `0 0 10px ${color}`;
+            centerRing.style.borderColor = color;
+            centerRing.style.boxShadow = `0 0 8px ${color}`;
+        }
+
+        function handleJoy(x, y) {
+            const max = 60;
+            let dx = x - joy.start.x, dy = y - joy.start.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > max) { 
+                const r = max / dist; 
+                dx *= r; 
+                dy *= r; 
             }
-            const c = getC();
-            if (c) {
-                if (tm.sel && tm.sel === c && rig.mode === 'eye' && focal) {
-                    rig.mode = 'std';
-                    focal = false;
-                    gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});
-                    gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});
-                    gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});
-                    const modeEl = document.getElementById('mode');
-                    if (!anchor) modeEl.classList.remove('active');
-                    else {
-                        modeEl.textContent = 'ANCHOR MODE ACTIVE';
-                        modeEl.style.color = 'var(--neon-blue)';
-                        modeEl.style.borderColor = 'var(--neon-blue)';
-                        modeEl.style.boxShadow = '0 0 15px var(--neon-blue)';
-                    }
-                    c.desel();
-                    return;
+
+            const intensity = Math.min(dist / max, 1);
+            joy.el.style.transform = `rotateX(${-25 + (dy / max * 45)}deg) rotateY(${-45 + (dx / max * 45)}deg) translate(${dx / 3}px, ${dy / 3}px) scale(${1 + intensity * 0.1})`;
+            document.querySelector('.fab-halo').style.opacity = intensity * 0.6;
+            
+            const currentQuadrant = getQuadrantFromPosition(rig.tPiv.x, rig.tPiv.z);
+            updateJoystickColor(currentQuadrant);
+            
+            const speed = 0.8;
+            const viscosity = 0.15;
+            
+            if (rig.isMobile && currentView === 'quarterback') {
+                rig.tPiv.z += dy / max * speed;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    rig.piv.y += dx / max * speed * 0.5;
                 }
-                if (tm.sel && tm.sel !== c) tm.sel.desel();
-                c.click();
-                c.sel();
-                tm.drag = c;
-                c.originalY = c.b.position.y;
-                c.b.type = CANNON.Body.KINEMATIC;
-                gsap.to(c.b.position, { y: 3.5, duration: 0.2, ease: "power2.out" });
+            } else if (currentView === 'sideline') {
+                rig.tPiv.z += dx / max * speed;
+                rig.tPiv.y -= dy / max * speed;
+            } else if (currentView === 'fps') {
+                // FPS controls
+                cam.rotation.y -= dx / max * 0.05;
+                cam.rotation.x -= dy / max * 0.05;
+                const moveVector = new THREE.Vector3();
+                cam.getWorldDirection(moveVector);
+                moveVector.y = 0;
+                moveVector.normalize();
+                const movement = dy / max * speed;
+                rig.tPiv.x += moveVector.x * movement;
+                rig.tPiv.z += moveVector.z * movement;
             } else {
-                if (tm.sel) tm.sel.desel();
-                if (rig.mode === 'eye') {
-                    rig.mode = 'std';
-                    focal = false;
-                    gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});
-                    gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});
-                    gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});
-                    const modeEl = document.getElementById('mode');
-                    if (!anchor) modeEl.classList.remove('active');
-                    else {
-                        modeEl.textContent = 'ANCHOR MODE ACTIVE';
-                        modeEl.style.color = 'var(--neon-blue)';
-                        modeEl.style.borderColor = 'var(--neon-blue)';
-                        modeEl.style.boxShadow = '0 0 15px var(--neon-blue)';
+                rig.tPiv.x += dx / max * speed;
+                rig.tPiv.z += dy / max * speed;
+            }
+        }
+
+        function startJoy(x, y) {
+            joy.active = true; 
+            joy.start = { x, y };
+            joy.el.style.transition = 'none';
+            document.body.classList.add('fab-active');
+        }
+
+        function endJoy() {
+            joy.active = false;
+            joy.el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            joy.el.style.transform = `rotateX(-25deg) rotateY(-45deg)`;
+            document.querySelector('.fab-halo').style.opacity = 0;
+            document.body.classList.remove('fab-active');
+        }
+
+        // Joystick event listeners
+        if (joy.zone) {
+            joy.zone.addEventListener('mousedown', e => { 
+                startJoy(e.clientX, e.clientY); 
+                e.stopPropagation(); 
+            });
+            joy.zone.addEventListener('touchstart', e => { 
+                startJoy(e.touches[0].clientX, e.touches[0].clientY); 
+                e.stopPropagation(); 
+            });
+        }
+        
+        addEventListener('mousemove', e => { 
+            if (joy.active) handleJoy(e.clientX, e.clientY); 
+        });
+        addEventListener('touchmove', e => { 
+            if (joy.active && e.touches.length === 1) handleJoy(e.touches[0].clientX, e.touches[0].clientY); 
+        });
+        
+        addEventListener('mouseup', endJoy);
+        addEventListener('touchend', endJoy);
+
+        // === ENHANCED THEME SYSTEM ===
+        const themes = ['neon', 'pastel', 'midnight'];
+        let currentThemeIndex = 0;
+
+        function toggleTheme() {
+            currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+            const newTheme = themes[currentThemeIndex];
+            document.documentElement.setAttribute('data-theme', newTheme);
+            rig.currentTheme = newTheme;
+            
+            const themeBtn = document.getElementById('theme-toggle');
+            const icons = ['🌙 Neon', '☀️ Pastel', '🌌 Midnight'];
+            themeBtn.textContent = icons[currentThemeIndex];
+        }
+
+        const themeToggle = document.getElementById('theme-toggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('click', toggleTheme);
+        }
+
+        // === PHYSICS CONTROLS ===
+        function toggleGravity() {
+            rig.gravityEnabled = !rig.gravityEnabled;
+            world.gravity.set(0, rig.gravityEnabled ? -19.81 : 0, 0);
+            document.getElementById('gravity-toggle').textContent = `Gravity: ${rig.gravityEnabled ? 'ON' : 'OFF'}`;
+            document.getElementById('gravity-toggle').classList.toggle('active', !rig.gravityEnabled);
+        }
+
+        function explodeCubes() {
+            tm.cubes.forEach(cube => cube.explode());
+        }
+
+        function toggleFreeze() {
+            rig.physicsFrozen = !rig.physicsFrozen;
+            tm.cubes.forEach(cube => {
+                if (rig.physicsFrozen) {
+                    cube.freeze();
+                } else {
+                    cube.unfreeze();
+                }
+            });
+            document.getElementById('freeze-btn').classList.toggle('active', rig.physicsFrozen);
+            document.getElementById('physics-status').textContent = rig.physicsFrozen ? 'Frozen' : 'Active';
+        }
+
+        function createTornado() {
+            const tornadoCenter = new THREE.Vector3(0, 0, 0);
+            const tornadoForce = 15;
+            const tornadoRadius = 20;
+            
+            tm.cubes.forEach(cube => {
+                const toCenter = new THREE.Vector3().subVectors(tornadoCenter, cube.b.position);
+                const distance = toCenter.length();
+                
+                if (distance < tornadoRadius) {
+                    // Tangential force for spinning
+                    const tangent = new THREE.Vector3(-toCenter.z, 0, toCenter.x).normalize();
+                    const tangentialForce = tangent.multiplyScalar(tornadoForce * (1 - distance / tornadoRadius));
+                    
+                    // Upward force
+                    const upwardForce = new CANNON.Vec3(0, 10 * (1 - distance / tornadoRadius), 0);
+                    
+                    const totalForce = new CANNON.Vec3(
+                        tangentialForce.x + toCenter.x * 0.1,
+                        upwardForce.y,
+                        tangentialForce.z + toCenter.z * 0.1
+                    );
+                    
+                    cube.b.applyImpulse(totalForce, cube.b.position);
+                    cube.b.angularVelocity.set(
+                        (Math.random() - 0.5) * 15,
+                        (Math.random() - 0.5) * 15,
+                        (Math.random() - 0.5) * 15
+                    );
+                }
+            });
+        }
+
+        // Physics control event listeners
+        const gravityToggle = document.getElementById('gravity-toggle');
+        const explosionBtn = document.getElementById('explosion-btn');
+        const freezeBtn = document.getElementById('freeze-btn');
+        const tornadoBtn = document.getElementById('tornado-btn');
+
+        if (gravityToggle) gravityToggle.addEventListener('click', toggleGravity);
+        if (explosionBtn) explosionBtn.addEventListener('click', explodeCubes);
+        if (freezeBtn) freezeBtn.addEventListener('click', toggleFreeze);
+        if (tornadoBtn) tornadoBtn.addEventListener('click', createTornado);
+
+        // === TASK EDITOR ===
+        const taskEditor = document.getElementById('task-editor');
+        const taskInput = document.getElementById('task-input');
+        const saveEditBtn = document.getElementById('save-edit');
+        const cancelEditBtn = document.getElementById('cancel-edit');
+
+        function openTaskEditor(cube) {
+            tm.editingCube = cube;
+            taskInput.value = cube.text || '';
+            taskEditor.classList.add('active');
+            taskInput.focus();
+        }
+
+        function closeTaskEditor() {
+            taskEditor.classList.remove('active');
+            tm.editingCube = null;
+            taskInput.value = '';
+        }
+
+        function saveTask() {
+            if (tm.editingCube && taskInput.value.trim()) {
+                tm.editingCube.text = taskInput.value.trim();
+                tm.editingCube.updateTextSprite();
+            }
+            closeTaskEditor();
+        }
+
+        if (saveEditBtn) saveEditBtn.addEventListener('click', saveTask);
+        if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeTaskEditor);
+
+        // === SEARCH FUNCTIONALITY ===
+        const searchInput = document.getElementById('search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                tm.cubes.forEach(cube => {
+                    if (searchTerm && cube.text && cube.text.toLowerCase().includes(searchTerm)) {
+                        cube.mat.emissiveIntensity = 1.2;
+                        gsap.to(cube.m.scale, { x: 1.2, y: 1.2, z: 1.2, duration: 0.3 });
+                    } else if (!searchTerm) {
+                        cube.mat.emissiveIntensity = 0.6;
+                        gsap.to(cube.m.scale, { x: 1, y: 1, z: 1, duration: 0.3 });
                     }
-                }
-                if (anchor) return;
-                const gp = getG({clientX, clientY});
-                if (gp) {
-                    isPanning = true;
-                    panStartIntersect = gp.clone();
-                    document.getElementById('info').classList.remove('active');
-                }
+                });
+            });
+        }
+
+        // === STATS UPDATE ===
+        function updateStats() {
+            const taskCount = document.getElementById('task-count');
+            if (taskCount) {
+                taskCount.textContent = tm.cubes.length;
             }
         }
 
-        function handlePointerMove(e) {
-            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-            upMs({clientX, clientY});
-            // Update custom cursor
-            const cur = document.getElementById('cursor');
-            const ring = cur.querySelector('.c-ring');
-            const dot = cur.querySelector('.c-dot');
-            dot.style.transform = `translate(${clientX}px, ${clientY}px) translate(-50%, -50%)`;
-            ring.style.transform = `translate(${clientX}px, ${clientY}px) translate(-50%, -50%)`;
-            const c = getC();
-            document.body.classList.toggle('hovering', !!c);
-            if (tm.drag) {
-                const gp = getG({clientX, clientY});
-                if (gp) {
-                    tm.drag.b.position.copy(gp);
-                    tm.drag.upd();
-                    // Trash Hover
-                    const el = document.elementFromPoint(clientX, clientY);
-                    document.getElementById('trash').classList.toggle('active', el && el.id === 'trash');
+        function updateFPS() {
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime >= lastTime + 1000) {
+                fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                const fpsCounter = document.getElementById('fps-counter');
+                if (fpsCounter) {
+                    fpsCounter.textContent = fps;
                 }
-            } else if (isPanning) {
-                const gp = getG({clientX, clientY});
-                if (gp && panStartIntersect) {
-                    const delta = new THREE.Vector3().subVectors(gp, panStartIntersect);
-                    rig.tPiv.sub(delta);
-                    panStartIntersect.copy(gp);
-                }
-            } 
-            // Enhanced panning towards cursor in drone mode
-            if (rig.preset === 'drone') {
-                const edgeThreshold = 0.1; // 10% of screen edge for panning
-                const panSpeed = 0.5; // Adjust for responsiveness
-                const normX = clientX / innerWidth;
-                const normY = clientY / innerHeight;
-                if (normX < edgeThreshold) rig.tPiv.x -= panSpeed;
-                if (normX > 1 - edgeThreshold) rig.tPiv.x += panSpeed;
-                if (normY < edgeThreshold) rig.tPiv.z -= panSpeed;
-                if (normY > 1 - edgeThreshold) rig.tPiv.z += panSpeed;
+                frameCount = 0;
+                lastTime = currentTime;
             }
         }
 
-        function handlePointerUp() {
-            if (tm.drag) {
-                const c = tm.drag;
-                gsap.to(c.b.position, { y: 2, duration: 0.2, ease: "power1.in", onComplete: () => {
-                    c.b.type = CANNON.Body.DYNAMIC;
-                    c.b.wakeUp();
-                }});
-                // Check Trash
-                const el = document.elementFromPoint(event.clientX || (event.touches && event.touches[0].clientX), event.clientY || (event.touches && event.touches[0].clientY));
-                if(el && el.id === 'trash') {
-                    const idx = tm.cubes.indexOf(c);
-                    if(idx > -1) tm.cubes.splice(idx, 1);
-                    c.rm();
-                    document.getElementById('info').classList.remove('active');
-                }
-                document.getElementById('trash').classList.remove('active');
-            }
-            tm.drag = null;
-            isPanning = false;
-            touchId = -1;
+        // === INFO OVERLAY ===
+        const infoBtn = document.getElementById('info-btn');
+        const infoOverlay = document.getElementById('info-overlay');
+        const closeInfo = document.getElementById('close-info');
+
+        if (infoBtn) {
+            infoBtn.addEventListener('click', () => {
+                infoOverlay.style.display = 'flex';
+                setTimeout(() => infoOverlay.classList.add('active'), 10);
+            });
         }
+
+        if (closeInfo) {
+            closeInfo.addEventListener('click', () => {
+                infoOverlay.classList.remove('active');
+                setTimeout(() => infoOverlay.style.display = 'none', 300);
+            });
+        }
+
+        // Accordion functionality
+        document.querySelectorAll('.accordion-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const item = header.parentElement;
+                const wasOpen = item.classList.contains('open');
+                
+                document.querySelectorAll('.accordion-item').forEach(i => {
+                    i.classList.remove('open');
+                });
+                
+                if (!wasOpen) {
+                    item.classList.add('open');
+                }
+            });
+        });
+
+        // === VIEW TOGGLES ===
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            let pressTimer;
+            
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentView = btn.dataset.view;
+                rig.preset = currentView;
+            });
+        });
+
+        // === RESET FUNCTION ===
+        function resetCamera() {
+            rig.tPiv.set(0, 0, 0);
+            rig.piv.set(0, 0, 0);
+            distanceScale = 1;
+            cam.fov = 75;
+            cam.updateProjectionMatrix();
+            rig.mode = 'quarterback';
+            rig.preset = 'quarterback';
+            currentView = 'quarterback';
+            
+            document.querySelectorAll('.view-btn').forEach(x => x.classList.remove('active'));
+            const qbBtn = document.querySelector('.view-btn[data-view="quarterback"]');
+            if (qbBtn) qbBtn.classList.add('active');
+            
+            if (tm.sel) tm.sel.desel();
+            
+            // Reset any physics state
+            rig.physicsFrozen = false;
+            rig.gravityEnabled = true;
+            world.gravity.set(0, -19.81, 0);
+            
+            // Update UI elements
+            const gravityToggle = document.getElementById('gravity-toggle');
+            if (gravityToggle) {
+                gravityToggle.textContent = 'Gravity: ON';
+                gravityToggle.classList.remove('active');
+            }
+            
+            const freezeBtn = document.getElementById('freeze-btn');
+            if (freezeBtn) {
+                freezeBtn.classList.remove('active');
+            }
+            
+            const physicsStatus = document.getElementById('physics-status');
+            if (physicsStatus) {
+                physicsStatus.textContent = 'Active';
+            }
+            
+            // Unfreeze all cubes if they were frozen
+            tm.cubes.forEach(cube => {
+                if (cube.b.type === CANNON.Body.KINEMATIC && cube !== tm.sel) {
+                    cube.b.type = CANNON.Body.DYNAMIC;
+                    cube.b.wakeUp();
+                }
+            });
+        }
+
+        const resetZone = document.getElementById('reset-zone');
+        if (resetZone) {
+            resetZone.addEventListener('click', resetCamera);
+        }
+
+        // === TRASH ZONE ===
+        const trashZone = document.getElementById('trash-zone');
+
+        function checkTrashZone(cube, mouseX, mouseY) {
+            if (!trashZone) return false;
+            
+            const trashRect = trashZone.getBoundingClientRect();
+            const isOverTrash = mouseX >= trashRect.left && mouseX <= trashRect.right &&
+                               mouseY >= trashRect.top && mouseY <= trashRect.bottom;
+            
+            if (isOverTrash) {
+                trashZone.classList.add('active');
+                if (cube && tm.drag === cube) {
+                    cube.rm();
+                    tm.drag = null;
+                    trashZone.classList.remove('active');
+                }
+            } else {
+                trashZone.classList.remove('active');
+            }
+            return isOverTrash;
+        }
+
+        // === ENHANCED MOUSE EVENTS (PRESERVING ORIGINAL FUNCTIONALITY) ===
+        let lastClickTime = 0;
+        const doubleClickDelay = 300;
+        let rightClickTimer = null;
+
+        // Prevent context menu on right-click for game interaction
+        addEventListener('contextmenu', e => {
+            e.preventDefault();
+            return false;
+        });
 
         addEventListener('wheel', e => {
             if (e.shiftKey) {
@@ -746,184 +2057,244 @@
             }
         });
 
-        addEventListener('mousedown', handlePointerDown);
-        addEventListener('mousemove', handlePointerMove);
-        addEventListener('mouseup', handlePointerUp);
-
-        addEventListener('touchstart', (e) => {
-            if (e.touches.length !== 1) return;
-            e.preventDefault();
-            touchId = e.touches[0].identifier;
-            handlePointerDown(e.touches[0]);
-        });
-
-        addEventListener('touchmove', (e) => {
-            if (e.touches.length !== 1 || e.touches[0].identifier !== touchId) return;
-            e.preventDefault();
-            handlePointerMove(e.touches[0]);
-        });
-
-        addEventListener('touchend', (e) => {
-            e.preventDefault();
-            handlePointerUp();
-        });
-
-        addEventListener('contextmenu', e => { 
-            e.preventDefault(); 
-            upMs(e); 
-            const c = getC(); 
-            if (c) { 
-                const m = document.getElementById('ctx'); 
-                m.style.left = e.clientX + 'px'; 
-                m.style.top = e.clientY + 'px'; 
-                m.classList.add('active'); 
-                tm.sel = c; 
-            } else {
+        addEventListener('mousemove', e => {
+            upMs(e);
+            if (tm.drag && e.buttons & 1) {
                 const gp = getG(e);
                 if (gp) {
-                    const quad = getQuadFromPoint(gp);
-                    setAnchor(quad);
+                    tm.drag.b.position.copy(gp);
+                    tm.drag.upd();
+                    checkTrashZone(tm.drag, e.clientX, e.clientY);
                 }
-            }
-        });
-        addEventListener('click', () => { document.getElementById('ctx').classList.remove('active'); });
-
-        document.querySelectorAll('.ctx-item').forEach(it => {
-            it.addEventListener('click', e => {
-                e.stopPropagation();
-                const a = it.dataset.a, c = tm.sel;
-                if (!c) return;
-                switch (a) {
-                    case 'focus':
-                        setAnchor(c.getStatus());
-                        break;
-                    case 'edit':
-                        const n = prompt("Edit Task", c.text);
-                        if(n) { c.text = n; c.desc = prompt("Description:", c.desc) || ""; c.updateTextSprite(); c.upd(); }
-                        break;
-                    case 'del': c.rm(); tm.sel = null; document.getElementById('info').classList.remove('active'); break;
-                    case 'move':
-                        const target = prompt('Move to which zone? (todo, prog, done, back)', c.getStatus());
-                        if (target && Object.keys(quads).includes(target)) {
-                            let x = quads[target].x + (Math.random() - 0.5) * 5;
-                            let z = quads[target].z + (Math.random() - 0.5) * 5;
-                            c.b.position.set(x, 40, z);
-                            c.b.velocity.set(0, 0, 0);
-                            c.b.angularVelocity.set(Math.random(), Math.random(), Math.random());
-                        }
-                        break;
+            } else if (isPanning && e.buttons & 1) {
+                const gp = getG(e);
+                if (gp && panStartIntersect) {
+                    const delta = new THREE.Vector3().subVectors(gp, panStartIntersect);
+                    rig.tPiv.sub(delta);
+                    panStartIntersect.copy(gp);
                 }
-            });
-        });
-
-        let focal = false;
-        let focalPos = new THREE.Vector3();
-        let focalTarget = new THREE.Vector3();
-        addEventListener('keydown', e => {
-            if (e.key === 'Shift') { rig.mode = 'eye'; const modeEl = document.getElementById('mode'); modeEl.textContent = 'FOCAL MODE ACTIVE'; modeEl.style.color = 'var(--pink)'; modeEl.style.borderColor = 'var(--pink)'; modeEl.style.boxShadow = '0 0 15px var(--pink)'; modeEl.classList.add('active'); if(tm.sel){focal = true;focalPos.set(tm.sel.b.position.x, tm.sel.b.position.y + 2, tm.sel.b.position.z + 10);focalTarget.set(tm.sel.b.position.x, tm.sel.b.position.y + 1, tm.sel.b.position.z);gsap.to(bokehPass.uniforms.aperture, {value:0.01, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:2, duration:1});gsap.to({val:distanceScale}, {val:0.3, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});}}
-            if (e.key === 'l' || e.key === 'L') {
-                if (tm.sel) { tm.launch = true; tm.lSrc = tm.sel; document.getElementById('launch').classList.add('active'); }
-            }
-            if (e.key === ' ') { e.preventDefault(); shake(); }
-            if (e.key === 'Escape') { tm.launch = false; tm.lSrc = null; document.getElementById('launch').classList.remove('active'); anchor = null; const modeEl = document.getElementById('mode'); if (rig.mode !== 'eye') modeEl.classList.remove('active'); if (rig.mode === 'eye') {rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); } }
-        });
-        addEventListener('keyup', e => { if (e.key === 'Shift') { rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); const modeEl = document.getElementById('mode'); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); } });
-
-        document.querySelectorAll('.preset-text').forEach(b => {
-            b.addEventListener('click', () => {
-                document.querySelectorAll('.preset-text').forEach(x => x.classList.remove('active'));
-                b.classList.add('active');
-                rig.preset = b.dataset.p;
-                anchor = null;
-                const modeEl = document.getElementById('mode');
-                if (rig.mode !== 'eye') modeEl.classList.remove('active');
-                if (rig.mode === 'eye') {rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); }
-            });
-        });
-
-        document.getElementById('search').addEventListener('input', e => {
-            const val = e.target.value.toLowerCase();
-            tm.cubes.forEach(c => {
-                const show = !val || c.text.toLowerCase().includes(val);
-                c.m.visible = show;
-                if(show) c.b.wakeUp();
-            });
-        });
-
-        const joy = { el: document.getElementById('joy-cube'), zone: document.getElementById('joystick'), active: false, start: {x:0, y:0} };
-        function handleJoy(x, y) {
-            if (anchor) return;
-            const max = 60;
-            let dx = x - joy.start.x, dy = y - joy.start.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > max) { const r = max/dist; dx*=r; dy*=r; }
-
-            joy.el.style.transform = `rotateX(${-25 + (dy/max*45)}deg) rotateY(${-45 + (dx/max*45)}deg) translate(${dx/3}px, ${dy/3}px)`;document.querySelector('.fab-halo').style.opacity = dist / max *0.5;
-            if (rig.preset === 'side') {
-                rig.tPiv.z -= dx / max * 0.8; // Reversed for side view
-                rig.tPiv.y -= dy / max * 0.8;
             } else {
-                rig.tPiv.x += dx / max * 0.8;
-                rig.tPiv.z += dy / max * 0.8;
+                checkTrashZone(null, e.clientX, e.clientY);
+            }
+        });
+
+        addEventListener('mousedown', e => {
+            upMs(e);
+            const c = getC();
+            
+            // Handle left-click (e.button === 0)
+            if (e.button === 0) {
+                const currentTime = Date.now();
+                
+                if (c) {
+                    // Check for double-click on left-click
+                    if (currentTime - lastClickTime < doubleClickDelay) {
+                        openTaskEditor(c);
+                        lastClickTime = 0;
+                        return;
+                    }
+                    lastClickTime = currentTime;
+                    
+                    // Original left-click behavior
+                    if (tm.sel && tm.sel !== c) tm.sel.desel();
+                    c.click();
+                    c.sel();
+                    tm.drag = c;
+                    c.originalY = c.b.position.y;
+                    c.b.type = CANNON.Body.KINEMATIC;
+                    gsap.to(c.b.position, { y: 3.5, duration: 0.2, ease: "power2.out" });
+                } else {
+                    if (tm.sel) tm.sel.desel();
+                    const gp = getG(e);
+                    if (gp) {
+                        isPanning = true;
+                        panStartIntersect = gp.clone();
+                    }
+                }
+            }
+            // Handle right-click (e.button === 2) 
+            else if (e.button === 2) {
+                e.preventDefault();
+                if (c) {
+                    // Right-click behavior - could launch cube or show context menu
+                    c.click();
+                    
+                    // Launch the cube on right-click (maintaining original physics interaction)
+                    if (tm.sel && tm.sel !== c) tm.sel.desel();
+                    c.sel();
+                    
+                    // Small delay before launch for visual feedback
+                    clearTimeout(rightClickTimer);
+                    rightClickTimer = setTimeout(() => {
+                        if (c && c === tm.sel) {
+                            // Launch towards a random point or towards camera
+                            const launchTarget = new THREE.Vector3(
+                                (Math.random() - 0.5) * 40,
+                                10 + Math.random() * 10,
+                                (Math.random() - 0.5) * 40
+                            );
+                            c.launch(launchTarget);
+                        }
+                    }, 100);
+                }
+            }
+        });
+
+        addEventListener('mouseup', e => {
+            if (e.button === 0) { // Only handle left-click release
+                if (tm.drag) {
+                    const c = tm.drag;
+                    gsap.to(c.b.position, { y: 2, duration: 0.2, ease: "power1.in", onComplete: () => {
+                        c.b.type = CANNON.Body.DYNAMIC;
+                        c.b.wakeUp();
+                    }});
+                }
+                tm.drag = null;
+                isPanning = false;
+            } else if (e.button === 2) { // Handle right-click release
+                clearTimeout(rightClickTimer);
+                rightClickTimer = null;
+            }
+        });
+
+        // === TOUCH EVENTS FOR MOBILE (PRESERVING ORIGINAL FUNCTIONALITY) ===
+        let lastTouchTime = 0;
+        const touchDoubleClickDelay = 400;
+
+        addEventListener('touchstart', e => {
+            upMs(e.touches[0]);
+            const c = getC();
+            const currentTime = Date.now();
+            
+            if (c) {
+                // Check for double-tap
+                if (currentTime - lastTouchTime < touchDoubleClickDelay) {
+                    openTaskEditor(c);
+                    lastTouchTime = 0;
+                    return;
+                }
+                lastTouchTime = currentTime;
+                
+                // Original touch behavior
+                if (tm.sel && tm.sel !== c) tm.sel.desel();
+                c.click();
+                c.sel();
+                tm.drag = c;
+                c.originalY = c.b.position.y;
+                c.b.type = CANNON.Body.KINEMATIC;
+                gsap.to(c.b.position, { y: 3.5, duration: 0.2, ease: "power2.out" });
+            } else {
+                if (tm.sel) tm.sel.desel();
+            }
+        });
+
+        addEventListener('touchmove', e => {
+            if (tm.drag && e.touches.length === 1) {
+                upMs(e.touches[0]);
+                const gp = getG({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+                if (gp) {
+                    tm.drag.b.position.copy(gp);
+                    tm.drag.upd();
+                }
+            }
+        });
+
+        addEventListener('touchend', e => {
+            if (tm.drag) {
+                const c = tm.drag;
+                gsap.to(c.b.position, { y: 2, duration: 0.2, ease: "power1.in", onComplete: () => {
+                    c.b.type = CANNON.Body.DYNAMIC;
+                    c.b.wakeUp();
+                }});
+            }
+            tm.drag = null;
+        });
+
+        // === MOBILE FOCUS RELEASE ===
+        const mobileReleaseBtn = document.getElementById('mobile-release');
+        if (mobileReleaseBtn) {
+            mobileReleaseBtn.addEventListener('click', () => {
+                if (tm.sel) {
+                    tm.sel.desel();
+                }
+            });
+        }
+
+        // === COORDINATE DISPLAY ===
+        function updateCoordinates() {
+            const coordDisplay = document.getElementById('coord-display');
+            if (coordDisplay) {
+                coordDisplay.children[0].textContent = `X:${rig.piv.x.toFixed(1)}`;
+                coordDisplay.children[1].textContent = `Y:${rig.piv.y.toFixed(1)}`;
+                coordDisplay.children[2].textContent = `Z:${rig.piv.z.toFixed(1)}`;
             }
         }
-        function startJoy(x, y) { 
-            if (anchor) anchor = null;
-            if (rig.mode === 'eye') {rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); const modeEl = document.getElementById('mode'); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); }
-            joy.active = true; joy.start = {x, y}; joy.el.style.transition = 'none'; document.body.classList.add('fab-active'); 
-        }
-        function endJoy() { joy.active = false; joy.el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'; joy.el.style.transform = `rotateX(-25deg) rotateY(-45deg) translate(0px, 0px)`; document.querySelector('.fab-halo').style.opacity = 0; document.body.classList.remove('fab-active'); }
-        joy.zone.addEventListener('mousedown', e => { startJoy(e.clientX, e.clientY); e.stopPropagation(); });
-        joy.zone.addEventListener('touchstart', e => { startJoy(e.touches[0].clientX, e.touches[0].clientY); e.stopPropagation(); });
-        addEventListener('mousemove', e => { if(joy.active) handleJoy(e.clientX, e.clientY); });
-        addEventListener('touchmove', e => { if(joy.active && e.touches.length === 1) handleJoy(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); });
-        addEventListener('mouseup', endJoy);
-        addEventListener('touchend', endJoy);
 
+        // === EFFECTS TOGGLE ===
+        function toggleEffects() {
+            rig.effectsEnabled = !rig.effectsEnabled;
+            const effectsToggle = document.getElementById('effects-toggle');
+            if (effectsToggle) {
+                effectsToggle.textContent = `Effects: ${rig.effectsEnabled ? 'ON' : 'OFF'}`;
+            }
+        }
+
+        const effectsToggle = document.getElementById('effects-toggle');
+        if (effectsToggle) {
+            effectsToggle.addEventListener('click', toggleEffects);
+        }
+
+        // === ENHANCED ANIMATION LOOP ===
         let lt = 0;
-        const coordD = document.getElementById('coord-display');
         function anim() {
             requestAnimationFrame(anim);
-            const ct = performance.now() / 1000, dt = Math.min(ct - lt, 0.1); lt = ct;
+            const ct = performance.now() / 1000, dt = Math.min(ct - lt, 0.1);
+            lt = ct;
 
-            tm.cubes.forEach(c => {if (tm.drag !== c) {const s = c.getStatus();const cx = {todo:25, prog:-25, done:25, back:-25}[s];const cz = {todo:-25, prog:-25, done:25, back:25}[s];const dx = cx - c.b.position.x;const dz = cz - c.b.position.z;const force = new CANNON.Vec3(dx * 0.1, 0, dz * 0.1);c.b.applyForce(force, c.b.position);}});world.step(1 / 60, dt, 3);
+            // Update FPS
+            updateFPS();
+
+            // Physics simulation
+            if (!rig.physicsFrozen) {
+                world.step(1 / 60, dt, 3);
+            }
             tm.cubes.forEach(c => c.tick());
 
+            // Boundary constraints
             const boundX = 40, boundZ = 40;
-            if(rig.tPiv.x > boundX) rig.tPiv.x += (boundX - rig.tPiv.x) * 0.1;
-            if(rig.tPiv.x < -boundX) rig.tPiv.x += (-boundX - rig.tPiv.x) * 0.1;
-            if(rig.tPiv.z > boundZ) rig.tPiv.z += (boundZ - rig.tPiv.z) * 0.1;
-            if(rig.tPiv.z < -boundZ) rig.tPiv.z += (-boundZ - rig.tPiv.z) * 0.1;
+            if (rig.tPiv.x > boundX) rig.tPiv.x += (boundX - rig.tPiv.x) * 0.1;
+            if (rig.tPiv.x < -boundX) rig.tPiv.x += (-boundX - rig.tPiv.x) * 0.1;
+            if (rig.tPiv.z > boundZ) rig.tPiv.z += (boundZ - rig.tPiv.z) * 0.1;
+            if (rig.tPiv.z < -boundZ) rig.tPiv.z += (-boundZ - rig.tPiv.z) * 0.1;
 
-            if (anchor) rig.tPiv.copy(anchor.pos);
-            rig.piv.lerp(rig.tPiv, 0.1);
+            // Smooth camera movement
+            rig.piv.lerp(rig.tPiv, rig.isMobile ? 0.08 : 0.1);
 
-            const p = CFG.preset[rig.preset];
-            if (rig.mode === 'eye') {
-                if (focal) {
-                    cam.position.lerp(focalPos, 0.1);
-                    cam.lookAt(focalTarget);
-                    bokehPass.uniforms.focus.value = cam.position.distanceTo(focalTarget);
-                } else {
-                    const height = CFG.cam.eye.y * distanceScale;
-                    cam.position.lerp(new THREE.Vector3(rig.piv.x, height, rig.piv.z), 0.1);
-                    cam.lookAt(rig.piv);
-                    bokehPass.uniforms.focus.value = cam.position.distanceTo(rig.piv);
-                }
+            const p = CFG.preset[currentView];
+            
+            if (currentView === 'fps') {
+                // FPS camera follows rig.piv directly
+                cam.position.copy(rig.piv);
+                cam.position.y = 5;
+            } else if (rig.mode === 'eye') {
+                const height = CFG.cam.eye.y * distanceScale;
+                cam.position.lerp(new THREE.Vector3(rig.piv.x, height, rig.piv.z), 0.1);
+                cam.position.y = Math.max(cam.position.y, -3);
+                cam.lookAt(rig.piv);
             } else {
                 const offset = p.o.clone().multiplyScalar(distanceScale);
                 const tp = new THREE.Vector3().copy(rig.piv).add(offset);
-                cam.position.lerp(tp, 0.1);
+                cam.position.lerp(tp, rig.isMobile ? 0.08 : 0.1);
+                cam.position.y = Math.max(cam.position.y, -3);
                 cam.rotation.x += (p.r.x - cam.rotation.x) * 0.1;
                 cam.rotation.y += (p.r.y - cam.rotation.y) * 0.1;
                 cam.rotation.z += (p.r.z - cam.rotation.z) * 0.1;
             }
-            // Ensure camera never goes below ground plane
-            cam.position.y = Math.max(cam.position.y, -3.5);
 
             cCam.update(rend, sc);
 
-            if (tm.sel && (rig.preset === 'top' || rig.preset === 'side')) {
+            // Selection ring
+            if (tm.sel && (currentView === 'skycam' || currentView === 'sideline')) {
                 selRing.visible = true;
                 selRing.position.copy(tm.sel.m.position);
                 selRing.position.y = -3.99;
@@ -933,23 +2304,92 @@
                 selRing.visible = false;
             }
 
-            let coordText;if(rig.preset === 'top') coordText = `X:${rig.piv.x.toFixed(1)} Z:${rig.piv.z.toFixed(1)}`;else if(rig.preset === 'side') coordText = `Y:${rig.piv.y.toFixed(1)} Z:${rig.piv.z.toFixed(1)}`;else coordText = `X:${rig.piv.x.toFixed(1)} Y:${rig.piv.y.toFixed(1)} Z:${rig.piv.z.toFixed(1)}`;coordD.textContent = coordText;
+            updateCoordinates();
 
-            if(rig.mode === 'eye'){composer.render();} else {rend.render(sc, cam);}
+            // Render with or without effects
+            if (rig.effectsEnabled) {
+                composer.render();
+            } else {
+                rend.render(sc, cam);
+            }
         }
 
-        addEventListener('resize', () => { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); rend.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); });
-        anim();
-
-        addEventListener('beforeunload', () => {
-            const data = tm.cubes.map(c => ({
-                text: c.text,
-                desc: c.desc,
-                pos: { x: c.b.position.x, y: c.b.position.y, z: c.b.position.z },
-                quat: { x: c.b.quaternion.x, y: c.b.quaternion.y, z: c.b.quaternion.z, w: c.b.quaternion.w }
-            }));
-            localStorage.setItem('punt-kanban', JSON.stringify(data));
+        // === RESPONSIVE HANDLING ===
+        addEventListener('resize', () => {
+            cam.aspect = innerWidth / innerHeight;
+            cam.updateProjectionMatrix();
+            rend.setSize(innerWidth, innerHeight);
+            if (composer) composer.setSize(innerWidth, innerHeight);
+            rig.isMobile = window.innerWidth <= 768;
+            
+            if (rig.isMobile && joy.zone) {
+                joy.zone.style.bottom = '20px';
+            } else if (joy.zone) {
+                joy.zone.style.bottom = '9.9rem';
+            }
         });
+
+        // === KEYBOARD CONTROLS ===
+        addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                if (tm.sel) tm.sel.desel();
+                if (taskEditor.classList.contains('active')) {
+                    closeTaskEditor();
+                }
+            }
+            if (e.key === 'r' || e.key === 'R') {
+                resetCamera();
+            }
+            if (e.key === 'g' || e.key === 'G') {
+                toggleGravity();
+            }
+            if (e.key === 'f' || e.key === 'F') {
+                toggleFreeze();
+            }
+            if (e.key === 'e' || e.key === 'E') {
+                explodeCubes();
+            }
+            if (e.key === 't' || e.key === 'T') {
+                createTornado();
+            }
+            if (taskEditor.classList.contains('active') && e.key === 'Enter') {
+                saveTask();
+            }
+            if (taskEditor.classList.contains('active') && e.key === 'Escape') {
+                closeTaskEditor();
+            }
+        });
+
+        // === INITIALIZATION ===
+        function initialize() {
+            initializeCubes();
+            anim();
+            
+            // Hide loading screen
+            const loadingScreen = document.getElementById('loading-screen');
+            if (loadingScreen) {
+                setTimeout(() => {
+                    loadingScreen.style.opacity = '0';
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                    }, 500);
+                }, 1000);
+            }
+            
+            // Check initial mobile state
+            if (rig.isMobile && joy.zone) {
+                joy.zone.style.bottom = '20px';
+            }
+
+            console.log('🚀 Enhanced 3D Kanban System initialized!');
+            console.log('📱 Mobile mode:', rig.isMobile);
+            console.log('🎨 Current theme:', rig.currentTheme);
+            console.log('📷 Current view:', currentView);
+            console.log('🎮 Total tasks:', tm.cubes.length);
+        }
+
+        // Start the application
+        initialize();
     </script>
 </body>
 </html>
