@@ -9,6 +9,8 @@
         *{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none;}
         body{background:var(--bg);overflow:hidden;color:#fff;font-family:'Courier New', Courier, monospace;cursor:none;overscroll-behavior:none;}
         #canvas{display:block;width:100vw;height:100vh;outline:none;}
+
+        
         
         /* --- UI Overlay --- */
         .hud{position:fixed;bottom:1rem;left:20px;font-size:10px;opacity:0.6;z-index:90;pointer-events:none;font-family:sans-serif;}
@@ -39,10 +41,22 @@
         .quad-icon.back .q-face{background:rgba(255,0,68,0.2);border:1px solid #ff0044;box-shadow:0 0 5px #ff0044;}
         
         /* Right Controls */
-        .presets{position:fixed;top:20px;right:20px;display:flex;gap:8px;z-index:100;}
-        .btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:10px;font-family:inherit;transition:0.2s;text-transform:uppercase;letter-spacing:1px;}
-        .btn:hover{background:rgba(255,255,255,0.1);border-color:var(--accent);}
-        .btn.active{border-color:var(--pink);color:var(--pink);box-shadow:0 0 10px rgba(255,20,147,0.3);}
+        .presets{position:fixed;top:50%;right:20px;transform:translateY(-50%);display:flex;flex-direction:column;gap:16px;z-index:100;}
+        .preset-icon{width:40px;height:40px;position:relative;perspective:300px;cursor:pointer;transition:transform 0.2s;}
+        .preset-icon:hover{transform:scale(1.2);}
+        .preset-icon:active{transform:scale(0.9);}
+        
+        .preset-cube{width:100%;height:100%;transform-style:preserve-3d;transform:rotateX(-25deg) rotateY(-45deg);animation:spin 6s linear infinite;}
+        
+        .p-face{position:absolute;width:24px;height:24px;left:8px;top:8px;backface-visibility:visible;opacity:0.8;background:rgba(255,255,255,0.2);border:1px solid #ffffff;box-shadow:0 0 5px #ffffff;}
+        .p-face:nth-child(1){transform:rotateY(0deg) translateZ(12px);}
+        .p-face:nth-child(2){transform:rotateY(90deg) translateZ(12px);}
+        .p-face:nth-child(3){transform:rotateY(180deg) translateZ(12px);}
+        .p-face:nth-child(4){transform:rotateY(-90deg) translateZ(12px);}
+        .p-face:nth-child(5){transform:rotateX(90deg) translateZ(12px);}
+        .p-face:nth-child(6){transform:rotateX(-90deg) translateZ(12px);}
+        
+        .preset-icon.active .p-face{background:rgba(255,20,147,0.2);border:1px solid var(--pink);box-shadow:0 0 5px var(--pink);}
         
         .top-bar{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:100;}
         .top-bar input{background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:8px 12px;border-radius:6px;width:200px;text-align:center;font-size:12px;cursor:text;}
@@ -101,6 +115,7 @@
             .hud { display: none; }
             .fab-zone { bottom: 20px; transform: translateX(-50%) scale(0.9); }
             .quad-left { left: 10px; transform:translateY(-50%) scale(0.8); }
+            .presets { right: 10px; transform:translateY(-50%) scale(0.8); }
             .top-bar { top: 70px; }
             .coords { bottom: 10px; left: 10px; font-size: 10px; }
         }
@@ -123,9 +138,9 @@
     </div>
 
     <div class="presets">
-        <button class="btn active" data-p="std" title="Quarterback View">QB</button>
-        <button class="btn" data-p="top" title="Skycam View">SKY</button>
-        <button class="btn" data-p="side" title="Sideline Coach View">COACH</button>
+        <div class="preset-icon std active" data-p="std" title="Quarterback View"><div class="preset-cube"><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div></div></div>
+        <div class="preset-icon top" data-p="top" title="Skycam View"><div class="preset-cube"><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div></div></div>
+        <div class="preset-icon side" data-p="side" title="Sideline Coach View"><div class="preset-cube"><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div><div class="p-face"></div></div></div>
     </div>
 
     <div class="top-bar">
@@ -222,7 +237,7 @@
 
         const sc = new THREE.Scene();
         sc.background = new THREE.Color(0x000000);
-        sc.fog = new THREE.FogExp2(0x000000, 0.012);
+        sc.fog = new THREE.FogExp2(0x000000, 0.0077);
 
         const cam = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 10077);
 
@@ -524,9 +539,12 @@
             anchor = null;
             rig.mode = 'std';
             rig.preset = 'std';
-            document.querySelectorAll('[data-p]').forEach(x => x.classList.remove('active'));
-            document.querySelector('[data-p="std"]').classList.add('active');
+            document.querySelectorAll('.preset-icon').forEach(x => x.classList.remove('active'));
+            document.querySelector('.preset-icon.std').classList.add('active');
             document.getElementById('mode').classList.remove('active');
+            if (rig.mode === 'eye') rig.mode = 'std';
+            focal = false;
+            if (tm.sel) tm.sel.desel();
         }
 
         // --- INTERACTION ---
@@ -585,6 +603,23 @@
             }
             const c = getC();
             if (c) {
+                if (tm.sel && tm.sel === c && rig.mode === 'eye' && focal) {
+                    rig.mode = 'std';
+                    focal = false;
+                    gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});
+                    gsap.to(vignettePass.uniforms.darkness, {value:1, duration:1});
+                    gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});
+                    const modeEl = document.getElementById('mode');
+                    if (!anchor) modeEl.classList.remove('active');
+                    else {
+                        modeEl.textContent = 'ANCHOR MODE ACTIVE';
+                        modeEl.style.color = 'var(--neon-blue)';
+                        modeEl.style.borderColor = 'var(--neon-blue)';
+                        modeEl.style.boxShadow = '0 0 15px var(--neon-blue)';
+                    }
+                    c.desel();
+                    return;
+                }
                 if (tm.sel && tm.sel !== c) tm.sel.desel();
                 c.click();
                 c.sel();
@@ -593,6 +628,22 @@
                 c.b.type = CANNON.Body.KINEMATIC;
                 gsap.to(c.b.position, { y: 3.5, duration: 0.2, ease: "power2.out" });
             } else {
+                if (tm.sel) tm.sel.desel();
+                if (rig.mode === 'eye') {
+                    rig.mode = 'std';
+                    focal = false;
+                    gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});
+                    gsap.to(vignettePass.uniforms.darkness, {value:1, duration:1});
+                    gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});
+                    const modeEl = document.getElementById('mode');
+                    if (!anchor) modeEl.classList.remove('active');
+                    else {
+                        modeEl.textContent = 'ANCHOR MODE ACTIVE';
+                        modeEl.style.color = 'var(--neon-blue)';
+                        modeEl.style.borderColor = 'var(--neon-blue)';
+                        modeEl.style.boxShadow = '0 0 15px var(--neon-blue)';
+                    }
+                }
                 if (anchor) return;
                 const gp = getG(e);
                 if (gp) {
@@ -672,18 +723,19 @@
                 if (tm.sel) { tm.launch = true; tm.lSrc = tm.sel; document.getElementById('launch').classList.add('active'); }
             }
             if (e.key === ' ') { e.preventDefault(); shake(); }
-            if (e.key === 'Escape') { tm.launch = false; tm.lSrc = null; document.getElementById('launch').classList.remove('active'); anchor = null; const modeEl = document.getElementById('mode'); if (rig.mode !== 'eye') modeEl.classList.remove('active'); }
+            if (e.key === 'Escape') { tm.launch = false; tm.lSrc = null; document.getElementById('launch').classList.remove('active'); anchor = null; const modeEl = document.getElementById('mode'); if (rig.mode !== 'eye') modeEl.classList.remove('active'); if (rig.mode === 'eye') {rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); } }
         });
-        addEventListener('keyup', e => { if (e.key === 'Shift') { rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); const modeEl = document.getElementById('mode'); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } } });
+        addEventListener('keyup', e => { if (e.key === 'Shift') { rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); const modeEl = document.getElementById('mode'); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); } });
 
-        document.querySelectorAll('[data-p]').forEach(b => {
+        document.querySelectorAll('.preset-icon').forEach(b => {
             b.addEventListener('click', () => {
-                document.querySelectorAll('[data-p]').forEach(x => x.classList.remove('active'));
+                document.querySelectorAll('.preset-icon').forEach(x => x.classList.remove('active'));
                 b.classList.add('active');
                 rig.preset = b.dataset.p;
                 anchor = null;
                 const modeEl = document.getElementById('mode');
                 if (rig.mode !== 'eye') modeEl.classList.remove('active');
+                if (rig.mode === 'eye') {rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); }
             });
         });
 
@@ -734,11 +786,17 @@
             if(dist > max) { const r = max/dist; dx*=r; dy*=r; }
 
             joy.el.style.transform = `rotateX(${-25 + (dy/max*45)}deg) rotateY(${-45 + (dx/max*45)}deg) translate(${dx/3}px, ${dy/3}px)`;document.querySelector('.fab-halo').style.opacity = dist / max *0.5;
-            rig.tPiv.z += dy / max * 0.8;
-            rig.tPiv.x += dx / max * 0.8;
+            if (rig.preset === 'side') {
+                rig.tPiv.z += dx / max * 0.8;
+                rig.tPiv.y -= dy / max * 0.8;
+            } else {
+                rig.tPiv.x += dx / max * 0.8;
+                rig.tPiv.z += dy / max * 0.8;
+            }
         }
         function startJoy(x, y) { 
-            if (anchor) return;
+            if (anchor) anchor = null;
+            if (rig.mode === 'eye') {rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); const modeEl = document.getElementById('mode'); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); }
             joy.active = true; joy.start = {x, y}; joy.el.style.transition = 'none'; document.body.classList.add('fab-active'); 
         }
         function endJoy() { joy.active = false; joy.el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'; joy.el.style.transform = `rotateX(-25deg) rotateY(-45deg) translate(0px, 0px)`; document.querySelector('.fab-halo').style.opacity = 0; document.body.classList.remove('fab-active'); }
