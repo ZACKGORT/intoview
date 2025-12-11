@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>intoview :: 3D Kanban</title>
- 
     <!-- CDN Dependencies -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
@@ -18,7 +17,6 @@
     <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/RGBShiftShader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/BokehPass.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/BokehShader.js"></script>
- 
     <style>
 /* === CORE VARIABLES & THEMES === */
 :root{
@@ -46,6 +44,13 @@
     --header-padding-vertical: 10px;
     --header-padding-horizontal: 20px;
     --header-height-mobile: 72px; /* slightly taller when stacked on mobile */
+    /* Cinematic effects */
+    --edge-blur: 20px;
+    --vignette-strength: 0.62;
+    --vignette-size: 120% 90%;
+    --vig-opacity: 1;
+    --z-blur: 10;
+    --z-vig: 11;
 }
 /* alternate themes */
 [data-theme="pastel"]{
@@ -60,6 +65,11 @@
     --text-secondary: rgba(33,37,41,0.7);
     --border-color: rgba(33,37,41,0.2);
     --shadow-neon: 0 0 15px var(--accent-pink);
+      /* Cinematic effects */
+      --edge-blur: 20px;
+      --vignette-strength: 0.6;
+      --vignette-size: 40%;
+      --vig-opacity: 0.6;
 }
 [data-theme="midnight"]{
     --bg-primary: #0a0e27;
@@ -453,6 +463,21 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
 }
 .mode-status{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.05);padding:8px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);opacity:0;transition:0.3s;z-index:100;pointer-events:none;}
         .mode-status.active{opacity:1;color:var(--pink);border-color:var(--pink);box-shadow: 0 0 15px var(--pink);}
+        .edge-blur {
+        position: fixed; inset: 0; pointer-events: none; z-index: var(--z-blur);
+        backdrop-filter: blur(var(--edge-blur)); -webkit-backdrop-filter: blur(var(--edge-blur));
+        mask: radial-gradient(100% 64% at 50% 50%, transparent 60%, rgb(255 255 255 / 0.98) 75%);
+      }
+      @media (max-width: 768px) {
+        .edge-blur {
+          mask: radial-gradient(100% 80% at 50% 50%, transparent 70%, rgb(255 255 255 / 0.98) 85%);
+        }
+      }
+      .vignette {
+        position: fixed; inset: 0; pointer-events: none; z-index: var(--z-vig);
+        background: radial-gradient(var(--vignette-size) at 50% 50%, #fff0 25%, rgba(0, 0, 0, var(--vignette-strength)) 80%, rgb(0 0 0 / 0.98) 100%);
+        opacity: var(--vig-opacity);
+      }
     </style>
 </head>
 <body>
@@ -468,10 +493,12 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
     </div>
     <!-- Main Canvas -->
     <canvas id="canvas"></canvas>
- 
+<!-- Edge Blur -->
+<div class="edge-blur"></div>
+<!-- Vignette -->
+<div class="vignette"></div>
     <!-- Enhanced Cursor System -->
     <div id="cursor"></div>
- 
     <!-- Enhanced Joystick with Dynamic Colors -->
     <div class="fab-zone" id="joystick">
         <div class="fab-halo"></div>
@@ -485,14 +512,12 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         </div>
         <div class="fab-hint">NAV</div>
     </div>
- 
     <!-- UI Elements -->
     <div class="trash-zone" id="trash-zone">🗑️</div>
     <div class="reset-zone" id="reset-zone">↻</div>
     <div class="center-helper">
         Use joystick to navigate • Click cubes to focus • Double-click to edit
     </div>
- 
     <!-- Coordinates Display -->
     <div class="coords" id="coord-display">
         <div>X:0.0</div>
@@ -500,7 +525,6 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         <div>Z:0.0</div>
         <div>Speed:0.0</div>
     </div>
- 
     <!-- Stats Display -->
     <div class="stats-display">
         <div class="stat-item">
@@ -512,19 +536,16 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             <span class="stat-value" id="fps-counter">60</span>
         </div>
     </div>
- 
     <!-- View Toggles -->
     <div class="view-toggles">
         <button class="view-btn active" data-view="quarterback">Quarterback</button>
         <button class="view-btn" data-view="skycam">Skycam</button>
         <button class="view-btn" data-view="sideline">Sideline</button>
     </div>
- 
     <!-- Mobile Focus Release Button -->
     <button class="mobile-release-btn" id="mobile-release">
         Tap to Release Focus
     </button>
- 
     <!-- Quadrant Icons -->
     <div class="quad-container">
         <div class="quad-icon prog" onclick="spawn('prog')" title="Spawn In-Progress">
@@ -556,7 +577,6 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             <span class="quad-label">Backlog</span>
         </div>
     </div>
- 
     <!-- Header -->
     <div class="header-top">
       <div class="logo-wrapper">
@@ -579,14 +599,13 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             <div class="info-trigger" id="info-btn">i</div>
         </div>
     </div>
- 
     <!-- Info Overlay with Accordion -->
     <div class="info-overlay" id="info-overlay">
         <div class="info-content">
             <button class="close-btn" id="close-info">&times;</button>
-         
+       
             <h2 style="margin-bottom: 24px; color: var(--accent-pink);">Enhanced 3D Kanban System</h2>
-         
+       
             <div class="accordion-item open">
                 <div class="accordion-header">🎮 Enhanced Controls</div>
                 <div class="accordion-content">
@@ -609,7 +628,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                     </ul>
                 </div>
             </div>
-         
+       
             <div class="accordion-item">
                 <div class="accordion-header">🎨 Themes</div>
                 <div class="accordion-content">
@@ -619,7 +638,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                     <p>Toggle between themes using the theme button in the header.</p>
                 </div>
             </div>
-         
+       
             <div class="accordion-item">
                 <div class="accordion-header">📷 Camera Views</div>
                 <div class="accordion-content">
@@ -629,7 +648,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                     <p>Long-press view buttons for alternate focus perspectives.</p>
                 </div>
             </div>
-         
+       
             <div class="accordion-item">
                 <div class="accordion-header">💡 Tips & Tricks</div>
                 <div class="accordion-content">
@@ -707,18 +726,18 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         rend.shadowMap.type = THREE.PCFSoftShadowMap;
         // === ENHANCED POST-PROCESSING SETUP ===
         let composer, renderPass, vignettePass, rgbShiftPass, bokehPass;
-     
+   
         function initPostProcessing() {
             composer = new THREE.EffectComposer(rend);
             renderPass = new THREE.RenderPass(sc, cam);
             composer.addPass(renderPass);
-         
+       
             // Vignette effect
             vignettePass = new THREE.ShaderPass(THREE.VignetteShader);
             vignettePass.uniforms.offset.value = 0.8;
-            vignettePass.uniforms.darkness.value = 1.8;
+            vignettePass.uniforms.darkness.value = 0.8;
             composer.addPass(vignettePass);
-         
+       
             // RGB Shift effect for enhanced visuals
             rgbShiftPass = new THREE.ShaderPass(THREE.RGBShiftShader);
             rgbShiftPass.uniforms.amount.value = 0.0015;
@@ -726,7 +745,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             bokehPass = new THREE.BokehPass(sc, cam, { focus: 10, aperture: 0.00001, maxblur: 0.01 });
             composer.addPass(bokehPass);
         }
-     
+   
         initPostProcessing();
         // === PHYSICS WORLD ===
         const world = new CANNON.World();
@@ -883,7 +902,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 this.sz = sz;
                 this.st = 'def';
                 this.taskId = Date.now() + Math.random();
-             
+           
                 const baseMat = new THREE.MeshPhysicalMaterial({
                     color: 0x333333,
                     metalness: 0.1,
@@ -916,7 +935,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 this.b.angularDamping = 0.4;
                 this.b.angularFactor = new CANNON.Vec3(0, 0, 0);
                 world.addBody(this.b);
-             
+           
                 this.updateColor();
             }
             updateTextSprite() {
@@ -967,7 +986,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 this.ed.material.opacity = 1.0;
                 tm.sel = this;
                 this.upd();
-             
+           
                 if (rig.isMobile) {
                     document.getElementById('mobile-release').classList.add('visible');
                 }
@@ -1032,35 +1051,35 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 case 'done': x = 25; z = 25; break;
                 case 'back': x = -25; z = 25; break;
             }
-         
+       
             x += (Math.random() - 0.5) * 5;
             z += (Math.random() - 0.5) * 5;
-         
+       
             const c = new Cube(x, 40, z);
             c.text = "New Task " + (tm.cubes.length + 1);
             c.updateTextSprite();
             c.b.angularVelocity.set(Math.random(), Math.random(), Math.random());
             tm.cubes.push(c);
             updateStats();
-         
+       
             if (rig.tPiv.distanceTo(new THREE.Vector3(x, 0, z)) > 30) {
                 gsap.to(rig.tPiv, { x: x, z: z, duration: 1.5, ease: "power2.out" });
             }
         };
         // === ENHANCED RAYCASTING ===
         const rc = new THREE.Raycaster(), ms = new THREE.Vector2(), intersect = new THREE.Vector3();
-     
+   
         function upMs(e) {
             ms.x = (e.clientX / innerWidth) * 2 - 1;
             ms.y = -(e.clientY / innerHeight) * 2 + 1;
         }
-     
+   
         function getC() {
             rc.setFromCamera(ms, cam);
             const in_ = rc.intersectObjects(tm.cubes.map(c => c.m));
             return in_.length > 0 ? in_[0].object.userData.cube : null;
         }
-     
+   
         function getG(e) {
             upMs(e);
             rc.setFromCamera(ms, cam);
@@ -1071,29 +1090,29 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         }
         // === CURSOR SYSTEM ===
         const tl = 14, h = document.getElementById('cursor');
-     
+   
         const centerDot = document.createElement('div');
         centerDot.className = 'c-center';
         h.appendChild(centerDot);
         const centerRing = document.createElement('div');
         centerRing.className = 'c-ring';
         h.appendChild(centerRing);
-     
+   
         for (let i = 0; i < tl; i++) {
             const d = document.createElement('div');
             d.className = 'c-circle';
             h.appendChild(d);
         }
-     
+   
         const cs = h.querySelectorAll('.c-circle');
         let mX = innerWidth / 2, mY = innerHeight / 2;
         const hist = Array(tl).fill(0).map(() => ({ x: mX, y: mY }));
-     
+   
         addEventListener('pointermove', e => {
             mX = e.clientX;
             mY = e.clientY;
         }, { passive: true });
-     
+   
         function cTick() {
             hist.shift();
             hist.push({ x: mX, y: mY });
@@ -1105,12 +1124,12 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 const s = Math.max(0.22, (tl - i) / tl * 1.2);
                 c.style.transform = `translate(calc(${cur.x}px - 50%), calc(${cur.y}px - 50%)) scale(${s})`;
             });
-         
+       
             centerDot.style.left = mX + 'px';
             centerDot.style.top = mY + 'px';
             centerRing.style.left = mX + 'px';
             centerRing.style.top = mY + 'px';
-         
+       
             requestAnimationFrame(cTick);
         }
         cTick();
@@ -1134,7 +1153,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 face.style.borderColor = color;
                 face.style.boxShadow = `0 0 15px ${color}, inset 0 0 10px ${color}`;
             });
-         
+       
             centerDot.style.background = color;
             centerDot.style.boxShadow = `0 0 10px ${color}`;
             centerRing.style.borderColor = color;
@@ -1152,16 +1171,18 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             const intensity = Math.min(dist / max, 1);
             joy.el.style.transform = `rotateX(${-25 + (dy / max * 45)}deg) rotateY(${-45 + (dx / max * 45)}deg) translate(${dx / 3}px, ${dy / 3}px) scale(${1 + intensity * 0.1})`;
             document.querySelector('.fab-halo').style.opacity = intensity * 0.6;
-         
+       
             const currentQuadrant = getQuadrantFromPosition(rig.tPiv.x, rig.tPiv.z);
             updateJoystickColor(currentQuadrant);
-         
+       
             const moveSpeed = 0.8;
-         
-            if (rig.isMobile && currentView === 'quarterback') {
-                rig.tPiv.z += dy / max * moveSpeed;
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    rig.piv.y += dx / max * moveSpeed * 0.5;
+       
+            if (rig.isMobile) {
+                rig.tPiv.y += -dy / max * moveSpeed * 0.5;
+                if (currentView === 'sideline') {
+                    rig.tPiv.z += dx / max * moveSpeed;
+                } else {
+                    rig.tPiv.x += dx / max * moveSpeed;
                 }
             } else if (currentView === 'sideline') {
                 rig.tPiv.z += dx / max * moveSpeed;
@@ -1202,14 +1223,14 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 resetCamera();
             });
         }
-     
+   
         addEventListener('mousemove', e => {
             if (joy.active) handleJoy(e.clientX, e.clientY);
         });
         addEventListener('touchmove', e => {
             if (joy.active && e.touches.length === 1) handleJoy(e.touches[0].clientX, e.touches[0].clientY);
         });
-     
+   
         addEventListener('mouseup', endJoy);
         addEventListener('touchend', endJoy);
         // === SEARCH FUNCTIONALITY ===
@@ -1269,11 +1290,11 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             header.addEventListener('click', () => {
                 const item = header.parentElement;
                 const wasOpen = item.classList.contains('open');
-             
+           
                 document.querySelectorAll('.accordion-item').forEach(i => {
                     i.classList.remove('open');
                 });
-             
+           
                 if (!wasOpen) {
                     item.classList.add('open');
                 }
@@ -1335,11 +1356,11 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         const trashZone = document.getElementById('trash-zone');
         function checkTrashZone(cube, mouseX, mouseY) {
             if (!trashZone) return false;
-         
+       
             const trashRect = trashZone.getBoundingClientRect();
             const isOverTrash = mouseX >= trashRect.left && mouseX <= trashRect.right &&
                                mouseY >= trashRect.top && mouseY <= trashRect.bottom;
-         
+       
             if (isOverTrash) {
                 trashZone.classList.add('active');
                 if (cube && tm.drag === cube) {
@@ -1400,7 +1421,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             upMs(e);
             const c = getC();
             const currentTime = Date.now();
-         
+       
             if (e.button === 0) {
                 if (currentTime - lastClickTime < doubleClickDelay) {
                     openTaskEditor(c);
@@ -1408,7 +1429,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                     return;
                 }
                 lastClickTime = currentTime;
-             
+           
                 if (c) {
                     if (tm.sel && tm.sel !== c) tm.sel.desel();
                     c.click();
@@ -1556,12 +1577,12 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         }
         // === KEYBOARD CONTROLS ===
         addEventListener('keydown', e => {
-            if (e.key === 'Shift') { rig.mode = 'eye'; const modeEl = document.getElementById('mode'); modeEl.textContent = 'FOCAL MODE ACTIVE'; modeEl.style.color = 'var(--pink)'; modeEl.style.borderColor = 'var(--pink)'; modeEl.style.boxShadow = '0 0 15px var(--pink)'; modeEl.classList.add('active'); if(tm.sel){focal = true;focalPos.set(tm.sel.b.position.x, tm.sel.b.position.y + 2, tm.sel.b.position.z + 10);focalTarget.set(tm.sel.b.position.x, tm.sel.b.position.y + 1, tm.sel.b.position.z);gsap.to(bokehPass.uniforms.aperture, {value:0.01, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:2, duration:1});gsap.to({val:distanceScale}, {val:0.3, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});}}
+            if (e.key === 'Shift') { rig.mode = 'eye'; const modeEl = document.getElementById('mode'); modeEl.textContent = 'FOCAL MODE ACTIVE'; modeEl.style.color = 'var(--pink)'; modeEl.style.borderColor = 'var(--pink)'; modeEl.style.borderColor = 'var(--pink)'; modeEl.style.boxShadow = '0 0 15px var(--pink)'; modeEl.classList.add('active'); if(tm.sel){focal = true;focalPos.set(tm.sel.b.position.x, tm.sel.b.position.y + 2, tm.sel.b.position.z + 10);focalTarget.set(tm.sel.b.position.x, tm.sel.b.position.y + 1, tm.sel.b.position.z);gsap.to(bokehPass.uniforms.aperture, {value:0.01, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:2, duration:1});gsap.to({val:distanceScale}, {val:0.3, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});}}
             if (e.key === 'l' || e.key === 'L') {
                 if (tm.sel) { tm.launch = true; tm.lSrc = tm.sel; document.getElementById('launch').classList.add('active'); }
             }
             if (e.key === ' ') { e.preventDefault(); shake(); }
-            if (e.key === 'Escape') { tm.launch = false; tm.lSrc = null; document.getElementById('launch').classList.remove('active'); anchor = null; const modeEl = document.getElementById('mode'); if (rig.mode !== 'eye') modeEl.classList.remove('active'); if (rig.mode === 'eye') {rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); } }
+            if (e.key === 'Escape') { tm.launch = false; tm.lSrc = null; tm.lSrc = null; document.getElementById('launch').classList.remove('active'); anchor = null; const modeEl = document.getElementById('mode'); if (rig.mode !== 'eye') modeEl.classList.remove('active'); if (rig.mode === 'eye') {rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); } }
             if (e.key === 'r' || e.key === 'R') {
                 resetCamera();
             }
@@ -1594,7 +1615,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             rend.setSize(innerWidth, innerHeight);
             if (composer) composer.setSize(innerWidth, innerHeight);
             rig.isMobile = window.innerWidth <= 768;
-         
+       
             if (rig.isMobile && joy.zone) {
                 joy.zone.style.bottom = '20px';
             } else if (joy.zone) {
@@ -1717,7 +1738,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         function initialize() {
             initializeCubes();
             anim();
-         
+       
             // Hide loading screen
             const loadingScreen = document.getElementById('loading-screen');
             if (loadingScreen) {
@@ -1728,7 +1749,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                     }, 500);
                 }, 1000);
             }
-         
+       
             // Check initial mobile state
             if (rig.isMobile && joy.zone) {
                 joy.zone.style.bottom = '20px';
