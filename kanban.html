@@ -127,7 +127,7 @@ body{
 .f-face:nth-child(4){ transform: rotateY(-90deg) translateZ(20px); }
 .f-face:nth-child(5){ transform: rotateX(90deg) translateZ(20px); background:rgba(255,20,147,0.3); }
 .f-face:nth-child(6){ transform: rotateX(-90deg) translateZ(20px); }
-.fab-hint{ position:absolute; top:-24px; width:100%; text-align:center; margin-left: .5em;font-size:9px; letter-spacing: 1.2em; color:var(--text-secondary); pointer-events:none; }
+.fab-hint{ position:absolute; bottom:-16px; width:100%; text-align:center; font-size:9px; color:var(--text-secondary); pointer-events:none; }
 /* === MOBILE OPTIMIZATIONS === */
 @media (max-width:768px){
     .fab-zone{ bottom:20px; transform:translateX(-50%) scale(0.9); }
@@ -176,16 +176,11 @@ body.fab-active .coords{ opacity:1; }
     backdrop-filter: blur(10px);
 }
 /* logo left, aligned start */
-.logo-wrapper{display:flex;align-items:center;gap:8px;}
-        .logo-cube {width: 40px;height: 40px;position: relative;perspective: 600px;}
-        .logo-cube .fab-cube {width: 100%;height: 100%;position: relative;transform-style: preserve-3d;transform: rotateX(-25deg) rotateY(-45deg);animation: spin 6s linear infinite;}
-        .logo-cube .f-face {width: 20px;height: 20px;left: 10px;top: 10px;animation: cycle-colors 10s linear infinite;}
-        .logo-cube .f-face:nth-child(1) { transform: rotateY(0deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(2) { transform: rotateY(90deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(3) { transform: rotateY(180deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(4) { transform: rotateY(-90deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(5) { transform: rotateX(90deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(6) { transform: rotateX(-90deg) translateZ(10px); }
+.logo-wrapper{ display:flex; align-items:center; gap:8px; justify-self:start; }
+/* logo cube sizing */
+.logo-cube{ width:28px; height:28px; position:relative; perspective:600px; }
+.logo-cube .fab-cube{ width:100%; height:100%; position:relative; transform-style:preserve-3d; transform: rotateX(-25deg) rotateY(-45deg); animation: spin 6s linear infinite; }
+.logo-cube .f-face{ width:14px; height:14px; left:7px; top:7px; animation: cycle-colors 10s linear infinite; }
 /* logo text */
 .logo-text{ font-size:12px; color:rgba(255,255,255,0.7); }
 /* Search wrapper centered by grid column */
@@ -484,7 +479,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             <div class="f-face"></div>
             <div class="f-face"></div>
         </div>
-        <div class="fab-hint">MOVE</div>
+        <div class="fab-hint">NAV</div>
     </div>
   
     <!-- UI Elements -->
@@ -1160,8 +1155,6 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 }
             } else if (currentView === 'sideline') {
                 rig.tPiv.z += dx / max * moveSpeed;
-                rig.tPiv.y -= dy / max * moveSpeed;
-                // Arc towards center
                 const elevation = rig.tPiv.y;
                 const arcFactor = Math.max(0, 1 - elevation / 20);
                 CFG.preset.sideline.o.x = 60 * arcFactor;
@@ -1192,6 +1185,11 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
             joy.zone.addEventListener('touchstart', e => {
                 startJoy(e.touches[0].clientX, e.touches[0].clientY);
                 e.stopPropagation();
+            });
+            // Add right-click listener for reset
+            joy.zone.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                resetCamera();
             });
         }
       
@@ -1290,6 +1288,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 // Sideline mode adjustment
                 if (currentView === 'sideline') {
                     rig.tPiv.x = 0;
+                    rig.tPiv.y = 0;
                 }
             });
         });
@@ -1354,6 +1353,10 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         addEventListener('wheel', e => {
             if (currentView === 'sideline') {
                 rig.tPiv.y -= e.deltaY * 0.01;
+                rig.tPiv.y = Math.max(0, rig.tPiv.y);
+                const elevation = rig.tPiv.y;
+                const arcFactor = Math.max(0, 1 - elevation / 20);
+                CFG.preset.sideline.o.x = 60 * arcFactor;
             } else if (e.shiftKey) {
                 cam.fov += e.deltaY * 0.05;
                 cam.fov = Math.max(10, Math.min(120, cam.fov));
@@ -1365,7 +1368,7 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         });
         addEventListener('mousemove', e => {
             upMs(e);
-            if (tm.drag && !isFocusing && e.buttons & 1) {
+            if (tm.drag && e.buttons & 1) {
                 const gp = getG(e);
                 if (gp) {
                     tm.drag.b.position.copy(gp);
@@ -1404,15 +1407,6 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                     c.originalY = c.b.position.y;
                     c.b.type = CANNON.Body.KINEMATIC;
                     gsap.to(c.b.position, { y: 3.5, duration: 0.2, ease: "power2.out" });
-                    focusTimer = setTimeout(() => {
-                        prevTPiv.copy(rig.tPiv);
-                        prevDistanceScale = distanceScale;
-                        prevFov = cam.fov;
-                        gsap.to(rig.tPiv, { x: c.b.position.x, y: 0, z: c.b.position.z, duration: 0.5, ease: "power2.out" });
-                        gsap.to(cam, { fov: 30, duration: 0.5, ease: "power2.out", onUpdate: () => cam.updateProjectionMatrix() });
-                        gsap.to({ val: distanceScale }, { val: 0.5, duration: 0.5, ease: "power2.out", onUpdate: function() { distanceScale = this.targets()[0].val; } });
-                        isFocusing = true;
-                    }, 300);
                 } else {
                     if (tm.sel) tm.sel.desel();
                     const gp = getG(e);
@@ -1427,19 +1421,26 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                     if (tm.sel && tm.sel !== c) tm.sel.desel();
                     c.sel();
                     showContextMenu(e.clientX, e.clientY, 'cube', c);
+                    clearTimeout(rightClickTimer);
+                    rightClickTimer = setTimeout(() => {
+                        if (c && c === tm.sel) {
+                            const launchTarget = new THREE.Vector3(
+                                (Math.random() - 0.5) * 40,
+                                10 + Math.random() * 10,
+                                (Math.random() - 0.5) * 40
+                            );
+                            c.launch(launchTarget);
+                        }
+                    }, 100);
                 } else {
-                    // Right-click on empty space - focus on quadrant
                     const gp = getG(e);
                     if (gp) {
                         const quadrant = getQuadrantFromPosition(gp.x, gp.z);
                         if (quadrant) {
+                            showContextMenu(e.clientX, e.clientY, 'quadrant', quadrant);
+                        } else {
                             const targetPos = quads[quadrant];
-                            gsap.to(rig.tPiv, { 
-                                x: targetPos.x, 
-                                z: targetPos.z, 
-                                duration: 1.0, 
-                                ease: "power2.out" 
-                            });
+                            gsap.to(rig.tPiv, { x: targetPos.x, z: targetPos.z, duration: 1.0, ease: "power2.out" });
                         }
                     }
                 }
@@ -1447,7 +1448,6 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
         });
         addEventListener('mouseup', e => {
             if (e.button === 0) {
-                clearTimeout(focusTimer);
                 if (tm.drag) {
                     const c = tm.drag;
                     gsap.to(c.b.position, { y: 2, duration: 0.2, ease: "power1.in", onComplete: () => {
@@ -1457,12 +1457,6 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                 }
                 tm.drag = null;
                 isPanning = false;
-                if (isFocusing) {
-                    gsap.to(rig.tPiv, { x: prevTPiv.x, y: prevTPiv.y, z: prevTPiv.z, duration: 0.5, ease: "power2.out" });
-                    gsap.to(cam, { fov: prevFov, duration: 0.5, ease: "power2.out", onUpdate: () => cam.updateProjectionMatrix() });
-                    gsap.to({ val: distanceScale }, { val: prevDistanceScale, duration: 0.5, ease: "power2.out", onUpdate: function() { distanceScale = this.targets()[0].val; } });
-                    isFocusing = false;
-                }
             } else if (e.button === 2) {
                 clearTimeout(rightClickTimer);
                 rightClickTimer = null;
@@ -1665,6 +1659,12 @@ body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
                     <li onclick="showDetails(window.currentCube)">Details</li>
                     <li onclick="editCube(window.currentCube)">Edit</li>
                     <li onclick="deleteCube(window.currentCube)">Delete</li>
+                `;
+            } else if (type === 'quadrant') {
+                window.currentQuadrant = data;
+                ul = `
+                    <li onclick="clearQuadrant(window.currentQuadrant)">Clear this quadrant</li>
+                    <li onclick="clearAll()">Clear all</li>
                 `;
             }
             contextMenu.innerHTML = `<ul>${ul}</ul>`;
