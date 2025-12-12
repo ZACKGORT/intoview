@@ -1,902 +1,1819 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>PUNT: Neon Interactive</title>
-    <style>
-        :root{--bg:#0f1014;--accent:#39FF14;--pink:#FF1493;--neon-blue:#00ffff;}
-        *{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none;}
-        body{background:var(--bg);overflow:hidden;color:#fff;font-family:'Courier New', Courier, monospace;cursor:none;overscroll-behavior:none;}
-        #canvas{display:block;width:100vw;height:100vh;outline:none;}
-        
-        /* --- UI Overlay --- */
-        .hud{position:fixed;bottom:1rem;left:20px;font-size:10px;opacity:0.6;z-index:90;pointer-events:none;font-family:sans-serif;}
-        .mode-status{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.05);padding:8px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);opacity:0;transition:0.3s;z-index:100;pointer-events:none;}
-        .mode-status.active{opacity:1;color:var(--pink);border-color:var(--pink);box-shadow: 0 0 15px var(--pink);}
-        
-        /* Left Rail Quadrant Toggle */
-        .quad-left{position:fixed;top:50%;left:20px;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;background:rgba(255,255,255,0.05);padding:4px;border-radius:30px;z-index:100;}
-        .quad-icon{width:30px;height:30px;position:relative;perspective:300px;cursor:pointer;}
-        .quad-cube{width:100%;height:100%;transform-style:preserve-3d;transform:rotateX(-25deg) rotateY(-45deg);animation:spin 4s linear infinite;}
-        @keyframes spin{to{transform:rotateX(-25deg) rotateY(315deg);}}
-        .q-face{position:absolute;width:20px;height:20px;left:5px;top:5px;backface-visibility:visible;}
-        .q-face:nth-child(1){transform:rotateY(0deg) translateZ(10px);}
-        .q-face:nth-child(2){transform:rotateY(90deg) translateZ(10px);}
-        .q-face:nth-child(3){transform:rotateY(180deg) translateZ(10px);}
-        .q-face:nth-child(4){transform:rotateY(-90deg) translateZ(10px);}
-        .q-face:nth-child(5){transform:rotateX(90deg) translateZ(10px);}
-        .q-face:nth-child(6){transform:rotateX(-90deg) translateZ(10px);}
-        .quad-icon.todo .q-face{background:rgba(255,255,0,0.2);border:1px solid #ffff00;box-shadow:0 0 5px #ffff00;}
-        .quad-icon.inprogress .q-face{background:rgba(0,255,255,0.2);border:1px solid #00ffff;box-shadow:0 0 5px #00ffff;}
-        .quad-icon.completed .q-face{background:rgba(0,255,0,0.2);border:1px solid #00ff00;box-shadow:0 0 5px #00ff00;}
-        .quad-icon.backlog .q-face{background:rgba(255,0,0,0.2);border:1px solid #ff0000;box-shadow:0 0 5px #ff0000;}
-
-        /* Right Rail View Toggles */
-        .presets{position:fixed;top:50%;right:20px;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:100;}
-
-        .btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:10px;font-family:inherit;transition:0.2s;text-transform:uppercase;letter-spacing:1px;}
-        .btn:hover{background:rgba(255,255,255,0.1);border-color:var(--accent);}
-        .btn.active{border-color:var(--pink);color:var(--pink);box-shadow:0 0 10px rgba(255,20,147,0.3);}
-
-        /* Trash */
-        .trash{position:fixed;bottom:20px;left:20px;z-index:100;font-size:20px;padding:8px;border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);cursor:pointer;transition:0.2s;}
-        .trash.active{background:rgba(255,0,0,0.2);border-color:#ff0000;animation:pulse 1s infinite;box-shadow:0 0 10px #ff0000;}
-        @keyframes pulse{50%{transform:scale(1.1);}}
-
-        /* Countdown */
-        .countdown{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(255,0,0,0.2);padding:8px 16px;border-radius:20px;color:#fff;z-index:100;opacity:0;transition:0.3s;pointer-events:none;}
-        .countdown.active{opacity:1;}
-
-        /* Input Bars */
-        .top-bar{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:100;}
-        .top-bar input{background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:8px 12px;border-radius:6px;width:200px;text-align:center;font-size:12px;cursor:text;}
-        
-        /* Coordinates */
-        .coords {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 14px;
-            color: var(--accent);
-            background: rgba(0,0,0,0.6);
-            padding: 4px 8px;
-            border-radius: 4px;
-            border: 1px solid rgba(57, 255, 20, 0.3);
-            z-index: 90;
-            pointer-events: none;
-        }
-
-        /* --- FAB / Joystick --- */
-        .fab-zone {
-            position: fixed;
-            bottom: 9.9rem;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80px;
-            height: 80px;
-            z-index: 200;
-            cursor: grab;
-            perspective: 600px;
-        }
-        .fab-zone:active { cursor: grabbing; }
-
-        .fab-cube {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            transform-style: preserve-3d;
-            transform: rotateX(-25deg) rotateY(-45deg);
-            pointer-events: none;
-            transition: transform 0.1s;
-        }
-        .f-face {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 20, 147, 0.15);
-            border: 2px solid var(--pink);
-            box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);
-            left: 20px;
-            top: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            color: #fff;
-            backface-visibility: visible;
-        }
-        .f-face:nth-child(1) { transform: rotateY(0deg) translateZ(20px); }
-        .f-face:nth-child(2) { transform: rotateY(90deg) translateZ(20px); }
-        .f-face:nth-child(3) { transform: rotateY(180deg) translateZ(20px); }
-        .f-face:nth-child(4) { transform: rotateY(-90deg) translateZ(20px); }
-        .f-face:nth-child(5) { transform: rotateX(90deg) translateZ(20px); background: rgba(255, 20, 147, 0.3); }
-        .f-face:nth-child(6) { transform: rotateX(-90deg) translateZ(20px); }
-
-        .fab-hint {
-            position: absolute;
-            bottom: -16px;
-            width: 100%;
-            text-align: center;
-            font-size: 9px;
-            color: rgba(255,255,255,0.5);
-            pointer-events: none;
-        }
-
-        body.fab-active .btn, body.fab-active input { pointer-events: none; opacity: 0.5; }
-
-        /* Info */
-        .info{position:fixed;top:80px;right:20px;background:rgba(20,20,30,0.9);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:16px;min-width:250px;opacity:0;transition:0.3s;z-index:90;pointer-events:none;}
-        .info.active{opacity:1;}
-        .info-row{font-size:11px;margin:4px 0;display:flex;justify-content:space-between}
-        
-        /* Context Menu */
-        .ctx{position:fixed;background:rgba(20,20,30,0.95);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 0;min-width:180px;display:none;z-index:1000}
-        .ctx.active{display:block}
-        .ctx-item{padding:8px 16px;cursor:pointer;font-size:12px;transition:0.2s}
-        .ctx-item:hover{background:rgba(255,255,255,0.1)}
-        .ctx-div{height:1px;background:rgba(255,255,255,0.1);margin:4px 0}
-        
-        /* Tooltip */
-        #tooltip{position:fixed;background:rgba(20,20,30,0.95);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px;max-width:200px;z-index:1000;display:none;pointer-events:none;}
-
-        /* Glass Form - Hidden since bypassed */
-        #create-form{display:none;}
-
-        /* Zoom Controls */
-        .zoom-controls{position:fixed;top:60px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:100;}
-
-        /* Crosshair Cursor */
-        #crosshair{position:fixed;pointer-events:none;z-index:9999;width:20px;height:20px;transform:translate(-50%,-50%);}
-        #crosshair .line-h{position:absolute;top:50%;left:0;width:100%;height:1px;background:var(--accent);transform:translateY(-50%);}
-        #crosshair .line-v{position:absolute;left:50%;top:0;height:100%;width:1px;background:var(--accent);transform:translateX(-50%);}
-        #crosshair.active .line-h, #crosshair.active .line-v{background:var(--pink);transform:scale(1.5) translateY(-50%);transition:transform 0.2s;}
-        #crosshair.active .line-v{transform:scale(1.5) translateX(-50%);}
-
-        /* Center Circle */
-        #center-circle{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border:1px solid var(--accent);border-radius:50%;opacity:0.5;pointer-events:none;animation:pulse 2s infinite;}
-        @keyframes pulse{50%{transform:translate(-50%,-50%) scale(1.2);opacity:0.8;}}
-        #center-circle.active{border-color:var(--pink);animation:pulse 1s infinite;}
-
-        @media (max-width: 768px) {
-            .hud { display: none; }
-            .fab-zone { bottom: 20px; transform: translateX(-50%) scale(0.9); }
-            .top-bar { top: 70px; }
-            .coords { bottom: 10px; left: 10px; font-size: 10px; }
-            .trash{bottom:80px;}
-            .quad-left{left:10px;}
-            .presets{right:10px;}
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1.0,user-scalable=no,viewport-fit=cover" />
+  <title>YouTube Reimagined: Kanban Browser</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #050505;
+      --card-bg: #111111;
+      --ink: #ffffff;
+      --ink-dim: #888888;
+      --accent: #FF0000; /* YouTube Red */
+    
+      --neon-green: #22c55e;
+      --neon-orange: #f97316;
+      --neon-red: #ef4444;
+      --neon-blue: #3b82f6;
+      --youtube-red: #FF0000;
+    
+      --glass-bg: rgba(20, 20, 20, 0.85);
+      --glass-border: rgba(255, 255, 255, 0.1);
+      --glass-blur: 16px;
+    
+      --nav-height: 80px;
+      --header-height: 100px;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', sans-serif;
+    
+      /* Cinematic effects */
+      --edge-blur-amount: 4px;
+      --vignette-strength: 0.6;
+      --vignette-size: 20%;
+    }
+    /* Light Theme - Work Friendly */
+    [data-theme="light"] {
+      --bg-color: #ffffff;
+      --card-bg: #ffffff;
+      --ink: #000000;
+      --ink-dim: #666666;
+      --accent: #FF0000;
+      --glass-bg: rgba(0, 0, 0, 0.03);
+      --glass-border: rgba(0, 0, 0, 0.15);
+      --neon-green: #006400;
+      --neon-orange: #ff6600;
+      --neon-red: #cc0000;
+      --neon-blue: #0066cc;
+      --vignette-strength: 0;
+      --edge-blur-amount: 0px;
+    }
+    /* Rose Theme - Creator Premium */
+    [data-theme="rose"] {
+      --bg-color: #0a0a0a;
+      --card-bg: #1a1a1a;
+      --ink: #ffffff;
+      --ink-dim: #cccccc;
+      --accent: #ff8da1;
+      --rose-primary: #ff8da1;
+      --rose-secondary: #ff6b8b;
+      --retro-blue: #00d4ff;
+      --retro-yellow: #ffeb3b;
+      --retro-purple: #e91e63;
+      --glass-bg: rgba(255, 141, 161, 0.05);
+      --glass-border: rgba(255, 141, 161, 0.2);
+    }
+    /* Theater Theme - Maximum Focus */
+    [data-theme="theater"] {
+      --bg-color: #000000;
+      --card-bg: #0a0a0a;
+      --ink: #e0e0e0;
+      --ink-dim: #666666;
+      --accent: #ff0000;
+      --glass-bg: rgba(0, 0, 0, 0.9);
+      --glass-border: rgba(255, 0, 0, 0.2);
+      --vignette-strength: 0.8;
+      --neon-green: #00ff00;
+      --neon-orange: #ff8800;
+      --neon-red: #ff0000;
+      --neon-blue: #0088ff;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-color);
+      color: var(--ink);
+      overflow: hidden;
+      position: relative;
+      min-height: 100vh;
+    }
+    /* --- Cinematic Visual Effects --- */
+    body { position: relative; }
+   
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
+      backdrop-filter: blur(var(--edge-blur-amount));
+      -webkit-backdrop-filter: blur(var(--edge-blur-amount));
+      mask-image: linear-gradient(to bottom, black 0%, transparent 10%, transparent 90%, black 100%),
+                  linear-gradient(to right, black 0%, transparent 10%, transparent 90%, black 100%);
+      mask-composite: source-in;
+      pointer-events: none;
+      z-index: 10;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(
+        circle at center,
+        transparent 40%,
+        rgba(0, 0, 0, var(--vignette-strength)) 100%
+      );
+      pointer-events: none;
+      z-index: 200;
+    }
+   
+    /* Theme specific effects */
+    [data-theme="nerd"] body::before,
+    [data-theme="nerd"] body::after {
+      display: none;
+    }
+   
+    [data-theme="rose"] body::after {
+        background: radial-gradient(
+        circle at center,
+        transparent 40%,
+        rgba(50, 0, 20, var(--vignette-strength)) 100%
+      );
+    }
+    [data-theme="light"] body::after {
+        background: radial-gradient(
+        circle at center,
+        transparent 40%,
+        rgba(0, 0, 0, 0.3) 100%
+      );
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--ink-dim); }
+    /* Typography & Utilities */
+    .text-green { color: var(--neon-green); }
+    .text-orange { color: var(--neon-orange); }
+    .text-red { color: var(--neon-red); }
+    .text-blue { color: var(--neon-blue); }
+    .text-rose { color: var(--rose-primary); }
+  
+    /* Rose theme specific utilities */
+    [data-theme="rose"] .text-green { color: var(--retro-blue); }
+    [data-theme="rose"] .text-orange { color: var(--retro-yellow); }
+    [data-theme="rose"] .text-red { color: var(--rose-secondary); }
+    [data-theme="rose"] .text-blue { color: var(--retro-purple); }
+    /* --- Layout Structure --- */
+    .app-header {
+      position: fixed; top: 0; left: 0; right: 0; height: var(--header-height);
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 10px 0; z-index: 9999;
+      background: linear-gradient(to bottom, var(--bg-color) 40%, transparent);
+      pointer-events: none;
+    }
+    .header-top {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0 20px; width: 100%; pointer-events: auto;
+    }
+  
+    /* Logo Styling */
+    .logo {
+        display: flex; align-items: center; height: 32px; z-index: 1000;
+    }
+    .logo-text {
+        font-size: 24px;
+        font-weight: 800;
+        color: var(--ink);
+        text-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+        transition: filter 0.3s ease, transform 0.3s ease;
+    }
+    .logo:hover .logo-text {
+        transform: scale(1.05);
+        filter: drop-shadow(0 0 8px var(--accent));
+    }
+    .header-buttons { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .theme-btn {
+        background: transparent; border: none; color: var(--ink-dim);
+        cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center;
+        transition: all 0.3s ease;
+    }
+    .theme-btn:hover { color: var(--ink); background: var(--glass-border); transform: scale(1.1); }
+    .theme-btn:active { background: var(--glass-border); color: var(--ink); transform: scale(0.95); }
+  
+    /* --- Category Filter Bar --- */
+    .category-bar {
+      display: flex; gap: 8px; overflow-x: auto; padding: 10px 20px;
+      pointer-events: auto; scrollbar-width: none;
+      justify-content: flex-start;
+    }
+    .category-bar::-webkit-scrollbar { display: none; }
+  
+    .pill {
+      padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      background: var(--glass-bg); border: 1px solid var(--glass-border);
+      color: var(--ink-dim); white-space: nowrap; cursor: pointer; transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .pill.active { background: var(--ink); color: var(--bg-color); border-color: var(--ink); }
+    .pill.add-btn { border-style: dashed; }
+  
+    [data-theme="rose"] .pill.active {
+      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
+      color: white;
+      border-color: var(--rose-primary);
+      box-shadow: 0 0 12px rgba(255, 141, 161, 0.5);
+    }
+    /* --- Kanban Column System --- */
+    .kanban-container {
+      position: absolute;
+      inset: 0;
+      top: var(--header-height);
+      bottom: var(--nav-height);
+      display: flex;
+      overflow: hidden;
+      z-index: 1;
+    }
+    .kanban-column {
+      display: flex;
+      flex-direction: column;
+      min-width: 300px;
+      background: rgba(255, 255, 255, 0.01);
+      border-right: 1px solid var(--glass-border);
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    .kanban-column:first-child {
+      min-width: 400px;
+      flex: 1;
+    }
+    .kanban-column:last-child {
+      border-right: none;
+    }
+    .column-header {
+      padding: 16px;
+      background: var(--glass-bg);
+      border-bottom: 1px solid var(--glass-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .column-title {
+      font-weight: 600;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--ink-dim);
+    }
+    .column-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+    .column-resize {
+      position: absolute;
+      right: -3px;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      cursor: col-resize;
+      background: transparent;
+      transition: background 0.2s;
+    }
+    .column-resize:hover {
+      background: var(--accent);
+    }
+    /* --- View Containers --- */
+    .view-container {
+      position: absolute; inset: 0;
+      top: var(--header-height); bottom: var(--nav-height);
+      overflow: hidden; opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .view-container.active { opacity: 1; pointer-events: auto; z-index: 1000;}
+  
+    /* --- Grid View --- */
+    #gridContainer { overflow-y: auto; padding: 10px 16px 120px 16px; }
+    .grid-wrapper {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      padding-bottom: 40px;
+    }
+    @media(min-width: 600px) { .grid-wrapper { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); } }
+   
+    /* --- Video Card --- */
+    .video-card {
+      background: var(--card-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, background 0.2s, box-shadow 0.3s ease;
+      cursor: pointer;
+      z-index: 100;
+    }
+    .video-card:hover {
+      transform: scale(1.02);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+    }
+    [data-theme="rose"] .video-card:hover {
+      box-shadow: 0 8px 24px rgba(255, 141, 161, 0.3);
+    }
+    .video-card:active { transform: scale(0.98); background: var(--glass-border); }
+    .video-thumbnail {
+      position: relative;
+      width: 100%;
+      padding-bottom: 56.25%; /* 16:9 aspect ratio */
+      background: #1a1a1a;
+      overflow: hidden;
+    }
+    .video-thumbnail img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+    .video-card:hover .video-thumbnail img {
+      transform: scale(1.05);
+    }
+    .video-duration {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .video-status {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .status-unwatched {
+      background: var(--neon-blue);
+      color: white;
+    }
+    .status-in-progress {
+      background: var(--neon-orange);
+      color: white;
+    }
+    .status-completed {
+      background: var(--neon-green);
+      color: white;
+    }
+    .status-saved {
+      background: var(--accent);
+      color: white;
+    }
+    .status-archived {
+      background: var(--ink-dim);
+      color: white;
+    }
+    .video-info {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .video-title {
+      font-weight: 600;
+      font-size: 14px;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .video-channel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--ink-dim);
+    }
+    .channel-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--glass-border);
+    }
+    .video-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--ink-dim);
+      border-top: 1px solid var(--glass-border);
+      padding-top: 8px;
+    }
+    .video-views {
+      font-family: var(--font-mono);
+    }
+    .video-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .action-icon {
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+      border-radius: 6px; background: rgba(255,255,255,0.05); cursor: pointer;
+      color: var(--ink-dim); transition: 0.2s;
+      font-size: 12px; font-weight: 700;
+    }
+    .action-icon:hover { background: var(--accent); color: #fff; }
+  
+    [data-theme="rose"] .action-icon:hover {
+      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
+      color: white;
+    }
+    /* --- Scatter View --- */
+    .scatter-canvas {
+      position: absolute; inset: 0; overflow: hidden;
+      transform-origin: 0 0; transition: transform 0.3s ease;
+    }
+    .scatter-card {
+      position: absolute; background: var(--card-bg); border: 1px solid var(--glass-border);
+      border-radius: 12px; padding: 12px; cursor: move; user-select: none;
+      transition: transform 0.2s, box-shadow 0.3s; z-index: 100;
+      width: 200px;
+    }
+    .scatter-card:hover { transform: scale(1.02); box-shadow: 0 8px 24px rgba(0,0,0,0.3); z-index: 1000; }
+    .scatter-card.is-dragging { transform: scale(1.05); box-shadow: 0 12px 32px rgba(0,0,0,0.4); z-index: 2000; opacity: 0.9; }
+    .scatter-thumbnail {
+      width: 100%;
+      height: 80px;
+      border-radius: 8px;
+      background: #1a1a1a;
+      margin-bottom: 8px;
+    }
+    /* --- List View --- */
+    .list-table {
+      width: 100%; border-collapse: collapse; font-size: 14px;
+    }
+    .list-table th {
+      text-align: left; padding: 12px; background: var(--glass-bg);
+      font-weight: 600; text-transform: uppercase; font-size: 12px;
+      border-bottom: 2px solid var(--glass-border);
+    }
+    .list-table td { padding: 12px; border-bottom: 1px solid var(--glass-border); }
+    .list-table tr:hover { background: var(--glass-bg); }
+    .list-thumbnail { width: 80px; height: 45px; border-radius: 4px; object-fit: cover; }
+    /* --- Bottom Navigation --- */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-height);
+      background: linear-gradient(to top, var(--bg-color) 40%, transparent);
+      display: flex; justify-content: center; align-items: center; gap: 16px;
+      padding: 0 20px; z-index: 9999; pointer-events: none;
+    }
+    .bottom-nav-inner {
+      display: flex; gap: 12px; align-items: center; pointer-events: auto;
+      background: var(--glass-bg); border: 1px solid var(--glass-border);
+      border-radius: 24px; padding: 8px 20px; backdrop-filter: blur(16px);
+    }
+    .nav-btn {
+      background: transparent; border: none; color: var(--ink-dim);
+      cursor: pointer; padding: 10px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s; font-size: 18px; width: 44px; height: 44px;
+    }
+    .nav-btn.active { color: var(--accent); background: rgba(255, 0, 0, 0.1); }
+    .nav-btn:hover { color: var(--ink); transform: scale(1.1); }
+    .nav-btn:active { transform: scale(0.95); }
+    /* --- Video Detail Panel --- */
+    .detail-panel {
+      position: fixed; top: var(--header-height); right: -600px;
+      width: 600px; height: calc(100vh - var(--header-height));
+      background: var(--card-bg); border-left: 1px solid var(--glass-border);
+      transition: right 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      z-index: 8888; display: flex; flex-direction: column;
+    }
+    .detail-panel.active { right: 0; }
+    .detail-close {
+      position: absolute; top: 16px; right: 16px; z-index: 9999;
+      background: var(--glass-bg); border: 1px solid var(--glass-border);
+      border-radius: 50%; width: 32px; height: 32px; display: flex;
+      align-items: center; justify-content: center; cursor: pointer;
+      color: var(--ink-dim); transition: all 0.2s;
+    }
+    .detail-close:hover { color: var(--ink); background: var(--glass-border); }
+    .detail-content {
+      flex: 1; overflow-y: auto; padding: 20px;
+    }
+    .video-player {
+      width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px;
+      margin-bottom: 16px; display: flex; align-items: center; justify-content: center;
+      color: var(--ink-dim); font-size: 18px;
+    }
+    /* --- Search Overlay --- */
+    .search-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(20px);
+      z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+      display: flex; flex-direction: column; align-items: center; padding-top: 120px;
+    }
+    .search-overlay.active { opacity: 1; pointer-events: auto; }
+    .search-input {
+      width: 90%; max-width: 600px; padding: 20px; font-size: 24px; background: var(--glass-bg);
+      border: 2px solid var(--glass-border); border-radius: 16px; color: var(--ink);
+      margin-bottom: 20px; font-weight: 600;
+    }
+    .search-results {
+      width: 90%; max-width: 800px; max-height: 60vh; overflow-y: auto;
+    }
+    /* --- Context Menu --- */
+    .context-menu {
+      position: fixed; display: none; background: var(--card-bg);
+      border: 1px solid var(--glass-border); border-radius: 12px;
+      padding: 8px 0; min-width: 180px; z-index: 9999;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .context-menu.active { display: block; }
+    .ctx-header {
+      padding: 8px 16px; font-weight: 600; font-size: 12px;
+      text-transform: uppercase; color: var(--ink-dim); border-bottom: 1px solid var(--glass-border);
+      margin-bottom: 4px;
+    }
+    .ctx-item {
+      padding: 10px 16px; cursor: pointer; transition: background 0.2s; font-size: 14px;
+    }
+    .ctx-item:hover { background: var(--glass-bg); }
+    /* --- Responsive Design --- */
+    @media(max-width: 768px) {
+      .kanban-column {
+        min-width: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+      }
+      .kanban-column.active {
+        transform: translateX(0);
+      }
+      .detail-panel {
+        width: 100%;
+        right: -100%;
+      }
+    }
+    /* --- Loading States --- */
+    .skeleton {
+      background: linear-gradient(90deg, var(--glass-bg) 25%, var(--glass-border) 50%, var(--glass-bg) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-loading 1.5s infinite;
+    }
+    @keyframes skeleton-loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    /* --- Utility Classes --- */
+    .hidden { display: none !important; }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .slide-up { animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    /* --- Mini Map for Scatter View --- */
+    .mini-map {
+      position: fixed; bottom: 20px; right: 20px; width: 120px; height: 80px;
+      background: var(--glass-bg); border: 1px solid var(--glass-border);
+      border-radius: 8px; z-index: 201; opacity: 0.7; transition: opacity 0.2s;
+    }
+    .mini-map:hover { opacity: 1; }
+    /* --- Collection Zones --- */
+    .collection-zone {
+      position: absolute; border: 2px dashed var(--glass-border);
+      border-radius: 16px; background: rgba(255,255,255,0.02);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink-dim); font-weight: 600; text-transform: uppercase;
+      font-size: 14px; letter-spacing: 1px;
+    }
+    .collection-zone.active {
+      border-color: var(--accent);
+      background: rgba(255,0,0,0.05);
+    }
+    /* --- Toast Notifications --- */
+    .toast {
+      position: fixed; top: 120px; left: 50%; transform: translateX(-50%) translateY(-5px);
+      background: var(--accent); color: #000; padding: 10px 20px; border-radius: 20px;
+      font-weight: 700; font-size: 12px; opacity: 0; pointer-events: none; transition: all 0.3s; z-index: 9999;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    [data-theme="rose"] .toast {
+      background: linear-gradient(135deg, var(--rose-primary), var(--rose-secondary));
+      color: white;
+    }
+    /* --- YouTube Joystick FAB System --- */
+    .youtube-joystick-fab {
+      position: fixed;
+      bottom: 100px;
+      right: 33px;
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      border: 2px solid var(--glass-border);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      cursor: move;
+      touch-action: none;
+      transition: box-shadow 0.2s, transform 0.1s, border-color 0.2s;
+      opacity: 0;
+      transform: scale(0.8);
+      pointer-events: none;
+    }
+    .youtube-joystick-fab.active {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: all;
+    }
+    .youtube-joystick-fab.youtube-active {
+      box-shadow: 0 10px 40px rgba(255, 0, 0, 0.4);
+      border-color: var(--accent);
+    }
+    .youtube-joystick-fab.pressed {
+      transform: scale(0.95);
+    }
+    .youtube-joystick-handle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #cc0000);
+      position: relative;
+      transition: transform 0.1s;
+      box-shadow: 0 4px 20px rgba(255, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: white;
+    }
+    /* Directional Indicators - YouTube Style */
+    .youtube-direction-indicators {
+      position: absolute;
+      width: 120%;
+      height: 120%;
+      pointer-events: none;
+    }
+    .youtube-direction-indicator {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity 0.2s;
+      border-radius: 4px;
+      box-shadow: 0 0 8px rgba(255, 0, 0, 0.5);
+    }
+    .youtube-direction-indicator.active {
+      opacity: 0.8;
+      animation: youtube-pulse 0.5s ease-in-out;
+    }
+    .youtube-indicator-up { top: -15px; left: 50%; transform: translateX(-50%); }
+    .youtube-indicator-right { right: -15px; top: 50%; transform: translateY(-50%); }
+    .youtube-indicator-down { bottom: -15px; left: 50%; transform: translateX(-50%); }
+    .youtube-indicator-left { left: -15px; top: 50%; transform: translateY(-50%); }
+    @keyframes youtube-pulse {
+      0%, 100% { transform: translateX(-50%) translateY(-50%) scale(1); }
+      50% { transform: translateX(-50%) translateY(-50%) scale(1.2); }
+    }
+    /* Header CSS */
+    .header-left { display: flex; align-items: center; }
+    .logo-mobile { display: none; font-size: 24px; font-weight: 800; }
+    .header-center { flex: 1; max-width: 600px; margin: 0 20px; }
+    .header-search { display: flex; }
+    .header-search input { flex: 1; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 20px 0 0 20px; padding: 8px 16px; color: var(--ink); }
+    .header-search button { background: var(--glass-bg); border: 1px solid var(--glass-border); border-left: none; border-radius: 0 20px 20px 0; padding: 8px 16px; color: var(--ink-dim); cursor: pointer; }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .notifications-btn { position: relative; background: transparent; border: none; color: var(--ink-dim); font-size: 20px; cursor: pointer; }
+    .notification-badge { position: absolute; top: -2px; right: -2px; background: var(--accent); width: 8px; height: 8px; border-radius: 50%; }
+    .profile-dropdown { position: relative; }
+    .profile-btn { background: transparent; border: 1px solid var(--glass-border); border-radius: 50%; width: 32px; height: 32px; color: var(--ink); cursor: pointer; }
+    .profile-menu { display: none; position: absolute; top: 40px; right: 0; background: var(--card-bg); border: 1px solid var(--glass-border); border-radius: 12px; padding: 8px 0; min-width: 160px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .profile-menu.active { display: block; }
+    .profile-menu-item { padding: 8px 16px; cursor: pointer; transition: background 0.2s; display: flex; gap: 8px; }
+    .profile-menu-item:hover { background: var(--glass-bg); }
+    .profile-menu-divider { border-top: 1px solid var(--glass-border); margin: 4px 0; }
+    .create-new-btn { background: var(--accent); color: #fff; border: none; border-radius: 20px; padding: 4px 12px; display: flex; gap: 4px; align-items: center; cursor: pointer; }
+    /* Modal CSS */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 9999; }
+    .modal-overlay.active { opacity: 1; pointer-events: auto; }
+    .modal { background: var(--card-bg); border: 1px solid var(--glass-border); border-radius: 16px; padding: 20px; width: 90%; max-width: 400px; }
+    .modal-header { font-weight: 600; margin-bottom: 16px; }
+    .modal-content { display: flex; flex-direction: column; gap: 8px; }
+    .modal-option { display: flex; gap: 12px; padding: 12px; border-radius: 12px; background: var(--glass-bg); cursor: pointer; transition: background 0.2s; }
+    .modal-option:hover { background: var(--glass-border); }
+    .modal-option-icon { font-size: 24px; }
+    .modal-option-text { display: flex; flex-direction: column; }
+    .modal-option-title { font-weight: 600; }
+    .modal-option-desc { font-size: 13px; color: var(--ink-dim); }
+    .modal-close { width: 100%; margin-top: 16px; background: transparent; border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px; color: var(--ink); cursor: pointer; }
+    /* Search Overlay CSS */
+    .search-container { width: 90%; max-width: 800px; background: var(--card-bg); border-radius: 16px; padding: 20px; overflow-y: auto; max-height: 90vh; }
+    .search-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .search-title { font-weight: 600; }
+    .close-search { background: transparent; border: none; font-size: 24px; color: var(--ink-dim); cursor: pointer; }
+    .search-input-container { position: relative; }
+    .search-input { width: 100%; padding-right: 40px; }
+    .voice-search-btn { position: absolute; right: 0; top: 0; bottom: 0; background: transparent; border: none; color: var(--ink-dim); padding: 0 16px; cursor: pointer; }
+    .search-suggestions { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .suggestion-item { padding: 8px; background: var(--glass-bg); border-radius: 8px; display: flex; gap: 8px; cursor: pointer; transition: background 0.2s; }
+    .suggestion-item:hover { background: var(--glass-border); }
+    .suggestion-icon { color: var(--ink-dim); }
+    .discovery-section { margin-top: 24px; }
+    .section-title { font-weight: 600; font-size: 14px; text-transform: uppercase; margin-bottom: 8px; }
+    .discovery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 8px; }
+    .discovery-item { padding: 8px 12px; background: var(--glass-bg); border-radius: 12px; cursor: pointer; transition: background 0.2s; }
+    .discovery-item:hover { background: var(--glass-border); }
+    .trending-badge { background: var(--accent); color: #000; padding: 2px 6px; border-radius: 8px; font-size: 10px; margin-left: 8px; }
+    .filters-section { margin-top: 24px; }
+    .filter-group { margin-bottom: 16px; }
+    .filter-group-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--ink-dim); text-transform: uppercase; }
+    .filter-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-pill { padding: 4px 12px; border-radius: 20px; background: var(--glass-bg); border: 1px solid var(--glass-border); cursor: pointer; font-size: 12px; transition: all 0.2s; }
+    .filter-pill.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .filter-toggle { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+    .toggle-switch { width: 40px; height: 20px; background: var(--glass-bg); border-radius: 20px; position: relative; cursor: pointer; transition: background 0.2s; }
+    .toggle-slider { width: 16px; height: 16px; background: var(--ink); border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: 0.2s; }
+    .toggle-switch.active { background: var(--accent); }
+    .toggle-switch.active .toggle-slider { left: 22px; background: #000; }
+    /* Kanban Mobile */
+    @media (max-width: 768px) {
+      body.kanban-mobile .bottom-nav { top: 0; bottom: auto; background: linear-gradient(to bottom, var(--bg-color) 40%, transparent); }
+      body.kanban-mobile .logo-text { display: none; }
+      .logo-mobile { display: block; }
+      body.kanban-mobile .category-bar { display: none; }
+      .youtube-joystick-fab { bottom: 20px; left: 50%; right: auto; transform: translateX(-50%); }
+      .create-new-btn span:last-child { display: none; }
+    }
+    /* Zoom Controls */
+    .zoom-controls { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 4px; }
+    /* Sort Bar for List */
+    .sort-bar { display: flex; gap: 8px; padding: 10px; flex-wrap: wrap; }
+  </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
-    <div id="mode" class="mode-status">FOCAL MODE ACTIVE</div>
-    
-    <div class="hud">[SCROLL] Zoom · [SHIFT+SCROLL] Focal · [LMB DRAG] Pan/Drag Cube · [ARROWS] Nav · [SPACE] New Task</div>
-
-    <div class="quad-left">
-        <div class="quad-icon backlog" data-quad="backlog"><div class="quad-cube"><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div></div></div>
-        <div class="quad-icon completed" data-quad="completed"><div class="quad-cube"><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div></div></div>
-        <div class="quad-icon inprogress" data-quad="inprogress"><div class="quad-cube"><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div></div></div>
-        <div class="quad-icon todo" data-quad="todo"><div class="quad-cube"><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div><div class="q-face"></div></div></div>
-    </div>
-
-    <div class="presets">
-        <button class="btn active" data-p="std">STD</button>
-        <button class="btn" data-p="top">TOP</button>
-        <button class="btn" data-p="side">SIDE</button>
-    </div>
-
-    <div class="top-bar">
-        <input id="search" type="text" placeholder="Search...">
-    </div>
-
-    <div class="zoom-controls">
-        <button class="btn" data-zoom="micro">Micro</button>
-        <button class="btn" data-zoom="macro">Macro</button>
-        <button class="btn" data-zoom="up">+</button>
-        <button class="btn" data-zoom="down">-</button>
-    </div>
-
-    <div class="coords" id="coord-display">X:0.0 Y:0.0 Z:0.0</div>
-
-    <div id="info" class="info">
-        <div class="info-title" id="iTitle">Task</div>
-        <div class="info-row"><span style="opacity:0.6">Title:</span><span id="iText">-</span></div>
-        <div class="info-row"><span style="opacity:0.6">Description:</span><span id="iDesc">-</span></div>
-        <div class="info-row"><span style="opacity:0.6">Position:</span><span id="iPos">0,0,0</span></div>
-        <div class="info-row"><span style="opacity:0.6">Status:</span><span id="iState">Default</span></div>
-    </div>
-
-    <div id="ctx" class="ctx">
-        <div class="ctx-item" data-a="clone">Clone</div>
-        <div class="ctx-item" data-a="edit">Edit</div>
-        <div class="ctx-div"></div>
-        <div class="ctx-item" data-a="del">Delete</div>
-    </div>
-
-    <div class="fab-zone" id="joystick">
-        <div class="fab-cube" id="joy-cube">
-            <div class="f-face"></div>
-            <div class="f-face"></div>
-            <div class="f-face"></div>
-            <div class="f-face"></div>
-            <div class="f-face"></div>
-            <div class="f-face"></div>
+  <!-- Enhanced Header with New Components -->
+  <header class="app-header">
+    <div class="header-top">
+      <div class="header-left">
+        <div class="logo">
+          <div class="logo-text">TUBE</div>
         </div>
-        <div class="fab-hint">NAV</div>
-    </div>
-
-    <div class="trash" id="trash">🗑</div>
-    <div class="countdown" id="countdown"></div>
-    <div id="tooltip"></div>
-
-    <!-- Hidden form -->
-    <div id="create-form" style="display:none;"></div>
-
-    <div id="crosshair">
-        <div class="line-h"></div>
-        <div class="line-v"></div>
-    </div>
-    <div id="center-circle"></div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
+        <div class="logo-mobile">T</div>
+      </div>
     
-    <script>
-        class ThinFilm extends THREE.Texture {
-            constructor(t=520){
-                super();
-                this.thickness = t;
-                this.generate();
-            }
-            generate(){
-                const w=512,h=1;
-                const d=new Uint8Array(w*4);
-                for(let i=0;i<w;i++){
-                    const c=i/w;
-                    const u=Math.pow(1-c,5);
-                    const phase = this.thickness/100 * c * Math.PI * 2;
-                    let r = 0.04 + 0.96*u + (Math.sin(phase)*0.5 + 0.5);
-                    let g = u + (Math.sin(phase + 2*Math.PI/3)*0.5 + 0.5);
-                    let b = u + (Math.sin(phase + 4*Math.PI/3)*0.5 + 0.5);
-                    r = Math.max(0, Math.min(1, r));
-                    g = Math.max(0, Math.min(1, g));
-                    b = Math.max(0, Math.min(1, b));
-                    d[i*4]=Math.floor(r*255);
-                    d[i*4+1]=Math.floor(g*255);
-                    d[i*4+2]=Math.floor(b*255);
-                    d[i*4+3]=255;
-                }
-                this.image={data:d,width:w,height:h};
-                this.magFilter=THREE.LinearFilter;
-                this.minFilter=THREE.LinearFilter;
-                this.wrapS=THREE.ClampToEdgeWrapping;
-                this.wrapT=THREE.ClampToEdgeWrapping;
-                this.needsUpdate=true;
-            }
+      <div class="header-center">
+        <div class="header-search">
+          <input type="text" placeholder="Search videos..." id="headerSearch">
+          <button onclick="performSearch()">🔍</button>
+        </div>
+      </div>
+    
+      <div class="header-right">
+        <button class="notifications-btn" onclick="toggleNotifications()">
+          <span>🔔</span>
+          <div class="notification-badge"></div>
+        </button>
+      
+        <div class="profile-dropdown">
+          <button class="profile-btn" onclick="toggleProfileMenu()">U</button>
+          <div class="profile-menu" id="profileMenu">
+            <div class="profile-menu-item" onclick="navigateTo('settings')">⚙️ Settings</div>
+            <div class="profile-menu-item" onclick="navigateTo('history')">📚 History</div>
+            <div class="profile-menu-item" onclick="navigateTo('playlists')">📋 Playlists</div>
+            <div class="profile-menu-divider"></div>
+            <div class="profile-menu-item" onclick="navigateTo('help')">❓ Help</div>
+            <div class="profile-menu-item" onclick="navigateTo('signout')">🚪 Sign Out</div>
+          </div>
+        </div>
+      
+        <button class="create-new-btn" onclick="openCreateModal()">
+          <span>+</span>
+          <span>Create New</span>
+        </button>
+      
+        <div class="header-buttons">
+            <button class="theme-btn" onclick="cycleTheme()" title="Cycle Theme">
+                <span id="themeIcon">🌙</span>
+            </button>
+            <button class="theme-btn" onclick="toggleView()" title="Toggle View">
+                <span>⊞</span>
+            </button>
+        </div>
+      </div>
+    </div>
+  
+    <!-- Category Filter Bar -->
+    <div class="category-bar" id="categoryBar">
+      <div class="pill active" data-category="all">All</div>
+      <div class="pill" data-category="music">Music</div>
+      <div class="pill" data-category="gaming">Gaming</div>
+      <div class="pill" data-category="education">Education</div>
+      <div class="pill" data-category="tech">Technology</div>
+      <div class="pill" data-category="entertainment">Entertainment</div>
+      <div class="pill add-btn" onclick="showToast('Coming soon: Add custom categories!', 'info')">+ Add</div>
+    </div>
+  </header>
+  <!-- Feed (Kanban) Container -->
+  <div id="kanbanContainer" class="view-container kanban-container">
+    <div class="kanban-column" id="feedColumn">
+      <div class="column-header">
+        <div class="column-title">Feed</div>
+      </div>
+      <div class="column-content">
+        <!-- Videos here -->
+      </div>
+    </div>
+    <div class="kanban-column" id="curatedColumn">
+      <div class="column-header">
+        <div class="column-title">Curated Queue</div>
+      </div>
+      <div class="column-content">
+        <!-- Videos here -->
+      </div>
+    </div>
+    <div class="kanban-column" id="relatedColumn">
+      <div class="column-header">
+        <div class="column-title">Related</div>
+      </div>
+      <div class="column-content">
+        <!-- Videos here -->
+      </div>
+    </div>
+    <div class="kanban-column" id="discoverColumn">
+      <div class="column-header">
+        <div class="column-title">Discover</div>
+      </div>
+      <div class="column-content">
+        <!-- Videos here -->
+      </div>
+    </div>
+  </div>
+  <!-- Scatter Container -->
+  <div id="scatterContainer" class="view-container">
+    <div class="scatter-canvas" id="scatterCanvas">
+      <!-- Scatter cards here -->
+    </div>
+    <div class="zoom-controls">
+      <button class="theme-btn" onclick="zoom(0.2, null, null)">+</button>
+      <button class="theme-btn" onclick="zoom(-0.2, null, null)">-</button>
+      <button class="theme-btn" onclick="resetView()">↻</button>
+    </div>
+  </div>
+  <!-- History Container -->
+  <div id="historyContainer" class="view-container">
+    <div class="sort-bar">
+      <div class="pill active" data-sort="lastWatched">Last Watched</div>
+      <div class="pill" data-sort="uploadDate">Upload Date</div>
+      <div class="pill" data-sort="views">Views</div>
+    </div>
+    <table class="list-table">
+      <thead>
+        <tr>
+          <th>Thumbnail</th>
+          <th>Title</th>
+          <th>Channel</th>
+          <th>Duration</th>
+          <th>Views</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody">
+        <!-- Rows here -->
+      </tbody>
+    </table>
+  </div>
+  <!-- List Container -->
+  <div id="listContainer" class="view-container">
+    <div class="sort-bar">
+      <div class="pill active" data-sort="title">Title</div>
+      <div class="pill" data-sort="channel">Channel</div>
+      <div class="pill" data-sort="duration">Duration</div>
+      <div class="pill" data-sort="views">Views</div>
+      <div class="pill" data-sort="uploadDate">Upload Date</div>
+    </div>
+    <table class="list-table">
+      <thead>
+        <tr>
+          <th>Thumbnail</th>
+          <th>Title</th>
+          <th>Channel</th>
+          <th>Duration</th>
+          <th>Views</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody id="listBody">
+        <!-- Rows here -->
+      </tbody>
+    </table>
+  </div>
+  <!-- Search Overlay -->
+    <div class="search-overlay" id="searchOverlay">
+        <div class="search-container">
+            <!-- Search Header -->
+            <div class="search-header">
+                <h2 class="search-title">Search</h2>
+                <button class="close-search" onclick="closeSearchOverlay()">×</button>
+            </div>
+          
+            <!-- Priority 1: Basic Search -->
+            <div class="search-input-container">
+                <input type="text" class="search-input" id="mainSearchInput" placeholder="Search for videos, channels, or topics..." onkeyup="updateSearchSuggestions(this.value)">
+                <button class="voice-search-btn" onclick="startVoiceSearch()">🎤</button>
+            </div>
+          
+            <!-- Real-time Search Suggestions -->
+            <div class="search-suggestions" id="searchSuggestions" style="display: none;">
+                <div class="suggestion-item">
+                    <span class="suggestion-icon">🔍</span>
+                    <span>suggestion 1</span>
+                </div>
+                <div class="suggestion-item">
+                    <span class="suggestion-icon">🔍</span>
+                    <span>suggestion 2</span>
+                </div>
+                <div class="suggestion-item">
+                    <span class="suggestion-icon">🔍</span>
+                    <span>suggestion 3</span>
+                </div>
+            </div>
+          
+            <!-- Priority 2: Contextual Discovery -->
+            <div class="discovery-section">
+                <h3 class="section-title">Your Search History</h3>
+                <div class="discovery-grid">
+                    <div class="discovery-item">
+                        📱 Tech reviews 2024
+                    </div>
+                    <div class="discovery-item">
+                        🎮 Gaming livestreams
+                    </div>
+                    <div class="discovery-item">
+                        🍳 Cooking tutorials
+                    </div>
+                    <div class="discovery-item">
+                        🎵 Music playlists
+                    </div>
+                </div>
+            </div>
+          
+            <div class="discovery-section">
+                <h3 class="section-title">Suggested for You</h3>
+                <div class="discovery-grid">
+                    <div class="discovery-item">
+                        🤖 AI technology trends
+                    </div>
+                    <div class="discovery-item">
+                        💪 Workout routines
+                    </div>
+                    <div class="discovery-item">
+                        📚 Book recommendations
+                    </div>
+                    <div class="discovery-item">
+                        ✈️ Travel guides
+                    </div>
+                </div>
+            </div>
+          
+            <div class="discovery-section">
+                <h3 class="section-title">
+                    Trending Today
+                    <span class="trending-badge">HOT</span>
+                </h3>
+                <div class="discovery-grid">
+                    <div class="discovery-item">
+                        🔥 New movie trailers
+                    </div>
+                    <div class="discovery-item">
+                        🔥 Viral challenges
+                    </div>
+                    <div class="discovery-item">
+                        🔥 Breaking news
+                    </div>
+                    <div class="discovery-item">
+                        🔥 Celebrity interviews
+                    </div>
+                </div>
+            </div>
+          
+            <!-- Priority 3: Advanced Filters -->
+            <div class="filters-section">
+                <h3 class="section-title">Search Filters</h3>
+              
+                <div class="filter-group">
+                    <h4 class="filter-group-title">Upload Date</h4>
+                    <div class="filter-pills">
+                        <div class="filter-pill" onclick="toggleFilter(this)">Any time</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">Last hour</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">Today</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">This week</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">This month</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">This year</div>
+                    </div>
+                </div>
+              
+                <div class="filter-group">
+                    <h4 class="filter-group-title">Duration</h4>
+                    <div class="filter-pills">
+                        <div class="filter-pill" onclick="toggleFilter(this)">Any duration</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">Under 4 minutes</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">4-20 minutes</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">Over 20 minutes</div>
+                    </div>
+                </div>
+              
+                <div class="filter-group">
+                    <h4 class="filter-group-title">Features</h4>
+                    <div class="filter-pills">
+                        <div class="filter-pill" onclick="toggleFilter(this)">Live</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">4K</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">HDR</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">Subtitles/CC</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">Creative Commons</div>
+                    </div>
+                </div>
+              
+                <div class="filter-group">
+                    <h4 class="filter-group-title">Sort By</h4>
+                    <div class="filter-pills">
+                        <div class="filter-pill active" onclick="toggleFilter(this)">Relevance</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">Upload date</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">View count</div>
+                        <div class="filter-pill" onclick="toggleFilter(this)">Rating</div>
+                    </div>
+                </div>
+              
+                <div class="filter-group">
+                    <h4 class="filter-group-title">Content Options</h4>
+                    <div class="filter-toggle">
+                        <span>Include closed captions</span>
+                        <div class="toggle-switch" onclick="toggleSwitch(this)">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                    <div class="filter-toggle">
+                        <span>Include playlists</span>
+                        <div class="toggle-switch" onclick="toggleSwitch(this)">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                    <div class="filter-toggle">
+                        <span>Include movies</span>
+                        <div class="toggle-switch" onclick="toggleSwitch(this)">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+  <!-- Create New Modal -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal">
+      <div class="modal-header">Create New</div>
+      <div class="modal-content">
+        <div class="modal-option" onclick="createItem('playlist')">
+          <div class="modal-option-icon">📋</div>
+          <div class="modal-option-text">
+            <div class="modal-option-title">Playlist</div>
+            <div class="modal-option-desc">Create a new video playlist</div>
+          </div>
+        </div>
+        <div class="modal-option" onclick="createItem('collection')">
+          <div class="modal-option-icon">📁</div>
+          <div class="modal-option-text">
+            <div class="modal-option-title">Collection</div>
+            <div class="modal-option-desc">Organize videos into collections</div>
+          </div>
+        </div>
+        <div class="modal-option" onclick="createItem('upload')">
+          <div class="modal-option-icon">⬆️</div>
+          <div class="modal-option-text">
+            <div class="modal-option-title">Upload Video</div>
+            <div class="modal-option-desc">Upload a new video</div>
+          </div>
+        </div>
+        <div class="modal-option" onclick="createItem('live')">
+          <div class="modal-option-icon">🔴</div>
+          <div class="modal-option-text">
+            <div class="modal-option-title">Go Live</div>
+            <div class="modal-option-desc">Start a live stream</div>
+          </div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeCreateModal()">Cancel</button>
+    </div>
+  </div>
+  /* Bottom Navigation */
+  <div class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <button class="nav-btn active" data-mode="feed" onclick="switchMode('feed')">🏠</button>
+      <button class="nav-btn" data-mode="scatter" onclick="switchMode('scatter')">散</button>
+      <button class="nav-btn" data-mode="history" onclick="switchMode('history')">🕒</button>
+      <button class="nav-btn" data-mode="list" onclick="switchMode('list')">📜</button>
+      <button class="nav-btn" data-mode="search" onclick="switchMode('search')">🔍</button>
+    </div>
+  </div>
+  /* Joystick */
+  <div class="youtube-joystick-fab" id="youtubeJoystickFab">
+    <div class="youtube-joystick-handle" id="youtubeJoystickHandle"></div>
+    <div class="youtube-direction-indicators">
+      <div class="youtube-direction-indicator youtube-indicator-up" id="youtubeIndicatorUp"></div>
+      <div class="youtube-direction-indicator youtube-indicator-right" id="youtubeIndicatorRight"></div>
+      <div class="youtube-direction-indicator youtube-indicator-down" id="youtubeIndicatorDown"></div>
+      <div class="youtube-direction-indicator youtube-indicator-left" id="youtubeIndicatorLeft"></div>
+    </div>
+  </div>
+  /* Context Menu */
+  <div class="context-menu" id="contextMenu"></div>
+  /* Detail Panel */
+  <div class="detail-panel" id="detailPanel">
+    <button class="detail-close" onclick="closeDetailPanel()">×</button>
+    <div class="detail-content" id="detailContent"></div>
+  </div>
+  <script>
+    // ====== GLOBAL STATE ======
+    let config = {
+      currentView: 'grid',
+      currentCategory: 'all',
+      currentTheme: 'dark',
+      kanbanMode: false,
+      searchQuery: ''
+    };
+    let videos = [];
+    let collections = [];
+    let currentVideo = null;
+    // ====== MOCK DATA ======
+    function generateMockVideos() {
+      const categories = ['Music', 'Gaming', 'Education', 'News', 'Sports', 'Comedy', 'Science', 'Tech', 'DIY', 'Food'];
+      const statuses = ['unwatched', 'in-progress', 'completed', 'saved', 'archived'];
+      const mockVideos = [];
+
+      for (let i = 1; i <= 50; i++) {
+        const category = categories[Math.floor(Math.random() * categories.length)];
+        const status = Math.random() > 0.7 ? statuses[Math.floor(Math.random() * statuses.length)] : 'unwatched';
+        const duration = Math.floor(Math.random() * 1800) + 60; // 1-30 minutes
+        const views = Math.floor(Math.random() * 10000000) + 1000;
+        
+        mockVideos.push({
+          id: i,
+          title: `${category} Video ${i}: Amazing Content Title Here`,
+          channel: {
+            name: `${category}Channel${Math.floor(Math.random() * 10) + 1}`,
+            id: `channel_${Math.floor(Math.random() * 100)}`,
+            avatar: `https://picsum.photos/seed/avatar${i}/40/40`,
+            verified: Math.random() > 0.7
+          },
+          thumbnail: `https://picsum.photos/seed/video${i}/320/180`,
+          duration: duration,
+          uploadDate: Date.now() - (Math.random() * 30 * 24 * 60 * 60 * 1000), // Last 30 days
+          views: views,
+          likes: Math.floor(views * (Math.random() * 0.1 + 0.01)),
+          category: category,
+          tags: [category.toLowerCase(), 'tutorial', 'learning', 'entertainment'],
+          status: status,
+          watchProgress: status === 'completed' ? 1 : (status === 'in-progress' ? Math.random() * 0.9 : 0),
+          lastWatched: status !== 'unwatched' ? Date.now() - (Math.random() * 7 * 24 * 60 * 60 * 1000) : null,
+          savedDate: status === 'saved' ? Date.now() - (Math.random() * 3 * 24 * 60 * 60 * 1000) : null,
+          collections: status === 'saved' ? ['Watch Later'] : [],
+          scatterPosition: { x: Math.random() * 800 + 100, y: Math.random() * 600 + 100 },
+          description: `This is an amazing ${category.toLowerCase()} video that provides incredible value and entertainment. Join us as we explore fascinating topics and learn new things together.`
+        });
+      }
+      
+      return mockVideos;
+    }
+
+    function generateMockCollections() {
+      return [
+        { id: 1, name: 'Watch Tonight', color: '#ff6b6b', videoIds: [], layout: 'grid' },
+        { id: 2, name: 'Learning Queue', color: '#4ecdc4', videoIds: [], layout: 'cascade' },
+        { id: 3, name: 'Inspiration', color: '#ffe66d', videoIds: [], layout: 'radial' },
+        { id: 4, name: 'Favorites', color: '#a8e6cf', videoIds: [], layout: 'grid' }
+      ];
+    }
+    // ====== INITIALIZATION ======
+    function init() {
+      videos = generateMockVideos();
+      collections = generateMockCollections();
+      loadState();
+      renderCategories();
+      renderCurrentView();
+      setupEventListeners();
+    }
+    function setupEventListeners() {
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+       
+        switch(e.key.toLowerCase()) {
+          case 'g': switchView('grid'); break;
+          case 's': switchView('scatter'); break;
+          case 'h': switchView('list'); break;
+          case '/': e.preventDefault(); openSearch(); break;
+          case 'escape': closeAllOverlays(); break;
         }
-
-        const CFG = {
-            cam: { eye: {y:40} },
-            preset: {
-                std: { o: new THREE.Vector3(0,8,20), r: new THREE.Euler(-0.3,0,0) },
-                top: { o: new THREE.Vector3(0,50,0.1), r: new THREE.Euler(-Math.PI/2,0,0) },
-                side: { o: new THREE.Vector3(80, 0, 0), r: new THREE.Euler(0, Math.PI/2, 0) }
-            }
-        };
-
-        const quadrantCenters = {
-            todo: new THREE.Vector3(10, 2, -10),
-            inprogress: new THREE.Vector3(-10, 2, -10),
-            completed: new THREE.Vector3(10, 2, 10),
-            backlog: new THREE.Vector3(-10, 2, 10)
-        };
-
-        const quadrantColors = {
-            todo: 0xffff00,
-            inprogress: 0x00ffff,
-            completed: 0x00ff00,
-            backlog: 0xff0000
-        };
-
-        const quadrantNames = {
-            todo: 'To-Do',
-            inprogress: 'In-Progress',
-            completed: 'Completed',
-            backlog: 'Backlog'
-        };
-
-        const sc = new THREE.Scene();
-        sc.background = new THREE.Color(0x000000);
-        sc.fog = new THREE.FogExp2(0x000000, 0.009);
-
-        const cam = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 10077);
-
-        const rend = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
-        rend.setSize(innerWidth, innerHeight);
-        rend.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        rend.shadowMap.enabled = true;
-        rend.shadowMap.type = THREE.PCFSoftShadowMap;
-
-        const world = new CANNON.World();
-        world.gravity.set(0, -9.81, 0);
-        world.broadphase = new CANNON.NaiveBroadphase();
-        const mat = new CANNON.Material();
-        world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, { friction: 0.3, restitution: 0.0 }));
-
-        const rig = { mode: 'std', preset: 'std', piv: new THREE.Vector3(), tPiv: new THREE.Vector3() };
-        const tm = { cubes: [], sel: null, hov: null, drag: null };
-
-        let distanceScale = 1;
-        let isPanning = false;
-        let panStartIntersect = null;
-
-        sc.add(new THREE.AmbientLight(0xffffff, 0.5));
-
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
-        dirLight.position.set(15, 40, 15);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
-        sc.add(dirLight);
-
-        const neon1 = new THREE.PointLight(0x00ffff, 5, 80); neon1.position.set(-25, 20, -25); sc.add(neon1);
-        const neon2 = new THREE.PointLight(0xff00ff, 5, 80); neon2.position.set(25, 20, 25); sc.add(neon2);
-        const neon3 = new THREE.PointLight(0x00ff88, 4.5, 70); neon3.position.set(0, 30, 0); sc.add(neon3);
-
-        const cRT = new THREE.WebGLCubeRenderTarget(512, { format: THREE.RGBFormat, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
-        const cCam = new THREE.CubeCamera(0.1, 1000, cRT);
-        sc.add(cCam);
-
-        const fMap = new ThinFilm(520);
-
-        const gnd = new THREE.Mesh(
-          new THREE.PlaneGeometry(40, 40),
-          new THREE.MeshStandardMaterial({ color: 0x010101, roughness: 0.85, metalness: 0.95, envMapIntensity: 1.3 })
+      });
+      // Context menu
+      document.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showContextMenu(e);
+      });
+      document.addEventListener('click', () => {
+        document.getElementById('contextMenu').classList.remove('active');
+      });
+      // Search overlay escape
+      document.getElementById('searchOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'searchOverlay') {
+          closeSearch();
+        }
+      });
+    }
+    // ====== VIEW MANAGEMENT ======
+    function switchView(view) {
+      config.currentView = view;
+     
+      // Update navigation
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+     
+      // Hide kanban mode when switching views
+      if (config.kanbanMode) {
+        toggleKanban();
+      }
+     
+      renderCurrentView();
+      saveState();
+    }
+    function renderCurrentView() {
+      // Hide all views
+      document.getElementById('gridContainer').classList.remove('active');
+      document.getElementById('scatterContainer').classList.remove('active');
+      document.getElementById('listContainer').classList.remove('active');
+      document.getElementById('kanbanContainer').classList.add('hidden');
+     
+      // Show current view
+      switch(config.currentView) {
+        case 'grid':
+          document.getElementById('gridContainer').classList.add('active');
+          renderGridView();
+          break;
+        case 'scatter':
+          document.getElementById('scatterContainer').classList.add('active');
+          renderScatterView();
+          break;
+        case 'list':
+          document.getElementById('listContainer').classList.add('active');
+          renderListView();
+          break;
+      }
+    }
+    // ====== CATEGORY FILTERING ======
+    function renderCategories() {
+      const categories = ['all', ...new Set(videos.map(v => v.category))];
+      const categoryBar = document.getElementById('categoryBar');
+     
+      categoryBar.innerHTML = categories.map(cat => `
+        <div class="pill ${config.currentCategory === cat ? 'active' : ''}"
+             onclick="selectCategory('${cat}')">
+          ${cat === 'all' ? 'All' : cat}
+        </div>
+      `).join('') + '<div class="pill add-btn" onclick="addCustomCategory()">+ Custom</div>';
+    }
+    function selectCategory(category) {
+      config.currentCategory = category;
+      renderCategories();
+      renderCurrentView();
+      saveState();
+    }
+    function filterVideos() {
+      let filtered = videos;
+     
+      if (config.currentCategory !== 'all') {
+        filtered = filtered.filter(v => v.category === config.currentCategory);
+      }
+     
+      if (config.searchQuery) {
+        filtered = filtered.filter(v =>
+          v.title.toLowerCase().includes(config.searchQuery.toLowerCase()) ||
+          v.channel.name.toLowerCase().includes(config.searchQuery.toLowerCase())
         );
-        gnd.rotation.x = -Math.PI / 2;
-        gnd.position.y = -4;
-        gnd.receiveShadow = true;
-        sc.add(gnd);
-
-        const gB = new CANNON.Body({ mass: 0, material: mat });
-        gB.addShape(new CANNON.Plane());
-        gB.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-        gB.position.set(0, -4, 0);
-        world.addBody(gB);
-
-        // Walls
-        const wallMat = new CANNON.Material();
-        world.addContactMaterial(new CANNON.ContactMaterial(mat, wallMat, { friction: 0.3, restitution: 0.0 }));
-
-        // Left wall
-        const leftWall = new CANNON.Body({ mass: 0, material: wallMat });
-        leftWall.addShape(new CANNON.Plane());
-        leftWall.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
-        leftWall.position.set(-20, 0, 0);
-        world.addBody(leftWall);
-
-        // Right wall
-        const rightWall = new CANNON.Body({ mass: 0, material: wallMat });
-        rightWall.addShape(new CANNON.Plane());
-        rightWall.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -Math.PI / 2);
-        rightWall.position.set(20, 0, 0);
-        world.addBody(rightWall);
-
-        // Back wall
-        const backWall = new CANNON.Body({ mass: 0, material: wallMat });
-        backWall.addShape(new CANNON.Plane());
-        backWall.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2);
-        backWall.position.set(0, 0, 20);
-        world.addBody(backWall);
-
-        // Front wall
-        const frontWall = new CANNON.Body({ mass: 0, material: wallMat });
-        frontWall.addShape(new CANNON.Plane());
-        frontWall.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-        frontWall.position.set(0, 0, -20);
-        world.addBody(frontWall);
-
-        const gridGrp = new THREE.Group();
-        sc.add(gridGrp);
-
-        function createGrid() {
-            while(gridGrp.children.length){ 
-                const o = gridGrp.children[0]; 
-                if(o.geometry) o.geometry.dispose();
-                if(o.material) o.material.dispose();
-                gridGrp.remove(o); 
-            }
-            
-            const step = 5, rangeX = 20, rangeZ = 20;
-            // X lines
-            for (let x = -rangeX; x <= rangeX; x += step) {
-                const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, -3.9, -rangeZ), new THREE.Vector3(x, -3.9, rangeZ)]);
-                gridGrp.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x2a2a3e })));
-            }
-            // Z lines
-            for (let z = -rangeZ; z <= rangeZ; z += step) {
-                const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-rangeX, -3.9, z), new THREE.Vector3(rangeX, -3.9, z)]);
-                gridGrp.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x2a2a3e })));
-            }
-            // Quadrant labels
-            for (let q in quadrantCenters) {
-                const c = document.createElement('canvas'); c.width = 256; c.height = 64;
-                const x = c.getContext('2d'); x.fillStyle = `#${quadrantColors[q].toString(16)}`; x.font = 'bold 40px monospace'; x.textAlign = 'center'; x.fillText(quadrantNames[q], 128, 50);
-                const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent:true, opacity:0.8 }));
-                s.position.set(quadrantCenters[q].x, -3.5, quadrantCenters[q].z);
-                s.scale.set(10, 2.5, 1);
-                gridGrp.add(s);
-            }
+      }
+     
+      return filtered;
+    }
+    // ====== GRID VIEW ======
+    function renderGridView() {
+      const wrapper = document.getElementById('gridWrapper');
+      const filtered = filterVideos();
+     
+      wrapper.innerHTML = filtered.map(video => createVideoCard(video)).join('');
+    }
+    function createVideoCard(video) {
+      const duration = formatDuration(video.duration);
+      const views = formatViews(video.views);
+     
+      return `
+        <div class="video-card" onclick="openVideoDetail(${video.id})" oncontextmenu="showVideoContextMenu(event, ${video.id})">
+          <div class="video-thumbnail">
+            <img src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+            <div class="video-duration">${duration}</div>
+            <div class="video-status status-${video.status}">${video.status.replace('-', ' ')}</div>
+          </div>
+          <div class="video-info">
+            <div class="video-title">${video.title}</div>
+            <div class="video-channel">
+              <div class="channel-avatar">
+                <img src="${video.channel.avatar}" alt="${video.channel.name}" width="24" height="24">
+              </div>
+              <span>${video.channel.name}</span>
+            </div>
+            <div class="video-meta">
+              <span class="video-views">${views} views</span>
+              <div class="video-actions">
+                <button class="action-icon" onclick="event.stopPropagation(); toggleSave(${video.id})" title="Save">
+                  ${video.status === 'saved' ? '♥' : '♡'}
+                </button>
+                <button class="action-icon" onclick="event.stopPropagation(); shareVideo(${video.id})" title="Share">
+                  ↗
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    // ====== SCATTER VIEW ======
+    function renderScatterView() {
+      const canvas = document.getElementById('scatterCanvas');
+      const filtered = filterVideos();
+     
+      canvas.innerHTML = '';
+     
+      // Add collection zones
+      collections.forEach((collection, index) => {
+        const zone = document.createElement('div');
+        zone.className = 'collection-zone';
+        zone.style.left = `${index * 250 + 50}px`;
+        zone.style.top = '50px';
+        zone.style.width = '200px';
+        zone.style.height = '150px';
+        zone.textContent = collection.name;
+        zone.style.borderColor = collection.color;
+        zone.dataset.collectionId = collection.id;
+        canvas.appendChild(zone);
+      });
+     
+      // Add video cards
+      filtered.forEach(video => {
+        const card = createScatterCard(video);
+        canvas.appendChild(card);
+      });
+    }
+    function createScatterCard(video) {
+      const card = document.createElement('div');
+      card.className = 'scatter-card';
+      card.style.left = `${video.scatterPosition.x}px`;
+      card.style.top = `${video.scatterPosition.y}px`;
+      card.dataset.videoId = video.id;
+     
+      card.innerHTML = `
+        <div class="scatter-thumbnail">
+          <img src="${video.thumbnail}" alt="${video.title}" width="200" height="80" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
+        </div>
+        <div class="video-title" style="font-size: 12px; font-weight: 600;">${video.title.substring(0, 30)}...</div>
+        <div class="video-channel" style="font-size: 11px; color: var(--ink-dim);">${video.channel.name}</div>
+        <div class="video-duration" style="font-size: 11px; font-family: var(--font-mono); color: var(--ink-dim);">${formatDuration(video.duration)}</div>
+      `;
+     
+      card.addEventListener('mousedown', startDragging);
+      card.addEventListener('dblclick', () => openVideoDetail(video.id));
+     
+      return card;
+    }
+    // ====== LIST VIEW ======
+    function renderListView() {
+      const tbody = document.getElementById('listBody');
+      const filtered = filterVideos();
+     
+      tbody.innerHTML = filtered.map(video => `
+        <tr onclick="openVideoDetail(${video.id})">
+          <td><img src="${video.thumbnail}" alt="${video.title}" class="list-thumbnail"></td>
+          <td>${video.title}</td>
+          <td>${video.channel.name}</td>
+          <td>${video.category}</td>
+          <td><span class="video-status status-${video.status}">${video.status.replace('-', ' ')}</span></td>
+          <td>${formatDuration(video.duration)}</td>
+          <td>${formatViews(video.views)}</td>
+          <td>
+            <button class="action-icon" onclick="event.stopPropagation(); toggleSave(${video.id})">
+              ${video.status === 'saved' ? '♥' : '♡'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+    // ====== KANBAN MODE ======
+    function toggleKanban() {
+      config.kanbanMode = !config.kanbanMode;
+     
+      if (config.kanbanMode) {
+        document.getElementById('kanbanContainer').classList.remove('hidden');
+        document.querySelectorAll('.view-container').forEach(container => {
+          container.classList.remove('active');
+        });
+        renderKanbanColumns();
+      } else {
+        document.getElementById('kanbanContainer').classList.add('hidden');
+        renderCurrentView();
+      }
+     
+      saveState();
+    }
+    function renderKanbanColumns() {
+      // Feed column
+      const feedColumn = document.getElementById('feedColumn');
+      const gridVideos = filterVideos();
+      feedColumn.innerHTML = `
+        <div class="grid-wrapper">
+          ${gridVideos.map(video => createVideoCard(video)).join('')}
+        </div>
+      `;
+     
+      // Curated column
+      const curatedColumn = document.getElementById('curatedColumn');
+      const savedVideos = videos.filter(v => v.status === 'saved');
+      curatedColumn.innerHTML = savedVideos.map(video => createVideoCard(video)).join('');
+     
+      // Related column (mock data)
+      const relatedColumn = document.getElementById('relatedColumn');
+      const relatedVideos = videos.slice(0, 10);
+      relatedColumn.innerHTML = relatedVideos.map(video => createVideoCard(video)).join('');
+     
+      // Discover column (mock data)
+      const discoverColumn = document.getElementById('discoverColumn');
+      const discoverVideos = videos.slice(10, 20);
+      discoverColumn.innerHTML = discoverVideos.map(video => createVideoCard(video)).join('');
+    }
+    // ====== VIDEO DETAIL PANEL ======
+    function openVideoDetail(videoId) {
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+     
+      currentVideo = video;
+      const panel = document.getElementById('detailPanel');
+      const content = document.getElementById('detailContent');
+     
+      content.innerHTML = `
+        <div class="video-player">
+          📹 Video Player Placeholder<br>
+          <small>${video.title}</small>
+        </div>
+        <h2 style="margin-bottom: 8px;">${video.title}</h2>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <div class="channel-avatar">
+            <img src="${video.channel.avatar}" alt="${video.channel.name}" width="40" height="40" style="border-radius: 50%;">
+          </div>
+          <div>
+            <div style="font-weight: 600;">${video.channel.name}</div>
+            <div style="font-size: 13px; color: var(--ink-dim);">${formatViews(video.views)} views • ${formatDate(video.uploadDate)}</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <button class="action-icon" style="padding: 8px 16px; width: auto;">👍 Like</button>
+          <button class="action-icon" style="padding: 8px 16px; width: auto;">👎 Dislike</button>
+          <button class="action-icon" style="padding: 8px 16px; width: auto;" onclick="shareVideo(${video.id})">
+            ↗ Share
+          </button>
+          <button class="action-icon" style="padding: 8px 16px; width: auto;" onclick="toggleSave(${video.id})">
+            ${video.status === 'saved' ? '♥ Saved' : '♡ Save'}
+          </button>
+        </div>
+        <div style="padding-top: 16px; border-top: 1px solid var(--glass-border);">
+          <h3 style="margin-bottom: 8px;">Description</h3>
+          <p style="color: var(--ink-dim); line-height: 1.6;">${video.description}</p>
+        </div>
+        <div style="margin-top: 24px;">
+          <h3>Comments</h3>
+          <div style="color: var(--ink-dim);">Comments section would go here...</div>
+        </div>
+      `;
+     
+      panel.classList.add('active');
+    }
+    function closeDetailPanel() {
+      document.getElementById('detailPanel').classList.remove('active');
+      currentVideo = null;
+    }
+    // ====== SEARCH ======
+    function openSearch() {
+      const overlay = document.getElementById('searchOverlay');
+      overlay.classList.add('active');
+      document.getElementById('searchInput').focus();
+    }
+    function closeSearch() {
+      const overlay = document.getElementById('searchOverlay');
+      overlay.classList.remove('active');
+      document.getElementById('searchInput').value = '';
+      config.searchQuery = '';
+      renderCurrentView();
+    }
+    function handleSearch(event) {
+      if (event.key === 'Escape') {
+        closeSearch();
+        return;
+      }
+     
+      config.searchQuery = event.target.value;
+     
+      if (config.searchQuery) {
+        const results = filterVideos();
+        const resultsDiv = document.getElementById('searchResults');
+       
+        resultsDiv.innerHTML = results.map(video => `
+          <div class="video-card" style="margin-bottom: 16px;" onclick="openVideoDetail(${video.id})">
+            <div class="video-thumbnail">
+              <img src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+              <div class="video-duration">${formatDuration(video.duration)}</div>
+            </div>
+            <div class="video-info">
+              <div class="video-title">${video.title}</div>
+              <div class="video-channel">${video.channel.name}</div>
+              <div class="video-meta">
+                <span class="video-views">${formatViews(video.views)} views</span>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+    // ====== CONTEXT MENUS ======
+    function showContextMenu(event) {
+      event.preventDefault();
+      const menu = document.getElementById('contextMenu');
+     
+      // Show different menus based on what was clicked
+      if (event.target.closest('.video-card') || event.target.closest('.scatter-card')) {
+        // Video context menu handled elsewhere
+        return;
+      } else if (event.target.closest('#scatterCanvas')) {
+        showScatterContextMenu(event);
+      } else {
+        // Background context menu
+        menu.innerHTML = `
+          <div class="ctx-header">Actions</div>
+          <div class="ctx-item" onclick="openSearch()">🔍 Search Videos</div>
+          <div class="ctx-item" onclick="toggleKanban()">☰ Toggle Kanban</div>
+          <div class="ctx-item" onclick="switchView('grid')">🎬 Grid View</div>
+          <div class="ctx-item" onclick="switchView('scatter')">⭐ Scatter View</div>
+          <div class="ctx-item" onclick="switchView('list')">📋 List View</div>
+        `;
+      }
+     
+      menu.style.left = `${event.clientX}px`;
+      menu.style.top = `${event.clientY}px`;
+      menu.classList.add('active');
+    }
+    function showVideoContextMenu(event, videoId) {
+      event.preventDefault();
+      event.stopPropagation();
+     
+      const video = videos.find(v => v.id === videoId);
+      const menu = document.getElementById('contextMenu');
+     
+      menu.innerHTML = `
+        <div class="ctx-header">${video.channel.name}</div>
+        <div class="ctx-item" onclick="openVideoDetail(${videoId})">▶ Play Now</div>
+        <div class="ctx-item" onclick="toggleSave(${videoId})">${video.status === 'saved' ? '♥ Unsave' : '♡ Save Video'}</div>
+        <div class="ctx-item" onclick="shareVideo(${videoId})">↗ Share</div>
+        <div class="ctx-item text-blue" onclick="changeVideoStatus(${videoId}, 'in-progress')">⏯ Mark Watching</div>
+        <div class="ctx-item text-green" onclick="changeVideoStatus(${videoId}, 'completed')">✓ Mark Complete</div>
+        <div class="ctx-item text-red" onclick="removeVideo(${videoId})">🗑 Remove</div>
+      `;
+     
+      menu.style.left = `${event.clientX}px`;
+      menu.style.top = `${event.clientY}px`;
+      menu.classList.add('active');
+    }
+    function showScatterContextMenu(event) {
+      const menu = document.getElementById('contextMenu');
+     
+      menu.innerHTML = `
+        <div class="ctx-header">Canvas Actions</div>
+        <div class="ctx-item" onclick="collectNodes()">📦 Collect (Grid)</div>
+        <div class="ctx-item" onclick="cascadeNodes()">🎴 Cascade (Stack)</div>
+        <div class="ctx-item" onclick="sortScatterByStatus()">🏷 Sort by Status</div>
+        <div class="ctx-item" onclick="sortScatterByCategory()">📂 Sort by Category</div>
+        <div class="ctx-item" onclick="resetScatterView()">🔄 Reset View</div>
+      `;
+     
+      menu.style.left = `${event.clientX}px`;
+      menu.style.top = `${event.clientY}px`;
+      menu.classList.add('active');
+    }
+    // ====== VIDEO ACTIONS ======
+    function toggleSave(videoId) {
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+     
+      if (video.status === 'saved') {
+        video.status = 'unwatched';
+        video.collections = [];
+      } else {
+        video.status = 'saved';
+        video.collections = ['Watch Later'];
+      }
+     
+      renderCurrentView();
+      saveState();
+      showToast(video.status === 'saved' ? 'Video saved!' : 'Video unsaved');
+    }
+    function shareVideo(videoId) {
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+     
+      // Copy to clipboard simulation
+      const url = `https://youtube.com/watch?v=${videoId}`;
+      navigator.clipboard.writeText(url);
+      showToast('Link copied to clipboard!');
+    }
+    function changeVideoStatus(videoId, status) {
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+     
+      video.status = status;
+      renderCurrentView();
+      saveState();
+      showToast(`Status changed to ${status.replace('-', ' ')}`);
+    }
+    function removeVideo(videoId) {
+      if (confirm('Remove this video?')) {
+        videos = videos.filter(v => v.id !== videoId);
+        renderCurrentView();
+        saveState();
+        showToast('Video removed');
+      }
+    }
+    // ====== DRAG AND DROP ======
+    let isDragging = false;
+    let draggedCard = null;
+    let dragOffset = { x: 0, y: 0 };
+    function startDragging(e) {
+      if (e.target.closest('.video-card') || config.currentView !== 'scatter') return;
+     
+      isDragging = true;
+      draggedCard = e.currentTarget;
+      draggedCard.classList.add('is-dragging');
+     
+      const rect = draggedCard.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+     
+      draggedCard.style.zIndex = '2000';
+     
+      document.addEventListener('mousemove', drag);
+      document.addEventListener('mouseup', stopDragging);
+    }
+    function drag(e) {
+      if (!isDragging || !draggedCard) return;
+     
+      const canvas = document.getElementById('scatterCanvas');
+      const canvasRect = canvas.getBoundingClientRect();
+     
+      const x = (e.clientX - canvasRect.left - dragOffset.x) / (canvas.style.transform.match(/scale\(([\d.]+)\)/)?.[1] || 1);
+      const y = (e.clientY - canvasRect.top - dragOffset.y) / (canvas.style.transform.match(/scale\(([\d.]+)\)/)?.[1] || 1);
+     
+      draggedCard.style.left = `${x}px`;
+      draggedCard.style.top = `${y}px`;
+    }
+    function stopDragging() {
+      if (draggedCard) {
+        draggedCard.classList.remove('is-dragging');
+        draggedCard.style.zIndex = '';
+       
+        // Update video position
+        const videoId = parseInt(draggedCard.dataset.videoId);
+        const video = videos.find(v => v.id === videoId);
+        if (video) {
+          video.scatterPosition.x = parseFloat(draggedCard.style.left);
+          video.scatterPosition.y = parseFloat(draggedCard.style.top);
         }
-        createGrid();
-
-        const ringGeo = new THREE.RingGeometry(1.8, 2.2, 32); ringGeo.rotateX(-Math.PI/2);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0x39FF14, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
-        const selRing = new THREE.Mesh(ringGeo, ringMat); selRing.visible = false; sc.add(selRing);
-
-        class Cube {
-            constructor(x, y, z, sz = 1.5) {
-                this.sz = sz;
-                this.title = '';
-                this.desc = '';
-                this.status = this.getQuadFromPos(new THREE.Vector3(x, y, z));
-
-                const g = new THREE.BoxGeometry(sz, sz, sz);
-
-                const color = quadrantColors[this.status];
-                const baseMat = new THREE.MeshPhysicalMaterial({
-                    color: color,
-                    metalness: 1.0,
-                    roughness: 0.05,
-                    clearcoat: 1.0,
-                    clearcoatRoughness: 0.0,
-                    emissive: color,
-                    emissiveIntensity: 3.0,
-                    envMap: cRT.texture,
-                    envMapIntensity: 1.6
-                });
-
-                this.baseMat = baseMat;
-                this.oMat = Array(6).fill(this.baseMat);
-
-                this.m = new THREE.Mesh(g, this.oMat);
-                this.m.position.set(x, y, z);
-                this.m.castShadow = true;
-                this.m.receiveShadow = true;
-                this.m.userData.cube = this;
-
-                const ed = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: 0xffffff }));
-                ed.visible = false;
-                this.ed = ed;
-                this.m.add(ed);
-                sc.add(this.m);
-
-                const sh = new CANNON.Box(new CANNON.Vec3(sz / 2, sz / 2, sz / 2));
-                this.b = new CANNON.Body({ mass: 1, material: mat, type: CANNON.Body.DYNAMIC });
-                this.b.addShape(sh);
-                this.b.position.set(x, y, z);
-                this.b.linearDamping = 0.5;
-                this.b.angularDamping = 0.5;
-                world.addBody(this.b);
-            }
-            getQuadFromPos(p) {
-                const x = p.x, z = p.z;
-                if (x > 0 && z < 0) return 'todo';
-                if (x < 0 && z < 0) return 'inprogress';
-                if (x > 0 && z > 0) return 'completed';
-                return 'backlog';
-            }
-            updateColor() {
-                const color = quadrantColors[this.status];
-                this.baseMat.color.set(color);
-                this.baseMat.emissive.set(color);
-            }
-            updateTextSprite() {
-                if (this.textSprite) this.m.remove(this.textSprite);
-                if (!this.title) return;
-                const canvas = document.createElement('canvas');
-                canvas.width = 256;
-                canvas.height = 128;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 32px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(this.title, 128, 64);
-                const map = new THREE.CanvasTexture(canvas);
-                const spriteMat = new THREE.SpriteMaterial({map});
-                this.textSprite = new THREE.Sprite(spriteMat);
-                this.textSprite.scale.set(4,2,1);
-                this.textSprite.position.set(0, this.sz/2 + 1, 0);
-                this.m.add(this.textSprite);
-            }
-            sel() {
-                this.ed.visible = true;
-                tm.sel = this;
-                this.upd();
-            }
-            desel() {
-                this.ed.visible = false;
-                if (tm.sel === this) { tm.sel = null; document.getElementById('info').classList.remove('active'); }
-            }
-            hov() {
-                this.baseMat.emissiveIntensity = 3.0 * 1.5;
-            }
-            unhov() {
-                this.baseMat.emissiveIntensity = 3.0;
-            }
-            upd() {
-                const pn = document.getElementById('info');
-                pn.classList.add('active');
-                document.getElementById('iText').textContent = this.title || '-';
-                document.getElementById('iDesc').textContent = this.desc || '-';
-                document.getElementById('iPos').textContent = `${this.b.position.x.toFixed(1)},${this.b.position.y.toFixed(1)},${this.b.position.z.toFixed(1)}`;
-                document.getElementById('iState').textContent = quadrantNames[this.status];
-            }
-            tick() {
-                this.m.position.copy(this.b.position);
-                this.m.quaternion.copy(this.b.quaternion);
-                const newStatus = this.getQuadFromPos(this.b.position);
-                if (newStatus !== this.status) {
-                    this.status = newStatus;
-                    this.updateColor();
-                }
-            }
-            rm() {
-                sc.remove(this.m);
-                world.removeBody(this.b);
-                const i = tm.cubes.indexOf(this);
-                if (i > -1) tm.cubes.splice(i, 1);
-            }
+      }
+     
+      isDragging = false;
+      draggedCard = null;
+      document.removeEventListener('mousemove', drag);
+      document.removeEventListener('mouseup', stopDragging);
+     
+      saveState();
+    }
+    // ====== SCATTER ACTIONS ======
+    function collectNodes() {
+      const canvas = document.getElementById('scatterCanvas');
+      const cards = canvas.querySelectorAll('.scatter-card');
+     
+      cards.forEach((card, index) => {
+        const row = Math.floor(index / 5);
+        const col = index % 5;
+        card.style.left = `${50 + col * 220}px`;
+        card.style.top = `${100 + row * 200}px`;
+       
+        const videoId = parseInt(card.dataset.videoId);
+        const video = videos.find(v => v.id === videoId);
+        if (video) {
+          video.scatterPosition = { x: 50 + col * 220, y: 100 + row * 200 };
         }
-
-        const saved = localStorage.getItem('punt-tasks');
-        if (saved) {
-            const data = JSON.parse(saved);
-            data.forEach(d => {
-                const c = new Cube(d.pos.x, d.pos.y, d.pos.z);
-                c.title = d.title;
-                c.desc = d.desc;
-                c.updateTextSprite();
-                c.b.quaternion.set(d.quat.x, d.quat.y, d.quat.z, d.quat.w);
-                tm.cubes.push(c);
-            });
-        } else {
-            for (let i = 0; i < 12; i++) {
-                const quadKeys = Object.keys(quadrantCenters);
-                const randomQuad = quadKeys[Math.floor(Math.random() * quadKeys.length)];
-                const center = quadrantCenters[randomQuad];
-                const c = new Cube(center.x + (Math.random() - 0.5) * 10, Math.random() * 4 + 1, center.z + (Math.random() - 0.5) * 10);
-                c.title = `Task ${i+1}`;
-                c.desc = `Description for task ${i+1}`;
-                c.updateTextSprite();
-                tm.cubes.push(c);
-            }
+      });
+     
+      saveState();
+      showToast('Videos collected in grid');
+    }
+    function cascadeNodes() {
+      const canvas = document.getElementById('scatterCanvas');
+      const cards = canvas.querySelectorAll('.scatter-card');
+     
+      cards.forEach((card, index) => {
+        card.style.left = `${100 + index * 10}px`;
+        card.style.top = `${100 + index * 10}px`;
+       
+        const videoId = parseInt(card.dataset.videoId);
+        const video = videos.find(v => v.id === videoId);
+        if (video) {
+          video.scatterPosition = { x: 100 + index * 10, y: 100 + index * 10 };
         }
-
-        const rc = new THREE.Raycaster(), ms = new THREE.Vector2(), intersect = new THREE.Vector3();
-        function upMs(e) { ms.x = (e.clientX / innerWidth) * 2 - 1; ms.y = -(e.clientY / innerHeight) * 2 + 1; }
-        function getC() { rc.setFromCamera(ms, cam); const in_ = rc.intersectObjects(tm.cubes.map(c => c.m)); return in_.length > 0 ? in_[0].object.userData.cube : null; }
-        function getG(e) {
-            upMs(e);
-            rc.setFromCamera(ms, cam);
-            const planeY = tm.drag ? tm.drag.b.position.y : 0;
-            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY);
-            if (rc.ray.intersectPlane(plane, intersect)) return intersect;
-            return null;
+      });
+     
+      saveState();
+      showToast('Videos cascaded');
+    }
+    function sortScatterByStatus() {
+      const canvas = document.getElementById('scatterCanvas');
+      const cards = Array.from(canvas.querySelectorAll('.scatter-card'));
+     
+      cards.sort((a, b) => {
+        const videoA = videos.find(v => v.id === parseInt(a.dataset.videoId));
+        const videoB = videos.find(v => v.id === parseInt(b.dataset.videoId));
+        return videoA.status.localeCompare(videoB.status);
+      });
+     
+      cards.forEach((card, index) => {
+        const row = Math.floor(index / 5);
+        const col = index % 5;
+        card.style.left = `${50 + col * 220}px`;
+        card.style.top = `${100 + row * 200}px`;
+       
+        const videoId = parseInt(card.dataset.videoId);
+        const video = videos.find(v => v.id === videoId);
+        if (video) {
+          video.scatterPosition = { x: 50 + col * 220, y: 100 + row * 200 };
         }
-
-        addEventListener('wheel', e => {
-            e.preventDefault();
-            if (e.shiftKey) {
-                cam.fov += e.deltaY * 0.05;
-                cam.fov = Math.max(10, Math.min(120, cam.fov));
-                cam.updateProjectionMatrix();
-            } else {
-                distanceScale += e.deltaY * 0.001;
-                distanceScale = Math.max(0.2, Math.min(10, distanceScale));
-            }
-        });
-
-        addEventListener('mousemove', e => {
-            upMs(e);
-            const hc = getC();
-            if (hc !== tm.hov) { 
-                if (tm.hov) tm.hov.unhov(); 
-                tm.hov = hc; 
-                if (hc) hc.hov(); 
-            }
-            const crosshair = document.getElementById('crosshair');
-            crosshair.style.left = e.clientX + 'px';
-            crosshair.style.top = e.clientY + 'px';
-            if (hc) {
-                crosshair.classList.add('active');
-                const tooltip = document.getElementById('tooltip');
-                tooltip.style.display = 'block';
-                tooltip.style.left = e.clientX + 10 + 'px';
-                tooltip.style.top = e.clientY + 10 + 'px';
-                tooltip.innerHTML = `<b>${hc.title || 'Untitled'}</b><br>${hc.desc || 'No description'}`;
-            } else {
-                crosshair.classList.remove('active');
-                document.getElementById('tooltip').style.display = 'none';
-            }
-            if (tm.drag && e.buttons & 1) {
-                const gp = getG(e);
-                if (gp) {
-                    tm.drag.b.position.copy(gp);
-                }
-                const trashEl = document.getElementById('trash');
-                const overEl = document.elementFromPoint(e.clientX, e.clientY);
-                if (overEl && overEl.id === 'trash') {
-                    trashEl.classList.add('active');
-                } else {
-                    trashEl.classList.remove('active');
-                }
-            } else if (isPanning && e.buttons & 1) {
-                const gp = getG(e);
-                if (gp && panStartIntersect) {
-                    const delta = new THREE.Vector3().subVectors(gp, panStartIntersect);
-                    rig.tPiv.sub(delta);
-                    panStartIntersect.copy(gp);
-                }
-            }
-        });
-
-        addEventListener('mousedown', e => {
-            upMs(e);
-            const c = getC();
-            if (c) {
-                if (tm.sel && tm.sel !== c) tm.sel.desel();
-                c.sel();
-                tm.drag = c;
-                c.originalY = c.b.position.y;
-                c.b.type = CANNON.Body.KINEMATIC;
-                gsap.to(c.b.position, { y: c.originalY + 3, duration: 0.2, ease: "power2.out" });
-            } else {
-                const gp = getG(e);
-                if (gp) {
-                    isPanning = true;
-                    panStartIntersect = gp.clone();
-                } else {
-                    if (tm.sel) tm.sel.desel();
-                }
-            }
-        });
-
-        addEventListener('mouseup', e => {
-            if (tm.drag) {
-                const c = tm.drag;
-                gsap.to(c.b.position, { y: c.originalY, duration: 0.3, ease: "power1.in", onComplete: () => {
-                    c.b.type = CANNON.Body.DYNAMIC;
-                } });
-                const trashEl = document.getElementById('trash');
-                if (trashEl.classList.contains('active')) {
-                    c.rm();
-                    trashEl.classList.remove('active');
-                }
-            }
-            tm.drag = null;
-            isPanning = false;
-            panStartIntersect = null;
-        });
-
-        addEventListener('contextmenu', e => { 
-            e.preventDefault(); 
-            upMs(e); 
-            const c = getC(); 
-            if (c) { 
-                const m = document.getElementById('ctx'); 
-                m.style.left = e.clientX + 'px'; 
-                m.style.top = e.clientY + 'px'; 
-                m.classList.add('active'); 
-                tm.sel = c; 
-            } 
-        });
-        addEventListener('click', () => { document.getElementById('ctx').classList.remove('active'); });
-
-        document.querySelectorAll('.ctx-item').forEach(it => {
-            it.addEventListener('click', e => {
-                e.stopPropagation();
-                const a = it.dataset.a, c = tm.sel;
-                if (!c) return;
-                switch (a) {
-                    case 'clone':
-                        const cl = new Cube(c.b.position.x + 2, c.b.position.y, c.b.position.z, c.sz);
-                        cl.title = c.title;
-                        cl.desc = c.desc;
-                        cl.updateTextSprite();
-                        tm.cubes.push(cl);
-                        break;
-                    case 'edit':
-                        const title = prompt('Edit Title', c.title);
-                        const desc = prompt('Edit Description', c.desc);
-                        if (title !== null) {
-                            c.title = title;
-                            c.desc = desc || '';
-                            c.updateTextSprite();
-                        }
-                        break;
-                    case 'del': 
-                        c.rm(); 
-                        tm.sel = null; 
-                        document.getElementById('info').classList.remove('active'); 
-                        break;
-                }
-            });
-        });
-
-        addEventListener('dblclick', e => {
-            upMs(e);
-            const c = getC();
-            if (c) {
-                const title = prompt('Edit Title', c.title);
-                const desc = prompt('Edit Description', c.desc);
-                if (title !== null) {
-                    c.title = title;
-                    c.desc = desc || '';
-                    c.updateTextSprite();
-                }
-            }
-        });
-
-        const k = {};
-        addEventListener('keydown', e => {
-            k[e.key] = true;
-            if (e.key === 'Shift') { rig.mode = 'eye'; document.getElementById('mode').classList.add('active'); }
-            if (e.key === ' ') { 
-                e.preventDefault(); 
-                const title = prompt('Task Title');
-                if (title) {
-                    const desc = prompt('Task Description');
-                    const c = new Cube(rig.piv.x, 2, rig.piv.z);
-                    c.title = title;
-                    c.desc = desc || '';
-                    c.updateTextSprite();
-                    tm.cubes.push(c);
-                }
-            }
-        });
-        addEventListener('keyup', e => { k[e.key] = false; if (e.key === 'Shift') { rig.mode = 'std'; document.getElementById('mode').classList.remove('active'); } });
-
-        setInterval(() => {
-            const s = 0.8;
-            if (k.ArrowUp) rig.tPiv.z -= s;
-            if (k.ArrowDown) rig.tPiv.z += s;
-            if (k.ArrowLeft) rig.tPiv.x -= s;
-            if (k.ArrowRight) rig.tPiv.x += s;
-        }, 16);
-
-        document.querySelectorAll('[data-p]').forEach(b => {
-            b.addEventListener('click', () => {
-                document.querySelectorAll('[data-p]').forEach(x => x.classList.remove('active'));
-                b.classList.add('active');
-                rig.preset = b.dataset.p;
-            });
-        });
-
-        document.querySelectorAll('[data-zoom]').forEach(b => {
-            b.addEventListener('click', () => {
-                const z = b.dataset.zoom;
-                if (z === 'up') distanceScale -= 0.2;
-                else if (z === 'down') distanceScale += 0.2;
-                else if (z === 'micro') distanceScale = 0.2;
-                else if (z === 'macro') distanceScale = 10;
-                distanceScale = Math.max(0.2, Math.min(10, distanceScale));
-            });
-        });
-
-        document.querySelectorAll('.quad-icon').forEach(b => {
-            b.addEventListener('click', () => {
-                const quad = b.dataset.quad;
-                rig.tPiv.copy(quadrantCenters[quad]);
-            });
-        });
-
-        document.getElementById('search').addEventListener('input', e => {
-            const val = e.target.value.toLowerCase();
-            tm.cubes.forEach(c => {
-                const show = !val || c.title.toLowerCase().includes(val);
-                c.m.visible = show;
-                if (c.textSprite) c.textSprite.visible = show;
-            });
-        });
-
-        addEventListener('beforeunload', () => {
-            const data = tm.cubes.map(c => ({
-                title: c.title,
-                desc: c.desc,
-                pos: { x: c.b.position.x, y: c.b.position.y, z: c.b.position.z },
-                quat: { x: c.b.quaternion.x, y: c.b.quaternion.y, z: c.b.quaternion.z, w: c.b.quaternion.w }
-            }));
-            localStorage.setItem('punt-tasks', JSON.stringify(data));
-        });
-
-        const joy = { el: document.getElementById('joy-cube'), zone: document.getElementById('joystick'), active: false, start: {x:0, y:0} };
-
-        function handleJoy(x, y) {
-            const max = 40;
-            let dx = x - joy.start.x, dy = y - joy.start.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > max) { const r = max/dist; dx*=r; dy*=r; }
-
-            joy.el.style.transform = `rotateX(${-25 + (dy/max*45)}deg) rotateY(${-45 + (dx/max*45)}deg)`;
-            
-            const speed = 0.8;
-            rig.tPiv.z += dy / max * speed;
-            rig.tPiv.x += dx / max * speed;
+      });
+     
+      saveState();
+      showToast('Sorted by status');
+    }
+    function sortScatterByCategory() {
+      const canvas = document.getElementById('scatterCanvas');
+      const cards = Array.from(canvas.querySelectorAll('.scatter-card'));
+     
+      cards.sort((a, b) => {
+        const videoA = videos.find(v => v.id === parseInt(a.dataset.videoId));
+        const videoB = videos.find(v => v.id === parseInt(b.dataset.videoId));
+        return videoA.category.localeCompare(videoB.category);
+      });
+     
+      cards.forEach((card, index) => {
+        const row = Math.floor(index / 5);
+        const col = index % 5;
+        card.style.left = `${50 + col * 220}px`;
+        card.style.top = `${100 + row * 200}px`;
+       
+        const videoId = parseInt(card.dataset.videoId);
+        const video = videos.find(v => v.id === videoId);
+        if (video) {
+          video.scatterPosition = { x: 50 + col * 220, y: 100 + row * 200 };
         }
-
-        function startJoy(x, y) {
-            joy.active = true; joy.start = {x, y};
-            joy.el.style.transition = 'none';
-            document.body.classList.add('fab-active'); 
-        }
-
-        function endJoy() {
-            joy.active = false;
-            joy.el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-            joy.el.style.transform = `rotateX(-25deg) rotateY(-45deg)`;
-            document.body.classList.remove('fab-active');
-        }
-
-        joy.zone.addEventListener('mousedown', e => { startJoy(e.clientX, e.clientY); e.stopPropagation(); });
-        joy.zone.addEventListener('touchstart', e => { startJoy(e.touches[0].clientX, e.touches[0].clientY); e.stopPropagation(); });
-        
-        addEventListener('mousemove', e => { if(joy.active) handleJoy(e.clientX, e.clientY); });
-        addEventListener('touchmove', e => { if(joy.active && e.touches.length === 1) handleJoy(e.touches[0].clientX, e.touches[0].clientY); });
-        
-        addEventListener('mouseup', endJoy);
-        addEventListener('touchend', endJoy);
-
-        let lt = 0;
-        const coordD = document.getElementById('coord-display');
-        function anim() {
-            requestAnimationFrame(anim);
-            const ct = performance.now() / 1000, dt = Math.min(ct - lt, 0.1); lt = ct;
-
-            world.step(1 / 60, dt, 10);
-            tm.cubes.forEach(c => c.tick());
-
-            rig.piv.lerp(rig.tPiv, 0.1);
-
-            const p = CFG.preset[rig.preset];
-
-            if (rig.mode === 'eye') {
-                const height = CFG.cam.eye.y * distanceScale;
-                cam.position.lerp(new THREE.Vector3(rig.piv.x, height, rig.piv.z), 0.1);
-                cam.lookAt(rig.piv);
-            } else {
-                const offset = p.o.clone().multiplyScalar(distanceScale);
-                const tp = new THREE.Vector3().copy(rig.piv).add(offset);
-                cam.position.lerp(tp, 0.1);
-                cam.rotation.x += (p.r.x - cam.rotation.x) * 0.1;
-                cam.rotation.y += (p.r.y - cam.rotation.y) * 0.1;
-                cam.rotation.z += (p.r.z - cam.rotation.z) * 0.1;
-            }
-
-            cCam.update(rend, sc);
-
-            if (tm.sel && (rig.preset === 'top' || rig.preset === 'side')) {
-                selRing.visible = true;
-                selRing.position.copy(tm.sel.m.position);
-                selRing.position.y = -3.99;
-                const s = 1 + Math.sin(ct * 2) * 0.1;
-                selRing.scale.set(s, 1, s);
-            } else {
-                selRing.visible = false;
-            }
-
-            coordD.textContent = `X:${rig.piv.x.toFixed(1)} Y:${rig.piv.y.toFixed(1)} Z:${rig.piv.z.toFixed(1)}`;
-
-            rend.render(sc, cam);
-        }
-
-        addEventListener('resize', () => { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); rend.setSize(innerWidth, innerHeight); });
-        anim();
-    </script>
-</body>
-</html>
+      });
+     
+      saveState();
+      showToast('Sorted by category');
+    }
+    function resetScatterView() {
+      videos.forEach(video => {
+        video
