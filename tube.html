@@ -1148,7 +1148,7 @@ body::after {
   gap: 8px;
   font-size: 11px;
   color: var(--ink-dim);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .list-item-actions {
@@ -1480,7 +1480,6 @@ body::after {
   transform: scale(1.1);
 }
 
-
 .search-input-container {
   padding: 20px;
   background: var(--glass-bg);
@@ -1693,7 +1692,7 @@ body::after {
 .filter-pills {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .filter-pill {
@@ -1916,7 +1915,7 @@ body::after {
   cursor: pointer; 
 }
 
-.sort-bar { display: flex; gap: 8px; padding: 10px; flex-wrap: wrap; }
+.sort-bar { display: flex; gap: 8px; padding: 10px; flex-wrap: nowrap; }
 
 .joystick-container {
   position: fixed;
@@ -2016,8 +2015,7 @@ body::after {
     height: 28px;
     font-size: 12px;
   }
-  
-
+}
 
 /* ====== MOBILE RESPONSIVE DESIGN ====== */
 @media (max-width: 768px) {
@@ -2268,7 +2266,7 @@ body::after {
   
   .category-bar {
     height: 75px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-start;
     overflow-y: auto;
     overflow-x: hidden;
@@ -2378,6 +2376,10 @@ body::after {
             <div class="logo-text"> <strong>NewTube</strong></div>
           </div>
         </div>
+        <!-- Mobile Search Button -->
+        <button class="mobile-search-btn" onclick="toggleSearchOverlay()" aria-label="Search">
+          🔍
+        </button>
       </div>
     
       <div class="header-center">
@@ -2714,7 +2716,7 @@ body::after {
         <button class="nav-btn active" data-mode="feed" onclick="switchMode('feed')">🏠</button>
         <button class="nav-btn" data-mode="list" onclick="switchMode('list')">📋</button>
   
-        <button class="nav-btn" data-mode="columns" onclick="switchMode('columns')">散</button>
+        <button class="nav-btn" data-mode="columns" onclick="switchMode('columns')">🎞️</button>
         <button class="nav-btn scatter-pocket" data-mode="scatter" onclick="openScatterView()">
           🕸
           <span class="pocket-badge" id="scatterBadge" style="display: none;">0</span>
@@ -2745,7 +2747,6 @@ body::after {
           currentTheme: 'dark',
           searchQuery: '',
           kanbanViewMode: 'columns' // 'columns' or 'rows'
-          // REMOVED: gridViewMode - grid will always be grid, list is separate view
       };
       let videos = [];
       let collections = [];
@@ -2753,7 +2754,6 @@ body::after {
       let currentVideo = null;
       let scatterZoom = 1;
       let isMobile = false;
-      // FIXED: Renamed to avoid conflicts
       let globalTouchStartX = 0;
       let globalTouchStartY = 0;
       let isDragging = false;
@@ -2766,7 +2766,7 @@ body::after {
       let videoOverlayMode = 'side-panel';
       let resizeTimeout;
       
-      // Column scrolling variables - FIXED: Renamed with 'column' prefix
+      // Column scrolling variables
       let columnTouchStartY = 0;
       let columnTouchScrollElement = null;
       
@@ -3048,9 +3048,9 @@ body::after {
               }
           ];
       }
-      
 
-    // ====== INITIALIZATION ======
+
+          // ====== INITIALIZATION ======
     function init() {
         detectMobile();
         videos = generateMockVideos();
@@ -3228,7 +3228,7 @@ body::after {
         return filtered;
     }
 
-    // ====== GRID VIEW (FEED) - REVERTED TO ORIGINAL ======
+    // ====== GRID VIEW (FEED) ======
     function renderGridView() {
         const wrapper = document.getElementById('gridWrapper');
         if (!wrapper) return;
@@ -3355,8 +3355,35 @@ body::after {
         `).join('');
     }
     
-    // ====== KANBAN/COLUMN VIEW ======
-    function renderColumnsView() {
+    function sortListView(sortBy) {
+        switch(sortBy) {
+            case 'title':
+                videos.sort((a, b) => a.title.localeCompare(b.title));
+                break;
+            case 'date':
+                videos.sort((a, b) => b.uploadDate - a.uploadDate);
+                break;
+            case 'views':
+                videos.sort((a, b) => b.views - a.views);
+                break;
+            case 'duration':
+                videos.sort((a, b) => b.duration - a.duration);
+                break;
+        }
+        
+        loadListViewItems();
+        showToast(`Sorted by ${sortBy}`);
+    }
+    
+    function loadMoreListItems() {
+        showToast('Loading more videos...', 'info');
+        setTimeout(() => {
+            showToast('More videos loaded!', 'success');
+        }, 1000);
+    }
+
+        // ====== KANBAN/COLUMN VIEW ======
+        function renderColumnsView() {
         const columnsContainer = document.getElementById('columnsContainer');
         
         // Add toggle button for columns/rows
@@ -3728,7 +3755,6 @@ body::after {
     }
     
     function startColumnTouchScroll(e) {
-        // FIXED: Use renamed column-specific variables
         columnTouchStartY = e.touches[0].clientY;
         columnTouchScrollElement = e.currentTarget;
     }
@@ -4005,6 +4031,7 @@ body::after {
         panel.classList.add('active');
     }
 
+
     function closeDetailPanel() {
         document.getElementById('detailPanel').classList.remove('active');
         currentVideo = null;
@@ -4058,6 +4085,8 @@ body::after {
         }
     }
     
+   
+
     function closeSearchOverlay() {
         const overlay = document.getElementById('searchOverlay');
         overlay.classList.remove('active');
