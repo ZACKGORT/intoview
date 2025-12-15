@@ -1461,7 +1461,7 @@ body::after {
   position: fixed; 
   top: 0;
   right: -100%;
-  width: 575px;
+  width: 768px;
   height: 100vh;
   padding: 0 2em 0 2.5em;
   background: var(--card-bg);
@@ -2512,10 +2512,10 @@ body::after {
       </div>
       <!-- Scatter Controls - Right Rail -->
       <div class="scatter-controls" id="scatterControls">
-        <button class="theme-btn" onclick="arrangeAsGrid()" title="Arrange as Grid">
+        <button class="theme-btn" onclick="collectNodes()" title="Arrange as Grid">
           ⏹
         </button>
-        <button class="theme-btn" onclick="arrangeAsCascade()" title="Arrange as Cascade">
+        <button class="theme-btn" onclick="cascadeNodes()" title="Arrange as Cascade">
           🎴
         </button>
         <div style="height: 1px; background: var(--glass-border); margin: 8px 0;"></div>
@@ -2807,7 +2807,12 @@ body::after {
           let collections = [];
           let scatterCollections = [];
           let currentVideo = null;
-          let scatterZoom = 1;
+          let scatter = {
+  transform: { x: 0, y: 0, scale: 1 },
+  panning: false,
+  dragging: false,
+  pinchStart: 0
+};
           let isMobile = false;
           let globalTouchStartX = 0;
           let globalTouchStartY = 0;
@@ -3220,6 +3225,9 @@ body::after {
         if (isMobile) {
             setupMobileTouchListeners();
         }
+        
+        // Scatter canvas pan and zoom setup
+        setupScatterCanvas();
     }
     
     function handleResize() {
@@ -4023,10 +4031,12 @@ body::after {
     
     // ====== SCATTER VIEW ======
     function renderScatterView() {
+        renderScatter(filterVideos());
+    }
+    
+    function renderScatter(filtered) {
         const canvas = document.getElementById('scatterCanvas');
         if (!canvas) return;
-        
-        const filtered = filterVideos();
         
         canvas.innerHTML = '';
         
@@ -4035,7 +4045,20 @@ body::after {
             canvas.appendChild(card);
         });
         
-        canvas.style.transform = `scale(${scatterZoom})`;
+        // Apply filtering dimming
+        const allCards = canvas.querySelectorAll('.scatter-card');
+        const allVideos = [...videos];
+        
+        allCards.forEach(card => {
+            const videoId = card.dataset.videoId;
+            if (filtered.some(v => v.id === videoId)) {
+                card.classList.remove('dimmed');
+            } else {
+                card.classList.add('dimmed');
+            }
+        });
+        
+        applyScatterTransform();
     }
     
     function createScatterCard(video) {
@@ -4054,7 +4077,7 @@ body::after {
             <div class="video-duration" style="font-size: 11px; font-family: var(--font-mono); color: var(--ink-dim);">${formatDuration(video.duration)}</div>
         `;
         
-        card.addEventListener('mousedown', startDragging);
+        card.addEventListener('pointerdown', (e) => startDrag(e, card));
         card.addEventListener('dblclick', () => openVideoDetail(video.id));
         card.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -4103,7 +4126,7 @@ body::after {
     }
     
     // ====== SCATTER ARRANGEMENTS ======
-    function arrangeAsGrid() {
+    function collectNodes() {
         const canvas = document.getElementById('scatterCanvas');
         const cards = canvas.querySelectorAll('.scatter-card');
         const viewportWidth = canvas.clientWidth;
@@ -4145,7 +4168,7 @@ body::after {
         showToast('Arranged as grid');
     }
     
-    function arrangeAsCascade() {
+    function cascadeNodes() {
         const canvas = document.getElementById('scatterCanvas');
         const cards = canvas.querySelectorAll('.scatter-card');
         const viewportWidth = canvas.clientWidth;
@@ -4183,21 +4206,36 @@ body::after {
         showToast('Arranged as cascade');
     }
     
-    function zoom(factor) {
-        scatterZoom = Math.max(0.2, Math.min(3, scatterZoom + factor));
+    function applyScatterTransform() {
         const canvas = document.getElementById('scatterCanvas');
         if (canvas) {
-            canvas.style.transform = `scale(${scatterZoom})`;
-            showToast(`Zoom: ${Math.round(scatterZoom * 100)}%`);
+            canvas.style.transform = `translate(${scatter.transform.x}px, ${scatter.transform.y}px) scale(${scatter.transform.scale})`;
         }
+    }
+
+    function zoom(delta, cx, cy) {
+        const newScale = Math.max(0.25, Math.min(3, scatter.transform.scale + delta));
+        if (newScale === scatter.transform.scale) return;
+        const rect = canvas.getBoundingClientRect();
+        const zx = (cx !== null ? cx : rect.width/2) - rect.left;
+        const zy = (cy !== null ? cy : rect.height/2) - rect.top;
+        const ratio = newScale / scatter.transform.scale;
+        scatter.transform.x = zx - (zx - scatter.transform.x) * ratio;
+        scatter.transform.y = zy - (zy - scatter.transform.y) * ratio;
+        scatter.transform.scale = newScale;
+        applyScatterTransform();
+        saveState();
+    }
+
+    function zoom(factor) {
+        zoom(factor, window.innerWidth/2, window.innerHeight/2);
+        showToast(`Zoom: ${Math.round(scatter.transform.scale * 100)}%`);
     }
     
     function resetView() {
-        scatterZoom = 1;
-        const canvas = document.getElementById('scatterCanvas');
-        if (canvas) {
-            canvas.style.transform = 'scale(1)';
-        }
+        scatter.transform = { x: 0, y: 0, scale: 1 };
+        applyScatterTransform();
+        saveState();
         showToast('View reset');
     }
     
@@ -4489,94 +4527,196 @@ body::after {
     }
 
         // ====== DRAG AND DROP ======
-        function startDragging(e) {
-        if (config.currentView !== 'scatter') return;
-        
-        isDragging = true;
-        draggedCard = e.currentTarget;
-        draggedCard.classList.add('is-dragging');
-        
-        const rect = draggedCard.getBoundingClientRect();
-        dragOffset.x = e.clientX - rect.left;
-        dragOffset.y = e.clientY - rect.top;
-        
-        draggedCard.style.zIndex = '2000';
-        
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDragging);
-    }
+        function startDrag(e, card) {
+            if (config.currentView !== 'scatter') return;
+            
+            scatter.dragging = true;
+            draggedCard = card;
+            draggedCard.classList.add('is-dragging');
+            
+            // Use pointer events for unified handling
+            card.setPointerCapture(e.pointerId);
+            
+            const rect = card.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            const invScale = 1 / scatter.transform.scale;
+            
+            dragOffset.x = ((e.clientX - rect.left) * invScale);
+            dragOffset.y = ((e.clientY - rect.top) * invScale);
+            
+            card.style.zIndex = '2000';
+            
+            card.addEventListener('pointermove', drag);
+            card.addEventListener('pointerup', stopDragging);
+            card.addEventListener('pointercancel', stopDragging);
+        }
     
-    function startTouchDragging(e, card) {
-        if (config.currentView !== 'scatter') return;
-        
-        isDragging = true;
-        draggedCard = card;
-        draggedCard.classList.add('is-dragging');
-        
-        const touch = e.touches[0];
-        const rect = draggedCard.getBoundingClientRect();
-        dragOffset.x = touch.clientX - rect.left;
-        dragOffset.y = touch.clientY - rect.top;
-        
-        draggedCard.style.zIndex = '2000';
-        
-        document.addEventListener('touchmove', touchDrag, { passive: false });
-        document.addEventListener('touchend', stopDragging, { passive: true });
-    }
+    
     
     function drag(e) {
-        if (!isDragging || !draggedCard) return;
+        if (!scatter.dragging || !draggedCard) return;
         
         const canvas = document.getElementById('scatterCanvas');
         const canvasRect = canvas.getBoundingClientRect();
+        const invScale = 1 / scatter.transform.scale;
         
-        const x = (e.clientX - canvasRect.left - dragOffset.x) / scatterZoom;
-        const y = (e.clientY - canvasRect.top - dragOffset.y) / scatterZoom;
+        // Scale-aware positioning with grid snapping
+        let x = ((e.clientX - canvasRect.left - dragOffset.x) * invScale);
+        let y = ((e.clientY - canvasRect.top - dragOffset.y) * invScale);
+        
+        // Grid snapping (20px increments)
+        x = Math.round(x / 20) * 20;
+        y = Math.round(y / 20) * 20;
         
         draggedCard.style.left = `${x}px`;
         draggedCard.style.top = `${y}px`;
     }
     
-    function touchDrag(e) {
-        if (!isDragging || !draggedCard) return;
-        
-        e.preventDefault();
-        
-        const canvas = document.getElementById('scatterCanvas');
-        const canvasRect = canvas.getBoundingClientRect();
-        const touch = e.touches[0];
-        
-        const x = (touch.clientX - canvasRect.left - dragOffset.x) / scatterZoom;
-        const y = (touch.clientY - canvasRect.top - dragOffset.y) / scatterZoom;
-        
-        draggedCard.style.left = `${x}px`;
-        draggedCard.style.top = `${y}px`;
-    }
-    
-    function stopDragging() {
+    function stopDragging(e) {
         if (draggedCard) {
             draggedCard.classList.remove('is-dragging');
             draggedCard.style.zIndex = '';
             
-            const videoId = parseInt(draggedCard.dataset.videoId);
+            // Save position to video data
+            const videoId = draggedCard.dataset.videoId;
             const video = videos.find(v => v.id === videoId);
             if (video) {
                 video.scatterPosition.x = parseFloat(draggedCard.style.left);
                 video.scatterPosition.y = parseFloat(draggedCard.style.top);
             }
+            
+            // Clean up event listeners
+            draggedCard.removeEventListener('pointermove', drag);
+            draggedCard.removeEventListener('pointerup', stopDragging);
+            draggedCard.removeEventListener('pointercancel', stopDragging);
         }
         
-        isDragging = false;
+        scatter.dragging = false;
         draggedCard = null;
-        
-        document.removeEventListener('mousemove', drag);
-        document.removeEventListener('mouseup', stopDragging);
-        document.removeEventListener('touchmove', touchDrag);
-        document.removeEventListener('touchend', stopDragging);
         
         saveState();
     }
     
+
+    // ====== LAYOUT FUNCTIONS ======
+    function collectNodes() {
+        const filtered = getFilteredVideos();
+        const cardW = 220;
+        const cardH = 140;
+        const pad = 20;
+        const viewportW = window.innerWidth;
+        const cols = Math.max(1, Math.floor(viewportW / (cardW + pad)));
+        let x = pad;
+        let y = pad;
+        
+        filtered.forEach((video, i) => {
+            video.scatterPosition = { x, y };
+            
+            x += cardW + pad;
+            if (x + cardW > viewportW) {
+                x = pad;
+                y += cardH + pad;
+            }
+        });
+        
+        fitToBounds(filtered);
+        renderScatter(filtered);
+        saveState();
+        showToast("Videos collected to grid");
+    }
+
+    function cascadeNodes() {
+        const filtered = getFilteredVideos();
+        
+        // Sort videos by date (newest first)
+        filtered.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+        
+        const cardW = 220;
+        const cardH = 140;
+        const pad = 20;
+        const stackOffsetY = window.innerWidth < 600 ? 30 : 40;
+        const groupWidth = cardW + pad * 2;
+        const viewportW = window.innerWidth - pad * 2;
+        const maxCols = Math.floor(viewportW / groupWidth);
+        const effectiveMaxCols = Math.max(1, Math.min(maxCols, 2));
+        
+        let x = pad;
+        let y = pad;
+        let col = 0;
+        
+        filtered.forEach((video, i) => {
+            video.scatterPosition = { 
+                x: x + (i % effectiveMaxCols) * 15, // Slight offset for visual effect
+                y: y + (i % effectiveMaxCols) * stackOffsetY
+            };
+            
+            if ((i + 1) % effectiveMaxCols === 0) {
+                col++;
+                x = pad + col * groupWidth;
+                y = pad;
+            } else {
+                y += stackOffsetY;
+            }
+        });
+        
+        fitToBounds(filtered);
+        renderScatter(filtered);
+        saveState();
+        showToast("Videos cascaded by date");
+    }
+
+    function fitToBounds(filtered) {
+        if (filtered.length === 0) return;
+
+        const cardW = 220;
+        const cardH = 140;
+        const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+
+        filtered.forEach(video => {
+            bounds.minX = Math.min(bounds.minX, video.scatterPosition.x);
+            bounds.minY = Math.min(bounds.minY, video.scatterPosition.y);
+            bounds.maxX = Math.max(bounds.maxX, video.scatterPosition.x + cardW);
+            bounds.maxY = Math.max(bounds.maxY, video.scatterPosition.y + cardH);
+        });
+
+        const contentW = bounds.maxX - bounds.minX;
+        const contentH = bounds.maxY - bounds.minY;
+
+        const vpW = window.innerWidth;
+        const vpH = window.innerHeight - 180; // Account for header and nav
+
+        const scaleX = vpW / contentW;
+        const scaleY = vpH / contentH;
+        const newScale = Math.min(scaleX, scaleY, 1) * 0.95; // Max scale 1, 95% fit
+
+        scatter.transform.scale = newScale;
+
+        const centerX = (vpW - contentW * newScale) / 2 - bounds.minX * newScale;
+        const centerY = (vpH - contentH * newScale) / 2 - bounds.minY * newScale + 80; // Offset for header
+
+        scatter.transform.x = centerX;
+        scatter.transform.y = centerY;
+
+        applyScatterTransform();
+    }
+
+    function getFilteredVideos() {
+        // Apply current filters to videos
+        let filtered = [...videos];
+        
+        // Apply search filter if active
+        const searchInput = document.getElementById("searchInput");
+        if (searchInput && searchInput.value.trim()) {
+            const searchTerm = searchInput.value.toLowerCase();
+            filtered = filtered.filter(video => 
+                video.title.toLowerCase().includes(searchTerm) ||
+                video.channelTitle.toLowerCase().includes(searchTerm) ||
+                video.description.toLowerCase().includes(searchTerm)
+            );
+        }
+        
+        return filtered;
+    }
     // ====== TOUCH GESTURES ======
     function setupTouchGestures() {
         const views = ['feed', 'list', 'scatter', 'columns', 'history'];
@@ -4606,6 +4746,47 @@ body::after {
         }, { passive: true });
     }
     
+    function setupScatterCanvas() {
+        const canvas = document.getElementById('scatterCanvas');
+        if (!canvas) return;
+        
+        let panning = false;
+        let panStart = { x: 0, y: 0 };
+        
+        // Pan functionality
+        canvas.addEventListener('pointerdown', (e) => {
+            if (!e.target.closest('.scatter-card')) {
+                panning = true;
+                panStart.x = e.clientX - scatter.transform.x;
+                panStart.y = e.clientY - scatter.transform.y;
+                canvas.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+        });
+        
+        canvas.addEventListener('pointermove', (e) => {
+            if (panning) {
+                scatter.transform.x = e.clientX - panStart.x;
+                scatter.transform.y = e.clientY - panStart.y;
+                applyScatterTransform();
+            }
+        });
+        
+        document.addEventListener('pointerup', () => {
+            if (panning) {
+                panning = false;
+                canvas.style.cursor = 'default';
+                saveState();
+            }
+        });
+        
+        // Wheel zoom
+        canvas.addEventListener('wheel', (e) => { 
+            e.preventDefault(); 
+            zoom(e.deltaY < 0 ? 0.2 : -0.2, e.clientX, e.clientY); 
+        }, { passive: false });
+    }
+
     function setupMobileTouchListeners() {
         let touchStartTime = 0;
         
@@ -4744,11 +4925,9 @@ body::after {
     }
     
     function resetScatterView() {
-        scatterZoom = 1;
-        const canvas = document.getElementById('scatterCanvas');
-        if (canvas) {
-            canvas.style.transform = 'scale(1)';
-        }
+        scatter.transform = { x: 0, y: 0, scale: 1 };
+        applyScatterTransform();
+        saveState();
         showToast('Scatter view reset');
     }
     
@@ -4828,7 +5007,7 @@ body::after {
             videos: videos,
             collections: collections,
             scatterCollections: scatterCollections,
-            scatterZoom: scatterZoom,
+            scatter: scatter,
             videoOverlayMode: videoOverlayMode,
             kanbanViewMode: config.kanbanViewMode
         };
@@ -4844,7 +5023,7 @@ body::after {
                 videos = state.videos || videos;
                 collections = state.collections || collections;
                 scatterCollections = state.scatterCollections || scatterCollections;
-                scatterZoom = state.scatterZoom || 1;
+                scatter = state.scatter || { transform: { x: 0, y: 0, scale: 1 }, panning: false, dragging: false, pinchStart: 0 };
                 videoOverlayMode = state.videoOverlayMode || 'side-panel';
                 config.kanbanViewMode = state.kanbanViewMode || 'columns';
                 
