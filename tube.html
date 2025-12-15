@@ -6,6 +6,7 @@
   <title>intoview:tube v3</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
+    /* [ALL CSS FROM ORIGINAL FILE - KEEP EVERYTHING EXACTLY AS IS] */
     :root {
       --bg-color: #050505;
       --card-bg: #111111;
@@ -1051,9 +1052,18 @@
     
     .scatter-card.is-dragging {
       transform: scale(1.05);
-      box-shadow: 0 12px 32px rgba(0,0,0,0.1);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
       z-index: 2000;
       opacity: 0.9;
+    }
+    
+    .scatter-card.dimmed {
+      opacity: 0.3;
+      filter: grayscale(0.7);
+    }
+    
+    .scatter-card.pan-mode {
+      cursor: default;
     }
     
     .scatter-thumbnail {
@@ -1100,6 +1110,11 @@
       color: var(--ink);
       background: var(--glass-border);
       transform: scale(1.1);
+    }
+    
+    .scatter-controls button.active {
+      background: var(--accent);
+      color: #000;
     }
     
     .scatter-controls .divider {
@@ -2474,9 +2489,8 @@
         height: -webkit-fill-available;
       }
     }
-      </style>
+  </style>
 </head>
-
 <body>
   <!-- Enhanced Header -->
   <header class="app-header">
@@ -2567,522 +2581,417 @@
     </div>
   </header>
 
-    <!-- Grid Container -->
-    <div id="gridContainer" class="view-container active">
-      <div class="grid-wrapper" id="gridWrapper">
-        <!-- Video cards will be inserted here -->
-      </div>
+  <!-- Grid Container -->
+  <div id="gridContainer" class="view-container active">
+    <div class="grid-wrapper" id="gridWrapper">
+      <!-- Video cards will be inserted here -->
     </div>
-  
-    <!-- List View Container -->
-    <div id="listContainer" class="view-container">
-      <div class="list-view" id="listViewWrapper">
-        <!-- List items will be inserted here -->
-      </div>
-    </div>
-  
-    <!-- Columns (Kanban) Container -->
-    <div id="columnsContainer" class="view-container columns-container">
-      <!-- Columns will be dynamically generated -->
-    </div>
-    
-    <!-- Scatter Container -->
-    <div id="scatterContainer" class="view-container">
-      <div class="scatter-canvas" id="scatterCanvas">
-        <!-- Scatter cards here -->
-      </div>
-      <!-- Scatter Controls - Right Rail -->
-      <div class="scatter-controls" id="scatterControls">
-        <button class="theme-btn" onclick="collectNodes()" title="Arrange as Grid">
-          ⏹
-        </button>
-        <button class="theme-btn" onclick="cascadeNodes()" title="Arrange as Cascade">
-          🎴
-        </button>
-        <div style="height: 1px; background: var(--glass-border); margin: 8px 0;"></div>
-        <button class="theme-btn" onclick="zoom(0.2)" title="Zoom In">
-          +
-        </button>
-        <button class="theme-btn" onclick="resetView()" title="Reset View">
-          ↻
-        </button>
-        <button class="theme-btn" onclick="zoom(-0.2)" title="Zoom Out">
-          -
-        </button>
-      </div>
-    </div>
-    
-    <!-- History Container -->
-    <div id="historyContainer" class="view-container">
-      <div class="sort-bar">
-        <div class="pill active" data-sort="lastWatched">Last Watched</div>
-        <div class="pill" data-sort="uploadDate">Upload Date</div>
-        <div class="pill" data-sort="views">Views</div>
-      </div>
-      <table class="list-table">
-        <thead>
-          <tr>
-            <th>Thumbnail</th>
-            <th>Title</th>
-            <th>Channel</th>
-            <th>Duration</th>
-            <th>Views</th>
-            <th>Date</th>
-          </tr>
-        </thead>
-        <tbody id="historyBody">
-          <!-- Rows here -->
-        </tbody>
-      </table>
-    </div>
+  </div>
 
+  <!-- List View Container -->
+  <div id="listContainer" class="view-container">
+    <div class="list-view" id="listViewWrapper">
+      <!-- List items will be inserted here -->
+    </div>
+  </div>
 
-        <!-- Search Overlay - Full Viewport -->
-        <div class="search-overlay" id="searchOverlay">
-          <div class="search-container">
-            <!-- Search Header -->
-            <div class="search-header">
-              <h2 class="search-title">Search</h2>
-              <button class="close-search" onclick="closeSearchOverlay()">×</button>
-            </div>
-          
-            <!-- Search Input -->
-            <div class="search-input-container">
-              <input type="text" class="search-input" id="mainSearchInput" 
-                     placeholder="Search for videos, channels, or topics..." 
-                     onkeyup="updateSearchSuggestions(this.value)">
-              <button class="voice-search-btn" onclick="startVoiceSearch()">🎤</button>
-            </div>
-          
-            <!-- Search Results - Bento Grid -->
-            <div id="searchResults" style="display: none;">
-              <h3 class="section-title">Search Results</h3>
-              <div class="bento-grid" id="searchResultsGrid">
-                <!-- Search results will be populated here -->
-              </div>
-              
-              <!-- AI Integration Placeholder -->
-              <div class="ai-placeholder" id="aiSmartSearch">
-                <h3>🤖 AI Smart Search</h3>
-                <p>Coming Soon: Intelligent video discovery powered by AI</p>
-                <small>This feature will understand context and provide personalized recommendations</small>
-              </div>
-              
-              <!-- Recommended Section -->
-              <h3 class="section-title">Recommended For You</h3>
-              <div class="bento-grid" id="recommendedGrid">
-                <!-- Recommended items will be populated here -->
-              </div>
-            </div>
-            
-            <!-- Discovery Sections (shown when no search) -->
-            <div id="discoverySections">
-              <div class="discovery-section">
-                <h3 class="section-title">Your Search History</h3>
-                <div class="discovery-grid">
-                  <div class="discovery-item" onclick="searchFor('Tech reviews 2024')">
-                    📱 Tech reviews 2024
-                  </div>
-                  <div class="discovery-item" onclick="searchFor('Gaming livestreams')">
-                    🎮 Gaming livestreams
-                  </div>
-                  <div class="discovery-item" onclick="searchFor('Cooking tutorials')">
-                    🍳 Cooking tutorials
-                  </div>
-                  <div class="discovery-item" onclick="searchFor('Music playlists')">
-                    🎵 Music playlists
-                  </div>
-                </div>
-              </div>
-              
-              <div class="discovery-section">
-                <h3 class="section-title">Suggested for You</h3>
-                <div class="discovery-grid">
-                  <div class="discovery-item" onclick="searchFor('AI technology trends')">
-                    🤖 AI technology trends
-                  </div>
-                  <div class="discovery-item" onclick="searchFor('Workout routines')">
-                    💪 Workout routines
-                  </div>
-                  <div class="discovery-item" onclick="searchFor('Book recommendations')">
-                    📚 Book recommendations
-                  </div>
-                  <div class="discovery-item" onclick="searchFor('Travel guides')">
-                    ✈️ Travel guides
-                  </div>
-                </div>
-              </div>
-              
-              <div class="discovery-section">
-                <h3 class="section-title">
-                  Trending Today
-                  <span class="trending-badge">HOT</span>
-                </h3>
-                <div class="discovery-grid">
-                  <div class="discovery-item" onclick="searchFor('New movie trailers')">
-                    🔥 New movie trailers
-                  </div>
-                  <div class="discovery-item" onclick="searchFor('Viral challenges')">
-                    🔥 Viral challenges
-                  </div>
-                  <div class="discovery-item" onclick="searchFor('Breaking news')">
-                    🔥 Breaking news
-                  </div>
-                  <div class="discovery-item" onclick="searchFor('Celebrity interviews')">
-                    🔥 Celebrity interviews
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Original Filters -->
-              <div class="filters-section">
-                <h3 class="section-title">Search Filters</h3>
-              
-                <div class="filter-group">
-                  <h4 class="filter-group-title">Upload Date</h4>
-                  <div class="filter-pills">
-                    <div class="filter-pill" onclick="toggleFilter(this)">Any time</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">Last hour</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">Today</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">This week</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">This month</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">This year</div>
-                  </div>
-                </div>
-              
-                <div class="filter-group">
-                  <h4 class="filter-group-title">Duration</h4>
-                  <div class="filter-pills">
-                    <div class="filter-pill" onclick="toggleFilter(this)">Any duration</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">Under 4 minutes</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">4-20 minutes</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">Over 20 minutes</div>
-                  </div>
-                </div>
-              
-                <div class="filter-group">
-                  <h4 class="filter-group-title">Features</h4>
-                  <div class="filter-pills">
-                    <div class="filter-pill" onclick="toggleFilter(this)">Live</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">4K</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">HDR</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">Subtitles/CC</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">Creative Commons</div>
-                  </div>
-                </div>
-              
-                <div class="filter-group">
-                  <h4 class="filter-group-title">Sort By</h4>
-                  <div class="filter-pills">
-                    <div class="filter-pill active" onclick="toggleFilter(this)">Relevance</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">Upload date</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">View count</div>
-                    <div class="filter-pill" onclick="toggleFilter(this)">Rating</div>
-                  </div>
-                </div>
-              
-                <div class="filter-group">
-                  <h4 class="filter-group-title">Content Options</h4>
-                  <div class="filter-toggle">
-                    <span>Include closed captions</span>
-                    <div class="toggle-switch" onclick="toggleSwitch(this)">
-                      <div class="toggle-slider"></div>
-                    </div>
-                  </div>
-                  <div class="filter-toggle">
-                    <span>Include playlists</span>
-                    <div class="toggle-switch" onclick="toggleSwitch(this)">
-                      <div class="toggle-slider"></div>
-                    </div>
-                  </div>
-                  <div class="filter-toggle">
-                    <span>Include movies</span>
-                    <div class="toggle-switch" onclick="toggleSwitch(this)">
-                      <div class="toggle-slider"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+  <!-- Columns (Kanban) Container -->
+  <div id="columnsContainer" class="view-container columns-container">
+    <!-- Columns will be dynamically generated -->
+  </div>
+    
+  <!-- Scatter Container -->
+  <div id="scatterContainer" class="view-container">
+    <div class="scatter-canvas" id="scatterCanvas">
+      <!-- Scatter cards here -->
+    </div>
+    <!-- Scatter Controls - Right Rail -->
+    <div class="scatter-controls" id="scatterControls">
+      <button id="scatterFilterRecent" class="active" onclick="filterScatter('recent')" title="Recently Added">
+        🕒
+      </button>
+      <button id="scatterFilterSaved" onclick="filterScatter('saved')" title="Saved Videos">
+        ♥
+      </button>
+      <button id="scatterFilterWatched" onclick="filterScatter('watched')" title="Watched Videos">
+        👁
+      </button>
+      <div class="divider"></div>
+      <button id="modeMoveCanvas" class="active" onclick="setScatterMode('pan')" title="Move Canvas">
+        🖐
+      </button>
+      <button id="modeMoveObject" onclick="setScatterMode('drag')" title="Move Objects">
+        👆
+      </button>
+      <div class="divider"></div>
+      <button onclick="arrangeGrid()" title="Arrange as Grid">
+        ⏹
+      </button>
+      <button onclick="arrangeCascade()" title="Arrange as Cascade">
+        🎴
+      </button>
+      <button onclick="resetView()" title="Reset View">
+        ↻
+      </button>
+      <div class="divider"></div>
+      <button onclick="zoomIn()" title="Zoom In">
+        +
+      </button>
+      <button onclick="zoomOut()" title="Zoom Out">
+        -
+      </button>
+    </div>
+  </div>
+    
+  <!-- History Container -->
+  <div id="historyContainer" class="view-container">
+    <div class="sort-bar">
+      <div class="pill active" data-sort="lastWatched">Last Watched</div>
+      <div class="pill" data-sort="uploadDate">Upload Date</div>
+      <div class="pill" data-sort="views">Views</div>
+    </div>
+    <table class="list-table">
+      <thead>
+        <tr>
+          <th>Thumbnail</th>
+          <th>Title</th>
+          <th>Channel</th>
+          <th>Duration</th>
+          <th>Views</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody">
+        <!-- Rows here -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Search Overlay - Full Viewport -->
+  <div class="search-overlay" id="searchOverlay">
+    <div class="search-container">
+      <!-- Search Header -->
+      <div class="search-header">
+        <h2 class="search-title">Search</h2>
+        <button class="close-search" onclick="closeSearchOverlay()">×</button>
+      </div>
+    
+      <!-- Search Input -->
+      <div class="search-input-container">
+        <input type="text" class="search-input" id="mainSearchInput" 
+               placeholder="Search for videos, channels, or topics..." 
+               onkeyup="updateSearchSuggestions(this.value)">
+        <button class="voice-search-btn" onclick="startVoiceSearch()">🎤</button>
+      </div>
+    
+      <!-- Search Results - Bento Grid -->
+      <div id="searchResults" style="display: none;">
+        <h3 class="section-title">Search Results</h3>
+        <div class="bento-grid" id="searchResultsGrid">
+          <!-- Search results will be populated here -->
         </div>
+        
+        <!-- AI Integration Placeholder -->
+        <div class="ai-placeholder" id="aiSmartSearch">
+          <h3>🤖 AI Smart Search</h3>
+          <p>Coming Soon: Intelligent video discovery powered by AI</p>
+          <small>This feature will understand context and provide personalized recommendations</small>
+        </div>
+        
+        <!-- Recommended Section -->
+        <h3 class="section-title">Recommended For You</h3>
+        <div class="bento-grid" id="recommendedGrid">
+          <!-- Recommended items will be populated here -->
+        </div>
+      </div>
       
-        <!-- Create New Modal -->
-        <div class="modal-overlay" id="createModal">
-          <div class="modal">
-            <div class="modal-header">Create New</div>
-            <div class="modal-content">
-              <div class="modal-option" onclick="createItem('playlist')">
-                <div class="modal-option-icon">📋</div>
-                <div class="modal-option-text">
-                  <div class="modal-option-title">Playlist</div>
-                  <div class="modal-option-desc">Create a new video playlist</div>
-                </div>
-              </div>
-              <div class="modal-option" onclick="createItem('collection')">
-                <div class="modal-option-icon">📁</div>
-                <div class="modal-option-text">
-                  <div class="modal-option-title">Collection</div>
-                  <div class="modal-option-desc">Organize videos into collections</div>
-                </div>
-              </div>
-              <div class="modal-option" onclick="createItem('upload')">
-                <div class="modal-option-icon">⬆️</div>
-                <div class="modal-option-text">
-                  <div class="modal-option-title">Upload Video</div>
-                  <div class="modal-option-desc">Upload a new video</div>
-                </div>
-              </div>
-              <div class="modal-option" onclick="createItem('live')">
-                <div class="modal-option-icon">🔴</div>
-                <div class="modal-option-text">
-                  <div class="modal-option-title">Go Live</div>
-                  <div class="modal-option-desc">Start a live stream</div>
-                </div>
-              </div>
+      <!-- Discovery Sections (shown when no search) -->
+      <div id="discoverySections">
+        <div class="discovery-section">
+          <h3 class="section-title">Your Search History</h3>
+          <div class="discovery-grid">
+            <div class="discovery-item" onclick="searchFor('Tech reviews 2024')">
+              📱 Tech reviews 2024
             </div>
-            <button class="modal-close" onclick="closeCreateModal()">Cancel</button>
+            <div class="discovery-item" onclick="searchFor('Gaming livestreams')">
+              🎮 Gaming livestreams
+            </div>
+            <div class="discovery-item" onclick="searchFor('Cooking tutorials')">
+              🍳 Cooking tutorials
+            </div>
+            <div class="discovery-item" onclick="searchFor('Music playlists')">
+              🎵 Music playlists
+            </div>
           </div>
         </div>
         
-        <!-- Bottom Navigation -->
-        <div class="bottom-nav">
-          <div class="bottom-nav-inner">
-            <button class="nav-btn active" data-mode="feed" onclick="switchMode('feed')">🏠</button>
-      
-            <button class="nav-btn" data-mode="columns" onclick="switchMode('columns')">🎞️</button>
-            <button class="nav-btn scatter-pocket" data-mode="scatter" onclick="openScatterView()">
-              🕸
-              <span class="pocket-badge" id="scatterBadge" style="display: none;">0</span>
-            </button>
-            <button class="nav-btn" data-mode="search" onclick="switchMode('search')">🔍</button>
+        <div class="discovery-section">
+          <h3 class="section-title">Suggested for You</h3>
+          <div class="discovery-grid">
+            <div class="discovery-item" onclick="searchFor('AI technology trends')">
+              🤖 AI technology trends
+            </div>
+            <div class="discovery-item" onclick="searchFor('Workout routines')">
+              💪 Workout routines
+            </div>
+            <div class="discovery-item" onclick="searchFor('Book recommendations')">
+              📚 Book recommendations
+            </div>
+            <div class="discovery-item" onclick="searchFor('Travel guides')">
+              ✈️ Travel guides
+            </div>
           </div>
         </div>
-      
-        <!-- Context Menu -->
-        <div class="context-menu" id="contextMenu"></div>
         
-        <!-- Detail Panel -->
-        <div class="detail-panel side-panel" id="detailPanel">
-          <button class="detail-close" onclick="closeDetailPanel()">×</button>
-          <button class="video-mode-toggle" onclick="toggleVideoMode()">
-            <span id="videoModeIcon">⛶</span>
-            <span id="videoModeText">Full Screen</span>
-          </button>
-          <div class="detail-content" id="detailContent"></div>
+        <div class="discovery-section">
+          <h3 class="section-title">
+            Trending Today
+            <span class="trending-badge">HOT</span>
+          </h3>
+          <div class="discovery-grid">
+            <div class="discovery-item" onclick="searchFor('New movie trailers')">
+              🔥 New movie trailers
+            </div>
+            <div class="discovery-item" onclick="searchFor('Viral challenges')">
+              🔥 Viral challenges
+            </div>
+            <div class="discovery-item" onclick="searchFor('Breaking news')">
+              🔥 Breaking news
+            </div>
+            <div class="discovery-item" onclick="searchFor('Celebrity interviews')">
+              🔥 Celebrity interviews
+            </div>
+          </div>
         </div>
+        
+        <!-- Original Filters -->
+        <div class="filters-section">
+          <h3 class="section-title">Search Filters</h3>
+        
+          <div class="filter-group">
+            <h4 class="filter-group-title">Upload Date</h4>
+            <div class="filter-pills">
+              <div class="filter-pill" onclick="toggleFilter(this)">Any time</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">Last hour</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">Today</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">This week</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">This month</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">This year</div>
+            </div>
+          </div>
+        
+          <div class="filter-group">
+            <h4 class="filter-group-title">Duration</h4>
+            <div class="filter-pills">
+              <div class="filter-pill" onclick="toggleFilter(this)">Any duration</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">Under 4 minutes</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">4-20 minutes</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">Over 20 minutes</div>
+            </div>
+          </div>
+        
+          <div class="filter-group">
+            <h4 class="filter-group-title">Features</h4>
+            <div class="filter-pills">
+              <div class="filter-pill" onclick="toggleFilter(this)">Live</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">4K</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">HDR</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">Subtitles/CC</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">Creative Commons</div>
+            </div>
+          </div>
+        
+          <div class="filter-group">
+            <h4 class="filter-group-title">Sort By</h4>
+            <div class="filter-pills">
+              <div class="filter-pill active" onclick="toggleFilter(this)">Relevance</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">Upload date</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">View count</div>
+              <div class="filter-pill" onclick="toggleFilter(this)">Rating</div>
+            </div>
+          </div>
+        
+          <div class="filter-group">
+            <h4 class="filter-group-title">Content Options</h4>
+            <div class="filter-toggle">
+              <span>Include closed captions</span>
+              <div class="toggle-switch" onclick="toggleSwitch(this)">
+                <div class="toggle-slider"></div>
+              </div>
+            </div>
+            <div class="filter-toggle">
+              <span>Include playlists</span>
+              <div class="toggle-switch" onclick="toggleSwitch(this)">
+                <div class="toggle-slider"></div>
+              </div>
+            </div>
+            <div class="filter-toggle">
+              <span>Include movies</span>
+              <div class="toggle-switch" onclick="toggleSwitch(this)">
+                <div class="toggle-slider"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
+  <!-- Create New Modal -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal">
+      <div class="modal-header">Create New</div>
+      <div class="modal-content">
+        <div class="modal-option" onclick="createItem('playlist')">
+          <div class="modal-option-icon">📋</div>
+          <div class="modal-option-text">
+            <div class="modal-option-title">Playlist</div>
+            <div class="modal-option-desc">Create a new video playlist</div>
+          </div>
+        </div>
+        <div class="modal-option" onclick="createItem('collection')">
+          <div class="modal-option-icon">📁</div>
+          <div class="modal-option-text">
+            <div class="modal-option-title">Collection</div>
+            <div class="modal-option-desc">Organize videos into collections</div>
+          </div>
+        </div>
+        <div class="modal-option" onclick="createItem('upload')">
+          <div class="modal-option-icon">⬆️</div>
+          <div class="modal-option-text">
+            <div class="modal-option-title">Upload Video</div>
+            <div class="modal-option-desc">Upload a new video</div>
+          </div>
+        </div>
+        <div class="modal-option" onclick="createItem('live')">
+          <div class="modal-option-icon">🔴</div>
+          <div class="modal-option-text">
+            <div class="modal-option-title">Go Live</div>
+            <div class="modal-option-desc">Start a live stream</div>
+          </div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeCreateModal()">Cancel</button>
+    </div>
+  </div>
+    
+  <!-- Bottom Navigation -->
+  <div class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <button class="nav-btn active" data-mode="feed" onclick="switchMode('feed')">🏠</button>
 
-        <script>
-          // ====== GLOBAL STATE ======
-          let config = {
-              currentView: 'feed',
-              currentCategory: 'all',
-              currentTheme: 'dark',
-              searchQuery: '',
-              kanbanViewMode: 'columns'
-          };
-          let videos = [];
-          let collections = [];
-          let scatterCollections = [];
-          let currentVideo = null;
-          let scatter = {
-  transform: { x: 0, y: 0, scale: 1 },
-  panning: false,
-  dragging: false,
-  pinchStart: 0
-};
-          let isMobile = false;
-          let globalTouchStartX = 0;
-          let globalTouchStartY = 0;
-          let isDragging = false;
-          let draggedCard = null;
-          let dragOffset = { x: 0, y: 0 };
-          let videoOverlayMode = 'side-panel';
-          let resizeTimeout;
-          
-          // Column scrolling variables
-          let columnTouchStartY = 0;
-          let columnTouchScrollElement = null;
-          
-          // ====== MOBILE DETECTION & INIT ======
-          function detectMobile() {
-              isMobile = window.innerWidth <= 768 || 
-                         ('ontouchstart' in window) || 
-                         (navigator.maxTouchPoints > 0);
-              updateMobileSearchVisibility();
-          }
-          
-          function updateMobileSearchVisibility() {
-              const headerCenter = document.querySelector('.header-center');
-              const mobileSearchBtn = document.querySelector('.mobile-search-btn');
-              
-              if (isMobile) {
-                  if (headerCenter) headerCenter.style.display = 'none';
-                  if (mobileSearchBtn) mobileSearchBtn.style.display = 'flex';
-              } else {
-                  if (headerCenter) headerCenter.style.display = 'block';
-                  if (mobileSearchBtn) mobileSearchBtn.style.display = 'none';
-              }
-          }
-          
-          function openMobileSearch() {
-              const overlay = document.getElementById("mobileSearchOverlay");
-              overlay.classList.add("active");
-              
-              setTimeout(() => {
-                  document.getElementById("mobileSearchInput").focus();
-              }, 100);
-              
-              document.addEventListener("keydown", handleMobileSearchEscape);
-          }
-          
-          function closeMobileSearch() {
-              const overlay = document.getElementById("mobileSearchOverlay");
-              overlay.classList.remove("active");
-              document.getElementById("mobileSearchInput").value = "";
-              
-              document.removeEventListener("keydown", handleMobileSearchEscape);
-          }
-          
-          function handleMobileSearchEscape(e) {
-              if (e.key === "Escape") {
-                  closeMobileSearch();
-              }
-          }
-          
-          function mobilePerformSearch() {
-              const searchInput = document.getElementById("mobileSearchInput");
-              const searchValue = searchInput ? searchInput.value.trim() : "";
-              
-              if (searchValue) {
-                  config.searchQuery = searchValue;
-                  
-                  showSearchResults(searchValue);
-                  
-                  const searchOverlay = document.getElementById("searchOverlay");
-                  if (!searchOverlay.classList.contains("active")) {
-                      toggleSearchOverlay();
-                      
-                      const overlayInput = document.getElementById("mainSearchInput");
-                      if (overlayInput) {
-                          overlayInput.value = searchValue;
-                      }
-                  }
-                  
-                  closeMobileSearch();
-                  switchMode("feed");
-              }
-          }
-          
-          // ====== HEADER SEARCH FUNCTIONS ======
-          function performSearch() {
-              const headerInput = document.getElementById('headerSearch');
-              const searchValue = headerInput ? headerInput.value.trim() : '';
-              
-              if (searchValue) {
-                  config.searchQuery = searchValue;
-                  
-                  showSearchResults(searchValue);
-                  
-                  const searchOverlay = document.getElementById('searchOverlay');
-                  if (!searchOverlay.classList.contains('active')) {
-                      toggleSearchOverlay();
-                      
-                      const overlayInput = document.getElementById('mainSearchInput');
-                      if (overlayInput) {
-                          overlayInput.value = searchValue;
-                      }
-                  }
-                  
-                  if (headerInput) {
-                      headerInput.value = '';
-                  }
-              }
-          }
-          
-          // ====== HEADER SEARCH FUNCTIONS ======
-          function performSearch() {
-              const headerInput = document.getElementById('headerSearch');
-              const searchValue = headerInput ? headerInput.value.trim() : '';
-              
-              if (searchValue) {
-                  // Update config
-                  config.searchQuery = searchValue;
-                  
-                  // Show search results
-                  showSearchResults(searchValue);
-                  
-                  // Open search overlay if not already open
-                  const searchOverlay = document.getElementById('searchOverlay');
-                  if (!searchOverlay.classList.contains('active')) {
-                      toggleSearchOverlay();
-                      
-                      // Set the value in overlay input too
-                      const overlayInput = document.getElementById('mainSearchInput');
-                      if (overlayInput) {
-                          overlayInput.value = searchValue;
-                      }
-                  }
-                  
-                  // Clear header input
-                  if (headerInput) {
-                      headerInput.value = '';
-                  }
-              }
-          }
-          
-          // ====== UTILITY FUNCTIONS ======
-          function formatDuration(seconds) {
-              const hrs = Math.floor(seconds / 3600);
-              const mins = Math.floor((seconds % 3600) / 60);
-              const secs = seconds % 60;
-              
-              if (hrs > 0) {
-                  return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-              }
-              return `${mins}:${secs.toString().padStart(2, '0')}`;
-          }
-          
-          function formatViews(views) {
-              if (views >= 1000000) {
-                  return (views / 1000000).toFixed(1) + 'M';
-              }
-              if (views >= 1000) {
-                  return (views / 1000).toFixed(1) + 'K';
-              }
-              return views.toString();
-          }
-          
-          function formatDate(timestamp) {
-              const date = new Date(timestamp);
-              const now = new Date();
-              const diffMs = now - date;
-              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-              
-              if (diffDays === 0) return 'Today';
-              if (diffDays === 1) return 'Yesterday';
-              if (diffDays < 7) return `${diffDays} days ago`;
-              if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-              if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
-              return `${Math.floor(diffDays / 365)} years ago`;
-          }
-          
-          function showToast(message, type = 'info') {
-              const toast = document.createElement('div');
-              toast.className = `toast ${type}`;
-              toast.textContent = message;
-              document.body.appendChild(toast);
-              
-              setTimeout(() => toast.classList.add('show'), 10);
-              setTimeout(() => {
-                  toast.classList.remove('show');
-                  setTimeout(() => toast.remove(), 300);
-              }, 3000);
-          }
-          
-          // ====== ENHANCED MOCK DATA ======
-          function generateMockVideos() {
+      <button class="nav-btn" data-mode="columns" onclick="switchMode('columns')">🎞️</button>
+      <button class="nav-btn scatter-pocket" data-mode="scatter" onclick="openScatterView()">
+        🕸
+        <span class="pocket-badge" id="scatterBadge" style="display: none;">0</span>
+      </button>
+      <button class="nav-btn" data-mode="search" onclick="switchMode('search')">🔍</button>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div class="context-menu" id="contextMenu"></div>
+    
+  <!-- Detail Panel -->
+  <div class="detail-panel side-panel" id="detailPanel">
+    <button class="detail-close" onclick="closeDetailPanel()">×</button>
+    <button class="video-mode-toggle" onclick="toggleVideoMode()">
+      <span id="videoModeIcon">⛶</span>
+      <span id="videoModeText">Full Screen</span>
+    </button>
+    <div class="detail-content" id="detailContent"></div>
+  </div>
+
+  <!-- Mobile Full-Screen Search Overlay -->
+  <div class="mobile-search-overlay" id="mobileSearchOverlay">
+    <div class="mobile-search-header">
+      <button class="mobile-search-close" onclick="closeMobileSearch()">×</button>
+      <div class="mobile-search-input-wrapper">
+        <input 
+          type="text" 
+          class="mobile-search-input" 
+          id="mobileSearchInput"
+          placeholder="Search for videos, channels, or topics..."
+          onkeyup="if(event.key === 'Enter') mobilePerformSearch()"
+          aria-label="Search videos"
+        >
+      </div>
+    </div>
+    <div class="mobile-search-results" id="mobileSearchResults">
+      <!-- Mobile search results will be displayed here -->
+    </div>
+  </div>
+
+  <script>
+    // ====== GLOBAL STATE ======
+    let config = {
+      currentView: 'feed',
+      currentCategory: 'all',
+      currentTheme: 'dark',
+      searchQuery: '',
+      kanbanViewMode: 'columns',
+      scatterFilter: 'recent',
+      scatterMode: 'pan'
+    };
+    
+    let videos = [];
+    let collections = [];
+    let scatterCollections = [];
+    let currentVideo = null;
+    let scatter = {
+      transform: { x: 0, y: 0, scale: 1 },
+      panning: false,
+      dragging: false,
+      pinchStart: 0
+    };
+    
+    let isMobile = false;
+    let globalTouchStartX = 0;
+    let globalTouchStartY = 0;
+    let isDragging = false;
+    let draggedCard = null;
+    let dragOffset = { x: 0, y: 0 };
+    let videoOverlayMode = 'side-panel';
+    let resizeTimeout;
+    
+    // ====== INITIALIZATION ======
+    function init() {
+      detectMobile();
+      videos = generateMockVideos();
+      collections = generateMockCollections();
+      initScatterCollections();
+      loadState();
+      
+      // Set default kanban view mode for mobile
+      if (isMobile && (!config.kanbanViewMode || config.kanbanViewMode === 'columns')) {
+        config.kanbanViewMode = 'rows';
+      }
+      
+      renderCategories();
+      renderCurrentView();
+      setupEventListeners();
+      setupTouchGestures();
+      
+      updateScatterBadge();
+      window.addEventListener('resize', handleResize);
+      
+      // Initialize scatter view with recently added videos in grid
+      setTimeout(() => {
+        if (videos.filter(v => v.lastWatched).length > 0) {
+          arrangeGrid();
+        }
+      }, 100);
+    }
+    
+    function detectMobile() {
+      isMobile = window.innerWidth <= 768 || 
+                 ('ontouchstart' in window) || 
+                 (navigator.maxTouchPoints > 0);
+      updateMobileSearchVisibility();
+    }
+    
+              // ====== ENHANCED MOCK DATA ======
+              function generateMockVideos() {
               const categories = ['Music', 'Gaming', 'Education', 'News', 'Sports', 'Comedy', 'Science', 'Tech', 'DIY', 'Food'];
               const subcategories = {
                   'Music': ['Pop', 'Rock', 'Hip Hop', 'Electronic', 'Classical', 'Jazz', 'Indie', 'R&B'],
@@ -4162,1075 +4071,1360 @@
         `).join('');
     }
     
-
-    // ====== SCATTER VIEW ======
+    // ====== SCATTER VIEW FUNCTIONS ======
     function renderScatterView() {
-        renderScatter(filterVideos());
+      const filtered = getFilteredScatterVideos();
+      renderScatter(filtered);
+      updateScatterControls();
+    }
+    
+    function getFilteredScatterVideos() {
+      switch(config.scatterFilter) {
+        case 'recent':
+          return videos.filter(v => v.lastWatched)
+            .sort((a, b) => b.lastWatched - a.lastWatched)
+            .slice(0, 20);
+        case 'saved':
+          return videos.filter(v => v.status === 'saved');
+        case 'watched':
+          return videos.filter(v => v.watched);
+        default:
+          return videos.filter(v => v.lastWatched)
+            .sort((a, b) => b.lastWatched - a.lastWatched)
+            .slice(0, 20);
+      }
     }
     
     function renderScatter(filtered) {
-        const canvas = document.getElementById('scatterCanvas');
-        if (!canvas) return;
-        
-        canvas.innerHTML = '';
-        
-        filtered.forEach(video => {
-            const card = createScatterCard(video);
-            canvas.appendChild(card);
-        });
-        
-        // Apply filtering dimming
-        const allCards = canvas.querySelectorAll('.scatter-card');
-        const allVideos = [...videos];
-        
-        allCards.forEach(card => {
-            const videoId = card.dataset.videoId;
-            if (filtered.some(v => v.id === videoId)) {
-                card.classList.remove('dimmed');
-            } else {
-                card.classList.add('dimmed');
-            }
-        });
-        
-        applyScatterTransform();
+      const canvas = document.getElementById('scatterCanvas');
+      if (!canvas) return;
+      
+      canvas.innerHTML = '';
+      
+      filtered.forEach(video => {
+        const card = createScatterCard(video);
+        canvas.appendChild(card);
+      });
+      
+      applyScatterTransform();
     }
     
     function createScatterCard(video) {
-        const card = document.createElement('div');
-        card.className = 'scatter-card';
-        card.style.left = `${video.scatterPosition.x}px`;
-        card.style.top = `${video.scatterPosition.y}px`;
-        card.dataset.videoId = video.id;
-        
-        card.innerHTML = `
-            <div class="scatter-thumbnail">
-                <img src="${video.thumbnail}" alt="${video.title}" width="200" height="80" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
-            </div>
-            <div class="video-title" style="font-size: 12px; font-weight: 600;">${video.title.substring(0, 30)}...</div>
-            <div class="video-channel" style="font-size: 11px; color: var(--ink-dim);">${video.channel.name}</div>
-            <div class="video-duration" style="font-size: 11px; font-family: var(--font-mono); color: var(--ink-dim);">${formatDuration(video.duration)}</div>
-        `;
-        
+      const card = document.createElement('div');
+      card.className = 'scatter-card';
+      if (config.scatterMode === 'pan') {
+        card.classList.add('pan-mode');
+      }
+      
+      const position = video.scatterPosition || getRandomPosition();
+      card.style.left = `${position.x}px`;
+      card.style.top = `${position.y}px`;
+      card.dataset.videoId = video.id;
+      
+      card.innerHTML = `
+        <div class="scatter-thumbnail">
+          <img src="${video.thumbnail}" alt="${video.title}" width="200" height="80" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
+        </div>
+        <div class="video-title" style="font-size: 12px; font-weight: 600;">${video.title.substring(0, 30)}...</div>
+        <div class="video-channel" style="font-size: 11px; color: var(--ink-dim);">${video.channel.name}</div>
+        <div class="video-duration" style="font-size: 11px; font-family: var(--font-mono); color: var(--ink-dim);">${formatDuration(video.duration)}</div>
+      `;
+      
+      if (config.scatterMode === 'drag') {
         card.addEventListener('pointerdown', (e) => startDrag(e, card));
-        card.addEventListener('dblclick', () => openVideoDetail(video.id));
-        card.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            showVideoContextMenu(e, video.id);
+        card.style.cursor = 'move';
+      } else {
+        card.addEventListener('pointerdown', (e) => {
+          if (e.button === 0) {
+            openVideoDetail(video.id);
+          }
         });
-        
-        card.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            startTouchDragging(e, card);
-        }, { passive: false });
-        
-        card.addEventListener('touchend', () => {
-            stopDragging();
-        }, { passive: true });
-        
-        return card;
+        card.style.cursor = 'pointer';
+      }
+      
+      card.addEventListener('dblclick', () => openVideoDetail(video.id));
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showVideoContextMenu(e, video.id);
+      });
+      
+      return card;
+    }
+    
+    function getRandomPosition() {
+      const canvas = document.getElementById('scatterCanvas');
+      if (!canvas) return { x: 100, y: 100 };
+      
+      const maxX = canvas.clientWidth - 200;
+      const maxY = canvas.clientHeight - 150;
+      
+      return {
+        x: Math.floor(Math.random() * maxX) + 50,
+        y: Math.floor(Math.random() * maxY) + 50
+      };
     }
     
     function cleanupScatterListeners() {
-        const canvas = document.getElementById('scatterCanvas');
-        if (canvas) {
-            canvas.innerHTML = '';
-        }
-        stopDragging();
+      const canvas = document.getElementById('scatterCanvas');
+      if (canvas) {
+        canvas.innerHTML = '';
+      }
+      stopDragging();
     }
     
     function openScatterView() {
-        config.currentView = 'scatter';
-        
-        // Hide all view containers
-        const viewContainers = document.querySelectorAll('.view-container');
-        viewContainers.forEach(container => {
-            container.classList.remove('active');
-        });
-        
-        // Show scatter container
-        const scatterContainer = document.getElementById('scatterContainer');
-        scatterContainer.classList.add('active');
-        
-        renderScatterView();
-        updateNavButtons();
-        
-        if (isFirstScatterVisit()) {
-            showScatterWelcome();
+      config.currentView = 'scatter';
+      
+      const viewContainers = document.querySelectorAll('.view-container');
+      viewContainers.forEach(container => {
+        container.classList.remove('active');
+      });
+      
+      const scatterContainer = document.getElementById('scatterContainer');
+      scatterContainer.classList.add('active');
+      
+      renderScatterView();
+      updateNavButtons();
+      
+      if (isFirstScatterVisit()) {
+        showScatterWelcome();
+      }
+    }
+    
+    // ====== SCATTER FILTERS ======
+    function filterScatter(filterType) {
+      config.scatterFilter = filterType;
+      
+      document.querySelectorAll('#scatterControls button').forEach(btn => {
+        if (btn.id && btn.id.startsWith('scatterFilter')) {
+          btn.classList.remove('active');
         }
+      });
+      
+      const activeBtn = document.getElementById(`scatterFilter${filterType.charAt(0).toUpperCase() + filterType.slice(1)}`);
+      if (activeBtn) {
+        activeBtn.classList.add('active');
+      }
+      
+      renderScatterView();
+      saveState();
+      
+      if (filterType === 'recent') {
+        arrangeGrid();
+      }
+    }
+    
+    // ====== SCATTER MODE TOGGLE ======
+    function setScatterMode(mode) {
+      config.scatterMode = mode;
+      
+      document.getElementById('modeMoveCanvas').classList.remove('active');
+      document.getElementById('modeMoveObject').classList.remove('active');
+      
+      if (mode === 'pan') {
+        document.getElementById('modeMoveCanvas').classList.add('active');
+      } else {
+        document.getElementById('modeMoveObject').classList.add('active');
+      }
+      
+      renderScatterView();
+      saveState();
+    }
+    
+    function updateScatterControls() {
+      document.querySelectorAll('#scatterControls button').forEach(btn => {
+        if (btn.id && btn.id.startsWith('scatterFilter')) {
+          btn.classList.remove('active');
+        }
+      });
+      
+      const activeFilterBtn = document.getElementById(`scatterFilter${config.scatterFilter.charAt(0).toUpperCase() + config.scatterFilter.slice(1)}`);
+      if (activeFilterBtn) {
+        activeFilterBtn.classList.add('active');
+      }
+      
+      document.getElementById('modeMoveCanvas').classList.remove('active');
+      document.getElementById('modeMoveObject').classList.remove('active');
+      
+      if (config.scatterMode === 'pan') {
+        document.getElementById('modeMoveCanvas').classList.add('active');
+      } else {
+        document.getElementById('modeMoveObject').classList.add('active');
+      }
     }
     
     // ====== SCATTER ARRANGEMENTS ======
-    function collectNodes() {
-        const canvas = document.getElementById('scatterCanvas');
-        const cards = canvas.querySelectorAll('.scatter-card');
-        const viewportWidth = canvas.clientWidth;
-        const viewportHeight = canvas.clientHeight;
+    function arrangeGrid() {
+      const filtered = getFilteredScatterVideos();
+      const canvas = document.getElementById('scatterCanvas');
+      if (!canvas) return;
+      
+      const cardWidth = isMobile ? 160 : 200;
+      const cardHeight = isMobile ? 150 : 180;
+      const padding = isMobile ? 20 : 30;
+      
+      const cols = Math.max(1, Math.floor((canvas.clientWidth - padding) / (cardWidth + padding)));
+      const rows = Math.ceil(filtered.length / cols);
+      
+      const startX = (canvas.clientWidth - (cols * (cardWidth + padding) - padding)) / 2;
+      const startY = (canvas.clientHeight - (rows * (cardHeight + padding) - padding)) / 2;
+      
+      filtered.forEach((video, index) => {
+        const row = Math.floor(index / cols);
+        const col = index % cols;
         
-        const isMobileView = isMobile || window.innerWidth <= 768;
-        const columns = isMobileView ? 2 : 5;
-        const rows = Math.ceil(cards.length / columns);
+        const x = startX + col * (cardWidth + padding);
+        const y = startY + row * (cardHeight + padding);
         
-        const cardWidth = isMobileView ? 160 : 200;
-        const cardHeight = isMobileView ? 120 : 150;
-        const horizontalPadding = isMobileView ? 20 : 50;
-        const verticalPadding = isMobileView ? 20 : 100;
-        
-        const gridWidth = columns * cardWidth + (columns - 1) * horizontalPadding;
-        const gridHeight = rows * cardHeight + (rows - 1) * verticalPadding;
-        
-        const startX = (viewportWidth - gridWidth) / 2;
-        const startY = (viewportHeight - gridHeight) / 2;
-        
-        cards.forEach((card, index) => {
-            const row = Math.floor(index / columns);
-            const col = index % columns;
-            
-            const x = startX + col * (cardWidth + horizontalPadding);
-            const y = startY + row * (cardHeight + verticalPadding);
-            
-            card.style.left = `${x}px`;
-            card.style.top = `${y}px`;
-            
-            const videoId = parseInt(card.dataset.videoId);
-            const video = videos.find(v => v.id === videoId);
-            if (video) {
-                video.scatterPosition = { x, y };
-            }
-        });
-        
-        saveState();
-        showToast('Arranged as grid');
+        video.scatterPosition = { x, y };
+      });
+      
+      renderScatterView();
+      saveState();
+      showToast('Arranged as grid');
     }
     
-    function cascadeNodes() {
-        const canvas = document.getElementById('scatterCanvas');
-        const cards = canvas.querySelectorAll('.scatter-card');
-        const viewportWidth = canvas.clientWidth;
-        const viewportHeight = canvas.clientHeight;
+    function arrangeCascade() {
+      const filtered = getFilteredScatterVideos();
+      const canvas = document.getElementById('scatterCanvas');
+      if (!canvas) return;
+      
+      const cardWidth = isMobile ? 160 : 200;
+      const cardHeight = isMobile ? 150 : 180;
+      const offset = isMobile ? 15 : 20;
+      
+      const startX = 50;
+      const startY = 50;
+      
+      filtered.forEach((video, index) => {
+        const row = Math.floor(index / 5);
+        const col = index % 5;
         
-        const isMobileView = isMobile || window.innerWidth <= 768;
-        const maxCardsPerColumn = isMobileView ? 8 : 15;
-        const cardWidth = isMobileView ? 160 : 200;
-        const cardHeight = isMobileView ? 120 : 150;
-        const offset = isMobileView ? 15 : 20;
+        const x = startX + col * (cardWidth + offset) + (row % 2) * offset;
+        const y = startY + row * offset * 2;
         
-        const columns = Math.ceil(cards.length / maxCardsPerColumn);
-        const totalWidth = columns * cardWidth + (columns - 1) * offset;
-        const startX = (viewportWidth - totalWidth) / 2;
-        const startY = (viewportHeight - Math.min(cards.length, maxCardsPerColumn) * offset) / 2;
-        
-        cards.forEach((card, index) => {
-            const column = Math.floor(index / maxCardsPerColumn);
-            const positionInColumn = index % maxCardsPerColumn;
-            
-            const x = startX + column * (cardWidth + offset);
-            const y = startY + positionInColumn * offset;
-            
-            card.style.left = `${x}px`;
-            card.style.top = `${y}px`;
-            
-            const videoId = parseInt(card.dataset.videoId);
-            const video = videos.find(v => v.id === videoId);
-            if (video) {
-                video.scatterPosition = { x, y };
-            }
-        });
-        
-        saveState();
-        showToast('Arranged as cascade');
+        video.scatterPosition = { x, y };
+      });
+      
+      renderScatterView();
+      saveState();
+      showToast('Arranged as cascade');
+    }
+    
+    // ====== SCATTER ZOOM & PAN ======
+    function setupScatterCanvas() {
+      const canvas = document.getElementById('scatterCanvas');
+      if (!canvas) return;
+      
+      let panning = false;
+      let panStart = { x: 0, y: 0 };
+      
+      canvas.addEventListener('pointerdown', (e) => {
+        if (config.scatterMode === 'pan' && !e.target.closest('.scatter-card')) {
+          panning = true;
+          panStart.x = e.clientX - scatter.transform.x;
+          panStart.y = e.clientY - scatter.transform.y;
+          canvas.style.cursor = 'grabbing';
+          e.preventDefault();
+        }
+      });
+      
+      canvas.addEventListener('pointermove', (e) => {
+        if (panning && config.scatterMode === 'pan') {
+          scatter.transform.x = e.clientX - panStart.x;
+          scatter.transform.y = e.clientY - panStart.y;
+          applyScatterTransform();
+        }
+      });
+      
+      document.addEventListener('pointerup', () => {
+        if (panning) {
+          panning = false;
+          canvas.style.cursor = 'default';
+          saveState();
+        }
+      });
+      
+      canvas.addEventListener('wheel', (e) => { 
+        e.preventDefault(); 
+        zoomScatter(e.deltaY < 0 ? 0.2 : -0.2, e.clientX, e.clientY); 
+      }, { passive: false });
     }
     
     function applyScatterTransform() {
-        const canvas = document.getElementById('scatterCanvas');
-        if (canvas) {
-            canvas.style.transform = `translate(${scatter.transform.x}px, ${scatter.transform.y}px) scale(${scatter.transform.scale})`;
-        }
+      const canvas = document.getElementById('scatterCanvas');
+      if (canvas) {
+        canvas.style.transform = `translate(${scatter.transform.x}px, ${scatter.transform.y}px) scale(${scatter.transform.scale})`;
+      }
     }
-
-    function zoom(delta, cx, cy) {
-        const newScale = Math.max(0.25, Math.min(3, scatter.transform.scale + delta));
-        if (newScale === scatter.transform.scale) return;
-        const rect = canvas.getBoundingClientRect();
-        const zx = (cx !== null ? cx : rect.width/2) - rect.left;
-        const zy = (cy !== null ? cy : rect.height/2) - rect.top;
-        const ratio = newScale / scatter.transform.scale;
-        scatter.transform.x = zx - (zx - scatter.transform.x) * ratio;
-        scatter.transform.y = zy - (zy - scatter.transform.y) * ratio;
-        scatter.transform.scale = newScale;
-        applyScatterTransform();
-        saveState();
+    
+    function zoomScatter(delta, cx, cy) {
+      const newScale = Math.max(0.25, Math.min(3, scatter.transform.scale + delta));
+      if (newScale === scatter.transform.scale) return;
+      
+      const canvas = document.getElementById('scatterCanvas');
+      const rect = canvas.getBoundingClientRect();
+      const zx = (cx !== null ? cx : rect.width/2) - rect.left;
+      const zy = (cy !== null ? cy : rect.height/2) - rect.top;
+      const ratio = newScale / scatter.transform.scale;
+      
+      scatter.transform.x = zx - (zx - scatter.transform.x) * ratio;
+      scatter.transform.y = zy - (zy - scatter.transform.y) * ratio;
+      scatter.transform.scale = newScale;
+      
+      applyScatterTransform();
+      saveState();
     }
-
-    function zoom(factor) {
-        zoom(factor, window.innerWidth/2, window.innerHeight/2);
-        showToast(`Zoom: ${Math.round(scatter.transform.scale * 100)}%`);
+    
+    function zoomIn() {
+      zoomScatter(0.2, window.innerWidth/2, window.innerHeight/2);
+      showToast(`Zoom: ${Math.round(scatter.transform.scale * 100)}%`);
+    }
+    
+    function zoomOut() {
+      zoomScatter(-0.2, window.innerWidth/2, window.innerHeight/2);
+      showToast(`Zoom: ${Math.round(scatter.transform.scale * 100)}%`);
     }
     
     function resetView() {
-        scatter.transform = { x: 0, y: 0, scale: 1 };
-        applyScatterTransform();
-        saveState();
-        showToast('View reset');
+      scatter.transform = { x: 0, y: 0, scale: 1 };
+      applyScatterTransform();
+      saveState();
+      showToast('View reset');
     }
     
-    // ====== VIDEO DETAIL PANEL ======
-    function openVideoDetail(videoId) {
-        const video = videos.find(v => v.id === videoId);
-        if (!video) return;
+    // ====== DRAG AND DROP ======
+    function startDrag(e, card) {
+      if (config.scatterMode !== 'drag') return;
+      
+      scatter.dragging = true;
+      draggedCard = card;
+      draggedCard.classList.add('is-dragging');
+      
+      card.setPointerCapture(e.pointerId);
+      
+      const rect = card.getBoundingClientRect();
+      const canvasRect = card.parentElement.getBoundingClientRect();
+      const invScale = 1 / scatter.transform.scale;
+      
+      dragOffset.x = ((e.clientX - rect.left) * invScale);
+      dragOffset.y = ((e.clientY - rect.top) * invScale);
+      
+      card.style.zIndex = '2000';
+      
+      card.addEventListener('pointermove', drag);
+      card.addEventListener('pointerup', stopDragging);
+      card.addEventListener('pointercancel', stopDragging);
+    }
+    
+    function drag(e) {
+      if (!scatter.dragging || !draggedCard) return;
+      
+      const canvas = draggedCard.parentElement;
+      const canvasRect = canvas.getBoundingClientRect();
+      const invScale = 1 / scatter.transform.scale;
+      
+      let x = ((e.clientX - canvasRect.left - dragOffset.x) * invScale);
+      let y = ((e.clientY - canvasRect.top - dragOffset.y) * invScale);
+      
+      x = Math.round(x / 20) * 20;
+      y = Math.round(y / 20) * 20;
+      
+      draggedCard.style.left = `${x}px`;
+      draggedCard.style.top = `${y}px`;
+    }
+    
+    function stopDragging(e) {
+      if (draggedCard) {
+        draggedCard.classList.remove('is-dragging');
+        draggedCard.style.zIndex = '';
         
-        currentVideo = video;
-        const panel = document.getElementById('detailPanel');
-        const content = document.getElementById('detailContent');
+        const videoId = draggedCard.dataset.videoId;
+        const video = videos.find(v => v.id == videoId);
+        if (video) {
+          video.scatterPosition = {
+            x: parseFloat(draggedCard.style.left),
+            y: parseFloat(draggedCard.style.top)
+          };
+        }
         
-        content.innerHTML = `
-            <div class="video-player">
-                📹 Video Player Placeholder<br>
-                <small>${video.title}</small>
-            </div>
-            <h2 style="margin-bottom: 8px;">${video.title}</h2>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-                <div class="channel-avatar">
-                    <img src="${video.channel.avatar}" alt="${video.channel.name}" width="40" height="40" style="border-radius: 50%;">
-                </div>
-                <div>
-                    <div style="font-weight: 600;">${video.channel.name}</div>
-                    <div style="font-size: 13px; color: var(--ink-dim);">${formatViews(video.views)} views • ${formatDate(video.uploadDate)}</div>
-                </div>
-            </div>
-            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-                <button class="action-icon" style="padding: 8px 16px; width: auto;">👍 Like</button>
-                <button class="action-icon" style="padding: 8px 16px; width: auto;">👎 Dislike</button>
-                <button class="action-icon" style="padding: 8px 16px; width: auto;" onclick="shareVideo(${video.id})">
-                    ↗ Share
-                </button>
-                <button class="action-icon" style="padding: 8px 16px; width: auto;" onclick="toggleSave(${video.id})">
-                    ${video.status === 'saved' ? '♥ Saved' : '♡ Save'}
-                </button>
-            </div>
-            <div style="padding-top: 16px; border-top: 1px solid var(--glass-border);">
-                <h3 style="margin-bottom: 8px;">Description</h3>
-                <p style="color: var(--ink-dim); line-height: 1.6;">${video.description}</p>
-            </div>
-            <div style="margin-top: 24px;">
-                <h3>Comments</h3>
-                <div style="color: var(--ink-dim);">Comments section would go here...</div>
-            </div>
+        draggedCard.removeEventListener('pointermove', drag);
+        draggedCard.removeEventListener('pointerup', stopDragging);
+        draggedCard.removeEventListener('pointercancel', stopDragging);
+      }
+      
+      scatter.dragging = false;
+      draggedCard = null;
+      saveState();
+    }
+    
+    // ====== CONTEXT MENUS ======
+    function showContextMenu(event) {
+      event.preventDefault();
+      const menu = document.getElementById('contextMenu');
+      
+      if (event.target.closest('.scatter-card')) {
+        return;
+      } else if (event.target.closest('#scatterCanvas')) {
+        showScatterContextMenu(event);
+      } else {
+        menu.innerHTML = `
+          <div class="ctx-header">Actions</div>
+          <div class="ctx-item" onclick="toggleSearchOverlay()">🔍 Search Videos</div>
+          <div class="ctx-item" onclick="switchMode('feed')">🏠 Feed View</div>
+          <div class="ctx-item" onclick="switchMode('list')">📋 List View</div>
+          <div class="ctx-item" onclick="switchMode('scatter')">🕸 Scatter View</div>
+          <div class="ctx-item" onclick="switchMode('columns')">🎞️ Kanban View</div>
+          <div class="ctx-item" onclick="switchMode('history')">📜 History</div>
         `;
-        
-        const modeIcon = document.getElementById('videoModeIcon');
-        const modeText = document.getElementById('videoModeText');
-        
-        if (videoOverlayMode === 'side-panel') {
-            modeIcon.textContent = '⛶';
-            modeText.textContent = 'Full Screen';
-        } else {
-            modeIcon.textContent = '⛶';
-            modeText.textContent = 'Side Panel';
-        }
-        
-        panel.classList.add('active');
-    }
-
-
-    function closeDetailPanel() {
-        document.getElementById('detailPanel').classList.remove('active');
-        currentVideo = null;
-    }
-    
-    function toggleVideoMode() {
-        const panel = document.getElementById('detailPanel');
-        const modeIcon = document.getElementById('videoModeIcon');
-        const modeText = document.getElementById('videoModeText');
-        
-        if (videoOverlayMode === 'side-panel') {
-            videoOverlayMode = 'full-viewport';
-            panel.classList.remove('side-panel');
-            panel.classList.add('full-viewport');
-            modeIcon.textContent = '⛶';
-            modeText.textContent = 'Side Panel';
-            showToast('Switched to full viewport mode');
-        } else {
-            videoOverlayMode = 'side-panel';
-            panel.classList.remove('full-viewport');
-            panel.classList.add('side-panel');
-            modeIcon.textContent = '⛶';
-            modeText.textContent = 'Full Screen';
-            showToast('Switched to side panel mode');
-        }
-        
-        if (panel.classList.contains('active')) {
-            panel.classList.remove('active');
-            setTimeout(() => panel.classList.add('active'), 50);
-        }
-        
-        saveState();
-    }
-
-
-        // ====== CONTEXT MENUS ======
-        function showContextMenu(event) {
-        event.preventDefault();
-        const menu = document.getElementById('contextMenu');
-        
-        if (event.target.closest('.video-card') || event.target.closest('.scatter-card')) {
-            return;
-        } else if (event.target.closest('#scatterCanvas')) {
-            showScatterContextMenu(event);
-        } else {
-            menu.innerHTML = `
-                <div class="ctx-header">Actions</div>
-                <div class="ctx-item" onclick="toggleSearchOverlay()">🔍 Search Videos</div>
-                <div class="ctx-item" onclick="switchMode('feed')">🏠 Feed View</div>
-                <div class="ctx-item" onclick="switchMode('list')">📋 List View</div>
-                <div class="ctx-item" onclick="switchMode('scatter')">🕒 Scatter View</div>
-                <div class="ctx-item" onclick="switchMode('columns')">散 Kanban View</div>
-                <div class="ctx-item" onclick="switchMode('history')">📜 History</div>
-            `;
-        }
-        
-        menu.style.left = `${event.clientX}px`;
-        menu.style.top = `${event.clientY}px`;
-        menu.classList.add('active');
+      }
+      
+      menu.style.left = `${event.clientX}px`;
+      menu.style.top = `${event.clientY}px`;
+      menu.classList.add('active');
     }
     
     function showVideoContextMenu(event, videoId) {
-        event.preventDefault();
-        event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
+      
+      const video = videos.find(v => v.id === videoId);
+      const menu = document.getElementById('contextMenu');
+      
+      menu.innerHTML = `
+        <div class="ctx-header">${video.channel.name}</div>
+        <div class="ctx-item" onclick="openVideoDetail(${videoId})">▶ Play Now</div>
+        <div class="ctx-item" onclick="toggleSave(${videoId})">${video.status === 'saved' ? '♥ Unsave' : '♡ Save Video'}</div>
         
-        const video = videos.find(v => v.id === videoId);
-        const menu = document.getElementById('contextMenu');
+        <div class="ctx-divider"></div>
+        <div class="ctx-item scatter-action" onclick="addToScatter(${videoId})">
+          🕸 Add to Scatter Map
+        </div>
         
-        menu.innerHTML = `
-            <div class="ctx-header">${video.channel.name}</div>
-            <div class="ctx-item" onclick="openVideoDetail(${videoId})">▶ Play Now</div>
-            <div class="ctx-item" onclick="toggleSave(${videoId})">${video.status === 'saved' ? '♥ Unsave' : '♡ Save Video'}</div>
-            
-            <div class="ctx-divider"></div>
-            <div class="ctx-item scatter-action" onclick="addToScatter(${videoId})">
-                🕸 Add to Scatter Map
-            </div>
-            
-            <div class="ctx-divider"></div>
-            <div class="ctx-item" onclick="shareVideo(${videoId})">↗ Share</div>
-            <div class="ctx-item text-red" onclick="removeVideo(${videoId})">🗑 Remove</div>
-        `;
-        
-        menu.style.left = `${event.clientX}px`;
-        menu.style.top = `${event.clientY}px`;
-        menu.classList.add('active');
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" onclick="shareVideo(${videoId})">↗ Share</div>
+        <div class="ctx-item text-red" onclick="removeVideo(${videoId})">🗑 Remove</div>
+      `;
+      
+      menu.style.left = `${event.clientX}px`;
+      menu.style.top = `${event.clientY}px`;
+      menu.classList.add('active');
     }
     
     function showScatterContextMenu(event) {
-        const menu = document.getElementById('contextMenu');
-        
-        menu.innerHTML = `
-            <div class="ctx-header">Canvas Actions</div>
-            <div class="ctx-item" onclick="collectNodes()">📦 Collect (Grid)</div>
-            <div class="ctx-item" onclick="cascadeNodes()">🎴 Cascade (Stack)</div>
-            <div class="ctx-item" onclick="sortScatterByStatus()">🏷 Sort by Status</div>
-            <div class="ctx-item" onclick="sortScatterByCategory()">📂 Sort by Category</div>
-            <div class="ctx-item" onclick="resetScatterView()">🔄 Reset View</div>
-        `;
-        
-        menu.style.left = `${event.clientX}px`;
-        menu.style.top = `${event.clientY}px`;
-        menu.classList.add('active');
-    }
-    
-    // ====== VIDEO ACTIONS ======
-    function toggleSave(videoId) {
-        const video = videos.find(v => v.id === videoId);
-        if (!video) return;
-        
-        if (video.status === 'saved') {
-            video.status = 'unwatched';
-        } else {
-            video.status = 'saved';
-        }
-        
-        renderCurrentView();
-        saveState();
-        showToast(video.status === 'saved' ? 'Video saved!' : 'Video unsaved');
-    }
-    
-    function shareVideo(videoId) {
-        const video = videos.find(v => v.id === videoId);
-        if (!video) return;
-        
-        const url = `https://youtube.com/watch?v=${videoId}`;
-        navigator.clipboard.writeText(url).then(() => {
-            showToast('Link copied to clipboard!');
-        }).catch(() => {
-            showToast('Failed to copy link', 'error');
-        });
-    }
-    
-    function changeVideoStatus(videoId, status) {
-        const video = videos.find(v => v.id === videoId);
-        if (!video) return;
-        
-        video.status = status;
-        if (status === 'in-progress' || status === 'completed') {
-            video.lastWatched = Date.now();
-        }
-        renderCurrentView();
-        saveState();
-        showToast(`Status changed to ${status.replace('-', ' ')}`);
-    }
-    
-    function removeVideo(videoId) {
-        if (confirm('Remove this video?')) {
-            videos = videos.filter(v => v.id !== videoId);
-            renderCurrentView();
-            saveState();
-            showToast('Video removed');
-        }
+      const menu = document.getElementById('contextMenu');
+      
+      menu.innerHTML = `
+        <div class="ctx-header">Canvas Actions</div>
+        <div class="ctx-item" onclick="setScatterMode('pan')">🖐 Move Canvas</div>
+        <div class="ctx-item" onclick="setScatterMode('drag')">👆 Move Objects</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" onclick="arrangeGrid()">📦 Arrange as Grid</div>
+        <div class="ctx-item" onclick="arrangeCascade()">🎴 Arrange as Cascade</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" onclick="filterScatter('recent')">🕒 Recently Added</div>
+        <div class="ctx-item" onclick="filterScatter('saved')">♥ Saved Videos</div>
+        <div class="ctx-item" onclick="filterScatter('watched')">👁 Watched Videos</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" onclick="resetView()">🔄 Reset View</div>
+      `;
+      
+      menu.style.left = `${event.clientX}px`;
+      menu.style.top = `${event.clientY}px`;
+      menu.classList.add('active');
     }
     
     // ====== SCATTER POCKET FUNCTIONS ======
     function addToScatter(videoId) {
-        const video = videos.find(v => v.id === videoId);
-        if (!video) return;
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+      
+      if (!video.inScatter) {
+        video.inScatter = true;
+        video.scatterAddedAt = Date.now();
+        video.scatterPosition = getNextAvailablePosition();
         
-        if (!video.inScatter) {
-            video.inScatter = true;
-            video.scatterAddedAt = Date.now();
-            video.scatterPosition = getNextAvailablePosition();
-            
-            updateScatterBadge();
-            highlightScatterButton();
-            showToast('Added to Scatter Map', 'success');
-        }
-        
-        saveState();
+        updateScatterBadge();
+        highlightScatterButton();
+        showToast('Added to Scatter Map', 'success');
+      }
+      
+      saveState();
     }
     
     function updateScatterBadge() {
-        const count = videos.filter(v => v.inScatter).length;
-        const badge = document.getElementById('scatterBadge');
-        if (badge) {
-            badge.textContent = count;
-            badge.style.display = count > 0 ? 'flex' : 'none';
+      const count = videos.filter(v => v.inScatter).length;
+      const badge = document.getElementById('scatterBadge');
+      if (badge) {
+        badge.textContent = count;
+        badge.style.display = count > 0 ? 'flex' : 'none';
+      }
+      
+      const scatterBtn = document.querySelector('.scatter-pocket');
+      if (scatterBtn) {
+        if (count > 0) {
+          scatterBtn.classList.add('has-items');
+        } else {
+          scatterBtn.classList.remove('has-items');
         }
-        
-        const scatterBtn = document.querySelector('.scatter-pocket');
-        if (scatterBtn) {
-            if (count > 0) {
-                scatterBtn.classList.add('has-items');
-            } else {
-                scatterBtn.classList.remove('has-items');
-            }
-        }
+      }
     }
     
     function highlightScatterButton() {
-        const btn = document.querySelector('.scatter-pocket');
-        if (btn) {
-            btn.classList.add('just-added');
-            setTimeout(() => btn.classList.remove('just-added'), 1000);
-        }
+      const btn = document.querySelector('.scatter-pocket');
+      if (btn) {
+        btn.classList.add('just-added');
+        setTimeout(() => btn.classList.remove('just-added'), 1000);
+      }
     }
     
     function getNextAvailablePosition() {
-        const existingPositions = videos
-            .filter(v => v.inScatter && v.scatterPosition)
-            .map(v => v.scatterPosition);
+      const existingPositions = videos
+        .filter(v => v.inScatter && v.scatterPosition)
+        .map(v => v.scatterPosition);
+      
+      const gridSize = 150;
+      const cols = 8;
+      
+      for (let i = 0; i < 100; i++) {
+        const x = (i % cols) * gridSize + 50;
+        const y = Math.floor(i / cols) * gridSize + 50;
         
-        const gridSize = 150;
-        const cols = 8;
-        
-        for (let i = 0; i < 100; i++) {
-            const x = (i % cols) * gridSize + 50;
-            const y = Math.floor(i / cols) * gridSize + 50;
-            
-            if (!existingPositions.some(pos => pos.x === x && pos.y === y)) {
-                return { x, y };
-            }
+        if (!existingPositions.some(pos => pos.x === x && pos.y === y)) {
+          return { x, y };
         }
-        
-        return { x: 50, y: 50 };
+      }
+      
+      return { x: 50, y: 50 };
     }
     
     function isFirstScatterVisit() {
-        return !localStorage.getItem('scatterVisited');
+      return !localStorage.getItem('scatterVisited');
     }
     
     function showScatterWelcome() {
-        localStorage.setItem('scatterVisited', 'true');
-        showToast('Welcome to your Scatter Map! Your saved videos will appear here.', 'info');
-    }
-
-        // ====== DRAG AND DROP ======
-        function startDrag(e, card) {
-            if (config.currentView !== 'scatter') return;
-            
-            scatter.dragging = true;
-            draggedCard = card;
-            draggedCard.classList.add('is-dragging');
-            
-            // Use pointer events for unified handling
-            card.setPointerCapture(e.pointerId);
-            
-            const rect = card.getBoundingClientRect();
-            const canvasRect = canvas.getBoundingClientRect();
-            const invScale = 1 / scatter.transform.scale;
-            
-            dragOffset.x = ((e.clientX - rect.left) * invScale);
-            dragOffset.y = ((e.clientY - rect.top) * invScale);
-            
-            card.style.zIndex = '2000';
-            
-            card.addEventListener('pointermove', drag);
-            card.addEventListener('pointerup', stopDragging);
-            card.addEventListener('pointercancel', stopDragging);
-        }
-    
-    
-    
-    function drag(e) {
-        if (!scatter.dragging || !draggedCard) return;
-        
-        const canvas = document.getElementById('scatterCanvas');
-        const canvasRect = canvas.getBoundingClientRect();
-        const invScale = 1 / scatter.transform.scale;
-        
-        // Scale-aware positioning with grid snapping
-        let x = ((e.clientX - canvasRect.left - dragOffset.x) * invScale);
-        let y = ((e.clientY - canvasRect.top - dragOffset.y) * invScale);
-        
-        // Grid snapping (20px increments)
-        x = Math.round(x / 20) * 20;
-        y = Math.round(y / 20) * 20;
-        
-        draggedCard.style.left = `${x}px`;
-        draggedCard.style.top = `${y}px`;
+      localStorage.setItem('scatterVisited', 'true');
+      showToast('Welcome to your Scatter Map! Your saved videos will appear here.', 'info');
     }
     
-    function stopDragging(e) {
-        if (draggedCard) {
-            draggedCard.classList.remove('is-dragging');
-            draggedCard.style.zIndex = '';
-            
-            // Save position to video data
-            const videoId = draggedCard.dataset.videoId;
-            const video = videos.find(v => v.id === videoId);
-            if (video) {
-                video.scatterPosition.x = parseFloat(draggedCard.style.left);
-                video.scatterPosition.y = parseFloat(draggedCard.style.top);
-            }
-            
-            // Clean up event listeners
-            draggedCard.removeEventListener('pointermove', drag);
-            draggedCard.removeEventListener('pointerup', stopDragging);
-            draggedCard.removeEventListener('pointercancel', stopDragging);
-        }
-        
-        scatter.dragging = false;
-        draggedCard = null;
-        
-        saveState();
-    }
-    
-
-    // ====== LAYOUT FUNCTIONS ======
-    function collectNodes() {
-        const filtered = getFilteredVideos();
-        const cardW = 220;
-        const cardH = 140;
-        const pad = 20;
-        const viewportW = window.innerWidth;
-        const cols = Math.max(1, Math.floor(viewportW / (cardW + pad)));
-        let x = pad;
-        let y = pad;
-        
-        filtered.forEach((video, i) => {
-            video.scatterPosition = { x, y };
-            
-            x += cardW + pad;
-            if (x + cardW > viewportW) {
-                x = pad;
-                y += cardH + pad;
-            }
-        });
-        
-        fitToBounds(filtered);
-        renderScatter(filtered);
-        saveState();
-        showToast("Videos collected to grid");
-    }
-
-    function cascadeNodes() {
-        const filtered = getFilteredVideos();
-        
-        // Sort videos by date (newest first)
-        filtered.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-        
-        const cardW = 220;
-        const cardH = 140;
-        const pad = 20;
-        const stackOffsetY = window.innerWidth < 600 ? 30 : 40;
-        const groupWidth = cardW + pad * 2;
-        const viewportW = window.innerWidth - pad * 2;
-        const maxCols = Math.floor(viewportW / groupWidth);
-        const effectiveMaxCols = Math.max(1, Math.min(maxCols, 2));
-        
-        let x = pad;
-        let y = pad;
-        let col = 0;
-        
-        filtered.forEach((video, i) => {
-            video.scatterPosition = { 
-                x: x + (i % effectiveMaxCols) * 15, // Slight offset for visual effect
-                y: y + (i % effectiveMaxCols) * stackOffsetY
-            };
-            
-            if ((i + 1) % effectiveMaxCols === 0) {
-                col++;
-                x = pad + col * groupWidth;
-                y = pad;
-            } else {
-                y += stackOffsetY;
-            }
-        });
-        
-        fitToBounds(filtered);
-        renderScatter(filtered);
-        saveState();
-        showToast("Videos cascaded by date");
-    }
-
-    function fitToBounds(filtered) {
-        if (filtered.length === 0) return;
-
-        const cardW = 220;
-        const cardH = 140;
-        const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-
-        filtered.forEach(video => {
-            bounds.minX = Math.min(bounds.minX, video.scatterPosition.x);
-            bounds.minY = Math.min(bounds.minY, video.scatterPosition.y);
-            bounds.maxX = Math.max(bounds.maxX, video.scatterPosition.x + cardW);
-            bounds.maxY = Math.max(bounds.maxY, video.scatterPosition.y + cardH);
-        });
-
-        const contentW = bounds.maxX - bounds.minX;
-        const contentH = bounds.maxY - bounds.minY;
-
-        const vpW = window.innerWidth;
-        const vpH = window.innerHeight - 180; // Account for header and nav
-
-        const scaleX = vpW / contentW;
-        const scaleY = vpH / contentH;
-        const newScale = Math.min(scaleX, scaleY, 1) * 0.95; // Max scale 1, 95% fit
-
-        scatter.transform.scale = newScale;
-
-        const centerX = (vpW - contentW * newScale) / 2 - bounds.minX * newScale;
-        const centerY = (vpH - contentH * newScale) / 2 - bounds.minY * newScale + 80; // Offset for header
-
-        scatter.transform.x = centerX;
-        scatter.transform.y = centerY;
-
-        applyScatterTransform();
-    }
-
-    function getFilteredVideos() {
-        // Apply current filters to videos
-        let filtered = [...videos];
-        
-        // Apply search filter if active
-        const searchInput = document.getElementById("searchInput");
-        if (searchInput && searchInput.value.trim()) {
-            const searchTerm = searchInput.value.toLowerCase();
-            filtered = filtered.filter(video => 
-                video.title.toLowerCase().includes(searchTerm) ||
-                video.channelTitle.toLowerCase().includes(searchTerm) ||
-                video.description.toLowerCase().includes(searchTerm)
-            );
-        }
-        
-        return filtered;
-    }
     // ====== TOUCH GESTURES ======
     function setupTouchGestures() {
-        const views = ['feed', 'list', 'scatter', 'columns', 'history'];
-        let swipeStartX = 0;
-        let swipeEndX = 0;
+      const views = ['feed', 'list', 'scatter', 'columns', 'history'];
+      let swipeStartX = 0;
+      let swipeEndX = 0;
+      
+      document.addEventListener('touchstart', (e) => {
+        swipeStartX = e.changedTouches[0].screenX;
+      }, { passive: true });
+      
+      document.addEventListener('touchend', (e) => {
+        swipeEndX = e.changedTouches[0].screenX;
+        const diffX = swipeEndX - swipeStartX;
         
-        document.addEventListener('touchstart', (e) => {
-            swipeStartX = e.changedTouches[0].screenX;
-        }, { passive: true });
-        
-        document.addEventListener('touchend', (e) => {
-            swipeEndX = e.changedTouches[0].screenX;
-            const diffX = swipeEndX - swipeStartX;
-            
-            if (Math.abs(diffX) > 50) {
-                const currentIndex = views.indexOf(config.currentView);
-                let newIndex;
-                
-                if (diffX > 0) {
-                    newIndex = currentIndex > 0 ? currentIndex - 1 : views.length - 1;
-                } else {
-                    newIndex = currentIndex < views.length - 1 ? currentIndex + 1 : 0;
-                }
-                
-                switchMode(views[newIndex]);
-            }
-        }, { passive: true });
-    }
-    
-    function setupScatterCanvas() {
-        const canvas = document.getElementById('scatterCanvas');
-        if (!canvas) return;
-        
-        let panning = false;
-        let panStart = { x: 0, y: 0 };
-        
-        // Pan functionality
-        canvas.addEventListener('pointerdown', (e) => {
-            if (!e.target.closest('.scatter-card')) {
-                panning = true;
-                panStart.x = e.clientX - scatter.transform.x;
-                panStart.y = e.clientY - scatter.transform.y;
-                canvas.style.cursor = 'grabbing';
-                e.preventDefault();
-            }
-        });
-        
-        canvas.addEventListener('pointermove', (e) => {
-            if (panning) {
-                scatter.transform.x = e.clientX - panStart.x;
-                scatter.transform.y = e.clientY - panStart.y;
-                applyScatterTransform();
-            }
-        });
-        
-        document.addEventListener('pointerup', () => {
-            if (panning) {
-                panning = false;
-                canvas.style.cursor = 'default';
-                saveState();
-            }
-        });
-        
-        // Wheel zoom
-        canvas.addEventListener('wheel', (e) => { 
-            e.preventDefault(); 
-            zoom(e.deltaY < 0 ? 0.2 : -0.2, e.clientX, e.clientY); 
-        }, { passive: false });
-    }
-
-    function setupMobileTouchListeners() {
-        let touchStartTime = 0;
-        
-        document.addEventListener('touchstart', (e) => {
-            touchStartTime = Date.now();
-            const card = e.target.closest('.video-card, .list-view-item, .grid-list-item');
-            
-            if (card) {
-                globalTouchStartX = e.touches[0].clientX;
-                globalTouchStartY = e.touches[0].clientY;
-                
-                card.touchTimeout = setTimeout(() => {
-                    const videoId = card.dataset.videoId;
-                    if (videoId) {
-                        showVideoContextMenu(e, parseInt(videoId));
-                    }
-                }, 500);
-            }
-        }, { passive: true });
-        
-        document.addEventListener('touchend', (e) => {
-            const card = e.target.closest('.video-card, .list-view-item, .grid-list-item');
-            
-            if (card && card.touchTimeout) {
-                clearTimeout(card.touchTimeout);
-                
-                const touchDuration = Date.now() - touchStartTime;
-                const touchEndX = e.changedTouches[0].clientX;
-                const touchEndY = e.changedTouches[0].clientY;
-                const diffX = Math.abs(touchEndX - globalTouchStartX);
-                const diffY = Math.abs(touchEndY - globalTouchStartY);
-                
-                if (touchDuration < 300 && diffX < 10 && diffY < 10) {
-                    const videoId = card.dataset.videoId;
-                    if (videoId) {
-                        openVideoDetail(parseInt(videoId));
-                    }
-                }
-            }
-        }, { passive: true });
-    }
-    
-    // ====== SCATTER ACTIONS ======
-    function collectNodes() {
-        const canvas = document.getElementById('scatterCanvas');
-        const cards = canvas.querySelectorAll('.scatter-card');
-        
-        cards.forEach((card, index) => {
-            const row = Math.floor(index / 5);
-            const col = index % 5;
-            card.style.left = `${50 + col * 220}px`;
-            card.style.top = `${100 + row * 200}px`;
-            
-            const videoId = parseInt(card.dataset.videoId);
-            const video = videos.find(v => v.id === videoId);
-            if (video) {
-                video.scatterPosition = { x: 50 + col * 220, y: 100 + row * 200 };
-            }
-        });
-        
-        saveState();
-        showToast('Videos collected in grid');
-    }
-    
-    function cascadeNodes() {
-        const canvas = document.getElementById('scatterCanvas');
-        const cards = canvas.querySelectorAll('.scatter-card');
-        
-        cards.forEach((card, index) => {
-            card.style.left = `${100 + index * 10}px`;
-            card.style.top = `${100 + index * 10}px`;
-            
-            const videoId = parseInt(card.dataset.videoId);
-            const video = videos.find(v => v.id === videoId);
-            if (video) {
-                video.scatterPosition = { x: 100 + index * 10, y: 100 + index * 10 };
-            }
-        });
-        
-        saveState();
-        showToast('Videos cascaded');
-    }
-    
-    function sortScatterByStatus() {
-        const canvas = document.getElementById('scatterCanvas');
-        const cards = Array.from(canvas.querySelectorAll('.scatter-card'));
-        
-        cards.sort((a, b) => {
-            const videoA = videos.find(v => v.id === parseInt(a.dataset.videoId));
-            const videoB = videos.find(v => v.id === parseInt(b.dataset.videoId));
-            return videoA.status.localeCompare(videoB.status);
-        });
-        
-        cards.forEach((card, index) => {
-            const row = Math.floor(index / 5);
-            const col = index % 5;
-            card.style.left = `${50 + col * 220}px`;
-            card.style.top = `${100 + row * 200}px`;
-            
-            const videoId = parseInt(card.dataset.videoId);
-            const video = videos.find(v => v.id === videoId);
-            if (video) {
-                video.scatterPosition = { x: 50 + col * 220, y: 100 + row * 200 };
-            }
-        });
-        
-        saveState();
-        showToast('Sorted by status');
-    }
-    
-    function sortScatterByCategory() {
-        const canvas = document.getElementById('scatterCanvas');
-        const cards = Array.from(canvas.querySelectorAll('.scatter-card'));
-        
-        cards.sort((a, b) => {
-            const videoA = videos.find(v => v.id === parseInt(a.dataset.videoId));
-            const videoB = videos.find(v => v.id === parseInt(b.dataset.videoId));
-            return videoA.category.localeCompare(videoB.category);
-        });
-        
-        cards.forEach((card, index) => {
-            const row = Math.floor(index / 5);
-            const col = index % 5;
-            card.style.left = `${50 + col * 220}px`;
-            card.style.top = `${100 + row * 200}px`;
-            
-            const videoId = parseInt(card.dataset.videoId);
-            const video = videos.find(v => v.id === videoId);
-            if (video) {
-                video.scatterPosition = { x: 50 + col * 220, y: 100 + row * 200 };
-            }
-        });
-        
-        saveState();
-        showToast('Sorted by category');
-    }
-    
-    function resetScatterView() {
-        scatter.transform = { x: 0, y: 0, scale: 1 };
-        applyScatterTransform();
-        saveState();
-        showToast('Scatter view reset');
-    }
-    
-    // ====== THEME MANAGEMENT ======
-    function cycleTheme() {
-        const themes = ['dark', 'light', 'rose', 'theater'];
-        const currentIndex = themes.indexOf(config.currentTheme);
-        const nextIndex = (currentIndex + 1) % themes.length;
-        config.currentTheme = themes[nextIndex];
-        
-        document.body.setAttribute('data-theme', config.currentTheme);
-        
-        const themeIcons = {
-            'dark': '🌙',
-            'light': '☀️',
-            'rose': '🌹',
-            'theater': '🎭'
-        };
-        
-        document.getElementById('themeIcon').textContent = themeIcons[config.currentTheme] || '🌙';
-        saveState();
-    }
-    
-    function toggleView() {
-        if (config.currentView === 'feed') {
-            switchMode('list');
-        } else if (config.currentView === 'list') {
-            switchMode('feed');
-        } else if (config.currentView === 'columns') {
-            toggleKanbanLayout();
+        if (Math.abs(diffX) > 50) {
+          const currentIndex = views.indexOf(config.currentView);
+          let newIndex;
+          
+          if (diffX > 0) {
+            newIndex = currentIndex > 0 ? currentIndex - 1 : views.length - 1;
+          } else {
+            newIndex = currentIndex < views.length - 1 ? currentIndex + 1 : 0;
+          }
+          
+          switchMode(views[newIndex]);
         }
+      }, { passive: true });
     }
     
-    // ====== MODAL FUNCTIONS ======
-    function openCreateModal() {
-        document.getElementById('createModal').classList.add('active');
+    function setupMobileTouchListeners() {
+      let touchStartTime = 0;
+      
+      document.addEventListener('touchstart', (e) => {
+        touchStartTime = Date.now();
+        const card = e.target.closest('.video-card, .list-view-item, .grid-list-item');
+        
+        if (card) {
+          globalTouchStartX = e.touches[0].clientX;
+          globalTouchStartY = e.touches[0].clientY;
+          
+          card.touchTimeout = setTimeout(() => {
+            const videoId = card.dataset.videoId;
+            if (videoId) {
+              showVideoContextMenu(e, parseInt(videoId));
+            }
+          }, 500);
+        }
+      }, { passive: true });
+      
+      document.addEventListener('touchend', (e) => {
+        const card = e.target.closest('.video-card, .list-view-item, .grid-list-item');
+        
+        if (card && card.touchTimeout) {
+          clearTimeout(card.touchTimeout);
+          
+          const touchDuration = Date.now() - touchStartTime;
+          const touchEndX = e.changedTouches[0].clientX;
+          const touchEndY = e.changedTouches[0].clientY;
+          const diffX = Math.abs(touchEndX - globalTouchStartX);
+          const diffY = Math.abs(touchEndY - globalTouchStartY);
+          
+          if (touchDuration < 300 && diffX < 10 && diffY < 10) {
+            const videoId = card.dataset.videoId;
+            if (videoId) {
+              openVideoDetail(parseInt(videoId));
+            }
+          }
+        }
+      }, { passive: true });
     }
     
-    function closeCreateModal() {
-        document.getElementById('createModal').classList.remove('active');
+    // ====== UTILITY FUNCTIONS ======
+    function formatDuration(seconds) {
+      const hrs = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      
+      if (hrs > 0) {
+        return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
     
-    function createItem(type) {
-        closeCreateModal();
-        showToast(`Creating ${type}...`, 'info');
+    function formatViews(views) {
+      if (views >= 1000000) {
+        return (views / 1000000).toFixed(1) + 'M';
+      }
+      if (views >= 1000) {
+        return (views / 1000).toFixed(1) + 'K';
+      }
+      return views.toString();
     }
     
-    function toggleProfileMenu() {
-        document.getElementById('profileMenu').classList.toggle('active');
+    function formatDate(timestamp) {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+      if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+      return `${Math.floor(diffDays / 365)} years ago`;
     }
     
-    function toggleNotifications() {
-        showToast('No new notifications', 'info');
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      
+      setTimeout(() => toast.classList.add('show'), 10);
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
     }
     
-    function navigateTo(page) {
-        showToast(`Navigating to ${page}...`, 'info');
-        document.getElementById('profileMenu').classList.remove('active');
-    }
-    
-    // ====== FILTER FUNCTIONS ======
-    function toggleFilter(element) {
-        element.parentElement.querySelectorAll('.filter-pill').forEach(pill => {
-            pill.classList.remove('active');
+    // ====== ENHANCED MOCK DATA ======
+    function generateMockVideos() {
+      const categories = ['Music', 'Gaming', 'Education', 'News', 'Sports', 'Comedy', 'Science', 'Tech', 'DIY', 'Food'];
+      const subcategories = {
+        'Music': ['Pop', 'Rock', 'Hip Hop', 'Electronic', 'Classical', 'Jazz', 'Indie', 'R&B'],
+        'Gaming': ['FPS', 'RPG', 'Strategy', 'MOBA', 'Indie', 'Mobile', 'Retro', 'Simulation'],
+        'Education': ['Science', 'History', 'Math', 'Language', 'Technology', 'Business', 'Art', 'Philosophy'],
+        'News': ['Politics', 'Technology', 'Entertainment', 'Business', 'Science', 'Health', 'World', 'Local'],
+        'Sports': ['Football', 'Basketball', 'Tennis', 'Golf', 'Fitness', 'Extreme', 'Olympics', 'Motorsports'],
+        'Comedy': ['Stand-up', 'Sketch', 'Improv', 'Parody', 'Satire', 'Dark Comedy', 'Observational'],
+        'Science': ['Physics', 'Biology', 'Astronomy', 'Chemistry', 'Psychology', 'Geology', 'Ecology'],
+        'Tech': ['Programming', 'AI', 'Hardware', 'Software', 'Gadgets', 'Cybersecurity', 'Blockchain', 'IoT'],
+        'DIY': ['Woodworking', 'Crafts', 'Home Improvement', 'Electronics', 'Gardening', 'Cooking', 'Fashion'],
+        'Food': ['Cooking', 'Baking', 'Restaurant Reviews', 'Nutrition', 'Vegan', 'Desserts', 'Barbecue', 'Fast Food']
+      };
+      
+      const channelNames = [
+        'TechTalk Daily', 'Music Masters', 'Gaming Universe', 'Learn With Me', 
+        'News Central', 'Sports Zone', 'Comedy Club', 'Science Explorers',
+        'DIY Pro', 'Foodie Adventures', 'Creative Corner', 'Digital Dreams',
+        'Artistic Flow', 'Business Insights', 'Health & Wellness', 'Travel Tales',
+        'Fashion Forward', 'Car Enthusiasts', 'Movie Buffs', 'Book Lovers'
+      ];
+      
+      const titleTemplates = [
+        'The Ultimate Guide to {topic}',
+        '{topic} Explained Simply',
+        'Amazing {topic} Techniques Revealed',
+        'Top 10 {topic} Tips You Need to Know',
+        'How to Master {topic} in 30 Days',
+        'The Science Behind {topic}',
+        '{topic}: A Complete Beginner\'s Guide',
+        'Advanced {topic} Strategies',
+        'The Future of {topic}',
+        '{topic} Secrets Professionals Use'
+      ];
+      
+      const mockVideos = [];
+      
+      for (let i = 1; i <= 120; i++) {
+        const category = categories[Math.floor(Math.random() * categories.length)];
+        const subcategory = subcategories[category][Math.floor(Math.random() * subcategories[category].length)];
+        const status = Math.random() > 0.6 ? 'watched' : (Math.random() > 0.7 ? 'saved' : 'unwatched');
+        
+        let duration;
+        const durationType = Math.random();
+        if (durationType < 0.3) {
+          duration = Math.floor(Math.random() * 240) + 60;
+        } else if (durationType < 0.8) {
+          duration = Math.floor(Math.random() * 900) + 300;
+        } else {
+          duration = Math.floor(Math.random() * 2400) + 1200;
+        }
+        
+        let views;
+        const popularity = Math.random();
+        if (popularity < 0.6) {
+          views = Math.floor(Math.random() * 100000) + 1000;
+        } else if (popularity < 0.9) {
+          views = Math.floor(Math.random() * 900000) + 100000;
+        } else {
+          views = Math.floor(Math.random() * 9000000) + 1000000;
+        }
+        
+        const likes = Math.floor(views * (Math.random() * 0.08 + 0.02));
+        const channelIndex = Math.floor(Math.random() * channelNames.length);
+        
+        let uploadDate;
+        const age = Math.random();
+        if (age < 0.3) {
+          uploadDate = Date.now() - (Math.random() * 7 * 24 * 60 * 60 * 1000);
+        } else if (age < 0.7) {
+          uploadDate = Date.now() - (Math.random() * 30 * 24 * 60 * 60 * 1000);
+        } else if (age < 0.9) {
+          uploadDate = Date.now() - (Math.random() * 90 * 24 * 60 * 60 * 1000);
+        } else {
+          uploadDate = Date.now() - (Math.random() * 365 * 24 * 60 * 60 * 1000);
+        }
+        
+        const titleTemplate = titleTemplates[Math.floor(Math.random() * titleTemplates.length)];
+        
+        let columnType;
+        if (status === 'saved') {
+          columnType = 'watchlist';
+        } else if (status === 'watched') {
+          columnType = 'history';
+        } else if (category === 'Tech' || category === 'Science' || category === 'Education') {
+          columnType = 'learning';
+        } else if (Math.random() > 0.7) {
+          columnType = 'trending';
+        } else {
+          columnType = 'recommended';
+        }
+        
+        mockVideos.push({
+          id: i,
+          title: titleTemplate.replace('{topic}', `${subcategory} ${category}`),
+          subtitle: `${category} • ${subcategory}`,
+          channel: {
+            name: channelNames[channelIndex],
+            id: `channel_${1000 + channelIndex}`,
+            avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70) + 1}`,
+            verified: Math.random() > 0.5,
+            subscribers: Math.floor(Math.random() * 1000000) + 1000
+          },
+          thumbnail: `https://picsum.photos/seed/${category}${i}/320/180?${Date.now()}`,
+          duration: duration,
+          uploadDate: uploadDate,
+          views: views,
+          likes: likes,
+          comments: Math.floor(views * (Math.random() * 0.01 + 0.001)),
+          category: category,
+          subcategory: subcategory,
+          tags: [category.toLowerCase(), subcategory.toLowerCase()],
+          status: status,
+          columnType: columnType,
+          
+          inScatter: Math.random() > 0.8,
+          scatterPosition: { 
+            x: Math.random() * 1200 + 100, 
+            y: Math.random() * 800 + 100 
+          },
+          
+          watched: status === 'watched',
+          watchProgress: status === 'watched' ? Math.random() * 0.2 + 0.8 : (Math.random() > 0.7 ? Math.random() * 0.5 : 0),
+          lastWatched: status === 'watched' ? Date.now() - (Math.random() * 30 * 24 * 60 * 60 * 1000) : null,
+          watchCount: status === 'watched' ? Math.floor(Math.random() * 5) + 1 : 0,
+          
+          savedByUser: status === 'saved',
+          likedByUser: Math.random() > 0.7,
+          subscribedToChannel: Math.random() > 0.8,
+          
+          quality: ['360p', '480p', '720p', '1080p', '4K'][Math.floor(Math.random() * 5)],
+          hasCaptions: Math.random() > 0.3,
+          isLive: Math.random() > 0.9,
+          isPremiere: Math.random() > 0.95,
+          
+          description: `In this video, we explore everything about ${subcategory} ${category}. Join us for an in-depth look at this fascinating topic.`
         });
-        element.classList.add('active');
+      }
+      
+      mockVideos.slice(0, 15).forEach(video => {
+        video.isTrending = true;
+        video.trendingPosition = Math.floor(Math.random() * 15) + 1;
+      });
+      
+      mockVideos.slice(15, 30).forEach(video => {
+        video.isRecommended = true;
+        video.recommendedReason = ['Based on your watch history', 'Popular in your region', 'Trending now'][Math.floor(Math.random() * 3)];
+      });
+      
+      return mockVideos;
     }
     
-    function toggleSwitch(element) {
-        element.classList.toggle('active');
+    function generateMockCollections() {
+      return [
+        { 
+          id: 1, 
+          name: 'Watch Tonight', 
+          description: 'Videos to watch later tonight',
+          color: '#ff6b6b', 
+          videoIds: Array.from({length: 8}, (_, i) => i + 1),
+          layout: 'grid',
+          createdAt: Date.now() - (7 * 24 * 60 * 60 * 1000),
+          updatedAt: Date.now() - (2 * 24 * 60 * 60 * 1000),
+          isPrivate: false,
+          coverImage: 'https://picsum.photos/seed/watchtonight/400/225'
+        },
+        { 
+          id: 2, 
+          name: 'Learning Queue', 
+          description: 'Educational content to learn from',
+          color: '#4ecdc4', 
+          videoIds: Array.from({length: 12}, (_, i) => i + 20),
+          layout: 'cascade',
+          createdAt: Date.now() - (14 * 24 * 60 * 60 * 1000),
+          updatedAt: Date.now() - (1 * 24 * 60 * 60 * 1000),
+          isPrivate: false,
+          coverImage: 'https://picsum.photos/seed/learning/400/225'
+        }
+      ];
+    }
+    
+    function initScatterCollections() {
+      scatterCollections = [
+        {
+          id: 'learning',
+          name: 'Learning Queue',
+          color: '#3b82f6',
+          position: { x: 100, y: 100 },
+          videos: []
+        },
+        {
+          id: 'inspiration',
+          name: 'Inspiration',
+          color: '#22c55e',
+          position: { x: 400, y: 100 },
+          videos: []
+        },
+        {
+          id: 'watch-tonight',
+          name: 'Watch Tonight',
+          color: '#ef4444',
+          position: { x: 700, y: 100 },
+          videos: []
+        }
+      ];
     }
     
     // ====== STATE MANAGEMENT ======
     function saveState() {
-    const state = {
+      const state = {
         config: config,
-        
-        // Only save position overrides (sparse)
-        videoPositions: videos
-            .filter(v => v.scatterPosition)
-            .map(v => ({ id: v.id, pos: v.scatterPosition })),
-        
-        // Only save user actions
-        userActions: videos
-            .filter(v => v.saved || v.inScatter || v.watched)
-            .map(v => ({ 
-                id: v.id, 
-                saved: v.saved, 
-                inScatter: v.inScatter,
-                watched: v.watched 
-            })),
-        
+        videos: videos,
+        collections: collections,
+        scatterCollections: scatterCollections,
         scatter: scatter,
-        videoOverlayMode: videoOverlayMode
-    };
-    localStorage.setItem('newtube_state', JSON.stringify(state));
-}
+        videoOverlayMode: videoOverlayMode,
+        kanbanViewMode: config.kanbanViewMode
+      };
+      localStorage.setItem('youtubeReimagined', JSON.stringify(state));
+    }
     
     function loadState() {
-        const saved = localStorage.getItem('youtubeReimagined');
-        if (saved) {
-            try {
-                const state = JSON.parse(saved);
-                config = state.config || config;
-                videos = state.videos || videos;
-                collections = state.collections || collections;
-                scatterCollections = state.scatterCollections || scatterCollections;
-                scatter = state.scatter || { transform: { x: 0, y: 0, scale: 1 }, panning: false, dragging: false, pinchStart: 0 };
-                videoOverlayMode = state.videoOverlayMode || 'side-panel';
-                config.kanbanViewMode = state.kanbanViewMode || 'columns';
-                
-                document.body.setAttribute('data-theme', config.currentTheme);
-            } catch (e) {
-                console.error('Failed to load state:', e);
-            }
+      const saved = localStorage.getItem('youtubeReimagined');
+      if (saved) {
+        try {
+          const state = JSON.parse(saved);
+          config = state.config || config;
+          videos = state.videos || videos;
+          collections = state.collections || collections;
+          scatterCollections = state.scatterCollections || scatterCollections;
+          scatter = state.scatter || { transform: { x: 0, y: 0, scale: 1 }, panning: false, dragging: false, pinchStart: 0 };
+          videoOverlayMode = state.videoOverlayMode || 'side-panel';
+          config.kanbanViewMode = state.kanbanViewMode || 'columns';
+          config.scatterFilter = config.scatterFilter || 'recent';
+          config.scatterMode = config.scatterMode || 'pan';
+          
+          document.body.setAttribute('data-theme', config.currentTheme);
+        } catch (e) {
+          console.error('Failed to load state:', e);
         }
+      }
+    }
+    
+    // ====== VIDEO DETAIL ======
+    function openVideoDetail(videoId) {
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+      
+      currentVideo = video;
+      const panel = document.getElementById('detailPanel');
+      const content = document.getElementById('detailContent');
+      
+      content.innerHTML = `
+        <div class="video-player">
+          📹 Video Player Placeholder<br>
+          <small>${video.title}</small>
+        </div>
+        <h2 style="margin-bottom: 8px;">${video.title}</h2>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <div class="channel-avatar">
+            <img src="${video.channel.avatar}" alt="${video.channel.name}" width="40" height="40" style="border-radius: 50%;">
+          </div>
+          <div>
+            <div style="font-weight: 600;">${video.channel.name}</div>
+            <div style="font-size: 13px; color: var(--ink-dim);">${formatViews(video.views)} views • ${formatDate(video.uploadDate)}</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <button class="action-icon" style="padding: 8px 16px; width: auto;">👍 Like</button>
+          <button class="action-icon" style="padding: 8px 16px; width: auto;">👎 Dislike</button>
+          <button class="action-icon" style="padding: 8px 16px; width: auto;" onclick="shareVideo(${video.id})">
+            ↗ Share
+          </button>
+          <button class="action-icon" style="padding: 8px 16px; width: auto;" onclick="toggleSave(${video.id})">
+            ${video.status === 'saved' ? '♥ Saved' : '♡ Save'}
+          </button>
+        </div>
+        <div style="padding-top: 16px; border-top: 1px solid var(--glass-border);">
+          <h3 style="margin-bottom: 8px;">Description</h3>
+          <p style="color: var(--ink-dim); line-height: 1.6;">${video.description}</p>
+        </div>
+      `;
+      
+      panel.classList.add('active');
+    }
+    
+    function toggleSave(videoId) {
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+      
+      if (video.status === 'saved') {
+        video.status = 'unwatched';
+      } else {
+        video.status = 'saved';
+      }
+      
+      renderCurrentView();
+      saveState();
+      showToast(video.status === 'saved' ? 'Video saved!' : 'Video unsaved');
+    }
+    
+    function shareVideo(videoId) {
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+      
+      const url = `https://youtube.com/watch?v=${videoId}`;
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Link copied to clipboard!');
+      }).catch(() => {
+        showToast('Failed to copy link', 'error');
+      });
+    }
+    
+    // ====== THEME MANAGEMENT ======
+    function cycleTheme() {
+      const themes = ['dark', 'light', 'rose', 'theater'];
+      const currentIndex = themes.indexOf(config.currentTheme);
+      const nextIndex = (currentIndex + 1) % themes.length;
+      config.currentTheme = themes[nextIndex];
+      
+      document.body.setAttribute('data-theme', config.currentTheme);
+      
+      const themeIcons = {
+        'dark': '🌙',
+        'light': '☀️',
+        'rose': '🌹',
+        'theater': '🎭'
+      };
+      
+      document.getElementById('themeIcon').textContent = themeIcons[config.currentTheme] || '🌙';
+      saveState();
+    }
+    
+    // ====== SEARCH FUNCTIONS ======
+    function performSearch() {
+      const headerInput = document.getElementById('headerSearch');
+      const searchValue = headerInput ? headerInput.value.trim() : '';
+      
+      if (searchValue) {
+        config.searchQuery = searchValue;
+        showSearchResults(searchValue);
+        
+        const searchOverlay = document.getElementById('searchOverlay');
+        if (!searchOverlay.classList.contains('active')) {
+          toggleSearchOverlay();
+          const overlayInput = document.getElementById('mainSearchInput');
+          if (overlayInput) {
+            overlayInput.value = searchValue;
+          }
+        }
+        
+        if (headerInput) {
+          headerInput.value = '';
+        }
+      }
+    }
+    
+    function toggleSearchOverlay() {
+      const searchOverlay = document.getElementById('searchOverlay');
+      const isActive = searchOverlay.classList.toggle('active');
+      
+      if (isActive) {
+        document.body.classList.add('search-active');
+        document.getElementById('mainSearchInput').focus();
+        document.getElementById('discoverySections').style.display = 'block';
+        document.getElementById('searchResults').style.display = 'none';
+      } else {
+        document.body.classList.remove('search-active');
+        document.getElementById('mainSearchInput').value = '';
+        config.searchQuery = '';
+        document.getElementById('searchResults').style.display = 'none';
+        document.getElementById('discoverySections').style.display = 'block';
+      }
+    }
+    
+    function showSearchResults(query) {
+      const resultsGrid = document.getElementById('searchResultsGrid');
+      const discoverySections = document.getElementById('discoverySections');
+      const searchResults = document.getElementById('searchResults');
+      
+      if (!query.trim()) {
+        if (discoverySections) discoverySections.style.display = 'block';
+        if (searchResults) searchResults.style.display = 'none';
+        return;
+      }
+      
+      const searchResultsVideos = videos.filter(v =>
+        v.title.toLowerCase().includes(query.toLowerCase()) ||
+        v.channel.name.toLowerCase().includes(query.toLowerCase()) ||
+        v.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
+      ).slice(0, 12);
+      
+      if (resultsGrid) {
+        resultsGrid.innerHTML = searchResultsVideos.map((video, index) => {
+          const size = index % 4 === 0 ? 'large' : (index % 3 === 0 ? 'medium' : 'small');
+          return `
+            <div class="bento-item ${size}" onclick="openVideoDetail(${video.id})">
+              <div style="display: flex; gap: 12px; height: 100%;">
+                <img src="${video.thumbnail}" alt="${video.title}" 
+                     style="width: ${size === 'large' ? '120px' : '80px'}; 
+                            height: ${size === 'large' ? '80px' : '60px'};
+                            border-radius: 8px; object-fit: cover;">
+                <div style="flex: 1;">
+                  <div style="font-weight: 600; margin-bottom: 4px; font-size: ${size === 'large' ? '16px' : '14px'}">
+                    ${video.title.substring(0, size === 'large' ? 60 : 40)}...
+                  </div>
+                  <div style="font-size: 12px; color: var(--ink-dim);">
+                    ${video.channel.name} • ${formatViews(video.views)} views
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      if (discoverySections) discoverySections.style.display = 'none';
+      if (searchResults) searchResults.style.display = 'block';
+    }
+    
+    function updateSearchSuggestions(query) {
+      if (query.length > 0) {
+        showSearchResults(query);
+      } else {
+        const discoverySections = document.getElementById('discoverySections');
+        const searchResults = document.getElementById('searchResults');
+        
+        if (discoverySections) discoverySections.style.display = 'block';
+        if (searchResults) searchResults.style.display = 'none';
+      }
+    }
+    
+    // ====== OTHER FUNCTIONS ======
+    function updateMobileSearchVisibility() {
+      const headerCenter = document.querySelector('.header-center');
+      const mobileSearchBtn = document.querySelector('.mobile-search-btn');
+      
+      if (isMobile) {
+        if (headerCenter) headerCenter.style.display = 'none';
+        if (mobileSearchBtn) mobileSearchBtn.style.display = 'flex';
+      } else {
+        if (headerCenter) headerCenter.style.display = 'block';
+        if (mobileSearchBtn) mobileSearchBtn.style.display = 'none';
+      }
+    }
+    
+    function setupEventListeners() {
+      document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        
+        switch(e.key.toLowerCase()) {
+          case 'f': switchMode('feed'); break;
+          case 'l': switchMode('list'); break;
+          case 's': switchMode('scatter'); break;
+          case 'c': switchMode('columns'); break;
+          case 'h': switchMode('history'); break;
+          case '/': 
+            e.preventDefault(); 
+            toggleSearchOverlay();
+            break;
+          case 'escape': 
+            closeSearchOverlay();
+            closeAllOverlays(); 
+            break;
+        }
+      });
+      
+      document.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showContextMenu(e);
+      });
+      
+      document.addEventListener('click', () => {
+        document.getElementById('contextMenu').classList.remove('active');
+      });
+      
+      document.addEventListener('click', (e) => {
+        const searchOverlay = document.getElementById('searchOverlay');
+        const searchBtn = document.querySelector('.nav-btn[data-mode="search"]');
+        
+        if (searchOverlay.classList.contains('active') && 
+          !searchOverlay.contains(e.target) && 
+          e.target !== searchBtn && 
+          !searchBtn.contains(e.target)) {
+          closeSearchOverlay();
+        }
+      });
+      
+      if (isMobile) {
+        setupMobileTouchListeners();
+      }
+      
+      setupScatterCanvas();
+    }
+    
+    function handleResize() {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        detectMobile();
+        renderCurrentView();
+      }, 250);
+    }
+    
+    function closeDetailPanel() {
+      document.getElementById('detailPanel').classList.remove('active');
+      currentVideo = null;
+    }
+    
+    function toggleVideoMode() {
+      const panel = document.getElementById('detailPanel');
+      const modeIcon = document.getElementById('videoModeIcon');
+      const modeText = document.getElementById('videoModeText');
+      
+      if (videoOverlayMode === 'side-panel') {
+        videoOverlayMode = 'full-viewport';
+        panel.classList.remove('side-panel');
+        panel.classList.add('full-viewport');
+        modeIcon.textContent = '⛶';
+        modeText.textContent = 'Side Panel';
+        showToast('Switched to full viewport mode');
+      } else {
+        videoOverlayMode = 'side-panel';
+        panel.classList.remove('full-viewport');
+        panel.classList.add('side-panel');
+        modeIcon.textContent = '⛶';
+        modeText.textContent = 'Full Screen';
+        showToast('Switched to side panel mode');
+      }
+      
+      if (panel.classList.contains('active')) {
+        panel.classList.remove('active');
+        setTimeout(() => panel.classList.add('active'), 50);
+      }
+      
+      saveState();
+    }
+    
+    function openMobileSearch() {
+      const overlay = document.getElementById("mobileSearchOverlay");
+      overlay.classList.add("active");
+      
+      setTimeout(() => {
+        document.getElementById("mobileSearchInput").focus();
+      }, 100);
+      
+      document.addEventListener("keydown", handleMobileSearchEscape);
+    }
+    
+    function closeMobileSearch() {
+      const overlay = document.getElementById("mobileSearchOverlay");
+      overlay.classList.remove("active");
+      document.getElementById("mobileSearchInput").value = "";
+      
+      document.removeEventListener("keydown", handleMobileSearchEscape);
+    }
+    
+    function handleMobileSearchEscape(e) {
+      if (e.key === "Escape") {
+        closeMobileSearch();
+      }
+    }
+    
+    function mobilePerformSearch() {
+      const searchInput = document.getElementById("mobileSearchInput");
+      const searchValue = searchInput ? searchInput.value.trim() : "";
+      
+      if (searchValue) {
+        config.searchQuery = searchValue;
+        
+        showSearchResults(searchValue);
+        
+        const searchOverlay = document.getElementById("searchOverlay");
+        if (!searchOverlay.classList.contains("active")) {
+          toggleSearchOverlay();
+          
+          const overlayInput = document.getElementById("mainSearchInput");
+          if (overlayInput) {
+            overlayInput.value = searchValue;
+          }
+        }
+        
+        closeMobileSearch();
+        switchMode("feed");
+      }
+    }
+    
+    function openCreateModal() {
+      document.getElementById('createModal').classList.add('active');
+    }
+    
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.remove('active');
+    }
+    
+    function createItem(type) {
+      closeCreateModal();
+      showToast(`Creating ${type}...`, 'info');
+    }
+    
+    function toggleProfileMenu() {
+      document.getElementById('profileMenu').classList.toggle('active');
+    }
+    
+    function toggleNotifications() {
+      showToast('No new notifications', 'info');
+    }
+    
+    function navigateTo(page) {
+      showToast(`Navigating to ${page}...`, 'info');
+      document.getElementById('profileMenu').classList.remove('active');
+    }
+    
+    function searchFor(term) {
+      document.getElementById('mainSearchInput').value = term;
+      updateSearchSuggestions(term);
+      showSearchResults(term);
+    }
+    
+    function startVoiceSearch() {
+      showToast('Voice search activated - say your query', 'info');
+    }
+    
+    function toggleFilter(element) {
+      element.parentElement.querySelectorAll('.filter-pill').forEach(pill => {
+        pill.classList.remove('active');
+      });
+      element.classList.add('active');
+    }
+    
+    function toggleSwitch(element) {
+      element.classList.toggle('active');
+    }
+    
+    function closeSearchOverlay() {
+      const overlay = document.getElementById('searchOverlay');
+      overlay.classList.remove('active');
+      document.getElementById('mainSearchInput').value = '';
+      config.searchQuery = '';
+      document.body.classList.remove('search-active');
+      document.getElementById('searchResults').style.display = 'none';
+      document.getElementById('discoverySections').style.display = 'block';
     }
     
     function closeAllOverlays() {
-        document.getElementById('searchOverlay').classList.remove('active');
-        document.getElementById('createModal').classList.remove('active');
-        document.getElementById('detailPanel').classList.remove('active');
-        document.getElementById('contextMenu').classList.remove('active');
-        document.getElementById('profileMenu').classList.remove('active');
+      document.getElementById('searchOverlay').classList.remove('active');
+      document.getElementById('createModal').classList.remove('active');
+      document.getElementById('detailPanel').classList.remove('active');
+      document.getElementById('contextMenu').classList.remove('active');
+      document.getElementById('profileMenu').classList.remove('active');
     }
     
     function addCustomCategory() {
-        const category = prompt('Enter new category name:');
-        if (category && category.trim()) {
-            showToast(`Category "${category}" added!`, 'info');
-        }
+      const category = prompt('Enter new category name:');
+      if (category && category.trim()) {
+        showToast(`Category "${category}" added!`, 'info');
+      }
     }
     
     function updateNavButtons() {
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        if (config.currentView === 'scatter') {
-            document.querySelector('.scatter-pocket')?.classList.add('active');
-        } else {
-            document.querySelector(`.nav-btn[data-mode="${config.currentView}"]`)?.classList.add('active');
-        }
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      
+      if (config.currentView === 'scatter') {
+        document.querySelector('.scatter-pocket')?.classList.add('active');
+      } else {
+        document.querySelector(`.nav-btn[data-mode="${config.currentView}"]`)?.classList.add('active');
+      }
+    }
+    
+    function changeVideoStatus(videoId, status) {
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+      
+      video.status = status;
+      if (status === 'in-progress' || status === 'completed') {
+        video.lastWatched = Date.now();
+      }
+      renderCurrentView();
+      saveState();
+      showToast(`Status changed to ${status.replace('-', ' ')}`);
+    }
+    
+    function removeVideo(videoId) {
+      if (confirm('Remove this video?')) {
+        videos = videos.filter(v => v.id !== videoId);
+        renderCurrentView();
+        saveState();
+        showToast('Video removed');
+      }
     }
     
     // ====== INITIALIZE ======
     document.addEventListener('DOMContentLoaded', () => {
-        init();
+      init();
     });
-  </script>
-
-        <!-- Mobile Full-Screen Search Overlay -->
-        <div class="mobile-search-overlay" id="mobileSearchOverlay">
-          <div class="mobile-search-header">
-            <button class="mobile-search-close" onclick="closeMobileSearch()">×</button>
-            <div class="mobile-search-input-wrapper">
-              <input 
-                type="text" 
-                class="mobile-search-input" 
-                id="mobileSearchInput"
-                placeholder="Search for videos, channels, or topics..."
-                onkeyup="if(event.key === 'Enter') mobilePerformSearch()"
-                aria-label="Search videos"
-              >
-            </div>
-          </div>
-          <div class="mobile-search-results" id="mobileSearchResults">
-            <!-- Mobile search results will be displayed here -->
-          </div>
-        </div>
-      </body>
-    </html>
+    </script>
+</body>
+</html>
