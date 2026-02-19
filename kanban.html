@@ -1,1751 +1,3416 @@
+
+Kanban refined · HTML
+Copy
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>intoview :: 3D Kanban</title>
- 
-    <!-- CDN Dependencies -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
-    <!-- Post-processing for visual effects -->
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/VignetteShader.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/RGBShiftShader.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/BokehPass.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/BokehShader.js"></script>
- 
-    <style>
-/* === CORE VARIABLES & THEMES === */
-:root{
-    /* Neon Theme (Default) */
-    --bg-primary: #0f1014;
-    --bg-secondary: #1a1b2e;
-    --accent-neon: #39FF14;
-    --accent-pink: #FF1493;
-    --accent-cyan: #00ffff;
-    --accent-yellow: #FFFF00;
-    --accent-red: #FF0044;
-    --accent-purple: #9D4EDD;
-    --text-primary: #ffffff;
-    --text-secondary: rgba(255,255,255,0.7);
-    --border-color: rgba(255,255,255,0.2);
-    --shadow-neon: 0 0 15px var(--accent-pink);
-    --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-    --pink: #FF1493;
-    --neon-blue: #00ffff;
-    --neon-green: #00FF00;
-    --neon-yellow: #FFFF00;
-    --neon-red: #FF0044;
-    /* header sizing used to position things relative to header */
-    --header-height: 64px;
-    --header-padding-vertical: 10px;
-    --header-padding-horizontal: 20px;
-    --header-height-mobile: 72px; /* slightly taller when stacked on mobile */
-}
-/* alternate themes */
-[data-theme="pastel"]{
-    --bg-primary: #f8f9fa;
-    --bg-secondary: #e9ecef;
-    --accent-neon: #74c69d;
-    --accent-pink: #f8961e;
-    --accent-cyan: #4cc9f0;
-    --accent-yellow: #f9c74f;
-    --accent-red: #f94144;
-    --text-primary: #212529;
-    --text-secondary: rgba(33,37,41,0.7);
-    --border-color: rgba(33,37,41,0.2);
-    --shadow-neon: 0 0 15px var(--accent-pink);
-}
-[data-theme="midnight"]{
-    --bg-primary: #0a0e27;
-    --bg-secondary: #151932;
-    --accent-neon: #00d4ff;
-    --accent-pink: #ff006e;
-    --accent-cyan: #00f5ff;
-    --accent-yellow: #ffbe0b;
-    --accent-red: #fb5607;
-    --text-primary: #ffffff;
-    --text-secondary: rgba(255,255,255,0.6);
-}
-/* === GLOBAL STYLES === */
-*{ margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-user-select:none; }
-html,body{ height:100%; }
-body{
-    background:var(--bg-primary);
-    overflow:hidden;
-    color:var(--text-primary);
-    font-family:'Inter', Ministers-Regular, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    cursor:none;
-    overscroll-behavior:none;
-    transition: all 0.3s var(--transition-smooth);
-}
-/* Canvas full-viewport */
-#canvas{ display:block; width:100vw; height:100vh; outline:none; }
-/* === ENHANCED CURSOR SYSTEM === */
-#cursor{ position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:9999; transition:opacity 0.2s; }
-.c-circle{ position:absolute; width:20px; height:20px; border-radius:50%; background:radial-gradient(circle, var(--accent-pink), transparent); opacity:0.6; mix-blend-mode:screen; }
-.c-center{ position:absolute; width:8px; height:8px; border-radius:50%; background:var(--accent-pink); opacity:1; mix-blend-mode:screen; transform:translate(-50%,-50%); box-shadow:var(--shadow-neon); z-index:10000; transition:background 0.3s; }
-.c-ring{ position:absolute; width:24px; height:24px; border-radius:50%; border:2px solid var(--accent-pink); opacity:0.8; mix-blend-mode:screen; transform:translate(-50%,-50%); box-shadow:var(--shadow-neon); z-index:9999; transition:border-color 0.3s, box-shadow 0.3s; }
-/* === ENHANCED JOYSTICK SYSTEM === */
-.fab-zone{
-    position:fixed;
-    bottom:9.9rem;
-    left:50%;
-    transform:translateX(-50%);
-    width:80px;
-    height:80px;
-    z-index:200;
-    cursor:grab;
-    perspective:600px;
-    transition:bottom 0.3s var(--transition-smooth);
-}
-.fab-zone:active{ cursor:grabbing; }
-.fab-halo{
-    position:absolute; left:-40px; top:-40px; width:160px; height:160px; border-radius:50%;
-    background:radial-gradient(circle, rgba(255,20,147,0.2), transparent);
-    opacity:0; transition:opacity 0.1s; animation: idleColorCycle 8s linear infinite;
-}
-@keyframes idleColorCycle{
-    0% { background: radial-gradient(circle, rgba(255,20,147,0.2), transparent); }
-    25% { background: radial-gradient(circle, rgba(0,255,255,0.2), transparent); }
-    50% { background: radial-gradient(circle, rgba(0,255,0,0.2), transparent); }
-    75% { background: radial-gradient(circle, rgba(255,255,0,0.2), transparent); }
-    100% { background: radial-gradient(circle, rgba(255,20,147,0.2), transparent); }
-}
-.fab-cube{ width:100%; height:100%; position:relative; transform-style:preserve-3d; transform:rotateX(-25deg) rotateY(-45deg); pointer-events:none; transition:transform 0.1s; }
-.f-face{
-    position:absolute; width:40px; height:40px; background:rgba(255,20,147,0.15);
-    border:2px solid var(--accent-pink); box-shadow:var(--shadow-neon), inset 0 0 10px var(--accent-pink);
-    left:20px; top:20px; display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; backface-visibility:visible; transition:all 0.3s;
-}
-.f-face:nth-child(1){ transform: rotateY(0deg) translateZ(20px); }
-.f-face:nth-child(2){ transform: rotateY(90deg) translateZ(20px); }
-.f-face:nth-child(3){ transform: rotateY(180deg) translateZ(20px); }
-.f-face:nth-child(4){ transform: rotateY(-90deg) translateZ(20px); }
-.f-face:nth-child(5){ transform: rotateX(90deg) translateZ(20px); background:rgba(255,20,147,0.3); }
-.f-face:nth-child(6){ transform: rotateX(-90deg) translateZ(20px); }
-.fab-hint{ position:absolute; bottom:-16px; width:100%; text-align:center; font-size:9px; color:var(--text-secondary); pointer-events:none; }
-/* === MOBILE OPTIMIZATIONS === */
-@media (max-width:768px){
-    .fab-zone{ bottom:20px; transform:translateX(-50%) scale(0.9); }
-}
-/* === UI ELEMENTS === */
-.reset-zone{
-    position:fixed; bottom:20px; right:20px; z-index:100; width:60px; height:60px;
-    background:radial-gradient(circle, var(--accent-neon), transparent); border:2px dashed var(--accent-neon); border-radius:50%;
-    display:flex; align-items:center; justify-content:center; opacity:0.3; transition:all 0.3s; font-size:24px; cursor:pointer;
-}
-.reset-zone:hover{ opacity:1; transform:scale(1.1); box-shadow:0 0 20px var(--accent-neon); }
-.trash-zone{
-    position:fixed; bottom:20px; left:20px; z-index:100; width:60px; height:60px;
-    background:radial-gradient(circle, var(--accent-red), transparent); border:2px dashed var(--accent-red); border-radius:50%;
-    display:flex; align-items:center; justify-content:center; opacity:0.3; transition:all 0.3s; font-size:24px; pointer-events:none;
-}
-.trash-zone.active{ opacity:1; transform:scale(1.2); box-shadow:0 0 20px var(--accent-red); pointer-events:auto; }
-.center-helper{
-    position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%); z-index:90; font-size:10px; color:var(--text-secondary); text-align:center; pointer-events:none;
-}
-@media (max-width:768px){ .center-helper{ display:none; } }
-.coords{
-    position:fixed; bottom:5rem; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; gap:2px; font-family:'Courier New', monospace; font-size:12px;
-    color:var(--accent-neon); background:rgba(0,0,0,0.6); padding:4px 8px; border-radius:4px; border:1px solid rgba(57,255,20,0.3); z-index:90; pointer-events:none; opacity:0; transition:opacity 0.2s; text-align:center;
-}
-body.fab-active .coords{ opacity:1; }
-/* === HEADER ===
-   Using CSS Grid so the search is always visually and mathematically centered.
-   The header creates a 3-column grid: [1fr][auto][1fr] so center column is the search.
-   Controls (info + effects + other controls) now live in the right controls-wrapper.
-*/
-.header-top{
-    position:fixed;
-    top:0;
-    left:0;
-    width:100vw;
-    display:grid;
-    grid-template-columns: 1fr auto 1fr; /* logo | search | controls */
-    grid-auto-rows: auto;
-    align-items:center;
-    gap:12px;
-    padding: var(--header-padding-vertical) var(--header-padding-horizontal);
-    min-height: var(--header-height);
-    z-index:100;
-    background: rgba(0,0,0,0.3);
-    backdrop-filter: blur(10px);
-}
-/* logo left, aligned start */
-.logo-wrapper{display:flex;align-items:center;gap:8px;}
-        .logo-cube {width: 40px;height: 40px;position: relative;perspective: 600px;}
-        .logo-cube .fab-cube {width: 100%;height: 100%;position: relative;transform-style: preserve-3d;transform: rotateX(-25deg) rotateY(-45deg);animation: spin 3s linear infinite;}
-        .logo-cube .f-face {width: 20px;height: 20px;left: 10px;top: 10px;animation: cycle-colors 10s linear infinite;}
-        .logo-cube .f-face:nth-child(1) { transform: rotateY(0deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(2) { transform: rotateY(90deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(3) { transform: rotateY(180deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(4) { transform: rotateY(-90deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(5) { transform: rotateX(90deg) translateZ(10px); }
-        .logo-cube .f-face:nth-child(6) { transform: rotateX(-90deg) translateZ(10px); }
-/* logo text */
-.logo-text{ font-size:12px; color:rgba(255,255,255,0.7); }
-/* Search wrapper centered by grid column */
-.search-wrapper{ justify-self:center; display:flex; align-items:center; width:100%; max-width:480px; padding:0 8px; }
-.search-wrapper input{
-    background: rgba(0,0,0,0.5);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: var(--text-primary);
-    padding: 8px 12px;
-    border-radius: 6px;
-    width: 260px; /* default width */
-    text-align: center;
-    font-size: 12px;
-    cursor: text;
-    transition: width 0.25s var(--transition-smooth), box-shadow 0.25s;
-    box-shadow: none;
-}
-.search-wrapper input:focus{ outline:none; box-shadow: 0 0 12px rgba(255,20,147,0.12); }
-/* Controls wrapper right aligned - now contains info + effects + any other controls */
-.controls-wrapper{ display:flex; gap:8px; align-items:center; justify-self:end; }
-/* THEME TOGGLE - hidden completely */
-.theme-toggle{ display:none !important; visibility:hidden !important; width:0 !important; height:0 !important; padding:0 !important; margin:0 !important; border:0 !important; }
-/* Info Trigger & Effects Toggle moved into header controls (no fixed positioning) */
-.info-trigger{
-    /* moved from fixed to inline control */
-    position:relative;
-    width:36px;
-    height:36px;
-    background:var(--bg-secondary);
-    border:1px solid var(--border-color);
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-    transition: all 0.2s;
-    font-size:16px;
-    font-weight:600;
-    color:var(--text-primary);
-}
-.info-trigger:hover{ transform:scale(1.06); box-shadow: var(--shadow-neon); }
-/* Effects toggle as a compact pill control inside header */
-.effects-toggle{
-    position:relative;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    gap:8px;
-    min-width:78px;
-    height:36px;
-    padding:6px 10px;
-    background: var(--bg-secondary);
-    border:1px solid var(--border-color);
-    border-radius:10px;
-    cursor:pointer;
-    transition: all 0.2s;
-    font-size:12px;
-    color:var(--text-primary);
-}
-.effects-toggle:hover{ transform:translateY(-2px); box-shadow: var(--shadow-neon); }
-/* optional icon + label inside effects toggle */
-.effects-toggle .label{ display:inline-block; font-weight:600; }
-.effects-toggle .dot{ width:8px; height:8px; border-radius:50%; background:var(--accent-neon); box-shadow:0 0 6px rgba(57,255,20,0.25); }
-/* === INFO OVERLAY SYSTEM === */
-.info-overlay{
-    position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8);
-    backdrop-filter: blur(10px); z-index:1000; display:none; opacity:0; transition:opacity 0.3s;
-}
-.info-overlay.active{ display:flex; align-items:center; justify-content:center; opacity:1; }
-.info-content{
-    background:var(--bg-primary); border:1px solid var(--border-color); border-radius:16px; padding:32px; max-width:600px; max-height:80vh; overflow-y:auto;
-    transform:scale(0.9); transition:transform 0.3s;
-}
-.info-overlay.active .info-content{ transform:scale(1); }
-/* accordion */
-.accordion-item{ border-bottom:1px solid var(--border-color); padding:16px 0; }
-.accordion-header{ cursor:pointer; font-weight:600; font-size:18px; margin-bottom:8px; transition:color 0.3s; }
-.accordion-header:hover{ color: var(--accent-pink); }
-.accordion-content{ max-height:0; overflow:hidden; transition:max-height 0.3s; color:var(--text-secondary); line-height:1.6; }
-.accordion-item.open .accordion-content{ max-height:500px; }
-.close-btn{
-    position:absolute; top:20px; right:20px; background:none; border:none; color:var(--text-primary); font-size:32px; cursor:pointer; transition:transform 0.3s;
-}
-.close-btn:hover{ transform:rotate(90deg); }
-/* === QUADRANT SYSTEM === */
-.quad-container{
-    position:fixed; left:20px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:20px; z-index:100;
-}
-.quad-icon{ width:30px; height:30px; position:relative; perspective:300px; cursor:pointer; transition:transform 0.2s; }
-.quad-icon:hover{ transform:scale(1.2); }
-.quad-icon:active{ transform:scale(0.9); }
-.quad-cube{ width:100%; height:100%; transform-style:preserve-3d; transform: rotateX(-25deg) rotateY(-45deg); animation: spin 6s linear infinite; }
-@keyframes spin{ to{ transform: rotateX(-25deg) rotateY(315deg); } }
-.q-face{ position:absolute; width:20px; height:20px; left:5px; top:5px; backface-visibility:visible; opacity:0.8; }
-.q-face:nth-child(1){ transform: rotateY(0deg) translateZ(10px); }
-.q-face:nth-child(2){ transform: rotateY(90deg) translateZ(10px); }
-.q-face:nth-child(3){ transform: rotateY(180deg) translateZ(10px); }
-.q-face:nth-child(4){ transform: rotateY(-90deg) translateZ(10px); }
-.q-face:nth-child(5){ transform: rotateX(90deg) translateZ(10px); }
-.q-face:nth-child(6){ transform: rotateX(-90deg) translateZ(10px); }
-.quad-label{ position:absolute; left:40px; top:50%; transform:translateY(-50%); font-size:12px; color:var(--text-primary); white-space:nowrap; }
-/* quadrant color variants */
-.quad-icon.todo .q-face{ background:rgba(255,255,0,0.2); border:1px solid var(--accent-yellow); box-shadow:0 0 5px var(--accent-yellow); }
-.quad-icon.prog .q-face{ background:rgba(0,255,255,0.2); border:1px solid var(--accent-cyan); box-shadow:0 0 5px var(--accent-cyan); }
-.quad-icon.done .q-face{ background:rgba(0,255,0,0.2); border:1px solid var(--accent-neon); box-shadow:0 0 5px var(--accent-neon); }
-.quad-icon.back .q-face{ background:rgba(255,0,68,0.2); border:1px solid var(--accent-red); box-shadow:0 0 5px var(--accent-red); }
-/* === VIEW TOGGLES === */
-.view-toggles{
-    position:fixed; top:50%; right:20px; transform:translateY(-50%); display:flex; flex-direction:column; gap:8px; z-index:100;
-}
-.view-btn{ background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary); padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; transition:all 0.3s; }
-.view-btn:hover{ transform:translateY(-2px); box-shadow:var(--shadow-neon); }
-.view-btn.active{ border-color:var(--accent-pink); color:var(--accent-pink); box-shadow:0 0 10px rgba(255,20,147,0.3); }
-/* === MOBILE FOCUS RELEASE === */
-.mobile-release-btn{
-    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--accent-pink); color:white; border:none; border-radius:20px; padding:12px 24px; font-size:14px; font-weight:600; cursor:pointer; z-index:200; display:none; opacity:0; transition:all 0.3s;
-}
-.mobile-release-btn.visible{ display:block; opacity:1; }
-/* === TASK EDITOR === */
-.task-editor{
-    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-primary); border:1px solid var(--border-color); border-radius:12px; padding:20px; z-index:1000; display:none; opacity:0; transition:all 0.3s; min-width:300px;
-}
-.task-editor.active{ display:block; opacity:1; }
-.task-editor h3{ margin-bottom:16px; color:var(--accent-pink); }
-.task-editor input{ width:100%; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); color:var(--text-primary); padding:8px; border-radius:6px; margin-bottom:12px; }
-/* task editor buttons */
-.task-editor-buttons{ display:flex; gap:8px; justify-content:flex-end; }
-.task-editor-buttons button{ background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary); padding:6px 12px; border-radius:4px; cursor:pointer; transition:all 0.3s; }
-.task-editor-buttons button:hover{ transform:translateY(-1px); box-shadow:var(--shadow-neon); }
-/* Interaction States */
-body.fab-active #cursor{ opacity:0; }
-body.fab-active .btn, body.fab-active input{ pointer-events:none; opacity:0.5; }
-/* === LOADING SCREEN === */
-.loading-screen{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:var(--bg-primary); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:10000; transition:opacity 0.5s; }
-.loading-cube{ width:60px; height:60px; perspective:300px; margin-bottom:20px; }
-.loading-cube .fab-cube{ width:100%; height:100%; transform-style:preserve-3d; transform: rotateX(-25deg) rotateY(-45deg); animation: spin 1s linear infinite; }
-.loading-text{ color:var(--text-primary); font-size:18px; opacity:0.8; }
-/* === STATS DISPLAY (Centered below search + mobile optimized) ===
-   Key behavior:
-   - Positioned relative to viewport, centered horizontally
-   - Placed directly below the header using --header-height variable
-   - On narrow screens it shrinks and moves slightly to avoid overlapping stacked header content
-*/
-.stats-display{
-    position:fixed,
-    top: calc(var(--header-height) + 12px); /* header height + small gap */
-    left:50%;
-    transform: translateX(-50%);
-    z-index:100;
-    background: rgba(0,0,0,0.7);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    color: var(--accent-neon);
-    min-width: 140px;
-    text-align:center;
-    pointer-events: none;
-    display: flex;
-    flex-direction: column;
-    gap:4px;
-    align-items: center;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
-}
-/* stat item layout inside stats-display */
-.stat-item{ display:flex; justify-content:space-between; width:100%; gap:8px; align-items:center; }
-.stat-label{ color:var(--text-secondary); font-size:11px; white-space:nowrap; flex:1; text-align:left; padding-left:6px; }
-.stat-value{ color:var(--accent-neon); font-weight:bold; font-size:12px; text-align:right; padding-right:6px; }
-/* For very small widths we let the stats sit below the header but slightly higher bottom fallback */
-@media (max-width:768px){
-    :root{ --header-height: var(--header-height-mobile); }
-    .header-top{
-        padding:8px 12px;
-        /* stacked layout when narrow: logo, search, controls */
-        grid-template-columns: 1fr;
-        grid-auto-rows: auto;
-        row-gap:8px;
-        align-items:center;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kitchen Operations — Service Board</title>
+  <script crossorigin="" src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin="" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    :root {
+        /* DARK THEME — Obsidian Kitchen */
+        --primary-color: #c8a96e;       /* aged brass / burnished gold */
+        --secondary-color: #a07850;     /* copper */
+        --success-color: #7a9e7e;       /* sage */
+        --warning-color: #c8a058;       /* amber */
+        --danger-color: #c0504a;        /* brick red */
+        --dark-bg: #111110;
+        --light-bg: #1a1a18;
+        --ui-bg: rgba(26, 26, 24, 0.82);
+        --card-bg: rgba(28, 28, 26, 0.90);
+        --text-primary: #e8e2d8;
+        --text-secondary: #7a7468;
+        --border-color: rgba(200, 169, 110, 0.12);
+        --shadow-sm: 0 1px 3px rgba(0,0,0,0.5);
+        --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+        --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
+        --sms-color: #7a9e7e;
+        --urgent-glow: rgba(192, 80, 74, 0.25);
+        --vh: 1vh;
+        --body-gradient: #111110;
+        --font-heading: 'Cormorant Garamond', serif;
+        --font-body: 'Jost', sans-serif;
+        --accent-line: rgba(200, 169, 110, 0.35);
     }
-    .logo-wrapper{ justify-self:center; }
-    .search-wrapper{ order:2; justify-self:center; width:100%; padding:0; }
-    .search-wrapper input{ width:100%; max-width:420px; font-size:11px; padding:6px 10px; text-align:left; }
-    .controls-wrapper{ justify-self:center; order:3; gap:6px; }
-    /* info trigger and effects toggle will sit in the centered controls row */
-    .controls-wrapper .info-trigger{ width:36px; height:36px; }
-    .controls-wrapper .effects-toggle{ min-width:72px; height:34px; padding:6px 8px; border-radius:8px; }
-    /* stats should still be visible and centered but reduce size and move a bit down so it doesn't overlap search when header stacks */
-    .stats-display{
-        top: calc(var(--header-height) + 8px);
-        font-size:10px;
-        padding:6px 8px;
-        min-width: 120px;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+
+    /* LIGHT THEME — Ivory Mise en Place */
+    body.light-theme {
+        --primary-color: #8a6a3a;
+        --secondary-color: #6a4e2a;
+        --success-color: #4a7a54;
+        --warning-color: #9a7030;
+        --danger-color: #9a3830;
+        --dark-bg: #f5f0e8;
+        --light-bg: #faf7f2;
+        --ui-bg: rgba(250, 247, 242, 0.88);
+        --card-bg: #faf7f2;
+        --text-primary: #1c1a16;
+        --text-secondary: #8a8070;
+        --border-color: rgba(138, 106, 58, 0.18);
+        --shadow-sm: 0 1px 3px rgba(60,40,10,0.08);
+        --shadow-md: 0 4px 16px rgba(60,40,10,0.10);
+        --shadow-lg: 0 12px 40px rgba(60,40,10,0.12);
+        --sms-color: #4a7a54;
+        --urgent-glow: rgba(154, 56, 48, 0.12);
+        --body-gradient: #f5f0e8;
+        --font-heading: 'Cormorant Garamond', serif;
+        --font-body: 'Jost', sans-serif;
+        --accent-line: rgba(138, 106, 58, 0.25);
     }
-    .stat-label{ font-size:10px; }
-    .stat-value{ font-size:11px; }
-    /* Quadrant icons mobile adjustments */
-    .quad-container{
-        left:10px;
-        gap:15px;
+    
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
     }
-    .quad-icon{
-        width:28px;
-        height:28px;
+    
+    body {
+        font-family: var(--font-body);
+        background: var(--body-gradient);
+        min-height: calc(100 * var(--vh));
+        color: var(--text-primary);
+        overflow: hidden;
+        transition: background 0.5s ease, color 0.3s ease;
+        letter-spacing: 0.01em;
     }
-    .quad-label{
-        font-size:11px;
+
+    /* Refined particle — no confetti, subtle dust motes */
+    .confetti-particle {
+      position: fixed;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.4;
     }
-    /* View toggles mobile adjustments */
-    .view-toggles{
-        right:10px;
-        gap:6px;
+
+    body.light-theme #vignette {
+        background: radial-gradient(ellipse at center, transparent 50%, rgba(60,40,10,0.06) 100%);
     }
-    .view-btn{
-        padding:6px 12px;
-        font-size:11px;
+    
+    #three-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transition: opacity 0.5s ease;
     }
-}
-/* extra small phones */
-@media (max-width:480px){
-    .header-top{ padding:6px 8px; }
-    .logo-cube{ width:24px; height:24px; }
-    .logo-text{ font-size:9px; }
-    .search-wrapper input{ font-size:10px; padding:5px 8px; }
-    .stats-display{ top: calc(var(--header-height) + 6px); padding:6px 8px; min-width: 110px; }
-    .stat-label{ font-size:9px; }
-    .stat-value{ font-size:10px; }
-    /* keep header controls compact */
-    .controls-wrapper{ gap:6px; }
-    .effects-toggle{ min-width:64px; height:32px; padding:4px 8px; border-radius:8px; font-size:11px; }
-}
-/* === VIEW TOGGLES/MISC RESPONSIVENESS === */
-@media (prefers-reduced-motion: reduce){ *{ animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; } }
-/* === MISC UTILITIES (kept from original) === */
-@keyframes cycle-colors{
-    0% {background: rgba(255,20,147,0.15);border-color: var(--pink);box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);}
-    20% {background: rgba(0,255,255,0.15);border-color: var(--neon-blue);box-shadow: 0 0 15px var(--neon-blue), inset 0 0 10px var(--neon-blue);}
-    40% {background: rgba(0,255,0,0.15);border-color: var(--neon-green);box-shadow: 0 0 15px var(--neon-green), inset 0 0 10px var(--neon-green);}
-    60% {background: rgba(255,255,0,0.15);border-color: var(--neon-yellow);box-shadow: 0 0 15px var(--neon-yellow), inset 0 0 10px var(--neon-yellow);}
-    80% {background: rgba(255,0,68,0.15);border-color: var(--neon-red);box-shadow: 0 0 15px var(--neon-red), inset 0 0 10px var(--neon-red);}
-    100% {background: rgba(255,20,147,0.15);border-color: var(--pink);box-shadow: 0 0 15px var(--pink), inset 0 0 10px var(--pink);}
-}
-/* Context Menu */
-#context-menu {
-    position: fixed;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 8px;
-    z-index: 1001;
-    display: none;
-    box-shadow: var(--shadow-neon);
-}
-#context-menu ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-#context-menu li {
-    padding: 8px 12px;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-#context-menu li:hover {
-    background: var(--accent-pink);
-    color: var(--bg-primary);
-}
-.mode-status{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.05);padding:8px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);opacity:0;transition:0.3s;z-index:100;pointer-events:none;}
-        .mode-status.active{opacity:1;color:var(--pink);border-color:var(--pink);box-shadow: 0 0 15px var(--pink);}
-    </style>
+    
+    #vignette {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%);
+      z-index: 10;
+      transition: background 0.5s ease;
+    }
+
+    /* Heading typography — Cormorant for all headings */
+    h1, h2, h3, .header-title, .column-title, .modal-title,
+    .right-panel-title, .right-panel-content h4, .right-panel-content h5 {
+        font-family: var(--font-heading);
+        letter-spacing: 0.03em;
+    }
+
+    /* Theme Toggle Button — minimal ring */
+    .theme-toggle-btn {
+        background: transparent;
+        border: 1px solid var(--accent-line);
+        color: var(--text-secondary);
+        width: 36px;
+        height: 36px;
+        border-radius: 2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        font-size: 14px;
+    }
+    .theme-toggle-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    /* SMS-specific animations — subdued pulse */
+    @keyframes urgentPulse {
+      0% { box-shadow: 0 0 0 0 var(--urgent-glow); }
+      60% { box-shadow: 0 0 12px 6px var(--urgent-glow); }
+      100% { box-shadow: 0 0 0 0 var(--urgent-glow); }
+    }
+
+    .urgent-sms-alert {
+      animation: urgentPulse 3s infinite;
+    }
+
+    /* SMS Button Styles */
+    .sms-btn {
+      background: transparent;
+      color: var(--sms-color);
+      border: 1px solid var(--sms-color);
+      padding: 6px 14px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: all 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sms-btn:hover {
+      background: var(--sms-color);
+      color: white;
+    }
+
+    /* Urgent Requests Column */
+    .urgent-requests-column {
+      border: 1px solid rgba(192, 80, 74, 0.4);
+      background: rgba(192, 80, 74, 0.03);
+    }
+
+    body.light-theme .urgent-requests-column {
+        background: rgba(154, 56, 48, 0.03);
+        border: 1px solid rgba(154, 56, 48, 0.3);
+    }
+
+    .urgent-requests-column .column-header {
+      background: rgba(192, 80, 74, 0.06);
+      margin: -20px -20px 20px -20px;
+      padding: 20px;
+      border-bottom: 1px solid rgba(192, 80, 74, 0.3);
+    }
+
+    /* SMS Request Card */
+    .sms-request-card {
+      border-left: 2px solid var(--sms-color);
+      position: relative;
+    }
+
+    .sms-request-card::before {
+      content: '';
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 5px;
+      height: 5px;
+      background: var(--sms-color);
+      border-radius: 50%;
+      animation: urgentPulse 3s infinite;
+    }
+
+    .sms-badge {
+      background: transparent;
+      color: var(--sms-color);
+      border: 1px solid var(--sms-color);
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* Phone Number Input */
+    .phone-input-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .phone-input {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 2px;
+      font-size: 13px;
+      font-family: var(--font-body);
+      background: var(--light-bg);
+      color: var(--text-primary);
+    }
+
+    .verify-btn {
+      background: transparent;
+      color: var(--primary-color);
+      border: 1px solid var(--primary-color);
+      padding: 9px 16px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--font-body);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: all 0.25s ease;
+    }
+
+    .verify-btn:hover {
+      background: var(--primary-color);
+      color: #fff;
+    }
+
+    .verified-badge {
+      background: transparent;
+      color: var(--success-color);
+      border: 1px solid var(--success-color);
+      padding: 3px 8px;
+      border-radius: 2px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Enhanced Toast for SMS */
+    .sms-toast {
+      background: var(--dark-bg);
+      border: 1px solid var(--sms-color);
+      border-left: 3px solid var(--sms-color);
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      color: var(--text-primary);
+      padding: 14px 18px;
+      border-radius: 2px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 1001;
+      max-width: 300px;
+      animation: slideInToast 0.3s ease-out;
+    }
+
+    /* Live Status Indicator */
+    .live-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      background: transparent;
+      border: 1px solid var(--accent-line);
+      border-radius: 2px;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--success-color);
+    }
+
+    .live-dot {
+      width: 5px;
+      height: 5px;
+      background: var(--success-color);
+      border-radius: 50%;
+      animation: pulse 2.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Include all original styles from kanban.html */
+    .app-container {
+        display: flex;
+        height: calc(100 * var(--vh));
+    }
+
+    .sidebar {
+        width: 260px;
+        background: var(--ui-bg);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        color: var(--text-primary);
+        padding: 28px 20px;
+        overflow-y: auto;
+        transition: width 0.3s ease, background 0.3s ease;
+        border-right: 1px solid var(--border-color);
+    }
+
+    .sidebar.collapsed {
+        width: 56px;
+        padding: 28px 10px;
+    }
+
+    .sidebar.collapsed .user-info, .sidebar.collapsed .nav-link span, .sidebar.collapsed .notification-badge {
+        display: none;
+    }
+
+    .sidebar.collapsed .user-profile {
+        justify-content: center;
+    }
+
+    .sidebar.collapsed .nav-link {
+        justify-content: center;
+        padding: 12px;
+    }
+
+    .user-profile {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 28px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .user-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 2px;
+        background: var(--primary-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 500;
+        font-size: 16px;
+        color: var(--dark-bg);
+        letter-spacing: 0;
+    }
+
+    .user-info h3 {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 3px;
+        font-family: var(--font-body);
+    }
+
+    .user-info p {
+        font-size: 11px;
+        opacity: 0.5;
+        letter-spacing: 0.04em;
+    }
+
+    .nav-menu {
+        list-style: none;
+    }
+
+    .nav-item {
+        margin-bottom: 2px;
+    }
+
+    .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        border-radius: 2px;
+        transition: all 0.2s ease;
+        font-size: 13px;
+        letter-spacing: 0.03em;
+        cursor: pointer;
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+        background: rgba(200, 169, 110, 0.06);
+        color: var(--text-primary);
+    }
+    
+    body.light-theme .nav-link.active {
+        background: rgba(138, 106, 58, 0.08);
+        color: var(--primary-color);
+    }
+
+    .nav-link i {
+        width: 18px;
+        text-align: center;
+        opacity: 0.7;
+    }
+
+    .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transition: margin-left 0.3s ease;
+    }
+
+    .header {
+        background: var(--ui-bg);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        padding: 16px 28px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 50;
+        transition: background 0.3s ease, border-color 0.3s ease;
+    }
+
+    .header-title {
+        font-size: 22px;
+        font-weight: 300;
+        letter-spacing: 0.08em;
+        font-family: var(--font-heading);
+        font-style: italic;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .btn {
+        padding: 8px 18px;
+        border: 1px solid transparent;
+        border-radius: 2px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        font-family: var(--font-body);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary {
+        background: transparent;
+        color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
+    .btn-primary:hover {
+        background: var(--primary-color);
+        color: var(--dark-bg);
+    }
+
+    .btn-secondary {
+        background: transparent;
+        color: var(--text-secondary);
+        border-color: var(--border-color);
+    }
+
+    .btn-secondary:hover {
+        border-color: var(--text-secondary);
+        color: var(--text-primary);
+    }
+
+    .kanban-container {
+        flex: 1;
+        padding: 24px;
+        overflow-x: auto;
+        overflow-y: auto;
+        position: relative;
+    }
+
+    .kanban-container.scrollable::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 24px;
+      background: linear-gradient(to left, var(--dark-bg), transparent);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .kanban-board {
+        display: flex;
+        gap: 16px;
+        min-height: 600px;
+    }
+
+    .kanban-column {
+        flex: 1;
+        min-width: 290px;
+        background: var(--ui-bg);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--border-color);
+        border-radius: 2px;
+        padding: 20px;
+        transition: background 0.3s ease, border-color 0.3s ease;
+    }
+
+    .kanban-column.drag-over {
+      background: rgba(200, 169, 110, 0.05);
+      border-color: var(--primary-color);
+    }
+
+    .column-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 18px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .column-title {
+        font-size: 15px;
+        font-weight: 400;
+        letter-spacing: 0.06em;
+        font-family: var(--font-heading);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .column-count {
+        background: transparent;
+        border: 1px solid var(--accent-line);
+        padding: 1px 7px;
+        border-radius: 2px;
+        font-size: 10px;
+        font-weight: 500;
+        font-family: var(--font-body);
+        color: var(--text-secondary);
+        letter-spacing: 0.04em;
+    }
+
+    .notes-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 200px;
+    }
+
+    .note-card {
+        transform-style: preserve-3d;
+        background: var(--card-bg);
+        backdrop-filter: blur(16px);
+        border-radius: 2px;
+        padding: 14px 16px;
+        box-shadow: var(--shadow-sm);
+        cursor: move;
+        transition: all 0.2s ease;
+        border: 1px solid var(--border-color);
+        border-left: 2px solid var(--primary-color);
+        opacity: 1 !important;
+        user-select: none;
+    }
+
+    .note-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+        border-color: var(--accent-line);
+        border-left-width: 2px;
+    }
+
+    .note-card.dragging {
+        opacity: 0.4;
+        transform: rotate(1deg) scale(1.02);
+        z-index: 10000; 
+    }
+
+    .note-card.urgent {
+        border-left-color: var(--danger-color);
+    }
+
+    .note-card.high {
+        border-left-color: var(--warning-color);
+    }
+
+    .note-card.medium {
+        border-left-color: var(--primary-color);
+    }
+
+    .note-card.low {
+        border-left-color: var(--success-color);
+    }
+
+    .note-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+
+    .note-title {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-primary);
+        flex: 1;
+        letter-spacing: 0.02em;
+    }
+
+    .note-priority {
+        padding: 2px 7px;
+        border-radius: 2px;
+        font-size: 9px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        border: 1px solid;
+    }
+
+    .priority-urgent {
+        border-color: var(--danger-color);
+        color: var(--danger-color);
+        background: transparent;
+    }
+
+    .priority-high {
+        border-color: var(--warning-color);
+        color: var(--warning-color);
+        background: transparent;
+    }
+
+    .priority-medium {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+        background: transparent;
+    }
+
+    .priority-low {
+        border-color: var(--success-color);
+        color: var(--success-color);
+        background: transparent;
+    }
+
+    .note-content {
+        font-size: 12px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-bottom: 12px;
+    }
+
+    .note-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 10px;
+        color: var(--text-secondary);
+        gap: 10px;
+    }
+
+    .note-meta {
+        display: flex;
+        gap: 10px;
+    }
+
+    .note-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        opacity: 0.7;
+    }
+
+    .note-assignee {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .assignee-avatar {
+        width: 18px;
+        height: 18px;
+        border-radius: 2px;
+        background: var(--primary-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 8px;
+        font-weight: 600;
+        color: var(--dark-bg);
+    }
+
+    .note-actions {
+        display: flex;
+        gap: 2px;
+    }
+
+    .note-action-btn {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 4px 6px;
+        border-radius: 2px;
+        transition: all 0.2s ease;
+        opacity: 0.6;
+    }
+
+    .note-action-btn:hover {
+        background: rgba(200, 169, 110, 0.08);
+        color: var(--primary-color);
+        opacity: 1;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        backdrop-filter: blur(6px);
+    }
+
+    .modal {
+        background: var(--card-bg);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--border-color);
+        border-radius: 2px;
+        padding: 28px;
+        width: 90%;
+        max-width: 480px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-lg);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-title {
+        font-size: 20px;
+        font-weight: 300;
+        font-family: var(--font-heading);
+        letter-spacing: 0.08em;
+        font-style: italic;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 18px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 0;
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 2px;
+        transition: all 0.2s ease;
+        opacity: 0.6;
+    }
+
+    .modal-close:hover {
+        background: rgba(200, 169, 110, 0.08);
+        color: var(--text-primary);
+        opacity: 1;
+    }
+
+    .form-group {
+        margin-bottom: 18px;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 7px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .form-input,
+    .form-textarea,
+    .form-select {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 2px;
+        font-size: 13px;
+        font-family: var(--font-body);
+        transition: all 0.2s ease;
+        background: var(--light-bg);
+        color: var(--text-primary);
+    }
+
+    .form-input:focus,
+    .form-textarea:focus,
+    .form-select:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(200, 169, 110, 0.12);
+    }
+
+    .form-textarea {
+        resize: vertical;
+        min-height: 90px;
+    }
+
+    .form-row {
+        display: flex;
+        gap: 14px;
+    }
+
+    .form-row .form-group {
+        flex: 1;
+    }
+
+    .priority-options {
+        display: flex;
+        gap: 8px;
+    }
+
+    .priority-option {
+        flex: 1;
+        padding: 10px 8px;
+        border: 1px solid var(--border-color);
+        border-radius: 2px;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.2s ease;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+    }
+
+    .priority-option:hover {
+        border-color: var(--text-secondary);
+        color: var(--text-primary);
+    }
+
+    .priority-option.selected {
+        color: var(--dark-bg);
+    }
+
+    .priority-option.urgent.selected {
+        background: var(--danger-color);
+        border-color: var(--danger-color);
+    }
+
+    .priority-option.high.selected {
+        background: var(--warning-color);
+        border-color: var(--warning-color);
+    }
+
+    .priority-option.medium.selected {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
+    .priority-option.low.selected {
+        background: var(--success-color);
+        border-color: var(--success-color);
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .filter-bar {
+        background: var(--ui-bg);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        padding: 14px 28px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        gap: 14px;
+        align-items: center;
+    }
+
+    .filter-bar.hidden {
+        display: none;
+    }
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .filter-label {
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+    }
+
+    .notification-badge {
+        position: relative;
+    }
+
+    .badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: var(--danger-color);
+        color: white;
+        border-radius: 2px;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 600;
+    }
+
+    .sidebar-toggle {
+      display: inline-flex;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+    }
+
+    .tabs {
+      display: flex;
+      overflow-x: auto;
+      background: var(--ui-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 28px;
+      position: relative;
+    }
+
+    .tab-btn {
+      padding: 12px 18px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--font-body);
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .tab-btn.active {
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--primary-color);
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .tab-badge {
+      position: absolute;
+      top: 4px;
+      right: 2px;
+      background: var(--danger-color);
+      color: white;
+      border-radius: 2px;
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: 600;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: var(--dark-bg);
+      border: 1px solid var(--success-color);
+      border-left: 3px solid var(--success-color);
+      color: var(--text-primary);
+      padding: 14px 18px;
+      border-radius: 2px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 1001;
+      max-width: 300px;
+      animation: slideInToast 0.3s ease-out;
+    }
+
+    .toast button {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    @keyframes slideInToast {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        font-size: 32px;
+        margin-bottom: 14px;
+        opacity: 0.3;
+    }
+
+    .empty-state p {
+        font-size: 12px;
+        margin-bottom: 18px;
+        letter-spacing: 0.04em;
+    }
+
+    .fade-in {
+        animation: fadeIn 0.25s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide-in {
+        animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(0); }
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .app-container { flex-direction: column; }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            background: var(--dark-bg);
+            backdrop-filter: none;
+        }
+
+        .sidebar.open { transform: translateX(0); }
+        .main-content { width: 100%; }
+
+        .kanban-board { flex-direction: column; }
+
+        .kanban-column { min-width: 100%; }
+
+        .modal { width: 95%; padding: 20px; }
+
+        .header {
+            padding: 10px 15px;
+            flex-wrap: wrap;
+        }
+
+        .header-title { font-size: 18px; margin-bottom: 8px; }
+        .header-actions { gap: 8px; }
+
+        .btn { padding: 7px 12px; font-size: 11px; }
+
+        .filter-bar {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 10px 15px;
+            gap: 10px;
+        }
+
+        .filter-group { flex-direction: column; align-items: flex-start; gap: 4px; }
+        .filter-label { font-size: 11px; }
+        .kanban-container { padding: 12px; }
+        .kanban-column { padding: 14px; }
+        .column-title { font-size: 14px; }
+        .note-card { padding: 12px; }
+        .note-title { font-size: 12px; }
+        .note-content { font-size: 11px; }
+        .note-footer { font-size: 10px; }
+        .tabs { padding: 0 15px; }
+        .tab-btn { padding: 10px 14px; font-size: 10px; }
+        .toast { bottom: 10px; right: 10px; left: 10px; max-width: none; }
+    }
+
+    /* --- FAB AND RIGHT PANEL --- */
+    .fab {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      width: 50px;
+      height: 50px;
+      border-radius: 2px;
+      background: var(--primary-color);
+      color: var(--dark-bg);
+      border: none;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-lg);
+      cursor: pointer;
+      transition: all 0.25s ease;
+      z-index: 1001;
+    }
+
+    .fab:hover {
+      background: var(--secondary-color);
+      box-shadow: 0 16px 30px -5px rgba(0, 0, 0, 0.4);
+    }
+
+    .right-panel-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 1002;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .right-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 480px;
+      height: 100%;
+      background: var(--card-bg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-left: 1px solid var(--border-color);
+      box-shadow: var(--shadow-lg);
+      z-index: 1003;
+      display: flex;
+      flex-direction: column;
+      animation: slideInFromRight 0.3s ease-out;
+    }
+    
+    @keyframes slideInFromRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .right-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .right-panel-title {
+      font-size: 20px;
+      font-weight: 300;
+      font-style: italic;
+      letter-spacing: 0.06em;
+    }
+
+    .right-panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px;
+    }
+    
+    .right-panel-content h4 {
+      font-size: 17px;
+      font-weight: 400;
+      font-style: italic;
+      color: var(--text-primary);
+      margin-top: 24px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+      letter-spacing: 0.05em;
+    }
+    
+    .right-panel-content h4:first-child { margin-top: 0; }
+
+    .right-panel-content h5 {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--primary-color);
+      margin-top: 18px;
+      margin-bottom: 8px;
+      letter-spacing: 0.04em;
+    }
+
+    .right-panel-content p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 14px;
+    }
+    
+    .right-panel-content ul {
+      list-style: none;
+      padding-left: 10px;
+      margin-bottom: 14px;
+    }
+
+    .right-panel-content li {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 6px;
+      position: relative;
+      padding-left: 16px;
+    }
+
+    .right-panel-content li::before {
+      content: '—';
+      color: var(--primary-color);
+      display: inline-block; 
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-weight: 300;
+    }
+    
+    .right-panel-content blockquote {
+      border-left: 2px solid var(--primary-color);
+      padding-left: 14px;
+      margin: 18px 0;
+      font-style: italic;
+      color: var(--text-secondary);
+    }
+    
+    @media (max-width: 768px) {
+      .fab { bottom: 18px; right: 18px; width: 46px; height: 46px; font-size: 18px; }
+      .right-panel { width: 100%; }
+    }
+
+    /* Context menu */
+    .context-menu {
+      position: absolute;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 2px;
+      box-shadow: var(--shadow-md);
+      z-index: 1000;
+      min-width: 140px;
+    }
+
+    .context-menu ul {
+      list-style: none;
+      margin: 0;
+      padding: 6px 0;
+    }
+
+    .context-menu li {
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+    }
+
+    .context-menu li:hover {
+      background: rgba(200, 169, 110, 0.07);
+      color: var(--primary-color);
+    }
+
+    .context-menu li.disabled {
+      opacity: 0.35;
+      pointer-events: none;
+      color: var(--text-secondary);
+    }
+
+    .context-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--dark-bg);
+      opacity: 0.5;
+      z-index: 999;
+    }
+  </style>
 </head>
 <body>
-    <!-- Loading Screen -->
-    <div class="loading-screen" id="loading-screen">
-        <div class="loading-cube">
-            <div class="fab-cube">
-                <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
-                <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
-            </div>
-        </div>
-        <div class="loading-text">Initializing Enhanced 3D Kanban...</div>
-    </div>
-    <!-- Main Canvas -->
-    <canvas id="canvas"></canvas>
- 
-    <!-- Enhanced Cursor System -->
-    <div id="cursor"></div>
- 
-    <!-- Enhanced Joystick with Dynamic Colors -->
-    <div class="fab-zone" id="joystick">
-        <div class="fab-halo"></div>
-        <div class="fab-cube" id="joy-cube">
-            <div class="f-face"></div>
-            <div class="f-face"></div>
-            <div class="f-face"></div>
-            <div class="f-face"></div>
-            <div class="f-face"></div>
-            <div class="f-face"></div>
-        </div>
-        <div class="fab-hint">NAV</div>
-    </div>
- 
-    <!-- UI Elements -->
-    <div class="trash-zone" id="trash-zone">🗑️</div>
-    <div class="reset-zone" id="reset-zone">↻</div>
-    <div class="center-helper">
-        Use joystick to navigate • Click cubes to focus • Double-click to edit
-    </div>
- 
-    <!-- Coordinates Display -->
-    <div class="coords" id="coord-display">
-        <div>X:0.0</div>
-        <div>Y:0.0</div>
-        <div>Z:0.0</div>
-        <div>Speed:0.0</div>
-    </div>
- 
-    <!-- Stats Display -->
-    <div class="stats-display">
-        <div class="stat-item">
-            <span class="stat-label">Tasks:</span>
-            <span class="stat-value" id="task-count">0</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-label">FPS:</span>
-            <span class="stat-value" id="fps-counter">60</span>
-        </div>
-    </div>
- 
-    <!-- View Toggles -->
-    <div class="view-toggles">
-        <button class="view-btn active" data-view="quarterback">Quarterback</button>
-        <button class="view-btn" data-view="skycam">Skycam</button>
-        <button class="view-btn" data-view="sideline">Sideline</button>
-    </div>
- 
-    <!-- Mobile Focus Release Button -->
-    <button class="mobile-release-btn" id="mobile-release">
-        Tap to Release Focus
-    </button>
- 
-    <!-- Quadrant Icons -->
-    <div class="quad-container">
-        <div class="quad-icon prog" onclick="spawn('prog')" title="Spawn In-Progress">
-            <div class="quad-cube">
-                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
-                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
-            </div>
-            <span class="quad-label">In Progress</span>
-        </div>
-        <div class="quad-icon todo" onclick="spawn('todo')" title="Spawn To-Do">
-            <div class="quad-cube">
-                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
-                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
-            </div>
-            <span class="quad-label">To Do</span>
-        </div>
-        <div class="quad-icon done" onclick="spawn('done')" title="Spawn Completed">
-            <div class="quad-cube">
-                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
-                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
-            </div>
-            <span class="quad-label">Done</span>
-        </div>
-        <div class="quad-icon back" onclick="spawn('back')" title="Spawn Backlog">
-            <div class="quad-cube">
-                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
-                <div class="q-face"></div><div class="q-face"></div><div class="q-face"></div>
-            </div>
-            <span class="quad-label">Backlog</span>
-        </div>
-    </div>
- 
-    <!-- Header -->
-    <div class="header-top">
-      <div class="logo-wrapper">
-        <div class="logo-cube">
-            <div class="fab-cube">
-                <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
-                <div class="f-face"></div><div class="f-face"></div><div class="f-face"></div>
-            </div>
-        </div>
-        <div class="logo-text">intoview:kanban</div>
-    </div>
-        <div class="search-wrapper">
-            <input id="search" type="text" placeholder="Search Tasks...">
-        </div>
-        <div class="controls-wrapper">
-            <div class="effects-toggle" id="effects-toggle">
-                <div class="dot"></div>
-                <span class="label">Effects: ON</span>
-            </div>
-            <div class="info-trigger" id="info-btn">i</div>
-        </div>
-    </div>
- 
-    <!-- Info Overlay with Accordion -->
-    <div class="info-overlay" id="info-overlay">
-        <div class="info-content">
-            <button class="close-btn" id="close-info">&times;</button>
-         
-            <h2 style="margin-bottom: 24px; color: var(--accent-pink);">Enhanced 3D Kanban System</h2>
-         
-            <div class="accordion-item open">
-                <div class="accordion-header">🎮 Enhanced Controls</div>
-                <div class="accordion-content">
-                    <p><strong>Desktop:</strong></p>
-                    <ul style="margin-left: 20px;">
-                        <li>Use the joystick to navigate the scene</li>
-                        <li>Click cubes to focus/unfocus</li>
-                        <li>Double-click to edit task name</li>
-                        <li>Drag cubes to reposition</li>
-                        <li>Scroll to zoom in/out</li>
-                        <li>Right-click for context menu</li>
-                    </ul>
-                    <p><strong>Mobile:</strong></p>
-                    <ul style="margin-left: 20px;">
-                        <li>Touch and drag the joystick</li>
-                        <li>Tap cubes to focus</li>
-                        <li>Double-tap to edit</li>
-                        <li>Use "Tap to Release Focus" button when needed</li>
-                        <li>Swipe for camera panning</li>
-                    </ul>
-                </div>
-            </div>
-         
-            <div class="accordion-item">
-                <div class="accordion-header">🎨 Themes</div>
-                <div class="accordion-content">
-                    <p><strong>Neon Theme:</strong> Dark cinematic experience with vibrant neon accents and glowing effects.</p>
-                    <p><strong>Pastel Theme:</strong> Light, clean interface with soft pastel colors for daytime use.</p>
-                    <p><strong>Midnight Theme:</strong> Deep blue variant with cyan accents for night-time work.</p>
-                    <p>Toggle between themes using the theme button in the header.</p>
-                </div>
-            </div>
-         
-            <div class="accordion-item">
-                <div class="accordion-header">📷 Camera Views</div>
-                <div class="accordion-content">
-                    <p><strong>Quarterback:</strong> Standard third-person perspective.</p>
-                    <p><strong>Skycam:</strong> Top-down view for strategic overview.</p>
-                    <p><strong>Sideline:</strong> Side view for lateral analysis.</p>
-                    <p>Long-press view buttons for alternate focus perspectives.</p>
-                </div>
-            </div>
-         
-            <div class="accordion-item">
-                <div class="accordion-header">💡 Tips & Tricks</div>
-                <div class="accordion-content">
-                    <ul style="margin-left: 20px;">
-                        <li>Drag cubes to the trash zone to delete them</li>
-                        <li>Use the reset button to return to default view</li>
-                        <li>Toggle effects for better performance on older devices</li>
-                        <li>The joystick changes color based on your position</li>
-                        <li>Press 'R' for quick reset, 'ESC' to deselect</li>
-                        <li>Search tasks using the search bar</li>
-                        <li>Monitor performance with the FPS counter</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Task Editor Modal -->
-    <div class="task-editor" id="task-editor">
-        <h3>Edit Task</h3>
-        <input type="text" id="task-input" placeholder="Enter task name...">
-        <div class="task-editor-buttons">
-            <button id="cancel-edit">Cancel</button>
-            <button id="save-edit">Save</button>
-        </div>
-    </div>
-    <!-- Context Menu -->
-    <div id="context-menu"></div>
-<div id="mode" class="mode-status">FOCAL MODE ACTIVE</div>
-    <script>
-        // === ENHANCED CONFIGURATION ===
-        const CFG = {
-            cam: {
-                eye: { y: 40 }
-            },
-            preset: {
-                quarterback: {
-                    o: new THREE.Vector3(0, 12, 25),
-                    r: new THREE.Euler(-0.4, 0, 0)
-                },
-                skycam: {
-                    o: new THREE.Vector3(0, 60, 1),
-                    r: new THREE.Euler(-Math.PI / 2, 0, 0)
-                },
-                sideline: {
-                    o: new THREE.Vector3(60, 0, 0),
-                    r: new THREE.Euler(0, Math.PI / 2, 0)
-                }
-            },
-            colors: {
-                todo: 0xFFFF00, // Yellow
-                prog: 0x00FFFF, // Cyan
-                done: 0x00FF00, // Green
-                back: 0xFF0044 // Red-Pink
-            },
-            quadrantColors: {
-                todo: '#FFFF00',
-                prog: '#00FFFF',
-                done: '#00FF00',
-                back: '#FF0044'
-            },
-            fovs: [54, 40, 30] // 35mm, 50mm, 75mm approx FOV
-        };
-        // === SCENE SETUP ===
-        const sc = new THREE.Scene();
-        sc.background = new THREE.Color(0x000000);
-        sc.fog = new THREE.FogExp2(0x000000, 0.0007);
-        const cam = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 10077);
-        const rend = new THREE.WebGLRenderer({
-            canvas: document.getElementById('canvas'),
-            antialias: true
+  <div id="three-container"></div>
+  <div id="vignette"></div>
+  <script type="text/babel">
+    "use strict";
+    
+    function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
+    function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
+    function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+    function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
+    function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
+    function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
+    function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { _defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
+    function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
+    function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : i + ""; }
+    function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
+    function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
+    function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+    function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+    function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
+    function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t["return"] && (u = t["return"](), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
+    function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
+    var _React = React,
+      useState = _React.useState,
+      useEffect = _React.useEffect,
+      useRef = _React.useRef,
+      useCallback = _React.useCallback;
+
+    // --- NEW CONFETTI UTILITY ---
+    const createConfettiExplosion = (x, y) => {
+      const isLight = document.body.classList.contains('light-theme');
+      const colors = isLight 
+        ? ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706'] // Ink/Paper colors
+        : ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']; // Neon/Dark colors
+      
+      const particleCount = 30;
+      
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.classList.add('confetti-particle');
+        
+        // Randomize color
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        
+        // Initial position
+        particle.style.left = x + 'px';
+        particle.style.top = y + 'px';
+        
+        document.body.appendChild(particle);
+        
+        // Physics for explosion
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 50 + Math.random() * 100; // spread
+        const tx = Math.cos(angle) * velocity;
+        const ty = Math.sin(angle) * velocity - 50; // slight upward bias
+        
+        // Animate with GSAP
+        gsap.to(particle, {
+          x: tx,
+          y: ty + 100, // gravity effect
+          opacity: 0,
+          rotation: Math.random() * 360 * 2,
+          scale: 0.5,
+          duration: 0.8 + Math.random() * 0.5,
+          ease: "power2.out",
+          onComplete: () => {
+            particle.remove();
+          }
         });
-        rend.setSize(innerWidth, innerHeight);
-        rend.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        rend.shadowMap.enabled = true;
-        rend.shadowMap.type = THREE.PCFSoftShadowMap;
-        // === ENHANCED POST-PROCESSING SETUP ===
-        let composer, renderPass, vignettePass, rgbShiftPass, bokehPass;
-     
-        function initPostProcessing() {
-            composer = new THREE.EffectComposer(rend);
-            renderPass = new THREE.RenderPass(sc, cam);
-            composer.addPass(renderPass);
-         
-            // Vignette effect
-            vignettePass = new THREE.ShaderPass(THREE.VignetteShader);
-            vignettePass.uniforms.offset.value = 0.8;
-            vignettePass.uniforms.darkness.value = 1.8;
-            composer.addPass(vignettePass);
-         
-            // RGB Shift effect for enhanced visuals
-            rgbShiftPass = new THREE.ShaderPass(THREE.RGBShiftShader);
-            rgbShiftPass.uniforms.amount.value = 0.0015;
-            composer.addPass(rgbShiftPass);
-            bokehPass = new THREE.BokehPass(sc, cam, { focus: 10, aperture: 0.00001, maxblur: 0.01 });
-            composer.addPass(bokehPass);
+      }
+    };
+    
+    // Mock Data
+    var mockUsers = [{
+      id: 1,
+      name: 'Wendy',
+      role: 'General Manager',
+      initials: 'W',
+      phone: '+1234567890',
+      phoneVerified: true
+    }, {
+      id: 2,
+      name: 'Sarah Johnson',
+      role: 'Operations Manager',
+      initials: 'SJ',
+      phone: '+1234567891',
+      phoneVerified: true
+    }, {
+      id: 3,
+      name: 'Mike Chen',
+      role: 'Kitchen Manager',
+      initials: 'MC',
+      phone: '+1234567892',
+      phoneVerified: false
+    }, {
+      id: 4,
+      name: 'Emily Davis',
+      role: 'Front of House Manager',
+      initials: 'ED',
+      phone: '+1234567893',
+      phoneVerified: true
+    }, {
+      id: 5,
+      name: 'Alex Rodriguez',
+      role: 'Bar Manager',
+      initials: 'AR',
+      phone: '+1234567894',
+      phoneVerified: false
+    }];
+    
+    var mockNotes = [{
+      id: 1,
+      title: 'Staff Meeting Tomorrow',
+      content: 'Monthly performance review meeting with all department heads. Please prepare your quarterly reports.',
+      priority: 'high',
+      dueDate: '2024-01-15',
+      dueTime: '10:00',
+      assignee: 1,
+      author: 2,
+      createdAt: '2024-01-14T09:30:00',
+      status: 'todo',
+      category: 'admin',
+      isSmsRequest: false
+    }, {
+      id: 2,
+      title: 'URGENT: Allergy Alert - Table 12',
+      content: 'Customer at table 12 has severe nut allergy. Kitchen must use separate prep area and clean utensils.',
+      priority: 'urgent',
+      dueDate: '2024-01-14',
+      dueTime: '15:00',
+      assignee: 3,
+      author: 4,
+      createdAt: '2024-01-14T08:15:00',
+      status: 'urgent',
+      category: 'kitchen',
+      isSmsRequest: true,
+      smsFrom: '+1234567895',
+      smsTimestamp: '2024-01-14T08:10:00'
+    }, {
+      id: 3,
+      title: 'Health Inspection Preparation',
+      content: 'Ensure all areas are inspection-ready. Check cleanliness, food storage, and documentation.',
+      priority: 'high',
+      dueDate: '2024-01-20',
+      dueTime: '09:00',
+      assignee: 4,
+      author: 1,
+      createdAt: '2024-01-13T14:20:00',
+      status: 'todo',
+      category: 'admin',
+      isSmsRequest: false
+    }, {
+      id: 4,
+      title: 'VIP Guest Arriving - Table 5',
+      content: 'VIP guest requested special seating arrangement and menu customization. Ensure VIP service protocol.',
+      priority: 'urgent',
+      dueDate: '2024-01-14',
+      dueTime: '18:00',
+      assignee: 4,
+      author: 5,
+      createdAt: '2024-01-14T07:45:00',
+      status: 'urgent',
+      category: 'foh',
+      isSmsRequest: true,
+      smsFrom: '+1234567896',
+      smsTimestamp: '2024-01-14T07:40:00'
+    }, {
+      id: 5,
+      title: 'Customer Service Training',
+      content: 'Schedule and conduct customer service refresher training for all front-of-house staff.',
+      priority: 'low',
+      dueDate: '2024-01-25',
+      dueTime: '14:00',
+      assignee: 4,
+      author: 1,
+      createdAt: '2024-01-14T11:30:00',
+      status: 'todo',
+      category: 'foh',
+      isSmsRequest: false
+    }, {
+      id: 6,
+      title: 'Bar Stock Emergency',
+      content: 'Running low on premium spirits for tonight\'s reservation. Need immediate restock.',
+      priority: 'urgent',
+      dueDate: '2024-01-14',
+      dueTime: '16:00',
+      assignee: 5,
+      author: 2,
+      createdAt: '2024-01-14T12:00:00',
+      status: 'urgent',
+      category: 'bar',
+      isSmsRequest: true,
+      smsFrom: '+1234567897',
+      smsTimestamp: '2024-01-14T11:55:00'
+    }, {
+      id: 7,
+      title: 'Maintenance Check',
+      content: 'Inspect HVAC and plumbing systems.',
+      priority: 'high',
+      dueDate: '2024-01-19',
+      dueTime: '11:00',
+      assignee: 2,
+      author: 1,
+      createdAt: '2024-01-14T13:00:00',
+      status: 'inprogress',
+      category: 'maintenance',
+      isSmsRequest: false
+    }];
+
+    var NoteCard = function NoteCard(_ref) {
+      var note = _ref.note,
+        onEdit = _ref.onEdit,
+        onDelete = _ref.onDelete,
+        currentUser = _ref.currentUser,
+        isMobile = _ref.isMobile,
+        onNoteDrop = _ref.onNoteDrop,
+        handleOpenContextMenu = _ref.handleOpenContextMenu,
+        smsEnabled = _ref.smsEnabled;
+      var _useState = useState(false),
+        isDragging = _useState[0],
+        setIsDragging = _useState[1];
+      var cardRef = useRef(null);
+      var longPressTimer = useRef(null);
+
+      var handleDragStart = function handleDragStart(e) {
+        setIsDragging(true);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('noteId', note.id);
+      };
+
+      var handleDragEnd = function handleDragEnd() {
+        setIsDragging(false);
+      };
+      
+      const handleTouchStart = (e) => {
+        if (isMobile) {
+          longPressTimer.current = setTimeout(() => {
+            e.preventDefault(); 
+            const touch = e.touches[0] || e.changedTouches[0];
+            const posX = touch.pageX;
+            const posY = touch.pageY;
+            handleOpenContextMenu({ ...e, pageX: posX, pageY: posY }, note);
+          }, 400);
         }
-     
-        initPostProcessing();
-        // === PHYSICS WORLD ===
-        const world = new CANNON.World();
-        world.gravity.set(0, -111.11, 0);
-        world.broadphase = new CANNON.NaiveBroadphase();
-        const mat = new CANNON.Material();
-        world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, {
-            friction: 0.4,
-            restitution: 0.1
-        }));
-        // === ENHANCED APPLICATION STATE ===
-        const rig = {
-            mode: 'quarterback',
-            preset: 'quarterback',
-            piv: new THREE.Vector3(),
-            tPiv: new THREE.Vector3(),
-            isMobile: window.innerWidth <= 768,
-            effectsEnabled: true,
-            currentTheme: 'neon'
+      };
+
+      const handleTouchEnd = () => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+        }
+      };
+
+      var formatDate = function formatDate(dateString) {
+        var date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      };
+
+      var formatTime = function formatTime(timeString) {
+        var _timeString$split = timeString.split(':'),
+          hours = _timeString$split[0],
+          minutes = _timeString$split[1];
+        var hour = parseInt(hours);
+        var ampm = hour >= 12 ? 'PM' : 'AM';
+        var displayHour = hour % 12 || 12;
+        return "".concat(displayHour, ":").concat(minutes, " ").concat(ampm);
+      };
+
+      var assignee = mockUsers.find(function (u) { return u.id === note.assignee; });
+
+      useEffect(() => {
+        const card = cardRef.current;
+        if (!card) return;
+
+        const handleMove = (e) => {
+          const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+          const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+          if (!clientX || !clientY) return;
+
+          const rect = card.getBoundingClientRect();
+          const x = clientX - rect.left;
+          const y = clientY - rect.top;
+          const centerX = rect.width / 2;
+          const centerY = rect.height / 2;
+
+          const rotateX = (y - centerY) / centerY * 5;
+          const rotateY = (centerX - x) / centerX * 5;
+
+          gsap.to(card, {
+            rotationX: rotateX,
+            rotationY: rotateY,
+            duration: 0.2,
+            ease: 'power2.out'
+          });
         };
-        const tm = {
-            cubes: [],
-            sel: null,
-            hov: null,
-            drag: null,
-            launch: false,
-            lSrc: null,
-            editingCube: null
+
+        const handleLeave = () => {
+          gsap.to(card, {
+            rotationX: 0,
+            rotationY: 0,
+            duration: 0.3,
+            ease: 'power2.out'
+          });
         };
-        let distanceScale = 1;
-        let isPanning = false;
-        let panStartIntersect = null;
-        let currentView = 'quarterback';
-        let frameCount = 0;
-        let lastTime = performance.now();
-        let fps = 60;
-        let speed = 0;
-        let fovIndex = 0;
-        let tempView = null;
-        let focusTimer = null;
-        let isFocusing = false;
-        let prevTPiv = new THREE.Vector3();
-        let prevDistanceScale = 1;
-        let prevFov = 75;
-        let focal = false;
-        let focalPos = new THREE.Vector3();
-        let focalTarget = new THREE.Vector3();
-        // === QUADRANT POSITIONS ===
-        const quads = {
-            todo: { x: 25, z: -25 },
-            prog: { x: -25, z: -25 },
-            done: { x: 25, z: 25 },
-            back: { x: -25, z: 25 }
+
+        card.addEventListener('mousemove', handleMove);
+        card.addEventListener('mouseleave', handleLeave);
+        card.addEventListener('touchmove', handleMove);
+        card.addEventListener('touchend', handleLeave);
+
+        return () => {
+          card.removeEventListener('mousemove', handleMove);
+          card.removeEventListener('mouseleave', handleLeave);
+          card.removeEventListener('touchmove', handleMove);
+          card.removeEventListener('touchend', handleLeave);
         };
-        // === ENHANCED LIGHTING ===
-        sc.add(new THREE.AmbientLight(0xffffff, 0.4));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
-        dirLight.position.set(20, 50, 20);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.set(2048, 2048);
-        sc.add(dirLight);
-        const neon1 = new THREE.PointLight(0x00ffff, 4, 90);
-        neon1.position.set(-30, 15, -30);
-        sc.add(neon1);
-        const neon2 = new THREE.PointLight(0xff00ff, 4, 90);
-        neon2.position.set(30, 15, 30);
-        sc.add(neon2);
-        const neon3 = new THREE.PointLight(0x39FF14, 2, 60);
-        neon3.position.set(0, 20, 0);
-        sc.add(neon3);
-        // === ENVIRONMENT MAP ===
-        const cRT = new THREE.WebGLCubeRenderTarget(512, {
-            format: THREE.RGBFormat,
-            generateMipmaps: true,
-            minFilter: THREE.LinearMipmapLinearFilter
+      }, []);
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        {
+          ref: cardRef,
+          className: "note-card ".concat(note.priority, " ").concat(isDragging ? 'dragging' : '', " ").concat(smsEnabled && note.isSmsRequest ? 'sms-request-card urgent-sms-alert' : ''),
+          draggable: !isMobile,
+          onDragStart: handleDragStart,
+          onDragEnd: handleDragEnd,
+          onContextMenu: (e) => handleOpenContextMenu(e, note),
+          onTouchStart: handleTouchStart,
+          onTouchEnd: handleTouchEnd,
+          onTouchCancel: handleTouchEnd
+        },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "note-header" },
+          /*#__PURE__*/React.createElement(
+            "h4",
+            { className: "note-title" },
+            note.title
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+            /*#__PURE__*/React.createElement(
+              "span",
+              { className: "note-priority priority-".concat(note.priority) },
+              note.priority
+            ),
+            smsEnabled && note.isSmsRequest && /*#__PURE__*/React.createElement(
+              "span",
+              { className: "sms-badge" },
+              "SMS"
+            )
+          )
+        ),
+        /*#__PURE__*/React.createElement(
+          "p",
+          { className: "note-content" },
+          note.content
+        ),
+        smsEnabled && note.isSmsRequest && /*#__PURE__*/React.createElement(
+          "div",
+          { style: { fontSize: '11px', color: 'var(--sms-color)', marginBottom: '8px' } },
+          /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+          " From: ".concat(note.smsFrom, " at ").concat(new Date(note.smsTimestamp).toLocaleTimeString())
+        ),
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "note-footer" },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "note-meta" },
+            note.dueDate && /*#__PURE__*/React.createElement(
+              "span",
+              null,
+              /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-calendar" }),
+              formatDate(note.dueDate)
+            ),
+            note.dueTime && /*#__PURE__*/React.createElement(
+              "span",
+              null,
+              /*#__PURE__*/React.createElement("i", { className: "fa-regular fa-clock" }),
+              formatTime(note.dueTime)
+            )
+          ),
+          assignee && /*#__PURE__*/React.createElement(
+            "div",
+            { className: "note-assignee" },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "assignee-avatar" },
+              assignee.initials
+            ),
+            /*#__PURE__*/React.createElement(
+              "span",
+              null,
+              assignee.name.split(' ')[0]
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "note-actions" },
+            /*#__PURE__*/React.createElement(
+              "button",
+              { onClick: function onClick() { return onEdit(note); }, className: "note-action-btn" },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-edit" })
+            ),
+            /*#__PURE__*/React.createElement(
+              "button",
+              { onClick: function onClick() { return onDelete(note.id); }, className: "note-action-btn" },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-trash" })
+            )
+          )
+        )
+      );
+    };
+
+    var KanbanColumn = function KanbanColumn(_ref2) {
+      var title = _ref2.title,
+        notes = _ref2.notes,
+        status = _ref2.status,
+        onNoteDrop = _ref2.onNoteDrop,
+        onEdit = _ref2.onEdit,
+        onDelete = _ref2.onDelete,
+        currentUser = _ref2.currentUser,
+        isMobile = _ref2.isMobile,
+        handleOpenContextMenu = _ref2.handleOpenContextMenu,
+        smsEnabled = _ref2.smsEnabled;
+      var _useState3 = useState(false),
+        isDragOver = _useState3[0],
+        setIsDragOver = _useState3[1];
+
+      var handleDragOver = function handleDragOver(e) {
+        e.preventDefault();
+        setIsDragOver(true);
+      };
+
+      var handleDragLeave = function handleDragLeave() {
+        setIsDragOver(false);
+      };
+
+      var handleDrop = function handleDrop(e) {
+        e.preventDefault();
+        setIsDragOver(false);
+        
+        // --- TRIGGER CONFETTI ON COMPLETED ---
+        if (status === 'completed') {
+          createConfettiExplosion(e.clientX, e.clientY);
+        }
+        
+        var noteId = parseInt(e.dataTransfer.getData('noteId'));
+        onNoteDrop(noteId, status);
+      };
+
+      var statusIcons = {
+        urgent: 'fa-exclamation-triangle',
+        todo: 'fa-clipboard-list',
+        inprogress: 'fa-spinner',
+        completed: 'fa-check-circle',
+      };
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        {
+          className: "kanban-column ".concat(isDragOver ? 'drag-over' : '', " ").concat(status === 'urgent' ? 'urgent-requests-column' : ''),
+          "data-status": status
+        },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "column-header" },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "column-title" },
+            /*#__PURE__*/React.createElement("i", { className: "fa-solid ".concat(statusIcons[status]) }),
+            title,
+            smsEnabled && status === 'urgent' && /*#__PURE__*/React.createElement(
+              "div",
+              { className: "live-indicator", style: { marginLeft: '8px' } },
+              /*#__PURE__*/React.createElement("div", { className: "live-dot" }),
+              "LIVE"
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "span",
+            { className: "column-count" },
+            notes.length
+          )
+        ),
+        /*#__PURE__*/React.createElement(
+          "div",
+          {
+            className: "notes-list",
+            onDragOver: handleDragOver,
+            onDragLeave: handleDragLeave,
+            onDrop: handleDrop
+          },
+          notes.length === 0 ? /*#__PURE__*/React.createElement(
+            "div",
+            { className: "empty-state" },
+            /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-inbox" }),
+            /*#__PURE__*/React.createElement("p", null, "No items in this column")
+          ) : notes.map(function (note) {
+            return /*#__PURE__*/React.createElement(NoteCard, {
+              key: note.id,
+              note: note,
+              onEdit: onEdit,
+              onDelete: onDelete,
+              currentUser: currentUser,
+              isMobile: isMobile,
+              onNoteDrop: onNoteDrop,
+              handleOpenContextMenu: handleOpenContextMenu,
+              smsEnabled: smsEnabled
+            });
+          })
+        )
+      );
+    };
+    
+    var SMSSettingsModal = function SMSSettingsModal(_ref3) {
+      var isOpen = _ref3.isOpen,
+        onClose = _ref3.onClose,
+        currentUser = _ref3.currentUser,
+        smsEnabled = _ref3.smsEnabled,
+        setSmsEnabled = _ref3.setSmsEnabled;
+      var _useState5 = useState(currentUser.phone || ''),
+        phoneNumber = _useState5[0],
+        setPhoneNumber = _useState5[1];
+      var _useState6 = useState(currentUser.phoneVerified || false),
+        isVerified = _useState6[0],
+        setIsVerified = _useState6[1];
+
+      var handleVerify = function handleVerify() {
+        setTimeout(function () {
+          setIsVerified(true);
+          alert('Phone number verified! You will now receive SMS notifications for urgent requests.');
+        }, 1000);
+      };
+
+      if (!isOpen) return null;
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        { className: "modal-overlay" },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "modal" },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "modal-header" },
+            /*#__PURE__*/React.createElement(
+              "h2",
+              { className: "modal-title" },
+              "SMS Notification Settings"
+            ),
+            /*#__PURE__*/React.createElement(
+              "button",
+              { className: "modal-close", onClick: onClose },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-times" })
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "form-group" },
+            /*#__PURE__*/React.createElement(
+              "label",
+              { style: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' } },
+              /*#__PURE__*/React.createElement("input", {
+                type: "checkbox",
+                checked: smsEnabled,
+                onChange: (e) => setSmsEnabled(e.target.checked)
+              }),
+              "Enable SMS Urgent Requests"
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "form-group" },
+            /*#__PURE__*/React.createElement(
+              "label",
+              { className: "form-label" },
+              "Phone Number for SMS Alerts"
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "phone-input-group" },
+              /*#__PURE__*/React.createElement("input", {
+                type: "tel",
+                className: "phone-input",
+                value: phoneNumber,
+                onChange: function onChange(e) { return setPhoneNumber(e.target.value); },
+                placeholder: "+1 (555) 123-4567"
+              }),
+              isVerified ? /*#__PURE__*/React.createElement(
+                "div",
+                { className: "verified-badge" },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-check" }),
+                "Verified"
+              ) : /*#__PURE__*/React.createElement(
+                "button",
+                { className: "verify-btn", onClick: handleVerify },
+                "Verify"
+              )
+            )
+          )
+        )
+      );
+    };
+
+    var CreateNoteModal = function CreateNoteModal(_ref4) {
+      var isOpen = _ref4.isOpen,
+        onClose = _ref4.onClose,
+        onSave = _ref4.onSave,
+        editingNote = _ref4.editingNote,
+        currentUser = _ref4.currentUser,
+        smsEnabled = _ref4.smsEnabled;
+      var _useState7 = useState({
+        title: '',
+        content: '',
+        priority: 'medium',
+        dueDate: '',
+        dueTime: '',
+        assignee: currentUser.id,
+        category: 'admin',
+        sendSms: false
+      }),
+        formData = _useState7[0],
+        setFormData = _useState7[1];
+
+      useEffect(function () {
+        if (editingNote) {
+          setFormData(editingNote);
+        } else {
+          setFormData({
+            title: '',
+            content: '',
+            priority: 'medium',
+            dueDate: '',
+            dueTime: '',
+            assignee: currentUser.id,
+            category: 'admin',
+            sendSms: false
+          });
+        }
+      }, [editingNote, currentUser]);
+
+      var handleSubmit = function handleSubmit(e) {
+        e.preventDefault();
+        onSave(formData);
+      };
+
+      var handleInputChange = function handleInputChange(e) {
+        var _e$target = e.target,
+          name = _e$target.name,
+          value = _e$target.type === 'checkbox' ? _e$target.checked : _e$target.value;
+        setFormData(function (prev) {
+          return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, name, value));
         });
-        const cCam = new THREE.CubeCamera(0.1, 1000, cRT);
-        sc.add(cCam);
-        // === ENHANCED FLOOR ===
-        const gnd = new THREE.Mesh(
-            new THREE.PlaneGeometry(200, 200),
-            new THREE.MeshStandardMaterial({
-                color: 0x050508,
-                roughness: 0.8,
-                metalness: 0.8,
-                envMapIntensity: 0.5
-            })
-        );
-        gnd.rotation.x = -Math.PI / 2;
-        gnd.position.y = -4;
-        gnd.receiveShadow = true;
-        sc.add(gnd);
-        const gB = new CANNON.Body({ mass: 0, material: mat });
-        gB.addShape(new CANNON.Plane());
-        gB.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-        gB.position.set(0, -4, 0);
-        world.addBody(gB);
-        // === GRID SYSTEM ===
-        const gridGrp = new THREE.Group();
-        sc.add(gridGrp);
-        function createGrid() {
-            const mat = new THREE.LineBasicMaterial({ color: 0x222233 });
-            const xLine = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(-100, -3.9, 0),
-                new THREE.Vector3(100, -3.9, 0)
-            ]);
-            const zLine = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, -3.9, -100),
-                new THREE.Vector3(0, -3.9, 100)
-            ]);
-            gridGrp.add(new THREE.Line(xLine, mat));
-            gridGrp.add(new THREE.Line(zLine, mat));
-            const addLabel = (txt, x, z, col) => {
-                const c = document.createElement('canvas');
-                c.width = 256;
-                c.height = 64;
-                const ctx = c.getContext('2d');
-                ctx.fillStyle = col;
-                ctx.font = 'bold 40px monospace';
-                ctx.textAlign = 'center';
-                ctx.shadowColor = col;
-                ctx.shadowBlur = 10;
-                ctx.fillText(txt, 128, 48);
-                const s = new THREE.Sprite(new THREE.SpriteMaterial({
-                    map: new THREE.CanvasTexture(c),
-                    transparent: true,
-                    opacity: 0.6
-                }));
-                s.position.set(x, 3.33, z);
-                s.scale.set(12, 3, 1);
-                gridGrp.add(s);
+      };
+
+      var handlePrioritySelect = function handlePrioritySelect(priority) {
+        setFormData(function (prev) {
+          return _objectSpread(_objectSpread({}, prev), {}, {
+            priority: priority
+          });
+        });
+      };
+
+      if (!isOpen) return null;
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        { className: "modal-overlay" },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "modal" },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "modal-header" },
+            /*#__PURE__*/React.createElement(
+              "h2",
+              { className: "modal-title" },
+              editingNote ? 'Edit Note' : 'Create New Note'
+            ),
+            /*#__PURE__*/React.createElement(
+              "button",
+              { className: "modal-close", onClick: onClose },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-times" })
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "form",
+            { onSubmit: handleSubmit },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Title"
+              ),
+              /*#__PURE__*/React.createElement("input", {
+                type: "text",
+                name: "title",
+                className: "form-input",
+                value: formData.title,
+                onChange: handleInputChange,
+                placeholder: "Enter note title...",
+                required: true
+              })
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Content"
+              ),
+              /*#__PURE__*/React.createElement("textarea", {
+                name: "content",
+                className: "form-textarea",
+                value: formData.content,
+                onChange: handleInputChange,
+                placeholder: "Describe the task or message...",
+                required: true
+              })
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Priority Level"
+              ),
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "priority-options" },
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  {
+                    className: "priority-option urgent ".concat(formData.priority === 'urgent' ? 'selected' : ''),
+                    onClick: function onClick() { return handlePrioritySelect('urgent'); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-exclamation-circle" }),
+                  /*#__PURE__*/React.createElement("div", null, "Urgent")
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  {
+                    className: "priority-option high ".concat(formData.priority === 'high' ? 'selected' : ''),
+                    onClick: function onClick() { return handlePrioritySelect('high'); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-exclamation-triangle" }),
+                  /*#__PURE__*/React.createElement("div", null, "High")
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  {
+                    className: "priority-option medium ".concat(formData.priority === 'medium' ? 'selected' : ''),
+                    onClick: function onClick() { return handlePrioritySelect('medium'); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-flag" }),
+                  /*#__PURE__*/React.createElement("div", null, "Medium")
+                ),
+                /*#__PURE__*/React.createElement(
+                  "div",
+                  {
+                    className: "priority-option low ".concat(formData.priority === 'low' ? 'selected' : ''),
+                    onClick: function onClick() { return handlePrioritySelect('low'); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-check" }),
+                  /*#__PURE__*/React.createElement("div", null, "Low")
+                )
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-row" },
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "form-group" },
+                /*#__PURE__*/React.createElement(
+                  "label",
+                  { className: "form-label" },
+                  "Due Date"
+                ),
+                /*#__PURE__*/React.createElement("input", {
+                  type: "date",
+                  name: "dueDate",
+                  className: "form-input",
+                  value: formData.dueDate,
+                  onChange: handleInputChange
+                })
+              ),
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "form-group" },
+                /*#__PURE__*/React.createElement(
+                  "label",
+                  { className: "form-label" },
+                  "Due Time"
+                ),
+                /*#__PURE__*/React.createElement("input", {
+                  type: "time",
+                  name: "dueTime",
+                  className: "form-input",
+                  value: formData.dueTime,
+                  onChange: handleInputChange
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Assign To"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  name: "assignee",
+                  className: "form-select",
+                  value: formData.assignee,
+                  onChange: handleInputChange
+                },
+                mockUsers.map(function (user) {
+                  return /*#__PURE__*/React.createElement(
+                    "option",
+                    { key: user.id, value: user.id },
+                    user.name,
+                    " - ",
+                    user.role
+                  );
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "form-label" },
+                "Category"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  name: "category",
+                  className: "form-select",
+                  value: formData.category,
+                  onChange: handleInputChange
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "foh" },
+                  "Front of House"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "kitchen" },
+                  "Kitchen"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "admin" },
+                  "Admin"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "bar" },
+                  "Bar"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "maintenance" },
+                  "Maintenance"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "bottleshop" },
+                  "Bottle shop"
+                )
+              )
+            ),
+            !editingNote && smsEnabled && /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { style: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' } },
+                /*#__PURE__*/React.createElement("input", {
+                  type: "checkbox",
+                  name: "sendSms",
+                  checked: formData.sendSms,
+                  onChange: handleInputChange
+                }),
+                "Send SMS notification to assignee"
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "form-actions" },
+              /*#__PURE__*/React.createElement(
+                "button",
+                { type: "button", className: "btn btn-secondary", onClick: onClose },
+                "Cancel"
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { type: "submit", className: "btn btn-primary" },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-save" }),
+                editingNote ? 'Update Note' : 'Create Note'
+              )
+            )
+          )
+        )
+      );
+    };
+
+    var MainApp = function MainApp(_ref5) {
+      var currentUser = _ref5.currentUser,
+        onLogout = _ref5.onLogout;
+      var _useState8 = useState(mockNotes),
+        notes = _useState8[0],
+        setNotes = _useState8[1];
+      var _useState9 = useState(false),
+        isModalOpen = _useState9[0],
+        setIsModalOpen = _useState9[1];
+      var _useState10 = useState(null),
+        editingNote = _useState10[0],
+        setEditingNote = _useState10[1];
+      var _useState11 = useState('board'),
+        activeView = _useState11[0],
+        setActiveView = _useState11[1];
+      var _useState12 = useState('all'),
+        filterPriority = _useState12[0],
+        setFilterPriority = _useState12[1];
+      var _useState13 = useState('all'),
+        filterAssignee = _useState13[0],
+        setFilterAssignee = _useState13[1];
+      var _useState14 = useState('date'),
+        sortBy = _useState14[0],
+        setSortBy = _useState14[1];
+      var _useState15 = useState(false),
+        sidebarOpen = _useState15[0],
+        setSidebarOpen = _useState15[1];
+      var _useState16 = useState(window.innerWidth <= 768),
+        isMobile = _useState16[0],
+        setIsMobile = _useState16[1];
+      var _useState17 = useState(false),
+        isFilterOpen = _useState17[0],
+        setIsFilterOpen = _useState17[1];
+      var _useState18 = useState(false),
+        isSmsModalOpen = _useState18[0],
+        setIsSmsModalOpen = _useState18[1];
+      var _useState19 = useState([]),
+        smsNotifications = _useState19[0],
+        setSmsNotifications = _useState19[1];
+      var _useState20 = useState({ visible: false, position: { x: 0, y: 0 }, note: null }),
+        contextMenu = _useState20[0],
+        setContextMenu = _useState20[1];
+      var menuRef = useRef(null);
+      var _useState21 = useState(false),
+        isPanelOpen = _useState21[0],
+        setIsPanelOpen = _useState21[1];
+      var _useState22 = useState(false),
+        isScrollable = _useState22[0],
+        setIsScrollable = _useState22[1];
+      var kanbanContainerRef = useRef(null);
+      var kanbanBoardRef = useRef(null);
+      var _useState23 = useState({}),
+        categoryNotifications = _useState23[0],
+        setCategoryNotifications = _useState23[1];
+      var _useState24 = useState(''),
+        currentTime = _useState24[0],
+        setCurrentTime = _useState24[1];
+      var _useState25 = useState(true),
+        smsEnabled = _useState25[0],
+        setSmsEnabled = _useState25[1];
+      var _useStateTheme = useState('light'),
+        theme = _useStateTheme[0],
+        setTheme = _useStateTheme[1];
+
+      var categories = [{
+        id: 'foh',
+        name: 'Front of House'
+      }, {
+        id: 'kitchen',
+        name: 'Kitchen'
+      }, {
+        id: 'bar',
+        name: 'Bar'
+      }, {
+        id: 'bottleshop',
+        name: 'Bottle shop'
+      }, {
+        id: 'maintenance',
+        name: 'Maintenance'
+      }, {
+        id: 'admin',
+        name: 'Admin'
+      }];
+      var _useState26 = useState(categories[0].id),
+        currentCategory = _useState26[0],
+        setCurrentCategory = _useState26[1];
+
+      useEffect(function () {
+        var handleResize = function handleResize() {
+          setIsMobile(window.innerWidth <= 768);
+        };
+        window.addEventListener('resize', handleResize);
+        return function () { return window.removeEventListener('resize', handleResize); };
+      }, []);
+
+      useEffect(function () {
+        const updateTime = () => {
+          const now = new Date();
+          const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+          const day = now.toLocaleDateString('en-US', { weekday: 'long' });
+          const date = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+          setCurrentTime(`${time} ${day}, ${date}`);
+        };
+        updateTime();
+        const interval = setInterval(updateTime, 60000);
+        return () => clearInterval(interval);
+      }, []);
+
+      // Apply theme to body
+      useEffect(() => {
+        if (theme === 'light') {
+            document.body.classList.add('light-theme');
+        } else {
+            document.body.classList.remove('light-theme');
+        }
+      }, [theme]);
+
+      // Simulate incoming SMS requests
+      useEffect(function () {
+        var interval = setInterval(function () {
+          if (smsEnabled && Math.random() > 0.8) {
+            var smsRequest = {
+              id: Date.now(),
+              title: 'URGENT: Customer Complaint',
+              content: 'Customer at table 8 is unhappy with service quality. Manager intervention required immediately.',
+              priority: 'urgent',
+              dueDate: new Date().toISOString().split('T')[0],
+              dueTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
+              assignee: mockUsers[Math.floor(Math.random() * mockUsers.length)].id,
+              author: 6,
+              createdAt: new Date().toISOString(),
+              status: 'urgent',
+              category: categories[Math.floor(Math.random() * categories.length)].id,
+              isSmsRequest: true,
+              smsFrom: '+1' + Math.floor(Math.random() * 9000000000 + 1000000000),
+              smsTimestamp: new Date().toISOString()
             };
-            addLabel("TO DO", 25, -25, "#FFFF00");
-            addLabel("IN PROGRESS", -25, -25, "#00FFFF");
-            addLabel("DONE", 25, 25, "#00FF00");
-            addLabel("BACKLOG", -25, 25, "#FF0044");
-        }
-        createGrid();
-        // === SELECTION RING ===
-        const ringGeo = new THREE.RingGeometry(2.3, 2.7, 32);
-        ringGeo.rotateX(-Math.PI / 2);
-        const ringMat = new THREE.MeshBasicMaterial({
-            color: 0x39FF14,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.8
-        });
-        const selRing = new THREE.Mesh(ringGeo, ringMat);
-        selRing.visible = false;
-        sc.add(selRing);
-        // === ENHANCED CUBE CLASS ===
-        class Cube {
-            constructor(x, y, z, sz = 2.5) {
-                this.sz = sz;
-                this.st = 'def';
-                this.taskId = Date.now() + Math.random();
-             
-                const baseMat = new THREE.MeshPhysicalMaterial({
-                    color: 0x333333,
-                    metalness: 0.1,
-                    roughness: 0.1,
-                    clearcoat: 1.0,
-                    clearcoatRoughness: 0,
-                    emissive: 0x000000,
-                    emissiveIntensity: 2.0,
-                    envMap: cRT.texture,
-                    envMapIntensity: 1.5
-                });
-                this.mat = baseMat;
-                this.m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), baseMat);
-                this.m.position.set(x, y, z);
-                this.m.castShadow = true;
-                this.m.receiveShadow = true;
-                this.m.userData.cube = this;
-                const ed = new THREE.LineSegments(
-                    new THREE.EdgesGeometry(this.m.geometry),
-                    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 })
-                );
-                this.ed = ed;
-                this.m.add(ed);
-                sc.add(this.m);
-                const sh = new CANNON.Box(new CANNON.Vec3(sz / 2, sz / 2, sz / 2));
-                this.b = new CANNON.Body({ mass: 5, material: mat, type: CANNON.Body.DYNAMIC });
-                this.b.addShape(sh);
-                this.b.position.set(x, y, z);
-                this.b.linearDamping = 0.4;
-                this.b.angularDamping = 0.4;
-                this.b.angularFactor = new CANNON.Vec3(0, 0, 0);
-                world.addBody(this.b);
-             
-                this.updateColor();
-            }
-            updateTextSprite() {
-                if (this.textSprite) this.m.remove(this.textSprite);
-                if (!this.text) return;
-                const canvas = document.createElement('canvas');
-                canvas.width = 256;
-                canvas.height = 128;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 36px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(this.text, 128, 64);
-                const map = new THREE.CanvasTexture(canvas);
-                const spriteMat = new THREE.SpriteMaterial({ map });
-                this.textSprite = new THREE.Sprite(spriteMat);
-                this.textSprite.scale.set(5, 2.5, 1);
-                this.textSprite.position.set(0, this.sz / 2 + 1, 0);
-                this.m.add(this.textSprite);
-            }
-            getStatus() {
-                const x = this.b.position.x;
-                const z = this.b.position.z;
-                if (x > 0 && z < 0) return 'todo';
-                if (x < 0 && z < 0) return 'prog';
-                if (x > 0 && z > 0) return 'done';
-                return 'back';
-            }
-            updateColor() {
-                const s = this.getStatus();
-                if (this.lastStatus !== s) {
-                    this.lastStatus = s;
-                    const c = CFG.colors[s];
-                    this.mat.color.setHex(c);
-                    this.mat.emissive.setHex(c);
-                    this.mat.emissiveIntensity = 0.6;
-                }
-            }
-            click() {
-                gsap.to(this.m.scale, {
-                    x: 1.1, y: 1.1, z: 1.1,
-                    duration: 0.1,
-                    yoyo: true,
-                    repeat: 1
-                });
-            }
-            sel() {
-                this.ed.material.opacity = 1.0;
-                tm.sel = this;
-                this.upd();
-             
-                if (rig.isMobile) {
-                    document.getElementById('mobile-release').classList.add('visible');
-                }
-            }
-            desel() {
-                this.ed.material.opacity = 0.2;
-                if (tm.sel === this) {
-                    tm.sel = null;
-                    document.getElementById('mobile-release').classList.remove('visible');
-                }
-            }
-            launch(tp) {
-                const d = new THREE.Vector3().subVectors(tp, this.b.position);
-                const ds = d.length();
-                const imp = new CANNON.Vec3(d.x * 6, Math.sqrt(ds * 12) + 5, d.z * 6);
-                this.b.applyImpulse(imp, this.b.position);
-                this.b.angularVelocity.set((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
-            }
-            upd() {
-                // Enhanced info display could be implemented here
-            }
-            tick() {
-                this.m.position.copy(this.b.position);
-                this.m.quaternion.copy(this.b.quaternion);
-                if (!tm.drag || tm.drag !== this) this.updateColor();
-            }
-            rm() {
-                sc.remove(this.m);
-                world.removeBody(this.b);
-                const i = tm.cubes.indexOf(this);
-                if (i > -1) tm.cubes.splice(i, 1);
-                updateStats();
-            }
-        }
-        // === INITIAL CUBES ===
-        function initializeCubes() {
-            const initialCubes = [
-                [15, -15, "Plan Architecture"],
-                [-15, -15, "Implementation"],
-                [15, 15, "Testing"],
-                [-15, 15, "Documentation"],
-                [20, -10, "Database Design"],
-                [-20, 10, "API Development"],
-                [10, 20, "UI/UX Design"],
-                [-10, -20, "Deployment"]
-            ];
-            initialCubes.forEach(data => {
-                const c = new Cube(data[0], 5, data[1]);
-                c.text = data[2];
-                c.updateTextSprite();
-                c.b.angularVelocity.set(Math.random(), Math.random(), Math.random());
-                tm.cubes.push(c);
-            });
-            updateStats();
-        }
-        // === SPAWNER LOGIC ===
-        window.spawn = function(zone) {
-            let x, z;
-            switch(zone) {
-                case 'todo': x = 25; z = -25; break;
-                case 'prog': x = -25; z = -25; break;
-                case 'done': x = 25; z = 25; break;
-                case 'back': x = -25; z = 25; break;
-            }
-         
-            x += (Math.random() - 0.5) * 5;
-            z += (Math.random() - 0.5) * 5;
-         
-            const c = new Cube(x, 40, z);
-            c.text = "New Task " + (tm.cubes.length + 1);
-            c.updateTextSprite();
-            c.b.angularVelocity.set(Math.random(), Math.random(), Math.random());
-            tm.cubes.push(c);
-            updateStats();
-         
-            if (rig.tPiv.distanceTo(new THREE.Vector3(x, 0, z)) > 30) {
-                gsap.to(rig.tPiv, { x: x, z: z, duration: 1.5, ease: "power2.out" });
-            }
+            setNotes(function (prev) { return [].concat(_toConsumableArray(prev), [smsRequest]); });
+            
+            setSmsNotifications(function (prev) { return [].concat(_toConsumableArray(prev), [{
+              id: Date.now(),
+              message: 'New urgent SMS request received!',
+              timestamp: new Date().toISOString()
+            }]); });
+
+            setCategoryNotifications(prev => ({
+              ...prev,
+              [smsRequest.category]: (prev[smsRequest.category] || 0) + 1
+            }));
+          }
+        }, 30000);
+
+        return function () { return clearInterval(interval); };
+      }, [smsEnabled]);
+
+      useEffect(() => {
+        const checkScrollable = () => {
+          if (kanbanBoardRef.current && kanbanContainerRef.current) {
+            const isOverflow = kanbanBoardRef.current.scrollWidth > kanbanContainerRef.current.clientWidth;
+            setIsScrollable(isOverflow);
+          }
         };
-        // === ENHANCED RAYCASTING ===
-        const rc = new THREE.Raycaster(), ms = new THREE.Vector2(), intersect = new THREE.Vector3();
-     
-        function upMs(e) {
-            ms.x = (e.clientX / innerWidth) * 2 - 1;
-            ms.y = -(e.clientY / innerHeight) * 2 + 1;
-        }
-     
-        function getC() {
-            rc.setFromCamera(ms, cam);
-            const in_ = rc.intersectObjects(tm.cubes.map(c => c.m));
-            return in_.length > 0 ? in_[0].object.userData.cube : null;
-        }
-     
-        function getG(e) {
-            upMs(e);
-            rc.setFromCamera(ms, cam);
-            const planeY = tm.drag ? tm.drag.b.position.y : 0;
-            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY);
-            if (rc.ray.intersectPlane(plane, intersect)) return intersect;
-            return null;
-        }
-        // === CURSOR SYSTEM ===
-        const tl = 14, h = document.getElementById('cursor');
-     
-        const centerDot = document.createElement('div');
-        centerDot.className = 'c-center';
-        h.appendChild(centerDot);
-        const centerRing = document.createElement('div');
-        centerRing.className = 'c-ring';
-        h.appendChild(centerRing);
-     
-        for (let i = 0; i < tl; i++) {
-            const d = document.createElement('div');
-            d.className = 'c-circle';
-            h.appendChild(d);
-        }
-     
-        const cs = h.querySelectorAll('.c-circle');
-        let mX = innerWidth / 2, mY = innerHeight / 2;
-        const hist = Array(tl).fill(0).map(() => ({ x: mX, y: mY }));
-     
-        addEventListener('pointermove', e => {
-            mX = e.clientX;
-            mY = e.clientY;
-        }, { passive: true });
-     
-        function cTick() {
-            hist.shift();
-            hist.push({ x: mX, y: mY });
-            cs.forEach((c, i) => {
-                const cur = hist[i];
-                const nx = hist[i + 1] || hist[tl - 1];
-                cur.x += (nx.x - cur.x) * 0.35;
-                cur.y += (nx.y - cur.y) * 0.35;
-                const s = Math.max(0.22, (tl - i) / tl * 1.2);
-                c.style.transform = `translate(calc(${cur.x}px - 50%), calc(${cur.y}px - 50%)) scale(${s})`;
-            });
-         
-            centerDot.style.left = mX + 'px';
-            centerDot.style.top = mY + 'px';
-            centerRing.style.left = mX + 'px';
-            centerRing.style.top = mY + 'px';
-         
-            requestAnimationFrame(cTick);
-        }
-        cTick();
-        // === ENHANCED JOYSTICK SYSTEM ===
-        const joy = {
-            el: document.getElementById('joy-cube'),
-            zone: document.getElementById('joystick'),
-            active: false,
-            start: { x: 0, y: 0 }
+        checkScrollable();
+        window.addEventListener('resize', checkScrollable);
+        return () => window.removeEventListener('resize', checkScrollable);
+      }, [notes, currentCategory, smsEnabled]);
+
+      useEffect(() => {
+        const handleClickOutside = (event) => {
+          if (contextMenu.visible && menuRef.current && !menuRef.current.contains(event.target)) {
+            setContextMenu({ visible: false, position: { x: 0, y: 0 }, note: null });
+          }
         };
-        function getQuadrantFromPosition(x, z) {
-            if (x > 0 && z < 0) return 'todo';
-            if (x < 0 && z < 0) return 'prog';
-            if (x > 0 && z > 0) return 'done';
-            return 'back';
+        document.addEventListener('click', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+        return () => {
+          document.removeEventListener('click', handleClickOutside);
+          document.removeEventListener('touchstart', handleClickOutside);
+        };
+      }, [contextMenu.visible]);
+
+      useEffect(() => {
+        if (categoryNotifications[currentCategory]) {
+          setCategoryNotifications(prev => ({
+            ...prev,
+            [currentCategory]: 0
+          }));
         }
-        function updateJoystickColor(quadrant) {
-            const color = CFG.quadrantColors[quadrant];
-            const faces = joy.el.querySelectorAll('.f-face');
-            faces.forEach(face => {
-                face.style.borderColor = color;
-                face.style.boxShadow = `0 0 15px ${color}, inset 0 0 10px ${color}`;
+      }, [currentCategory]);
+
+      useEffect(() => {
+        if (kanbanContainerRef.current) {
+          kanbanContainerRef.current.scrollTop = 0;
+        }
+      }, [currentCategory]);
+
+      var handleCreateNote = function handleCreateNote() {
+        setEditingNote(null);
+        setIsModalOpen(true);
+      };
+
+      var handleEditNote = function handleEditNote(note) {
+        setEditingNote(note);
+        setIsModalOpen(true);
+      };
+
+      var handleSaveNote = function handleSaveNote(noteData) {
+        if (editingNote) {
+          setNotes(function (prev) {
+            return prev.map(function (note) {
+              return note.id === editingNote.id ? _objectSpread(_objectSpread({}, note), noteData) : note;
             });
-         
-            centerDot.style.background = color;
-            centerDot.style.boxShadow = `0 0 10px ${color}`;
-            centerRing.style.borderColor = color;
-            centerRing.style.boxShadow = `0 0 8px ${color}`;
+          });
+        } else {
+          var newNote = _objectSpread(_objectSpread({}, noteData), {}, {
+            id: Date.now(),
+            author: currentUser.id,
+            createdAt: new Date().toISOString(),
+            status: noteData.priority === 'urgent' ? 'urgent' : 'todo',
+            isSmsRequest: noteData.sendSms || false
+          });
+          setNotes(function (prev) {
+            return [].concat(_toConsumableArray(prev), [newNote]);
+          });
+
+          setCategoryNotifications(prev => ({
+            ...prev,
+            [newNote.category]: (prev[newNote.category] || 0) + 1
+          }));
         }
-        function handleJoy(x, y) {
-            const max = 60;
-            let dx = x - joy.start.x, dy = y - joy.start.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > max) {
-                const r = max / dist;
-                dx *= r;
-                dy *= r;
-            }
-            const intensity = Math.min(dist / max, 1);
-            joy.el.style.transform = `rotateX(${-25 + (dy / max * 45)}deg) rotateY(${-45 + (dx / max * 45)}deg) translate(${dx / 3}px, ${dy / 3}px) scale(${1 + intensity * 0.1})`;
-            document.querySelector('.fab-halo').style.opacity = intensity * 0.6;
-         
-            const currentQuadrant = getQuadrantFromPosition(rig.tPiv.x, rig.tPiv.z);
-            updateJoystickColor(currentQuadrant);
-         
-            const moveSpeed = 0.8;
-         
-            if (rig.isMobile && currentView === 'quarterback') {
-                rig.tPiv.z += dy / max * moveSpeed;
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    rig.piv.y += dx / max * moveSpeed * 0.5;
-                }
-            } else if (currentView === 'sideline') {
-                rig.tPiv.z += dx / max * moveSpeed;
-                const elevation = rig.tPiv.y;
-                const arcFactor = Math.max(0, 1 - elevation / 20);
-                CFG.preset.sideline.o.x = 60 * arcFactor;
-            } else {
-                rig.tPiv.x += dx / max * moveSpeed;
-                rig.tPiv.z += dy / max * moveSpeed;
-            }
-        }
-        function startJoy(x, y) {
-            joy.active = true;
-            joy.start = { x, y };
-            joy.el.style.transition = 'none';
-            document.body.classList.add('fab-active');
-        }
-        function endJoy() {
-            joy.active = false;
-            joy.el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-            joy.el.style.transform = `rotateX(-25deg) rotateY(-45deg)`;
-            document.querySelector('.fab-halo').style.opacity = 0;
-            document.body.classList.remove('fab-active');
-        }
-        // Joystick event listeners
-        if (joy.zone) {
-            joy.zone.addEventListener('mousedown', e => {
-                startJoy(e.clientX, e.clientY);
-                e.stopPropagation();
+        setIsModalOpen(false);
+        setEditingNote(null);
+      };
+
+      var handleDeleteNote = function handleDeleteNote(noteId) {
+        if (window.confirm('Are you sure you want to delete this note?')) {
+          setNotes(function (prev) {
+            return prev.filter(function (note) {
+              return note.id !== noteId;
             });
-            joy.zone.addEventListener('touchstart', e => {
-                startJoy(e.touches[0].clientX, e.touches[0].clientY);
-                e.stopPropagation();
+          });
+        }
+      };
+
+      var handleNoteDrop = function handleNoteDrop(noteId, newStatus) {
+        if (newStatus === 'urgent' && !smsEnabled) return;
+        setNotes(function (prev) {
+          return prev.map(function (note) {
+            return note.id === noteId ? _objectSpread(_objectSpread({}, note), {}, {
+              status: newStatus
+            }) : note;
+          });
+        });
+      };
+
+      var handleOpenContextMenu = (e, note) => {
+        e.preventDefault();
+        let posX = e.pageX;
+        let posY = e.pageY;
+        if (e.touches && e.touches[0]) {
+          posX = e.touches[0].pageX;
+          posY = e.touches[0].pageY;
+        }
+        setContextMenu({ visible: true, position: { x: posX, y: posY }, note });
+      };
+
+      var handleOptionSelect = (newStatus) => {
+        if (contextMenu.note) {
+          handleNoteDrop(contextMenu.note.id, newStatus);
+        }
+        setContextMenu({ visible: false, position: { x: 0, y: 0 }, note: null });
+      };
+
+      useEffect(() => {
+        if (contextMenu.visible && menuRef.current && isMobile) {
+          const menu = menuRef.current;
+          const rect = menu.getBoundingClientRect();
+          let newX = contextMenu.position.x;
+          let newY = contextMenu.position.y;
+
+          if (newX + rect.width > window.innerWidth) {
+            newX = window.innerWidth - rect.width - 10;
+          }
+          if (newX < 0) {
+            newX = 10;
+          }
+
+          if (newY + rect.height > window.innerHeight) {
+            newY = window.innerHeight - rect.height - 10;
+          }
+          if (newY < 0) {
+            newY = 10;
+          }
+
+          menu.style.left = `${newX}px`;
+          menu.style.top = `${newY}px`;
+        }
+      }, [contextMenu.visible, isMobile]);
+
+      var filteredNotes = notes
+        .filter(function (note) { return note.category === currentCategory; })
+        .filter(function (note) { return smsEnabled || !note.isSmsRequest; })
+        .filter(function (note) {
+          var priorityMatch = filterPriority === 'all' || note.priority === filterPriority;
+          var assigneeMatch = filterAssignee === 'all' || note.assignee.toString() === filterAssignee;
+          return priorityMatch && assigneeMatch;
+        })
+        .sort(function (a, b) {
+          switch (sortBy) {
+            case 'priority':
+              var priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+              return priorityOrder[a.priority] - priorityOrder[b.priority];
+            case 'date':
+              return new Date(b.createdAt) - new Date(a.createdAt);
+            case 'dueDate':
+              if (!a.dueDate) return 1;
+              if (!b.dueDate) return -1;
+              return new Date(a.dueDate) - new Date(b.dueDate);
+            default:
+              return 0;
+          }
+        });
+
+      var urgentNotes = filteredNotes.filter(function (note) { return note.status === 'urgent'; });
+      var todoNotes = filteredNotes.filter(function (note) { return note.status === 'todo'; });
+      var inProgressNotes = filteredNotes.filter(function (note) { return note.status === 'inprogress'; });
+      var completedNotes = filteredNotes.filter(function (note) { return note.status === 'completed'; });
+
+      useEffect(function () {
+        gsap.from('.header', { y: -50, duration: 0.5, delay: 0.2, ease: 'power2.out' });
+      }, []);
+
+      useEffect(function () {
+        gsap.from('.kanban-column', {
+          y: 30,
+          duration: 0.5,
+          delay: 0.3,
+          stagger: 0.1,
+          ease: 'power2.out',
+        });
+        gsap.from('.note-card', {
+          y: 20,
+          duration: 0.3,
+          stagger: 0.1,
+          delay: 0.5,
+          ease: 'power2.out',
+        });
+      }, [notes, currentCategory, smsEnabled]);
+
+      var toggleSidebar = function toggleSidebar() {
+        setSidebarOpen(!sidebarOpen);
+      };
+
+      var toggleFilter = function toggleFilter() {
+        setIsFilterOpen(!isFilterOpen);
+      };
+
+      const handleSmsToggle = (enabled) => {
+        setSmsEnabled(enabled);
+        if (!enabled) {
+          setSmsNotifications([]);
+        }
+      };
+
+      const toggleTheme = () => {
+        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+      };
+
+      return /*#__PURE__*/React.createElement(
+        "div",
+        { className: "app-container" },
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "sidebar ".concat(sidebarOpen ? 'open' : 'collapsed') },
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "user-profile" },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "user-avatar" },
+              currentUser.initials
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "user-info" },
+              /*#__PURE__*/React.createElement("h3", null, currentUser.name),
+              /*#__PURE__*/React.createElement("p", null, currentUser.role),
+              currentUser.phoneVerified && /*#__PURE__*/React.createElement(
+                "div",
+                { className: "verified-badge", style: { marginTop: '4px' } },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+                "SMS Active"
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "nav",
+            null,
+            /*#__PURE__*/React.createElement(
+              "ul",
+              { className: "nav-menu" },
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link active", onClick: function onClick() { return setActiveView('board'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-th-large" }),
+                  /*#__PURE__*/React.createElement("span", null, "Kanban Board")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('notifications'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-bell" }),
+                  /*#__PURE__*/React.createElement("span", null, "Notifications"),
+                  smsEnabled && smsNotifications.length > 0 && /*#__PURE__*/React.createElement(
+                    "span",
+                    { className: "notification-badge" },
+                    /*#__PURE__*/React.createElement(
+                      "span",
+                      { className: "badge" },
+                      smsNotifications.length
+                    )
+                  )
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setIsSmsModalOpen(true); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+                  /*#__PURE__*/React.createElement("span", null, "SMS Settings")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('team'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-users" }),
+                  /*#__PURE__*/React.createElement("span", null, "Team Members")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('reports'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-chart-bar" }),
+                  /*#__PURE__*/React.createElement("span", null, "Reports")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item" },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: function onClick() { return setActiveView('settings'); } },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-cog" }),
+                  /*#__PURE__*/React.createElement("span", null, "Settings")
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "li",
+                { className: "nav-item", style: { marginTop: 'auto' } },
+                /*#__PURE__*/React.createElement(
+                  "a",
+                  { className: "nav-link", onClick: onLogout },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sign-out-alt" }),
+                  /*#__PURE__*/React.createElement("span", null, "Logout")
+                )
+              )
+            )
+          )
+        ),
+        sidebarOpen && isMobile && /*#__PURE__*/React.createElement(
+          "div",
+          { className: "overlay", onClick: toggleSidebar }
+        ),
+        /*#__PURE__*/React.createElement(
+          "div",
+          { className: "main-content" },
+          /*#__PURE__*/React.createElement(
+            "header",
+            { className: "header" },
+            /*#__PURE__*/React.createElement(
+              "h1",
+              { className: "header-title" },
+              currentTime
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "header-actions" },
+              /*#__PURE__*/React.createElement(
+                "button",
+                { 
+                    className: "theme-toggle-btn", 
+                    onClick: toggleTheme,
+                    title: theme === 'dark' ? 'Switch to Paper & Pen Mode' : 'Switch to Dark Mode'
+                },
+                /*#__PURE__*/React.createElement("i", { className: theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon' })
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "sidebar-toggle btn btn-secondary", onClick: toggleSidebar },
+                /*#__PURE__*/React.createElement("i", { className: sidebarOpen ? 'fa-solid fa-chevron-left' : 'fa-solid fa-chevron-right' })
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "sms-btn", onClick: function onClick() { return setIsSmsModalOpen(true); } },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+                "SMS Setup"
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "btn btn-secondary", onClick: toggleFilter },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-filter" }),
+                isFilterOpen ? "Close Filters" : "Filters"
+              ),
+              /*#__PURE__*/React.createElement(
+                "button",
+                { className: "btn btn-primary", onClick: handleCreateNote },
+                /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-plus" }),
+                "New Note"
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "tabs" },
+            categories.map(function (cat) {
+              return /*#__PURE__*/React.createElement(
+                "button",
+                {
+                  key: cat.id,
+                  className: "tab-btn ".concat(currentCategory === cat.id ? 'active' : ''),
+                  onClick: function onClick() { return setCurrentCategory(cat.id); }
+                },
+                cat.name,
+                smsEnabled && (categoryNotifications[cat.id] || 0) > 0 && /*#__PURE__*/React.createElement(
+                  "span",
+                  { className: "tab-badge" },
+                  categoryNotifications[cat.id]
+                )
+              );
+            })
+          ),
+          isFilterOpen && /*#__PURE__*/React.createElement(
+            "div",
+            { className: "filter-bar" },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "filter-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "filter-label" },
+                "Priority:"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  className: "form-select",
+                  style: { width: '120px' },
+                  value: filterPriority,
+                  onChange: function onChange(e) { return setFilterPriority(e.target.value); }
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "all" },
+                  "All"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "urgent" },
+                  "Urgent"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "high" },
+                  "High"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "medium" },
+                  "Medium"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "low" },
+                  "Low"
+                )
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "filter-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "filter-label" },
+                "Assignee:"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  className: "form-select",
+                  style: { width: '150px' },
+                  value: filterAssignee,
+                  onChange: function onChange(e) { return setFilterAssignee(e.target.value); }
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "all" },
+                  "Everyone"
+                ),
+                mockUsers.map(function (user) {
+                  return /*#__PURE__*/React.createElement(
+                    "option",
+                    { key: user.id, value: user.id },
+                    user.name
+                  );
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "filter-group" },
+              /*#__PURE__*/React.createElement(
+                "label",
+                { className: "filter-label" },
+                "Sort by:"
+              ),
+              /*#__PURE__*/React.createElement(
+                "select",
+                {
+                  className: "form-select",
+                  style: { width: '120px' },
+                  value: sortBy,
+                  onChange: function onChange(e) { return setSortBy(e.target.value); }
+                },
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "date" },
+                  "Date"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "priority" },
+                  "Priority"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "option",
+                  { value: "dueDate" },
+                  "Due Date"
+                )
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement(
+            "div",
+            { className: "kanban-container ".concat(isScrollable ? 'scrollable' : ''), ref: kanbanContainerRef },
+            /*#__PURE__*/React.createElement(
+              "div",
+              { className: "kanban-board", ref: kanbanBoardRef },
+              smsEnabled && /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "Urgent Requests",
+                notes: urgentNotes,
+                status: "urgent",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu,
+                smsEnabled: smsEnabled
+              }),
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "To Do",
+                notes: todoNotes,
+                status: "todo",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu,
+                smsEnabled: smsEnabled
+              }),
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "In Progress",
+                notes: inProgressNotes,
+                status: "inprogress",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu,
+                smsEnabled: smsEnabled
+              }),
+              /*#__PURE__*/React.createElement(KanbanColumn, {
+                title: "Completed",
+                notes: completedNotes,
+                status: "completed",
+                onNoteDrop: handleNoteDrop,
+                onEdit: handleEditNote,
+                onDelete: handleDeleteNote,
+                currentUser: currentUser,
+                isMobile: isMobile,
+                handleOpenContextMenu: handleOpenContextMenu,
+                smsEnabled: smsEnabled
+              })
+            )
+          ),
+          /*#__PURE__*/React.createElement(CreateNoteModal, {
+            isOpen: isModalOpen,
+            onClose: function onClose() { return setIsModalOpen(false); },
+            onSave: handleSaveNote,
+            editingNote: editingNote,
+            currentUser: currentUser,
+            smsEnabled: smsEnabled
+          }),
+          /*#__PURE__*/React.createElement(SMSSettingsModal, {
+            isOpen: isSmsModalOpen,
+            onClose: function onClose() { return setIsSmsModalOpen(false); },
+            currentUser: currentUser,
+            smsEnabled: smsEnabled,
+            setSmsEnabled: handleSmsToggle
+          }),
+          /*#__PURE__*/React.createElement(
+            "button",
+            {
+              className: "fab",
+              onClick: function onClick() { return setIsPanelOpen(true); }
+            },
+            /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-fire" })
+          ),
+          isPanelOpen && /*#__PURE__*/React.createElement(
+            "div",
+            {
+              className: "right-panel-overlay",
+              onClick: function onClick() { return setIsPanelOpen(false); }
+            },
+            /*#__PURE__*/React.createElement(
+              "div",
+              {
+                className: "right-panel",
+                onClick: function onClick(e) { return e.stopPropagation(); }
+              },
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "right-panel-header" },
+                /*#__PURE__*/React.createElement(
+                  "h3",
+                  { className: "right-panel-title" },
+                  "📌 Proof of Concept Overview"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "button",
+                  {
+                    className: "modal-close",
+                    onClick: function onClick() { return setIsPanelOpen(false); }
+                  },
+                  /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-times" })
+                )
+              ),
+              /*#__PURE__*/React.createElement(
+                "div",
+                { className: "right-panel-content" },
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "SMS → Kanban Urgent Request System"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "This panel outlines the concept, operational value, and cost context for implementing an SMS-based escalation system integrated directly into the Boathouse Kanban board."
+                ),
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "Operational Value"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "ul",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Enables FOH & BOH staff to escalate urgent requests instantly via SMS"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Managers receive immediate visibility and notifications"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Reduces delays in handling allergies, VIPs, guest recovery, and special events"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Centralizes all urgent requests into a structured workflow"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Improves service reliability during high-volume periods"
+                  )
+                ),
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "Development Scope"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "ul",
+                  null,
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "SMS gateway integration + employee validation"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Database + backend API for urgent notes"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Real-time updates into “Urgent Requests” board column"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Toast notifications for management"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Assignment workflow (claim, delegate, resolve)"
+                  ),
+                  /*#__PURE__*/React.createElement(
+                    "li",
+                    null,
+                    "Final QA, deployment, and documentation"
+                  )
+                ),
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "Cost Context"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "A comparable contractor or agency implementation would typically fall in the ",
+                  /*#__PURE__*/React.createElement("strong", null, "$10–20k"),
+                  " range, depending on depth of integration."
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "Proposed internal development cost: ",
+                  /*#__PURE__*/React.createElement("strong", null, "$3–4k"),
+                  "."
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "This reflects a significantly reduced internal rate, streamlined development, and direct operational experience with the restaurant’s workflow."
+                ),
+                /*#__PURE__*/React.createElement(
+                  "h4",
+                  null,
+                  "Purpose"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "p",
+                  null,
+                  "The intention is to provide a cost-effective, high-impact system designed to improve communication efficiency and service quality. This proposal surfaces realistic expectations while acknowledging internal investment and operational value returned to the business."
+                )
+              )
+            )
+          ),
+          smsEnabled && smsNotifications.map(function (notification) {
+            return /*#__PURE__*/React.createElement(
+              "div",
+              { key: notification.id, className: "sms-toast" },
+              /*#__PURE__*/React.createElement("i", { className: "fa-solid fa-sms" }),
+              notification.message,
+              /*#__PURE__*/React.createElement(
+                "button",
+                { onClick: function onClick() { return setSmsNotifications(function (prev) { return prev.filter(function (n) { return n.id !== notification.id; }); }); } },
+                "×"
+              )
+            );
+          }),
+          contextMenu.visible && /*#__PURE__*/React.createElement(
+            React.Fragment,
+            null,
+            isMobile && /*#__PURE__*/React.createElement("div", { className: "context-overlay", onClick: function onClick() { return setContextMenu({ visible: false, position: { x: 0, y: 0 }, note: null }); } }),
+            /*#__PURE__*/React.createElement(
+              "div",
+              {
+                className: "context-menu",
+                style: { left: `${contextMenu.position.x}px`, top: `${contextMenu.position.y}px` },
+                ref: menuRef
+              },
+              /*#__PURE__*/React.createElement(
+                "ul",
+                null,
+                smsEnabled && /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('urgent'); } },
+                  "Urgent"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('todo'); } },
+                  "To-do"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('inprogress'); } },
+                  "In Progress"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { onClick: function onClick() { return handleOptionSelect('completed'); } },
+                  "Completed"
+                ),
+                /*#__PURE__*/React.createElement(
+                  "li",
+                  { className: "disabled" },
+                  "Archive (Coming Soon)"
+                )
+              )
+            )
+          )
+        )
+      );
+    };
+
+    // Main App Component
+    var App = function App() {
+      var currentUser = useState(mockUsers[0])[0]; 
+
+      var handleLogout = function handleLogout() {
+        console.log('Logged out');
+      };
+
+      return /*#__PURE__*/React.createElement(MainApp, {
+        currentUser: currentUser,
+        onLogout: handleLogout
+      });
+    };
+
+    const appContent = document.createElement('div');
+    appContent.style.overflow = 'hidden';
+    appContent.style.position = 'absolute';
+    const root = ReactDOM.createRoot(appContent);
+    root.render( /*#__PURE__*/React.createElement(App, null));
+
+    function initThree() {
+      const container = document.getElementById('three-container');
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      const scene = new THREE.Scene();
+      const fov = 75;
+      const camera = new THREE.PerspectiveCamera(fov, width / height, 1, 5000);
+      let z = (height / 2) / Math.tan((fov / 2) * Math.PI / 180);
+      camera.position.z = z;
+
+      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(width, height);
+      renderer.setClearColor(0x000000, 0);
+      container.appendChild(renderer.domElement);
+
+      const cssRenderer = new THREE.CSS3DRenderer();
+      cssRenderer.setSize(width, height);
+      cssRenderer.domElement.style.position = 'absolute';
+      cssRenderer.domElement.style.top = 0;
+      cssRenderer.domElement.style.left = 0;
+      container.appendChild(cssRenderer.domElement);
+
+      // Particles
+      const particlesGeometry = new THREE.BufferGeometry();
+      const particlesCount = 100;
+      const posArray = new Float32Array(particlesCount * 3);
+      for (let i = 0; i < particlesCount * 3; i++) {
+        posArray[i] = (Math.random() - 0.5) * 2000;
+      }
+      particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+      
+      const particlesMaterial = new THREE.PointsMaterial({
+        size: 5,
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.2,
+      });
+      const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+      scene.add(particlesMesh);
+
+      // Geometric shapes
+      const geometries = [
+        new THREE.BoxGeometry(200, 200, 200),
+        new THREE.SphereGeometry(150, 32, 32),
+        new THREE.TetrahedronGeometry(180, 0),
+      ];
+      const meshes = [];
+      
+      // Function to update materials based on theme
+      const updateMaterials = (isLight) => {
+        // Update particles
+        particlesMaterial.color.setHex(isLight ? 0x2c3e50 : 0xffffff);
+        particlesMaterial.opacity = isLight ? 0.4 : 0.2;
+
+        // Update meshes - recreate them for simplicity or just update props if possible
+        meshes.forEach((mesh, index) => {
+            scene.remove(mesh);
+        });
+        meshes.length = 0; // Clear array
+
+        geometries.forEach((geometry, index) => {
+            const color1 = isLight ? new THREE.Color(0x2563eb) : new THREE.Color(0x3b82f6);
+            const color2 = isLight ? new THREE.Color(0x7c3aed) : new THREE.Color(0x8b5cf6);
+            
+            const material = new THREE.MeshBasicMaterial({
+                color: color1.lerp(color2, index / geometries.length),
+                wireframe: true,
+                transparent: true,
+                opacity: isLight ? 0.15 : 0.4, // Lower opacity for light mode wireframes
             });
-            // Add right-click listener for reset
-            joy.zone.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                resetCamera();
-            });
-        }
-     
-        addEventListener('mousemove', e => {
-            if (joy.active) handleJoy(e.clientX, e.clientY);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(
+                (Math.random() - 0.5) * 2000, 
+                (Math.random() - 0.5) * 2000, 
+                (Math.random() - 0.5) * 2000 - 1000
+            );
+            scene.add(mesh);
+            meshes.push(mesh);
         });
-        addEventListener('touchmove', e => {
-            if (joy.active && e.touches.length === 1) handleJoy(e.touches[0].clientX, e.touches[0].clientY);
-        });
-     
-        addEventListener('mouseup', endJoy);
-        addEventListener('touchend', endJoy);
-        // === SEARCH FUNCTIONALITY ===
-        const searchInput = document.getElementById('search');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase();
-                tm.cubes.forEach(cube => {
-                    if (searchTerm && cube.text && cube.text.toLowerCase().includes(searchTerm)) {
-                        cube.mat.emissiveIntensity = 1.2;
-                        gsap.to(cube.m.scale, { x: 1.2, y: 1.2, z: 1.2, duration: 0.3 });
-                    } else if (!searchTerm) {
-                        cube.mat.emissiveIntensity = 0.6;
-                        gsap.to(cube.m.scale, { x: 1, y: 1, z: 1, duration: 0.3 });
-                    }
-                });
-            });
-        }
-        // === STATS UPDATE ===
-        function updateStats() {
-            const taskCount = document.getElementById('task-count');
-            if (taskCount) {
-                taskCount.textContent = tm.cubes.length;
-            }
-        }
-        function updateFPS() {
-            frameCount++;
-            const currentTime = performance.now();
-            if (currentTime >= lastTime + 1000) {
-                fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
-                const fpsCounter = document.getElementById('fps-counter');
-                if (fpsCounter) {
-                    fpsCounter.textContent = fps;
-                }
-                frameCount = 0;
-                lastTime = currentTime;
-            }
-        }
-        // === INFO OVERLAY ===
-        const infoBtn = document.getElementById('info-btn');
-        const infoOverlay = document.getElementById('info-overlay');
-        const closeInfo = document.getElementById('close-info');
-        if (infoBtn) {
-            infoBtn.addEventListener('click', () => {
-                infoOverlay.style.display = 'flex';
-                setTimeout(() => infoOverlay.classList.add('active'), 10);
-            });
-        }
-        if (closeInfo) {
-            closeInfo.addEventListener('click', () => {
-                infoOverlay.classList.remove('active');
-                setTimeout(() => infoOverlay.style.display = 'none', 300);
-            });
-        }
-        // Accordion functionality
-        document.querySelectorAll('.accordion-header').forEach(header => {
-            header.addEventListener('click', () => {
-                const item = header.parentElement;
-                const wasOpen = item.classList.contains('open');
-             
-                document.querySelectorAll('.accordion-item').forEach(i => {
-                    i.classList.remove('open');
-                });
-             
-                if (!wasOpen) {
-                    item.classList.add('open');
-                }
-            });
-        });
-        // ============================================================================
-        // VIEW TOGGLES — handles switching between camera presets + UI states
-        // ============================================================================
-        document.querySelectorAll('.view-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                // Update UI Active State
-                document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                // Update Core Camera State
-                currentView = btn.dataset.view;
-                rig.preset = currentView;
-                const quadIcons = document.querySelectorAll('.quad-icon');
-                // Show/hide UI elements based on view
-                if (currentView === 'skycam') {
-                    quadIcons.forEach(icon => icon.style.display = 'block');
-                }
-                // Sideline mode adjustment
-                if (currentView === 'sideline') {
-                    rig.tPiv.x = 0;
-                    rig.tPiv.y = 0;
-                }
-            });
-        });
-        // ============================================================================
-        // RESET FUNCTION — restores base Quarterback Camera and defaults
-        // ============================================================================
-        function resetCamera() {
-            // Reset rig pivots + distance
-            rig.tPiv.set(0, 0, 0);
-            rig.piv.set(0, 0, 0);
-            distanceScale = 1;
-            // Reset camera FOV + projection
-            cam.fov = 75;
-            cam.updateProjectionMatrix();
-            // Force primary QB camera mode
-            rig.mode = 'quarterback';
-            rig.preset = 'quarterback';
-            currentView = 'quarterback';
-            // Update UI button state
-            document.querySelectorAll('.view-btn').forEach(x => x.classList.remove('active'));
-            const qbBtn = document.querySelector('.view-btn[data-view="quarterback"]');
-            if (qbBtn) qbBtn.classList.add('active');
-            // Deselect selected target (if any)
-            if (tm.sel) tm.sel.desel();
-        }
-        // ============================================================================
-        // RESET ZONE — clicking reset button returns camera to QB mode
-        // ============================================================================
-        const resetZone = document.getElementById('reset-zone');
-        if (resetZone) {
-            resetZone.addEventListener('click', resetCamera);
-        }
-        // === TRASH ZONE ===
-        const trashZone = document.getElementById('trash-zone');
-        function checkTrashZone(cube, mouseX, mouseY) {
-            if (!trashZone) return false;
-         
-            const trashRect = trashZone.getBoundingClientRect();
-            const isOverTrash = mouseX >= trashRect.left && mouseX <= trashRect.right &&
-                               mouseY >= trashRect.top && mouseY <= trashRect.bottom;
-         
-            if (isOverTrash) {
-                trashZone.classList.add('active');
-                if (cube && tm.drag === cube) {
-                    cube.rm();
-                    tm.drag = null;
-                    trashZone.classList.remove('active');
-                }
-            } else {
-                trashZone.classList.remove('active');
-            }
-            return isOverTrash;
-        }
-        // === ENHANCED MOUSE EVENTS ===
-        let lastClickTime = 0;
-        const doubleClickDelay = 300;
-        let rightClickTimer = null;
-        addEventListener('contextmenu', e => {
-            e.preventDefault();
-            return false;
-        });
-        addEventListener('wheel', e => {
-            if (currentView === 'sideline') {
-                rig.tPiv.y -= e.deltaY * 0.01;
-                rig.tPiv.y = Math.max(0, rig.tPiv.y);
-                const elevation = rig.tPiv.y;
-                const arcFactor = Math.max(0, 1 - elevation / 20);
-                CFG.preset.sideline.o.x = 60 * arcFactor;
-            } else if (e.shiftKey) {
-                cam.fov += e.deltaY * 0.05;
-                cam.fov = Math.max(10, Math.min(120, cam.fov));
-                cam.updateProjectionMatrix();
-            } else {
-                distanceScale += e.deltaY * 0.001;
-                distanceScale = Math.max(0.3, Math.min(5, distanceScale));
+      };
+
+      // Initial setup
+      updateMaterials(false);
+
+      // Observe body class changes for theme toggle
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class') {
+                const isLight = document.body.classList.contains('light-theme');
+                updateMaterials(isLight);
             }
         });
-        addEventListener('mousemove', e => {
-            upMs(e);
-            if (tm.drag && e.buttons & 1) {
-                const gp = getG(e);
-                if (gp) {
-                    tm.drag.b.position.copy(gp);
-                    tm.drag.upd();
-                    checkTrashZone(tm.drag, e.clientX, e.clientY);
-                }
-            } else if (isPanning && e.buttons & 1) {
-                const gp = getG(e);
-                if (gp && panStartIntersect) {
-                    const delta = new THREE.Vector3().subVectors(gp, panStartIntersect);
-                    rig.tPiv.sub(delta);
-                    panStartIntersect.copy(gp);
-                }
-            } else {
-                checkTrashZone(null, e.clientX, e.clientY);
-            }
+      });
+      observer.observe(document.body, { attributes: true });
+
+      // App content object
+      appContent.style.width = width + 'px';
+      appContent.style.height = height + 'px';
+      const object = new THREE.CSS3DObject(appContent);
+      object.position.set(0, 0, 0);
+      scene.add(object);
+
+      // Animation loop
+      const animate = () => {
+        requestAnimationFrame(animate);
+        particlesMesh.rotation.y += 0.0002;
+        particlesMesh.rotation.x += 0.0001;
+        meshes.forEach((mesh, index) => {
+          mesh.rotation.x += 0.001;
+          mesh.rotation.y += 0.001;
+          mesh.position.z += Math.sin(Date.now() * 0.001 + index) * 0.1;
         });
-        addEventListener('mousedown', e => {
-            upMs(e);
-            const c = getC();
-            const currentTime = Date.now();
-         
-            if (e.button === 0) {
-                if (currentTime - lastClickTime < doubleClickDelay) {
-                    openTaskEditor(c);
-                    lastClickTime = 0;
-                    return;
-                }
-                lastClickTime = currentTime;
-             
-                if (c) {
-                    if (tm.sel && tm.sel !== c) tm.sel.desel();
-                    c.click();
-                    c.sel();
-                    tm.drag = c;
-                    c.originalY = c.b.position.y;
-                    c.b.type = CANNON.Body.KINEMATIC;
-                    gsap.to(c.b.position, { y: 3.5, duration: 0.2, ease: "power2.out" });
-                } else {
-                    if (tm.sel) tm.sel.desel();
-                    const gp = getG(e);
-                    if (gp) {
-                        isPanning = true;
-                        panStartIntersect = gp.clone();
-                    }
-                }
-            } else if (e.button === 2) {
-                e.preventDefault();
-                if (c) {
-                    if (tm.sel && tm.sel !== c) tm.sel.desel();
-                    c.sel();
-                    showContextMenu(e.clientX, e.clientY, 'cube', c);
-                    clearTimeout(rightClickTimer);
-                    rightClickTimer = setTimeout(() => {
-                        if (c && c === tm.sel) {
-                            const launchTarget = new THREE.Vector3(
-                                (Math.random() - 0.5) * 40,
-                                10 + Math.random() * 10,
-                                (Math.random() - 0.5) * 40
-                            );
-                            c.launch(launchTarget);
-                        }
-                    }, 100);
-                } else {
-                    // Right-click on empty space - focus on quadrant
-                    const gp = getG(e);
-                    if (gp) {
-                        const quadrant = getQuadrantFromPosition(gp.x, gp.z);
-                        if (quadrant) {
-                            const targetPos = quads[quadrant];
-                            gsap.to(rig.tPiv, {
-                                x: targetPos.x,
-                                z: targetPos.z,
-                                duration: 1.0,
-                                ease: "power2.out"
-                            });
-                        }
-                    }
-                }
-            }
+        renderer.render(scene, camera);
+        cssRenderer.render(scene, camera);
+      };
+      animate();
+
+      // Parallax on mouse move
+      const handleMouseMove = (e) => {
+        const mouseX = (e.clientX / width) * 2 - 1;
+        const mouseY = -(e.clientY / height) * 2 + 1;
+        gsap.to(object.rotation, {
+          y: mouseX * 0.01,
+          x: mouseY * 0.01,
+          duration: 0.5,
+          ease: 'power2.out'
         });
-        addEventListener('mouseup', e => {
-            if (e.button === 0) {
-                if (tm.drag) {
-                    const c = tm.drag;
-                    gsap.to(c.b.position, { y: 2, duration: 0.2, ease: "power1.in", onComplete: () => {
-                        c.b.type = CANNON.Body.DYNAMIC;
-                        c.b.wakeUp();
-                    }});
-                }
-                tm.drag = null;
-                isPanning = false;
-            } else if (e.button === 2) {
-                clearTimeout(rightClickTimer);
-                rightClickTimer = null;
-            }
-        });
-        // === MOBILE FOCUS RELEASE ===
-        const mobileReleaseBtn = document.getElementById('mobile-release');
-        if (mobileReleaseBtn) {
-            mobileReleaseBtn.addEventListener('click', () => {
-                if (tm.sel) {
-                    tm.sel.desel();
-                }
-            });
-        }
-        // === COORDINATES DISPLAY ===
-        function updateCoordinates() {
-            const coordDisplay = document.getElementById('coord-display');
-            if (coordDisplay) {
-                coordDisplay.children[0].textContent = `X:${rig.piv.x.toFixed(1)}`;
-                coordDisplay.children[1].textContent = `Y:${rig.piv.y.toFixed(1)}`;
-                coordDisplay.children[2].textContent = `Z:${rig.piv.z.toFixed(1)}`;
-                coordDisplay.children[3].textContent = `Speed:${speed.toFixed(1)}`;
-            }
-        }
-        // === EFFECTS TOGGLE ===
-        function toggleEffects() {
-            rig.effectsEnabled = !rig.effectsEnabled;
-            const effectsToggle = document.getElementById('effects-toggle');
-            if (effectsToggle) {
-                effectsToggle.textContent = `Effects: ${rig.effectsEnabled ? 'ON' : 'OFF'}`;
-            }
-        }
-        const effectsToggle = document.getElementById('effects-toggle');
-        if (effectsToggle) {
-            effectsToggle.addEventListener('click', toggleEffects);
-        }
-        // === TASK EDITOR ===
-        function openTaskEditor(cube) {
-            const editor = document.getElementById('task-editor');
-            const input = document.getElementById('task-input');
-            if (editor && input) {
-                tm.editingCube = cube;
-                input.value = cube.text || '';
-                editor.classList.add('active');
-                input.focus();
-                input.select();
-            }
-        }
-        function closeTaskEditor() {
-            const editor = document.getElementById('task-editor');
-            if (editor) {
-                editor.classList.remove('active');
-                tm.editingCube = null;
-            }
-        }
-        function saveTask() {
-            const editor = document.getElementById('task-editor');
-            const input = document.getElementById('task-input');
-            if (editor && input && tm.editingCube) {
-                tm.editingCube.text = input.value || 'Untitled Task';
-                tm.editingCube.updateTextSprite();
-                closeTaskEditor();
-            }
-        }
-        // Task editor event listeners
-        const taskInput = document.getElementById('task-input');
-        if (taskInput) {
-            taskInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    saveTask();
-                } else if (e.key === 'Escape') {
-                    closeTaskEditor();
-                }
-            });
-        }
-        const cancelEditBtn = document.getElementById('cancel-edit');
-        if (cancelEditBtn) {
-            cancelEditBtn.addEventListener('click', closeTaskEditor);
-        }
-        const saveEditBtn = document.getElementById('save-edit');
-        if (saveEditBtn) {
-            saveEditBtn.addEventListener('click', saveTask);
-        }
-        // === KEYBOARD CONTROLS ===
-        addEventListener('keydown', e => {
-            if (e.key === 'Shift') { rig.mode = 'eye'; const modeEl = document.getElementById('mode'); modeEl.textContent = 'FOCAL MODE ACTIVE'; modeEl.style.color = 'var(--pink)'; modeEl.style.borderColor = 'var(--pink)'; modeEl.style.boxShadow = '0 0 15px var(--pink)'; modeEl.classList.add('active'); if(tm.sel){focal = true;focalPos.set(tm.sel.b.position.x, tm.sel.b.position.y + 2, tm.sel.b.position.z + 10);focalTarget.set(tm.sel.b.position.x, tm.sel.b.position.y + 1, tm.sel.b.position.z);gsap.to(bokehPass.uniforms.aperture, {value:0.01, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:2, duration:1});gsap.to({val:distanceScale}, {val:0.3, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}});}}
-            if (e.key === 'l' || e.key === 'L') {
-                if (tm.sel) { tm.launch = true; tm.lSrc = tm.sel; document.getElementById('launch').classList.add('active'); }
-            }
-            if (e.key === ' ') { e.preventDefault(); shake(); }
-            if (e.key === 'Escape') { tm.launch = false; tm.lSrc = null; document.getElementById('launch').classList.remove('active'); anchor = null; const modeEl = document.getElementById('mode'); if (rig.mode !== 'eye') modeEl.classList.remove('active'); if (rig.mode === 'eye') {rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); } }
-            if (e.key === 'r' || e.key === 'R') {
-                resetCamera();
-            }
-            if (e.key === '1') setView('quarterback');
-            if (e.key === '2') setView('skycam');
-            if (e.key === '3') setView('sideline');
-        });
-        addEventListener('keyup', e => {
-            if (e.key === 'Shift') { rig.mode = 'std'; focal = false; gsap.to(bokehPass.uniforms.aperture, {value:0.00001, duration:1});gsap.to(vignettePass.uniforms.darkness, {value:1.8, duration:1});gsap.to({val:distanceScale}, {val:1, duration:1, onUpdate:function(){distanceScale = this.targets()[0].val}}); const modeEl = document.getElementById('mode'); if (!anchor) modeEl.classList.remove('active'); else { modeEl.textContent = 'ANCHOR MODE ACTIVE'; modeEl.style.color = 'var(--neon-blue)'; modeEl.style.borderColor = 'var(--neon-blue)'; modeEl.style.boxShadow = '0 0 15px var(--neon-blue)'; } if (tm.sel) tm.sel.desel(); }
-        });
-        function setView(view) {
-            document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-            const btn = document.querySelector(`.view-btn[data-view="${view}"]`);
-            if (btn) btn.classList.add('active');
-            currentView = view;
-            rig.preset = view;
-            if (view === 'sideline') rig.tPiv.x = 0;
-        }
-        function shake() {
-            tm.cubes.forEach(c => {
-                c.b.wakeUp();
-                const im = new CANNON.Vec3((Math.random()-0.5)*40, 40+Math.random()*40, (Math.random()-0.5)*40);
-                c.b.applyImpulse(im, c.b.position);
-            });
-        }
-        // === RESPONSIVE HANDLING ===
-        addEventListener('resize', () => {
-            cam.aspect = innerWidth / innerHeight;
-            cam.updateProjectionMatrix();
-            rend.setSize(innerWidth, innerHeight);
-            if (composer) composer.setSize(innerWidth, innerHeight);
-            rig.isMobile = window.innerWidth <= 768;
-         
-            if (rig.isMobile && joy.zone) {
-                joy.zone.style.bottom = '20px';
-            } else if (joy.zone) {
-                joy.zone.style.bottom = '9.9rem';
-            }
-        });
-        // === ENHANCED ANIMATION LOOP ===
-        let lt = 0;
-        function anim() {
-            requestAnimationFrame(anim);
-            const ct = performance.now() / 1000, dt = Math.min(ct - lt, 0.1);
-            lt = ct;
-            // Update FPS
-            updateFPS();
-            // Physics simulation
-            world.step(1 / 60, dt, 3);
-            tm.cubes.forEach(c => c.tick());
-            // Boundary constraints
-            const boundX = 40, boundZ = 40;
-            if (rig.tPiv.x > boundX) rig.tPiv.x += (boundX - rig.tPiv.x) * 0.1;
-            if (rig.tPiv.x < -boundX) rig.tPiv.x += (-boundX - rig.tPiv.x) * 0.1;
-            if (rig.tPiv.z > boundZ) rig.tPiv.z += (boundZ - rig.tPiv.z) * 0.1;
-            if (rig.tPiv.z < -boundZ) rig.tPiv.z += (-boundZ - rig.tPiv.z) * 0.1;
-            // Smooth camera movement
-            rig.piv.lerp(rig.tPiv, rig.isMobile ? 0.08 : 0.1);
-            let p = CFG.preset[currentView];
-            if (currentView === 'sideline') {
-                rig.tPiv.x = 0;
-            }
-            if (rig.mode === 'eye') {
-                if (focal) {
-                    cam.position.lerp(focalPos, 0.1);
-                    cam.lookAt(focalTarget);
-                    bokehPass.uniforms.focus.value = cam.position.distanceTo(focalTarget);
-                } else {
-                    const height = CFG.cam.eye.y * distanceScale;
-                    cam.position.lerp(new THREE.Vector3(rig.piv.x, height, rig.piv.z), 0.1);
-                    cam.lookAt(rig.piv);
-                    bokehPass.uniforms.focus.value = cam.position.distanceTo(rig.piv);
-                }
-            } else {
-                const offset = p.o.clone().multiplyScalar(distanceScale);
-                const tp = new THREE.Vector3().copy(rig.piv).add(offset);
-                cam.position.lerp(tp, rig.isMobile ? 0.08 : 0.1);
-                cam.position.y = Math.max(cam.position.y, -3);
-                cam.rotation.x += (p.r.x - cam.rotation.x) * 0.1;
-                cam.rotation.y += (p.r.y - cam.rotation.y) * 0.1;
-                cam.rotation.z += (p.r.z - cam.rotation.z) * 0.1;
-            }
-            cCam.update(rend, sc);
-            // Selection ring
-            if (tm.sel && (currentView === 'skycam' || currentView === 'sideline')) {
-                selRing.visible = true;
-                selRing.position.copy(tm.sel.m.position);
-                selRing.position.y = -3.99;
-                const s = 1 + Math.sin(ct * 2) * 0.1;
-                selRing.scale.set(s, 1, s);
-            } else {
-                selRing.visible = false;
-            }
-            updateCoordinates();
-            // Render with or without effects
-            if (rig.effectsEnabled) {
-                composer.render();
-            } else {
-                rend.render(sc, cam);
-            }
-        }
-        // === CONTEXT MENU ===
-        const contextMenu = document.getElementById('context-menu');
-        function showContextMenu(x, y, type, data) {
-            let ul = '';
-            if (type === 'cube') {
-                window.currentCube = data;
-                ul = `
-                    <li onclick="showDetails(window.currentCube)">Details</li>
-                    <li onclick="editCube(window.currentCube)">Edit</li>
-                    <li onclick="deleteCube(window.currentCube)">Delete</li>
-                `;
-            } else if (type === 'quadrant') {
-                window.currentQuadrant = data;
-                ul = `
-                    <li onclick="clearQuadrant(window.currentQuadrant)">Clear this quadrant</li>
-                    <li onclick="clearAll()">Clear all</li>
-                `;
-            }
-            contextMenu.innerHTML = `<ul>${ul}</ul>`;
-            contextMenu.style.left = `${x}px`;
-            contextMenu.style.top = `${y}px`;
-            contextMenu.style.display = 'block';
-        }
-        function hideContextMenu() {
-            contextMenu.style.display = 'none';
-        }
-        addEventListener('click', hideContextMenu);
-        window.showDetails = (cube) => {
-            alert(`Task: ${cube.text}`);
-            hideContextMenu();
-        }
-        window.editCube = (cube) => {
-            openTaskEditor(cube);
-            hideContextMenu();
-        }
-        window.deleteCube = (cube) => {
-            cube.rm();
-            hideContextMenu();
-        }
-        window.clearQuadrant = (quad) => {
-            tm.cubes.filter(c => c.getStatus() === quad).forEach(c => c.rm());
-            updateStats();
-            hideContextMenu();
-        }
-        window.clearAll = () => {
-            tm.cubes.forEach(c => c.rm());
-            tm.cubes = [];
-            updateStats();
-            hideContextMenu();
-        }
-        // === INITIALIZATION ===
-        function initialize() {
-            initializeCubes();
-            anim();
-         
-            // Hide loading screen
-            const loadingScreen = document.getElementById('loading-screen');
-            if (loadingScreen) {
-                setTimeout(() => {
-                    loadingScreen.style.opacity = '0';
-                    setTimeout(() => {
-                        loadingScreen.style.display = 'none';
-                    }, 500);
-                }, 1000);
-            }
-         
-            // Check initial mobile state
-            if (rig.isMobile && joy.zone) {
-                joy.zone.style.bottom = '20px';
-            }
-            console.log('🚀 Enhanced 3D Kanban System initialized!');
-            console.log('📱 Mobile mode:', rig.isMobile);
-            console.log('🎨 Current theme:', rig.currentTheme);
-            console.log('📷 Current view:', currentView);
-            console.log('🎮 Total tasks:', tm.cubes.length);
-        }
-        // Start the application
-        initialize();
-    </script>
+      };
+      document.addEventListener('mousemove', handleMouseMove);
+
+      // Handle resize
+      const handleResize = () => {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        document.documentElement.style.setProperty('--vh', `${height / 100}px`);
+        camera.aspect = width / height;
+        z = (height / 2) / Math.tan((fov / 2) * Math.PI / 180);
+        camera.position.z = z;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+        cssRenderer.setSize(width, height);
+        appContent.style.width = width + 'px';
+        appContent.style.height = height + 'px';
+      };
+      window.addEventListener('resize', handleResize);
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight / 100}px`);
+    }
+
+    initThree();
+  </script>
 </body>
 </html>
