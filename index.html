@@ -955,6 +955,7 @@ body.ch-7 { --hud-bg: rgba(248,236,240,0.97); --hud-ink: #200810; --hud-ink-2: #
     right: 16px !important; left: auto !important;
     width: 42px; height: 42px; z-index: 9500 !important;
     pointer-events: auto !important; touch-action: manipulation;
+    display: none !important; /* replaced by HUD scroll button on mobile */
   }
   #scroll-lockout { right: 0; pointer-events: none; }
   #nav-widget {
@@ -965,13 +966,14 @@ body.ch-7 { --hud-bg: rgba(248,236,240,0.97); --hud-ink: #200810; --hud-ink-2: #
   .nw-handle, .nw-divider, .nw-nav-pip, .nw-nav-pip-pct { display: none !important; }
   .nw-action-btn { flex: 1; border: none; border-right: 1px solid var(--hud-border); border-radius: 0; padding: 12px 14px 10px; font-size: 15px; gap: 3px; }
   .nw-action-btn:first-of-type { border-radius: 24px 0 0 24px; }
+  #nw-scroll-btn { border-radius: 24px 0 0 24px; } /* always first visible on mobile */
   .nw-action-btn:last-of-type { border-right: none; }
   .nw-nav { flex: 2; flex-direction: row; padding: 0; gap: 0; width: auto; align-items: stretch; }
   .nw-btn-prev, .nw-btn-next { flex: 1; height: auto; min-height: 52px; font-size: 18px; border-radius: 0; border: none; border-left: 1px solid var(--hud-border); background: none; padding: 0 16px; }
   .nw-btn-next { border-radius: 0 24px 24px 0; }
   #toast { bottom: calc(96px + env(safe-area-inset-bottom)); }
   #wolfie-credit { bottom: calc(88px + env(safe-area-inset-bottom)); }
-  #chapter-widget { right: 0; top: calc(52px + 10px); padding-right: 64px; }
+  #chapter-widget { left: 0; right: 0; top: calc(52px + 10px); padding: 0; justify-content: center; }
 
   /* CV button — surfaces resume panel on mobile */
   #nw-cv-btn { display: flex; }
@@ -1038,6 +1040,7 @@ body.ch-7 { --hud-bg: rgba(248,236,240,0.97); --hud-ink: #200810; --hud-ink-2: #
   #panel-overlay-backdrop { display: none; }
   .nw-action-btn#nw-panel-btn { display: flex; }
   #nw-cv-btn { display: none; }
+  #nw-scroll-btn { display: none; }
   #detail-ghost { display: block; }
 }
 
@@ -1580,6 +1583,11 @@ body.compose-mode .compose-bar {
     cursor: pointer; transition: all 0.15s ease; line-height: 1; flex-shrink: 0;
 }
 .compose-close-btn:hover { border-color: var(--accent); color: var(--accent); }
+#compose-send-btn {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    font-weight: 700; letter-spacing: 0.04em;
+}
+#compose-send-btn:hover { background: var(--accent); opacity: 0.88; color: #fff; }
 .compose-wordcount {
     font-family: var(--ui); font-size: 8px; color: var(--hud-ink-3, #999);
     letter-spacing: 0.05em; opacity: 0.5; white-space: nowrap;
@@ -1958,6 +1966,7 @@ body.compose-mode .sentence-type-badge { display: inline; }
     <button class="cw-item" data-ch="4" role="menuitem"><span class="cw-item-num">04</span><span class="cw-item-name">TikTok &amp; Agency</span><span class="cw-item-dot"></span></button>
     <button class="cw-item" data-ch="5" role="menuitem"><span class="cw-item-num">05</span><span class="cw-item-name">wolfie.life</span><span class="cw-item-dot"></span></button>
     <button class="cw-item" data-ch="6" role="menuitem"><span class="cw-item-num">06</span><span class="cw-item-name">Open to Work</span><span class="cw-item-dot"></span></button>
+    <button class="cw-item" data-ch="7" role="menuitem"><span class="cw-item-num">07</span><span class="cw-item-name">Say Hello</span><span class="cw-item-dot"></span></button>
   </div>
 </div>
 
@@ -1965,8 +1974,8 @@ body.compose-mode .sentence-type-badge { display: inline; }
   <div class="nw-shell">
     <div class="nw-handle" id="nw-handle"><div class="nw-drag-dots">&middot; &middot; &middot;</div></div>
     <div class="nw-divider"></div>
-    <button class="nw-action-btn" id="nw-ch-btn" title="Sections">
-    <span class="nw-cell-value">&#9661;</span><span class="nw-action-label">Sections</span>
+    <button class="nw-action-btn" id="nw-scroll-btn" title="Free scroll" onclick="document.getElementById('scroll-toggle').click()">
+    <span class="nw-cell-value" id="nw-scroll-icon">&#8645;</span><span class="nw-action-label" id="nw-scroll-label">Scroll</span>
   </button>
     <button class="nw-action-btn" onclick="openGrid()" title="Grid view">
       <span class="nw-cell-value">&#9638;</span><span class="nw-action-label">Grid</span>
@@ -2051,6 +2060,7 @@ body.compose-mode .sentence-type-badge { display: inline; }
                     </div>
                 </button>
                 <button class="compose-close-btn" id="composeMobileClose" aria-label="Exit compose" title="Exit Compose">&#x2715;</button>
+                <button class="compose-close-btn" id="compose-send-btn" style="display:none" aria-label="Send note" title="Send">Send &#8599;</button>
             </div>
         </div>
         <textarea
@@ -2507,6 +2517,7 @@ function goTo(n, opts) {
   document.getElementById('nw-nav-pip').style.height = pct + '%';
   scheduleAutoFlow(n);
   var ch = parseInt(activeEl ? activeEl.dataset.ch : 1) || 1;
+  var prevCh = parseInt((document.body.className.match(/\bch-(\d)\b/) || [])[1] || '1');
   document.body.className = document.body.className.replace(/\bch-\d\b/g, '').trim();
   if (ch > 1) document.body.classList.add('ch-' + ch);
   document.querySelectorAll('.ch-header').forEach(function(g) {
@@ -2515,8 +2526,16 @@ function goTo(n, opts) {
   updateChapterWidget(ch);
   updatePanelService(ch);
   if (window._specGhostUpdate) window._specGhostUpdate(activeEl);
-  // On mobile: auto-surface the work panel when reaching the last sentence
-  if (isMobile() && n === navigable.length - 1) {
+  // Ch-7 (Contact): auto-surface compose mode on first arrival from another chapter
+  if (ch === 7 && prevCh !== 7 && window.toggleCompose) {
+    setTimeout(function() {
+      if (typeof composeState !== 'undefined' && !composeState.active) {
+        window.toggleCompose();
+      }
+    }, 700);
+  }
+  // On mobile: if NOT contact chapter, auto-surface the panel at last sentence
+  if (isMobile() && n === navigable.length - 1 && ch !== 7) {
     setTimeout(function() { openPanelSheet(); }, 480);
   }
   // End-of-content toast
@@ -2566,7 +2585,8 @@ function updateChapterWidget(ch) {
   function openDD()  { open = true;  widget.classList.add('open');    trigger.setAttribute('aria-expanded', 'true'); }
   function closeDD() { open = false; widget.classList.remove('open'); trigger.setAttribute('aria-expanded', 'false'); }
   trigger.addEventListener('click', function(e) { e.stopPropagation(); open ? closeDD() : openDD(); });
-  document.getElementById('nw-ch-btn').addEventListener('click', function(e) { e.stopPropagation(); open ? closeDD() : openDD(); });
+  var nwChBtn = document.getElementById('nw-ch-btn');
+  if (nwChBtn) nwChBtn.addEventListener('click', function(e) { e.stopPropagation(); open ? closeDD() : openDD(); });
   document.getElementById('cw-dropdown').querySelectorAll('.cw-item').forEach(function(item) {
     item.addEventListener('click', function(e) {
       e.stopPropagation(); closeDD();
@@ -2636,10 +2656,22 @@ requestAnimationFrame(function() {
 // ── SCROLL TOGGLE ─────────────────────────────────────────────────────────
 (function initScrollToggle() {
   var btn = document.getElementById('scroll-toggle');
+  var hudBtn = document.getElementById('nw-scroll-btn');
+  var hudIcon = document.getElementById('nw-scroll-icon');
   var scrollFree = false;
   var ALL_NAV = ['nav-prev', 'nav-next', 'nav-top', 'nav-bottom'];
+  function syncHud(on) {
+    if (!hudBtn) return;
+    if (on) {
+      hudBtn.classList.add('compose-active'); // reuse accent style
+      if (hudIcon) hudIcon.textContent = '✕';
+    } else {
+      hudBtn.classList.remove('compose-active');
+      if (hudIcon) hudIcon.textContent = '⇅';
+    }
+  }
   function enter() {
-    scrollFree = true; btn.classList.add('on');
+    scrollFree = true; btn.classList.add('on'); syncHud(true);
     document.body.classList.add('scroll-free');
     document.body.style.overflow = 'auto';
     all.forEach(function(el) { el.classList.add('revealed'); el.classList.remove('active'); });
@@ -2647,7 +2679,7 @@ requestAnimationFrame(function() {
     ALL_NAV.forEach(function(c) { cursor.classList.remove(c); });
   }
   function exit() {
-    scrollFree = false; btn.classList.remove('on');
+    scrollFree = false; btn.classList.remove('on'); syncHud(false);
     document.body.classList.remove('scroll-free');
     document.body.style.overflow = '';
     goTo(current, {noScroll: true});
@@ -3349,6 +3381,18 @@ img:10
 [spec] Email :: <a href="mailto:hello@zackgort.com">hello@zackgort.com</a>
 [spec] LinkedIn :: linkedin.com/in/zackgort
 [spec] Resume :: Available on request
+[break]
+
+###:07 · Say Hello
+
+img:10
+[label] Contact
+img:10
+[poster] Say\n**hello.**
+img:10
+[body] If something in here resonated — a problem, an approach, a chapter that felt familiar — I want to hear about it. Leave a note below. No form. No friction. Just say what's on your mind.
+img:10
+[pull] Start anywhere. Introduce yourself. Ask a question. Tell me what you&rsquo;re building.
 [cta]
 `;
 
@@ -3360,6 +3404,7 @@ const CHAPTERS = [
   { ch: 4, label: 'Agency',       num: '04', title: 'TikTok &amp; Agency',  sub: 'Big logos &middot; WOVN &middot; Cards Against Bad UX' },
   { ch: 5, label: 'Studio',       num: '05', title: 'wolfie.life',      sub: 'Products &middot; Design systems &middot; Commerce &middot; Identity' },
   { ch: 6, label: 'Status',       num: '06', title: 'Open to Work',     sub: 'Senior Product / UX &middot; The right kind of open' },
+  { ch: 7, label: 'Contact',      num: '07', title: 'Say Hello',        sub: 'One honest sentence &middot; That&rsquo;s all it takes' },
 ];
 
 // ── Inline markdown ──
@@ -3583,14 +3628,53 @@ renderNarrative();
     wordCount.textContent = wc + ' words · ' + words + ' sentences';
   }
 
+  // ── Contact mode helpers ──
+  var composeLabel   = document.querySelector('.compose-label');
+  var composeHeader  = document.querySelector('.compose-header-controls');
+  var composeHints   = document.querySelector('.compose-hints-row');
+
+  function isContactChapter() {
+    var el = navigable[current];
+    return el && parseInt(el.dataset.ch) === 7;
+  }
+
+  function setContactMode(on) {
+    var bar = document.getElementById('composeBar');
+    if (on) {
+      bar.classList.add('contact-mode');
+      if (composeLabel) composeLabel.textContent = 'Leave a note';
+      if (input) input.placeholder = 'Say anything. Introduce yourself. Ask a question. Start wherever feels right.';
+      // Swap Enter-to-commit hint to Enter-to-send
+      if (composeHints) composeHints.style.display = 'none';
+      // Show send button, hide chapter select + word count
+      if (chapterSel) chapterSel.style.display = 'none';
+      if (wordCount) wordCount.style.display = 'none';
+      var sendBtn = document.getElementById('compose-send-btn');
+      if (sendBtn) sendBtn.style.display = 'inline-flex';
+    } else {
+      bar.classList.remove('contact-mode');
+      if (composeLabel) composeLabel.textContent = 'Compose';
+      if (input) input.placeholder = '[body] Write a sentence. Or [poster] Make a statement.';
+      if (composeHints) composeHints.style.display = '';
+      if (chapterSel) chapterSel.style.display = '';
+      if (wordCount) wordCount.style.display = '';
+      var sendBtn = document.getElementById('compose-send-btn');
+      if (sendBtn) sendBtn.style.display = 'none';
+    }
+  }
+
   // ── Enter/exit compose ──
   function enterCompose() {
     composeState.active = true;
     composeActive = true;
     document.body.classList.add('compose-mode');
     if (composeBtn) composeBtn.classList.add('compose-active');
-    populateChapterSelect();
-    updateWordCount();
+    var contactMode = isContactChapter();
+    setContactMode(contactMode);
+    if (!contactMode) {
+      populateChapterSelect();
+      updateWordCount();
+    }
     setTimeout(function() { if (input) input.focus(); }, 350);
   }
 
@@ -3602,6 +3686,7 @@ renderNarrative();
     if (composeBtn) composeBtn.classList.remove('compose-active');
     document.querySelectorAll('.sentence.editing').forEach(function(s) { s.classList.remove('editing'); });
     if (input) input.value = '';
+    setContactMode(false);
   }
 
   function toggleCompose() { if (composeState.active) exitCompose(); else enterCompose(); }
@@ -3609,6 +3694,19 @@ renderNarrative();
 
   if (composeBtn) composeBtn.addEventListener('click', toggleCompose);
   if (mobileClose) mobileClose.addEventListener('click', exitCompose);
+
+  // ── Contact mode: Send button ──
+  var sendBtn = document.getElementById('compose-send-btn');
+  function sendContactNote() {
+    var msg = input ? input.value.trim() : '';
+    if (!msg) return;
+    var subject = encodeURIComponent('A note from your portfolio');
+    var body = encodeURIComponent(msg + '\n\n— via wolfie.love');
+    window.location.href = 'mailto:hello@zackgort.com?subject=' + subject + '&body=' + body;
+    if (input) input.value = '';
+    setTimeout(exitCompose, 400);
+  }
+  if (sendBtn) sendBtn.addEventListener('click', sendContactNote);
 
   // ── Parse input line into sentence type + content ──
   function parseInputLine(raw) {
@@ -3811,7 +3909,12 @@ renderNarrative();
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         var val = input.value.trim();
-        if (val) commitSentence(val);
+        if (!val) return;
+        if (isContactChapter()) {
+          sendContactNote();
+        } else {
+          commitSentence(val);
+        }
       }
       if (e.key === 'Escape') {
         exitCompose();
