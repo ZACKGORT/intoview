@@ -2585,10 +2585,10 @@ body.dark-ask #ask-interstitial { opacity: 1; pointer-events: auto; }
   </button>
   <div class="cw-dropdown" role="menu" id="cw-dropdown">
     <button class="cw-item active" data-ch="1" role="menuitem"><span class="cw-item-num">01</span><span class="cw-item-name">Introduction</span><span class="cw-item-dot"></span></button>
-    <button class="cw-item" data-ch="2" role="menuitem"><span class="cw-item-num">02</span><span class="cw-item-name">Who I Am</span><span class="cw-item-dot"></span></button>
-    <button class="cw-item" data-ch="3" role="menuitem"><span class="cw-item-num">03</span><span class="cw-item-name">GNC</span><span class="cw-item-dot"></span></button>
-    <button class="cw-item" data-ch="4" role="menuitem"><span class="cw-item-num">04</span><span class="cw-item-name">BNY Mellon</span><span class="cw-item-dot"></span></button>
-    <button class="cw-item" data-ch="5" role="menuitem"><span class="cw-item-num">05</span><span class="cw-item-name">The Work</span><span class="cw-item-dot"></span></button>
+    <button class="cw-item" data-ch="2" role="menuitem"><span class="cw-item-num">02</span><span class="cw-item-name">GNC</span><span class="cw-item-dot"></span></button>
+    <button class="cw-item" data-ch="3" role="menuitem"><span class="cw-item-num">03</span><span class="cw-item-name">BNY Mellon</span><span class="cw-item-dot"></span></button>
+    <button class="cw-item" data-ch="4" role="menuitem"><span class="cw-item-num">04</span><span class="cw-item-name">The Work</span><span class="cw-item-dot"></span></button>
+    <button class="cw-item" data-ch="5" role="menuitem"><span class="cw-item-num">05</span><span class="cw-item-name">Who I Am</span><span class="cw-item-dot"></span></button>
     <button class="cw-item" data-ch="6" role="menuitem"><span class="cw-item-num">06</span><span class="cw-item-name">wolfie.life</span><span class="cw-item-dot"></span></button>
     <button class="cw-item" data-ch="7" role="menuitem"><span class="cw-item-num">07</span><span class="cw-item-name">Say Hello</span><span class="cw-item-dot"></span></button>
   </div>
@@ -3313,7 +3313,7 @@ function updatePanelService(ch) {
   });
 }
 
-var CH_NAMES = ['', 'Introduction', 'Who I Am', 'GNC', 'BNY Mellon', 'The Work', 'wolfie.life', 'Say Hello'];
+var CH_NAMES = ['', 'Introduction', 'GNC', 'BNY Mellon', 'The Work', 'Who I Am', 'wolfie.life', 'Say Hello'];
 var CH_FIRST = {};
 navigable.forEach(function(el, i) {
   var ch = parseInt(el.dataset.ch || 1);
@@ -3349,16 +3349,29 @@ function updateChapterWidget(ch) {
   updateChapterWidget(1);
 })();
 
-document.getElementById('nw-next').addEventListener('click', next);
-document.getElementById('nw-prev').addEventListener('click', function() { clearAutoFlow(); prev(); });
+document.getElementById('nw-next').addEventListener('click', function() {
+  if (darkMomentActive) { exitDarkMoment(); goToSkipDark(current + 1,  1); return; }
+  next();
+});
+document.getElementById('nw-prev').addEventListener('click', function() {
+  if (darkMomentActive) { exitDarkMoment(); goToSkipDark(current - 1, -1); return; }
+  clearAutoFlow(); prev();
+});
 navigable.forEach(function(el, i) { el.addEventListener('click', function() { goTo(i); }); });
 
 // ── KEYBOARD ──────────────────────────────────────────────────────────────
 document.addEventListener('keydown', function(e) {
   if (isGridOpen() && e.key === 'Escape') { e.preventDefault(); closeGrid(); return; }
   if (document.body.classList.contains('scroll-free')) return;
+  if (darkMomentActive) return; // dark moment keydown handler owns navigation while active
   if (e.key === 'ArrowDown' || e.key === 'j' || e.key === ' ') { e.preventDefault(); next(); }
   if (e.key === 'ArrowUp'   || e.key === 'k')                  { e.preventDefault(); prev(); }
+  if (e.key === 'Tab') {
+    // Only intercept Tab when focus is not inside a form/input element
+    if (document.activeElement && (document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT')) return;
+    e.preventDefault();
+    e.shiftKey ? prev() : next();
+  }
 });
 
 // ── SWIPE ─────────────────────────────────────────────────────────────────
@@ -3379,7 +3392,12 @@ window.addEventListener('touchend', function(e) {
   var dy = touchStartY - e.changedTouches[0].clientY;
   if (Math.abs(dy) > 50) {
     swipeCooldown = true; clearAutoFlow();
-    dy > 0 ? next() : prev();
+    if (darkMomentActive) {
+      if (dy > 0) { exitDarkMoment(); goToSkipDark(current + 1,  1); }
+      else        { exitDarkMoment(); goToSkipDark(current - 1, -1); }
+    } else {
+      dy > 0 ? next() : prev();
+    }
     setTimeout(function() { swipeCooldown = false; }, 100);
   }
 }, {passive: true});
@@ -3741,20 +3759,29 @@ function showContactToast() {
 var infiniteLoop = false;
 var _origNext = null;
 function next() {
-  if (infiniteLoop && current === navigable.length - 1) {
-    goTo(0);
-  } else {
-    goTo(current + 1);
-  }
+  var target = infiniteLoop && current === navigable.length - 1 ? 0 : current + 1;
+  goTo(Math.min(target, navigable.length - 1));
 }
-function prev() { goTo(current - 1); }
+function prev() {
+  goTo(Math.max(current - 1, 0));
+}
 
 // ── WHEEL ─────────────────────────────────────────────────────────────────
 var lastWheel = 0;
 document.addEventListener('wheel', function(e) {
   if (isGridOpen()) return;
   if (document.body.classList.contains('scroll-free')) return;
+  // Let wheel events inside scrollable UI panels pass through natively
+  var scrollableParent = e.target.closest('#panel, #interest-panel, .compose-bar, #csr-preview-ghost');
+  if (scrollableParent) return;
   e.preventDefault();
+  if (darkMomentActive) {
+    // Wheel advances/retreats through the dark moment same as arrow keys
+    var now = Date.now(); if (now - lastWheel < 550) return; lastWheel = now;
+    if (e.deltaY > 0) { exitDarkMoment(); goToSkipDark(current + 1,  1); }
+    else              { exitDarkMoment(); goToSkipDark(current - 1, -1); }
+    return;
+  }
   var now = Date.now(); if (now - lastWheel < 550) return; lastWheel = now;
   e.deltaY > 0 ? next() : prev();
 }, {passive: false});
@@ -4330,16 +4357,87 @@ const narrative = `
 img:17
 [label] Zack Gort &middot; Portfolio
 img:18
-[poster] UX is **not** dead.
+@@darkchapter
+[poster] How you say it is part of **what it is.**
 img:15
-[body] I&rsquo;m Zack Gort &mdash; Senior Product / UX Designer with 20 years building digital products at the intersection of systems thinking, data, and craft.
+[body] That is not a philosophy. It is a design constraint. A strategy that nobody understands is not a strategy &mdash; it is a document. A product that nobody can navigate is not a product &mdash; it is a prototype that shipped.
 img:6
-[pull] &ldquo;I think. I make. I think about design and data as systems.&rdquo;
+[pull] I have spent twenty years making difficult things feel inevitable. This is the evidence.
 img:19
-[body] I&rsquo;m a Senior *User Experience Designer* &mdash; and I&rsquo;m open to work. The right kind: a team with a real problem, and the conviction to solve it well.
+[body] I&rsquo;m Zack Gort &mdash; Senior Product / UX Designer. Open to work. The right kind: a real problem, a team with conviction, and the space to solve it properly.
 [break]
 
-###:02 · Who I Am
+###:02 · GNC
+
+img:4
+[label] General Nutrition Centers &middot; Case Study
+img:4
+@@darkchapter
+[poster] This is the **whey.**
+img:5
+[body] GNC was emerging from bankruptcy. They needed a complete Shopify rebuild &mdash; platform overhaul, design system, and mobile-first navigation &mdash; built from scratch in twelve weeks.
+img:6
+[body] I led UX on taxonomy strategy, *modular component systems*, wireframes for every edge case, and retail navigation that actually converted. There was no time to be precious about it.
+[spec] Client :: General Nutrition Centers (GNC)
+[spec] Agency :: Elva Design Group
+[spec] Role :: Senior UX Designer
+[spec] Scope :: Shopify rebuild &middot; design system &middot; 12 weeks
+[spec] Outcome :: ~$500M annual revenue recovery
+img:5
+[pull] &ldquo;If the bar ain&rsquo;t bending, you&rsquo;re just pretending.&rdquo;
+[break]
+
+###:03 · BNY Mellon
+
+img:16
+[label] BNY Mellon &mdash; Pershing X &middot; Case Study
+img:0
+@@darkchapter
+[poster] No **AI** here.
+img:16
+[body] Wove is an industry-first platform that gives financial advisors their client&rsquo;s complete picture in one place &mdash; built at Publicis Sapient for BNY Mellon Pershing X.
+img:2
+[body] Advisors had been managing relationships across *disconnected tools*. Context lost. Data re-entered. Constantly. I was brought in as Senior UX Designer and Product Design Lead and asked to make the whole thing cohere.
+[spec] Client :: BNY Mellon &mdash; Pershing X
+[spec] Agency :: Publicis Sapient
+[spec] Role :: Senior UX Designer &middot; Product Design Lead
+[spec] Scope :: IA, cross-workflow navigation, component system
+[spec] Outcome :: Launched at BNY Mellon scale &amp; security
+img:0
+[pull] &ldquo;No Artificial Intelligence Here &mdash; every decision was human due diligence, 2023 into 2024.&rdquo;
+[break]
+
+###:04 · The Work
+
+img:103
+[label] Selected Work &middot; What I Have Built
+img:104
+@@darkchapter
+[poster] Twenty years. **One** through-line.
+img:7
+[body] The through-line is this: how something is communicated is part of what it *is.* A research finding buried in a dense PDF is less true, in practical terms, than the same finding rendered accessibly. A strategy nobody understands is not a strategy &mdash; it is a document.
+img:117
+[body] At 160/90, I led interactive design for campaigns that moved millions of people. The work was fast, high-pressure, and genuinely innovative &mdash; agency life at its most demanding and its most creative.
+img:98
+[body] At O3 World, I built digital products from the ground up &mdash; discovery, wireframes, design systems, shipped code. A full-stack design practice before &ldquo;full-stack designer&rdquo; was a category.
+img:99
+[body] At Workarea, I designed the e-commerce platform itself &mdash; not campaigns on top of it, but the actual infrastructure that forty million dollars of annual revenue ran on. That is a different kind of design problem.
+img:100
+[pull] The discipline is the same whether you are designing a checkout flow or a keynote. You are building a *path* through information. You are deciding what the person sees next.
+img:101
+[body] At LiveArea, I led design across B2B and B2C engagements for enterprise clients. I ran discovery. I directed and delegated. I socialized solutions to stakeholders who had different priorities and helped them find the version they could all say yes to.
+img:102
+[body] Independently, I have built tools, written about the craft, and taken on clients who needed not just a deliverable but a *point of view.* The independent practice is where the clearest thinking happens &mdash; because no one is telling you what to think.
+img:105
+[spec] 160 Over Ninety :: Interactive design lead &middot; national campaigns
+[spec] O3 World :: Full-stack product design &middot; Fishtown, Philadelphia
+[spec] Workarea Commerce :: Platform design &middot; $40M ARR product
+[spec] LiveArea :: Senior design lead &middot; enterprise B2B + B2C
+[spec] FlightPath :: Design director &middot; emerging-from-bankruptcy arc
+[spec] Code &amp; Theory :: Senior UX &middot; healthcare + financial services
+[break]
+
+###:05 · Who I Am
 
 img:89
 [label] Zack Gort &middot; Designer &middot; Builder &middot; Open
@@ -4366,76 +4464,6 @@ img:25
 [spec] Availability :: Immediate &middot; Remote &middot; Open to full-time
 [break]
 
-###:03 · GNC
-
-img:4
-[label] General Nutrition Centers &middot; Case Study
-img:4
-@@darkchapter
-[poster] This is the **whey.**
-img:5
-[body] GNC was recovering from bankruptcy and needed a complete Shopify rebuild &mdash; platform overhaul, design system, and mobile-first navigation built from scratch in a 12-week engagement.
-img:6
-[body] I led UX on taxonomy strategy, *modular component systems*, wireframes for every edge case, and retail navigation that actually converted.
-[spec] Client :: General Nutrition Centers (GNC)
-[spec] Agency :: Elva Design Group
-[spec] Role :: Senior UX Designer
-[spec] Scope :: Shopify rebuild &middot; design system &middot; 12 weeks
-[spec] Outcome :: ~$500M annual revenue recovery
-img:5
-[pull] &ldquo;If the bar ain&rsquo;t bending, you&rsquo;re just pretending.&rdquo;
-[break]
-
-###:04 · BNY Mellon
-
-img:16
-[label] BNY Mellon &mdash; Pershing X &middot; Case Study
-img:0
-@@darkchapter
-[poster] No **AI** here.
-img:16
-[body] Wove is an industry-first platform that gives financial advisors their client&rsquo;s complete picture in one place &mdash; built at Publicis Sapient for BNY Mellon Pershing X.
-img:2
-[body] Advisors had been managing relationships across *disconnected tools*. Context lost. Data re-entered. Constantly. I was brought in as Senior UX Designer and Product Design Lead.
-[spec] Client :: BNY Mellon &mdash; Pershing X
-[spec] Agency :: Publicis Sapient
-[spec] Role :: Senior UX Designer &middot; Product Design Lead
-[spec] Scope :: IA, cross-workflow navigation, component system
-[spec] Outcome :: Launched at BNY Mellon scale &amp; security
-img:0
-[pull] &ldquo;No Artificial Intelligence Here &mdash; every decision was human due diligence, 2023 into 2024.&rdquo;
-[break]
-
-###:05 · The Work
-
-img:103
-[label] Selected Work &middot; What I Have Built
-img:104
-@@darkchapter
-[poster] Twenty years. **One** through-line.
-img:7
-[body] The through-line is this: I believe that how something is communicated is part of what it *is.* A research finding buried in a dense PDF is less true, in practical terms, than the same finding rendered accessibly. A strategy that nobody understands is not a strategy &mdash; it is a document.
-img:117
-[body] At 160/90, I led interactive design for campaigns that moved millions of people. The work was fast, high-pressure, and genuinely innovative &mdash; agency life at its most demanding and its most creative.
-img:98
-[body] At O3 World, I built digital products from the ground up &mdash; discovery, wireframes, design systems, shipped code. A full-stack design practice before &ldquo;full-stack designer&rdquo; was a category.
-img:99
-[body] At Workarea, I designed the e-commerce platform itself &mdash; not campaigns built on top of it, but the actual infrastructure that forty million dollars of annual revenue ran on. That is a different kind of design problem.
-img:100
-[pull] The discipline is the same whether you are designing a checkout flow or a keynote. You are building a *path* through information. You are deciding what the person sees next.
-img:101
-[body] At LiveArea, I led design across a gamut of B2B and B2C engagements for enterprise clients. I ran discovery. I directed and delegated. I socialized solutions to stakeholders who had different priorities and helped them find the version they could all say yes to.
-img:102
-[body] Independently, I have built tools, written about the craft, and taken on clients who needed not just a deliverable but a *point of view.* The independent practice is where the clearest thinking happens &mdash; because no one is telling you what to think.
-img:105
-[spec] 160 Over Ninety :: Interactive design lead &middot; national campaigns
-[spec] O3 World :: Full-stack product design &middot; Fishtown, Philadelphia
-[spec] Workarea Commerce :: Platform design &middot; $40M ARR product
-[spec] LiveArea :: Senior design lead &middot; enterprise B2B + B2C
-[spec] FlightPath :: Design director &middot; emerging-from-bankruptcy arc
-[spec] Code &amp; Theory :: Senior UX &middot; healthcare + financial services
-[break]
-
 ###:06 · wolfie.life
 
 img:17
@@ -4459,8 +4487,7 @@ img:13
 [label] Open to Work &middot; Let&apos;s Connect
 img:17
 @@darkchapter
-[poster] Say
-**hello.**
+[poster] Say\n**hello.**
 img:18
 [body] Open to work. Genuinely. Senior Product / UX Designer &mdash; twenty years of scar tissue and clear eyes. Not looking for a title. Looking for a *problem worth solving* with a team that cares.
 img:19
@@ -4473,11 +4500,11 @@ img:19
 
 // ── Chapter metadata (mirrors link.html chapter system) ──
 const CHAPTERS = [
-  { ch: 1, label: 'Intro',       num: '01', title: 'Introduction',  sub: 'Senior UX/Product &middot; 20 years' },
-  { ch: 2, label: 'Who I Am',    num: '02', title: 'Who I Am',       sub: 'Designer &middot; Builder &middot; Open' },
-  { ch: 3, label: 'Case Study',  num: '03', title: 'GNC',            sub: 'Shopify rebuild &middot; $500M recovery' },
-  { ch: 4, label: 'Case Study',  num: '04', title: 'BNY Mellon',     sub: 'Wove platform &middot; Publicis Sapient' },
-  { ch: 5, label: 'Work',        num: '05', title: 'The Work',       sub: 'Twenty years &middot; One through-line' },
+  { ch: 1, label: 'Intro',       num: '01', title: 'Introduction',  sub: 'How you say it is part of what it is' },
+  { ch: 2, label: 'Case Study',  num: '02', title: 'GNC',            sub: 'Shopify rebuild &middot; $500M recovery' },
+  { ch: 3, label: 'Case Study',  num: '03', title: 'BNY Mellon',     sub: 'Wove platform &middot; Publicis Sapient' },
+  { ch: 4, label: 'Work',        num: '04', title: 'The Work',       sub: 'Twenty years &middot; One through-line' },
+  { ch: 5, label: 'Who I Am',    num: '05', title: 'Who I Am',       sub: 'Designer &middot; Builder &middot; Open' },
   { ch: 6, label: 'Studio',      num: '06', title: 'wolfie.life',    sub: 'Products &middot; Design systems &middot; Commerce' },
   { ch: 7, label: 'Connect',     num: '07', title: 'Say Hello',      sub: 'Open to work &middot; One honest sentence' },
 ];
@@ -5517,8 +5544,11 @@ function exitDarkAsk() {
 // ── Hook into goTo ─────────────────────────────────────────────────────────
 var _goToOriginal = goTo;
 goTo = function(n, opts) {
+  // Clamp n here so navigable[n] lookup below is always valid
+  n = Math.max(0, Math.min(navigable.length - 1, n));
+
   // If currently in a dark/ask moment, exit it before navigating
-  if (darkAskActive)    exitDarkAsk();
+  if (darkAskActive)         exitDarkAsk();
   else if (darkMomentActive) exitDarkMoment();
 
   _goToOriginal(n, opts);
@@ -5549,30 +5579,38 @@ goTo = function(n, opts) {
 
 // Navigate to index n, skipping over any @@dark/@@darkchapter nodes in the given
 // direction (dir = +1 forward, -1 backward) so the user is never re-trapped.
+var _skipDarkBusy = false;
 function goToSkipDark(n, dir) {
+  if (_skipDarkBusy) return;
   var max = navigable.length - 1;
   while (n >= 0 && n <= max) {
     var el = navigable[n];
     if (!el) break;
     if (el.dataset.darkChapter === 'true' || el.dataset.dark === 'true') {
-      n += dir; // skip this dark node
+      n += dir; // skip this dark node in the travel direction
     } else {
       break;
     }
   }
   n = Math.max(0, Math.min(max, n));
-  _goToOriginal(n);
+  _skipDarkBusy = true;
+  goTo(n); // call wrapped goTo so destination can trigger its own dark moment
+  _skipDarkBusy = false;
 }
 
-// Escape / any key / scroll exits dark moment
+// Escape / arrow / j/k / Tab exits dark moment
 document.addEventListener('keydown', function(e) {
-  if (darkAskActive && e.key === 'Escape')    { exitDarkAsk();    return; }
-  if (darkMomentActive && e.key === 'Escape') { exitDarkMoment(); return; }
-  if (darkMomentActive && !darkAskActive && (e.key === 'ArrowDown' || e.key === ' ')) {
-    e.preventDefault(); exitDarkMoment(); goToSkipDark(current + 1, 1);
-  }
-  if (darkMomentActive && !darkAskActive && (e.key === 'ArrowUp')) {
-    e.preventDefault(); exitDarkMoment(); goToSkipDark(current - 1, -1);
+  if (!darkMomentActive) return;
+  if (darkAskActive && e.key === 'Escape') { exitDarkAsk(); return; }
+  if (e.key === 'Escape') { e.preventDefault(); exitDarkMoment(); return; }
+  if (!darkAskActive) {
+    if (e.key === 'ArrowDown' || e.key === ' ' || e.key === 'j' ||
+        (e.key === 'Tab' && !e.shiftKey)) {
+      e.preventDefault(); exitDarkMoment(); goToSkipDark(current + 1,  1);
+    } else if (e.key === 'ArrowUp' || e.key === 'k' ||
+               (e.key === 'Tab' && e.shiftKey)) {
+      e.preventDefault(); exitDarkMoment(); goToSkipDark(current - 1, -1);
+    }
   }
 });
 
