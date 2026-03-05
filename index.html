@@ -2182,6 +2182,88 @@ body.dark-ask #ask-interstitial { opacity: 1; pointer-events: auto; }
 }
 #ask-submitted-msg.show { opacity: 1; }
 
+/* ── NARRATIVE IFRAME TRIGGER ───────────────────────────────────────────── */
+.narrative-site-trigger {
+  display: none;
+  position: fixed;
+  right: 320px;
+  bottom: 80px;
+  width: 240px;
+  z-index: 8900;
+  transform: translateX(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.38s cubic-bezier(0.25,1,0.5,1), opacity 0.35s ease;
+}
+.narrative-site-trigger.nst-visible {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.nst-chrome {
+  background: var(--hud-bg);
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: -6px 6px 32px rgba(0,0,0,0.32), -1px 2px 8px rgba(0,0,0,0.12);
+}
+.nst-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px 7px;
+  border-bottom: 1px solid var(--hud-border);
+  background: var(--hud-bg);
+}
+.nst-bar-left { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; }
+.nst-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.nst-label {
+  font-family: var(--ui); font-size: 6px; letter-spacing: 0.20em;
+  text-transform: uppercase; color: var(--hud-accent); flex-shrink: 0;
+}
+.nst-url {
+  font-family: var(--ui); font-size: 8px; letter-spacing: 0.04em;
+  color: var(--hud-ink); font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nst-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.nst-btn {
+  font-family: var(--ui); font-size: 6px; letter-spacing: 0.10em;
+  text-transform: uppercase; padding: 3px 7px;
+  border: 1px solid var(--hud-border); border-radius: 3px;
+  background: none; color: var(--hud-ink-2); cursor: pointer;
+  transition: all 0.14s; white-space: nowrap; text-decoration: none; display: inline-flex;
+}
+.nst-btn:hover { border-color: var(--hud-accent); color: var(--hud-accent); }
+.nst-btn.nst-visit { color: var(--hud-accent); border-color: var(--hud-accent); background: var(--accent-l); }
+.nst-btn.nst-visit:hover { background: var(--accent); color: #fff; }
+.nst-btn.nst-dismiss { font-size: 9px; padding: 2px 5px; }
+.nst-frame-shell {
+  position: relative; width: 100%; padding-top: 62.5%;
+  background: #000; overflow: hidden;
+}
+.nst-frame-shell iframe {
+  position: absolute; top: 0; left: 0;
+  width: 1280px; height: 800px;
+  border: none;
+  pointer-events: auto;
+  opacity: 0; transition: opacity 0.5s ease;
+  transform-origin: top left;
+}
+.nst-frame-shell iframe.nst-loaded { opacity: 1; }
+.nst-desc {
+  padding: 8px 10px 10px;
+  font-family: var(--disp); font-weight: 300; font-size: 10px;
+  line-height: 1.45; color: var(--hud-ink-2);
+  border-top: 1px solid var(--hud-border);
+}
+@media (max-width: 760px) {
+  .narrative-site-trigger {
+    right: auto; left: 12px; bottom: 90px;
+    width: calc(100vw - 24px); max-width: 320px;
+    transform: translateY(12px);
+  }
+  .narrative-site-trigger.nst-visible { transform: translateY(0); }
+}
+
 </style>
 </head>
 <body class="no-transitions">
@@ -2892,7 +2974,26 @@ body.dark-ask #ask-interstitial { opacity: 1; pointer-events: auto; }
   <div id="sites-grid-tiles"></div>
 </div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<!-- ── NARRATIVE SITE TRIGGER PANEL ── -->
+<div class="narrative-site-trigger" id="nst-panel" aria-hidden="true">
+  <div class="nst-chrome">
+    <div class="nst-bar">
+      <div class="nst-bar-left">
+        <div class="nst-dot"></div>
+        <span class="nst-label" id="nst-label">Live Site</span>
+        <span class="nst-url" id="nst-url">wolfie.love</span>
+      </div>
+      <div class="nst-actions">
+        <a class="nst-btn nst-visit" id="nst-visit" href="#" target="_blank" rel="noopener">Open &#8599;</a>
+        <button class="nst-btn nst-dismiss" id="nst-dismiss" title="Dismiss">&#x2715;</button>
+      </div>
+    </div>
+    <div class="nst-frame-shell" id="nst-frame-shell"></div>
+    <div class="nst-desc" id="nst-desc"></div>
+  </div>
+</div>
+
+<script>
 // ── DETAIL GHOST ─────────────────────────────────────────────────────────────
 (function(){
   var ghost   = document.getElementById('detail-ghost');
@@ -4622,9 +4723,8 @@ img:17
 img:18
 [body] Appreciate your time. I'm open to **interesting** work. Genuinely. Senior Product / UX Designer &mdash; twenty years of scar tissue and clear eyes. Not looking for a title. Looking for a *problem worth solving* with a team that cares.
 img:19
-[pull] If something in here resonated &mdash; a problem, an approach, a chapter that felt familiar &mdash; please reach out. Just say what&rsquo;s on your mind.
-[spec] LinkedIn :: linkedin.com/in/zackgort
-[spec] Resume :: Look to your right.
+[pull] If something in here resonated &mdash; a problem, an approach, a chapter that felt familiar &mdash; please reach out. Just say what&rsquo;s on your mind
+[break][break]
 [cta]
 `;
 
@@ -5813,9 +5913,12 @@ document.getElementById('dark-veil').addEventListener('click', function() {
 var GRID_SITES = [
   { url: 'https://wolfie.love',         label: 'wolfie.love',     tag: 'Platform'  },
   { url: 'https://wolfie.love/claude',         label: 'wolfie.love/chat',     tag: 'Prompt Craft'  },
+  { url: 'https://wolfie.life',         label: 'wolfie.life',     tag: 'Studio Concept' },
   { url: 'https://wolfie.love/shop',   label: 'wolfie.love/shop',      tag: 'E-commerce'    },
+  { url: 'https://wolfie.love/job',    label: 'wolfie.love/job',       tag: 'Engagement' },
+  { url: 'https://wolfie.love/real',    label: 'wolfie.love/real',       tag: 'Professional' },
   { url: 'https://wolfie.love/dash',    label: 'wolfie.love/dash',       tag: 'Narrative Analytics' },
-  { url: 'https://wolfie.love/news',        label: 'wolfie.love/news',    tag: 'Journalism'  },
+  { url: 'https://intoview.pro/home',        label: 'intoview.pro',    tag: 'Creative Sandox'  },
   { url: 'https://emdash.click',        label: 'emdash.click',    tag: 'Writing Tool'      },
 ];
 var sitesGridOpen  = false;
@@ -5900,6 +6003,137 @@ function closeSitesGrid() {
 document.addEventListener('keydown', function(e) {
   if (sitesGridOpen && e.key === 'Escape') { e.preventDefault(); closeSitesGrid(); }
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── NARRATIVE IFRAME TRIGGERS ─────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+(function initNarrativeTriggers() {
+
+  // Map: chapter number → site to surface when that chapter activates.
+  // Fires once on first entry to each chapter; user dismiss suppresses repeat.
+  var CHAPTER_TRIGGERS = {
+    1: { url: 'https://wolfie.love',       label: 'Platform',       urlDisplay: 'wolfie.love',       desc: 'The engine behind this page — sentence-progressive narrative for every vertical.' },
+    2: { url: 'https://wolfie.love/shop',  label: 'Commerce',       urlDisplay: 'wolfie.love/shop',  desc: 'The same engine applied to e-commerce — GNC\'s domain, wolfie\'s medium.' },
+    3: { url: 'https://wolfie.love/dash',  label: 'Analytics',      urlDisplay: 'wolfie.love/dash',  desc: 'Dispatch — narrative analytics. Data made legible, delivered as story.' },
+    4: { url: 'https://intoview.pro/home', label: 'Creative Work',  urlDisplay: 'intoview.pro',      desc: 'A live product built on the same conviction: the medium should earn the idea.' },
+    5: { url: 'https://wolfie.love/real',  label: 'Real Estate',    urlDisplay: 'wolfie.love/real',  desc: 'The placemaking arm — presentation built for property, development, and hospitality.' },
+    6: { url: 'https://wolfie.life',       label: 'Studio',         urlDisplay: 'wolfie.life',       desc: 'wolfie.life — the studio behind all of it. Products built with conviction.' },
+    7: { url: 'https://wolfie.love',       label: 'Say Hello',      urlDisplay: 'wolfie.love',       desc: 'The complete platform. Every chapter leads here.' },
+  };
+
+  var nstPanel   = document.getElementById('nst-panel');
+  var nstLabel   = document.getElementById('nst-label');
+  var nstUrl     = document.getElementById('nst-url');
+  var nstVisit   = document.getElementById('nst-visit');
+  var nstDesc    = document.getElementById('nst-desc');
+  var nstShell   = document.getElementById('nst-frame-shell');
+  var nstDismiss = document.getElementById('nst-dismiss');
+  if (!nstPanel) return;
+
+  var iframeCache  = {};
+  var currentUrl   = null;
+  var triggerTimer = null;
+  var dismissedChs = new Set();
+  var lastShownCh  = null;
+
+  function scaleNstFrame(frame) {
+    if (!nstShell) return;
+    var w = nstShell.offsetWidth  || 240;
+    var h = nstShell.offsetHeight || 150;
+    var s = Math.min(w / 1280, h / 800);
+    frame.style.transform       = 'scale(' + s + ')';
+    frame.style.transformOrigin = 'top left';
+    frame.style.width           = '1280px';
+    frame.style.height          = '800px';
+  }
+
+  function loadNstFrame(url) {
+    Object.values(iframeCache).forEach(function(f) { f.style.display = 'none'; });
+    if (iframeCache[url]) {
+      iframeCache[url].style.display = 'block';
+      scaleNstFrame(iframeCache[url]);
+    } else {
+      var frame = document.createElement('iframe');
+      frame.src = url;
+      frame.setAttribute('loading', 'lazy');
+      frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-modals');
+      frame.setAttribute('referrerpolicy', 'no-referrer');
+      frame.style.pointerEvents = 'auto';
+      frame.onload = function() { frame.classList.add('nst-loaded'); scaleNstFrame(frame); };
+      nstShell.appendChild(frame);
+      iframeCache[url] = frame;
+      scaleNstFrame(frame);
+    }
+  }
+
+  function showNst(ch, trigger) {
+    if (dismissedChs.has(ch)) return;
+    if (lastShownCh === ch) return;
+    lastShownCh = ch;
+    currentUrl  = trigger.url;
+    nstLabel.textContent = trigger.label;
+    nstUrl.textContent   = trigger.urlDisplay;
+    nstVisit.href        = trigger.url;
+    nstDesc.textContent  = trigger.desc;
+    loadNstFrame(trigger.url);
+    nstPanel.style.display = 'block';
+    nstPanel.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() { nstPanel.classList.add('nst-visible'); });
+    });
+    clearTimeout(triggerTimer);
+    triggerTimer = setTimeout(function() { hideNst(false); }, 12000);
+  }
+
+  function hideNst(dismissed) {
+    clearTimeout(triggerTimer);
+    nstPanel.classList.remove('nst-visible');
+    if (dismissed && lastShownCh !== null) dismissedChs.add(lastShownCh);
+    setTimeout(function() {
+      nstPanel.style.display = 'none';
+      nstPanel.setAttribute('aria-hidden', 'true');
+    }, 420);
+  }
+
+  nstDismiss.addEventListener('click', function() { hideNst(true); });
+
+  window.addEventListener('resize', function() {
+    Object.values(iframeCache).forEach(function(f) {
+      if (f.style.display !== 'none') scaleNstFrame(f);
+    });
+  });
+
+  var lastTriggerCh = null;
+
+  function checkTrigger(n) {
+    if (typeof navigable === 'undefined') return;
+    var el = navigable[n];
+    if (!el) return;
+    var ch = parseInt(el.dataset.ch) || 1;
+    if (ch === lastTriggerCh) return;
+    lastTriggerCh = ch;
+    var trigger = CHAPTER_TRIGGERS[ch];
+    if (trigger) {
+      clearTimeout(triggerTimer);
+      triggerTimer = setTimeout(function() { showNst(ch, trigger); }, 900);
+    } else {
+      hideNst(false);
+    }
+  }
+
+  var _origGoToForTrigger = window.goTo;
+  if (_origGoToForTrigger) {
+    window.goTo = function(n, opts) {
+      _origGoToForTrigger.call(this, n, opts);
+      setTimeout(function() { checkTrigger(n); }, 80);
+    };
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && nstPanel.classList.contains('nst-visible')) hideNst(true);
+  });
+
+})();
 
 </script>
 </body>
