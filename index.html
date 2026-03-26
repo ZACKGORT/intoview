@@ -3440,54 +3440,93 @@ body.surface-feed #feed-surface {
 
 /* Mobile: single column */
 @media (max-width: 760px) {
-  /* Feed surface — single column, no rail */
-  #feed-surface {
-    grid-template-columns: 1fr;
+  /* Override the body.surface-feed specificity for single-column layout */
+  body.surface-feed #feed-surface {
+    grid-template-columns: 1fr !important;
   }
-  #feed-rail { display: none; }
+  #feed-rail { display: none !important; }
   #feed-stream-col {
-    padding: 14px 14px 100px;
+    padding: 16px 16px 100px !important;
+    width: 100%;
   }
-  #feed-narrative-root { max-width: 100%; }
+  #feed-narrative-root {
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
 
-  /* Feed cards — tighter, touch-friendly */
+  /* Feed cards */
   .feed-card {
-    padding: 16px 16px;
+    padding: 18px 16px;
     margin-bottom: 12px;
     border-radius: 8px;
   }
-  .fc-header { gap: 10px; margin-bottom: 12px; }
-  .fc-avatar { width: 36px; height: 36px; font-size: 13px; }
-  .fc-author { font-size: 12px; }
-  .fc-role   { font-size: 9px; }
-  .fc-timestamp { font-size: 8px; }
 
-  .fc-chapter-tag { font-size: 8px; letter-spacing: 0.14em; margin-bottom: 8px; }
-  .fc-poster {
-    font-size: clamp(22px, 6.5vw, 32px);
-    margin-bottom: 10px;
-    line-height: 1.12;
+  /* Header row — constrain avatar, let meta fill, push timestamp */
+  .fc-header {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    align-items: start;
+    gap: 10px;
+    margin-bottom: 14px;
   }
-  .fc-body { font-size: 14px; line-height: 1.65; }
-  .fc-pull { font-size: 14px; padding-left: 12px; margin: 12px 0; }
+  .fc-avatar {
+    width: 40px; height: 40px;
+    font-size: 14px;
+  }
+  .fc-meta { min-width: 0; }
+  .fc-author { font-size: 13px; white-space: normal; }
+  .fc-role   { font-size: 10px; white-space: normal; line-height: 1.4; margin-top: 2px; }
+  .fc-timestamp { font-size: 9px; padding-top: 2px; }
 
-  /* Specs — single column on mobile */
-  .fc-specs { grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  /* Content */
+  .fc-chapter-tag { font-size: 8px; letter-spacing: 0.14em; margin-bottom: 10px; }
+  .fc-poster {
+    font-size: clamp(24px, 7vw, 36px);
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+  .fc-body {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .fc-pull {
+    font-size: 15px;
+    line-height: 1.55;
+    padding-left: 14px;
+    margin: 14px 0;
+  }
+
+  /* Specs grid */
+  .fc-specs {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+    margin-top: 14px;
+    padding-top: 14px;
+  }
   .fc-spec-key { font-size: 8px; }
-  .fc-spec-val { font-size: 11px; }
+  .fc-spec-val { font-size: 12px; }
 
-  /* Actions row — space them out */
-  .fc-actions { gap: 4px; padding-top: 10px; margin-top: 10px; }
+  /* Actions */
+  .fc-actions {
+    gap: 0;
+    justify-content: space-between;
+    padding-top: 12px;
+    margin-top: 12px;
+  }
   .fc-action-btn {
     font-size: 9px;
-    padding: 6px 10px;
-    min-height: 36px;
+    padding: 8px 10px;
+    min-height: 40px;
+    flex: 1;
+    justify-content: center;
   }
-  .fc-reactions { font-size: 9px; }
+  .fc-reactions {
+    display: none; /* too cramped — hidden on mobile */
+  }
 
   /* Chapter divider */
-  .fc-chapter-divider { padding: 16px 0 8px; }
-  .fc-chapter-divider-label { font-size: 8px; }
+  .fc-chapter-divider { padding: 20px 0 10px; }
+  .fc-chapter-divider-label { font-size: 8px; letter-spacing: 0.18em; }
 }
 
 /* Presentation overlay — mobile ─────────────────────────── */
@@ -8708,21 +8747,31 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     switchSurface('profile');
   });
   
-  function buildFeedChapterNav() {
+  window.buildFeedChapterNav = function() {
     var nav = document.getElementById('feed-chapter-nav');
-    if (!nav || typeof CHAPTERS === 'undefined') return;
-    
-    CHAPTERS.forEach(function(ch, i) {
+    if (!nav) return;
+    nav.innerHTML = '';
+    var streamCol = document.getElementById('feed-stream-col');
+    var blocks = document.querySelectorAll('.fc-chapter-block');
+    blocks.forEach(function(block, i) {
+      var name = block.dataset.chapter || ('Chapter ' + (i + 1));
       var link = document.createElement('div');
       link.className = 'feed-chapter-link';
-      link.innerHTML = '<span class="feed-chapter-num">' + (i + 1) + '</span><span>' + ch.title + '</span>';
-      link.onclick = function() {
-        if (typeof goTo === 'function') goTo(ch.start);
-        switchSurface('profile');
-      };
+      link.dataset.chIdx = i;
+      link.innerHTML =
+        '<span class="feed-chapter-num">' + String(i + 1).padStart(2, '0') + '</span>' +
+        '<span class="feed-chapter-title">' + name + '</span>';
+      link.onclick = (function(idx) {
+        return function() {
+          if (typeof window.feedScrollToChapter === 'function') {
+            window.feedScrollToChapter(idx);
+          }
+        };
+      })(i);
       nav.appendChild(link);
     });
-  }
+  };
+  buildFeedChapterNav = window.buildFeedChapterNav;
 })();
 
 </script>
@@ -8750,6 +8799,88 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   min-height: 20px;
 }
 body.surface-feed #feed-scroll-line { display: block; }
+
+/* ── Feed chapter blocks — the post-chapter primitive ── */
+.fc-chapter-block {
+  margin-bottom: 40px;
+  scroll-margin-top: 24px;
+}
+
+/* Chapter header — the labeled primitive */
+.fc-chapter-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 0 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+  transition: background 0.3s ease;
+}
+body.li-theme .fc-chapter-header { background: #f3f2ef; border-bottom-color: rgba(0,0,0,0.10); }
+body.raw-theme .fc-chapter-header { background: #fff; border-bottom-color: rgba(0,0,0,0.12); }
+
+.fc-chapter-header-num {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.fc-chapter-header-name {
+  font-family: var(--disp);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+body.li-theme .fc-chapter-header-name { color: #191919; }
+body.raw-theme .fc-chapter-header-name { color: #111; font-family: monospace; }
+
+.fc-chapter-header-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.5;
+}
+.fc-chapter-post-count {
+  font-family: var(--ui);
+  font-size: 8px;
+  letter-spacing: 0.10em;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+body.li-theme .fc-chapter-post-count { color: #aaa; }
+
+/* Active chapter — accent rule */
+.fc-chapter-block--active .fc-chapter-header {
+  border-bottom-color: var(--accent);
+}
+.fc-chapter-block--active .fc-chapter-header-num { opacity: 1; }
+
+/* Rail chapter title */
+.feed-chapter-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mobile: un-stick the header (overlap issues on small screens) */
+@media (max-width: 760px) {
+  .fc-chapter-header {
+    position: relative;
+    top: auto;
+  }
+  .fc-chapter-block { margin-bottom: 28px; }
+}
 
 /* ── Feed-mode suppression ── */
 body.surface-feed #image-layer { display: none !important; }
@@ -9320,42 +9451,76 @@ body.li-theme .fc-reactions { color: #aaa; }
   }
 
   /* ── Render all posts grouped by chapter ── */
+  /* ── Group posts by chapter ── */
+  function groupByChapter(posts) {
+    var chapters = [];
+    var map = {};
+    posts.forEach(function(post) {
+      if (!map[post.chapter]) {
+        map[post.chapter] = { name: post.chapter, posts: [] };
+        chapters.push(map[post.chapter]);
+      }
+      map[post.chapter].posts.push(post);
+    });
+    return chapters;
+  }
+
+  /* ── Render a chapter block: header + its cards ── */
+  function buildChapterBlock(chapter, chIdx, globalIdx) {
+    var block = document.createElement('div');
+    block.className = 'fc-chapter-block';
+    block.dataset.chapter = chapter.name;
+    block.dataset.chIdx = chIdx;
+
+    // Chapter header — the navigable primitive
+    var hdr = document.createElement('div');
+    hdr.className = 'fc-chapter-header';
+    hdr.innerHTML =
+      '<div class="fc-chapter-header-num">' + String(chIdx + 1).padStart(2, '0') + '</div>' +
+      '<div class="fc-chapter-header-name">' + chapter.name + '</div>' +
+      '<div class="fc-chapter-header-rule"></div>' +
+      '<div class="fc-chapter-post-count">' + chapter.posts.length + ' post' + (chapter.posts.length !== 1 ? 's' : '') + '</div>';
+    block.appendChild(hdr);
+
+    // Cards within chapter
+    chapter.posts.forEach(function(post) {
+      block.appendChild(buildCard(post, globalIdx++));
+    });
+
+    return block;
+  }
+
   window.renderNarrativeStream = function(root) {
     root.innerHTML = '';
-    var lastChapter = null;
-    var idx = 0;
-
-    FEED_POSTS.forEach(function(post) {
-      /* Chapter divider */
-      if (post.chapter !== lastChapter) {
-        if (lastChapter !== null) {
-          var divider = document.createElement('div');
-          divider.className = 'fc-chapter-divider';
-          divider.innerHTML =
-            '<div class="fc-chapter-divider-rule"></div>' +
-            '<div class="fc-chapter-divider-label">' + post.chapter + '</div>' +
-            '<div class="fc-chapter-divider-rule"></div>';
-          root.appendChild(divider);
-        }
-        lastChapter = post.chapter;
-      }
-      root.appendChild(buildCard(post, idx++));
+    var chapters = groupByChapter(FEED_POSTS);
+    var globalIdx = 0;
+    chapters.forEach(function(ch, i) {
+      var block = buildChapterBlock(ch, i, globalIdx);
+      globalIdx += ch.posts.length;
+      root.appendChild(block);
     });
+    // Wire chapter nav after render
+    if (typeof buildFeedChapterNav === 'function') buildFeedChapterNav();
   };
 
-  /* ── Shuffle: randomize order and re-render ── */
+  /* ── Shuffle posts within chapters, preserve chapter order ── */
   window.shuffleNarrative = function() {
     var root = document.getElementById('feed-narrative-root');
     if (!root) return;
-    /* Fisher-Yates shuffle */
-    var arr = FEED_POSTS.slice();
-    for (var i = arr.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
-    }
+    var chapters = groupByChapter(FEED_POSTS);
     root.innerHTML = '';
-    arr.forEach(function(post, idx) {
-      root.appendChild(buildCard(post, idx));
+    var globalIdx = 0;
+    chapters.forEach(function(ch, i) {
+      // Shuffle posts within chapter
+      var arr = ch.posts.slice();
+      for (var j = arr.length - 1; j > 0; j--) {
+        var k = Math.floor(Math.random() * (j + 1));
+        var tmp = arr[j]; arr[j] = arr[k]; arr[k] = tmp;
+      }
+      ch.posts = arr;
+      var block = buildChapterBlock(ch, i, globalIdx);
+      globalIdx += ch.posts.length;
+      root.appendChild(block);
     });
   };
 
@@ -9374,10 +9539,9 @@ window.fcToggleLike = function(btn) {
   r.textContent = r.dataset.likes + ' likes · ' + c + ' comments';
 };
 
-/* ── Feed scroll router ──
-   html/body are overflow:hidden globally. The #feed-surface is position:fixed
-   so it sits on top visually, but wheel/touch events target the document by
-   default. We intercept them on #feed-surface and manually scroll #feed-stream-col.
+/* ── Feed scroll router + chapter stepper ──
+   Wheel steps between chapter blocks. Touch scrolls freely.
+   Both route through #feed-stream-col since html/body are overflow:hidden.
 */
 (function() {
   document.addEventListener('DOMContentLoaded', function() {
@@ -9385,27 +9549,58 @@ window.fcToggleLike = function(btn) {
     var col = document.getElementById('feed-stream-col');
     if (!surface || !col) return;
 
-    // Wheel — reroute deltaY to the stream column
+    var lastWheelFeed = 0;
+    var WHEEL_DEBOUNCE = 600;
+
+    function getActiveChapterIdx() {
+      var blocks = document.querySelectorAll('.fc-chapter-block');
+      var scrollTop = col.scrollTop;
+      var viewMid = scrollTop + col.clientHeight * 0.4;
+      var activeIdx = 0;
+      blocks.forEach(function(block, i) {
+        if (block.offsetTop <= viewMid) activeIdx = i;
+      });
+      return activeIdx;
+    }
+
+    function scrollToChapter(idx) {
+      var blocks = document.querySelectorAll('.fc-chapter-block');
+      if (idx < 0 || idx >= blocks.length) return;
+      var target = blocks[idx];
+      col.scrollTo({ top: target.offsetTop - 24, behavior: 'smooth' });
+    }
+
+    // Wheel — step between chapter blocks
     surface.addEventListener('wheel', function(e) {
       if (!document.body.classList.contains('surface-feed')) return;
       e.preventDefault();
-      col.scrollTop += e.deltaY;
+      var now = Date.now();
+      if (now - lastWheelFeed < WHEEL_DEBOUNCE) return;
+      lastWheelFeed = now;
+      var blocks = document.querySelectorAll('.fc-chapter-block');
+      if (!blocks.length) { col.scrollTop += e.deltaY; return; }
+      var current = getActiveChapterIdx();
+      var next = e.deltaY > 0
+        ? Math.min(current + 1, blocks.length - 1)
+        : Math.max(current - 1, 0);
+      scrollToChapter(next);
     }, { passive: false });
 
-    // Touch — track and translate to scrollTop
-    var touchStartY = 0;
+    // Touch — free scroll, no stepping
     var touchLastY = 0;
     surface.addEventListener('touchstart', function(e) {
-      touchStartY = touchLastY = e.touches[0].clientY;
+      touchLastY = e.touches[0].clientY;
     }, { passive: true });
     surface.addEventListener('touchmove', function(e) {
       if (!document.body.classList.contains('surface-feed')) return;
       var dy = touchLastY - e.touches[0].clientY;
       touchLastY = e.touches[0].clientY;
       col.scrollTop += dy;
-      // Only prevent default if we actually scrolled to avoid killing rail/other touch
       if (col.scrollHeight > col.clientHeight) e.preventDefault();
     }, { passive: false });
+
+    // Expose scroll-to-chapter for rail nav clicks
+    window.feedScrollToChapter = scrollToChapter;
   });
 })();
 
@@ -9417,7 +9612,7 @@ window.fcToggleLike = function(btn) {
       id: 'v1',
       initials: 'BM',
       color: '#5b8ef0',
-      name: 'Bush Mahmood',
+      name: 'Bushra Mahmood',
       title: 'Design Director',
       company: 'Netflix',
       status: 'online',
@@ -9451,7 +9646,7 @@ window.fcToggleLike = function(btn) {
       id: 'v3',
       initials: 'JC',
       color: '#e8a830',
-      name: 'John Camp',
+      name: 'John Campanella',
       title: 'VP Design',
       company: 'Entro',
       status: 'away',
@@ -9565,7 +9760,7 @@ window.fcToggleLike = function(btn) {
 
 })();
 
-/* ── Feed scroll tracker — chapter active + right-edge indicator ── */
+/* ── Feed scroll tracker — chapter active + scroll indicator ── */
 (function() {
   document.addEventListener('DOMContentLoaded', function() {
     var streamCol = document.getElementById('feed-stream-col');
@@ -9573,18 +9768,24 @@ window.fcToggleLike = function(btn) {
     if (!streamCol) return;
 
     function updateScroll() {
-      // ── Chapter active state ──
-      var dividers = document.querySelectorAll('.fc-chapter-divider');
+      var blocks = document.querySelectorAll('.fc-chapter-block');
       var links = document.querySelectorAll('.feed-chapter-link');
-      if (dividers.length && links.length) {
+
+      // ── Identify which chapter block occupies the viewport ──
+      if (blocks.length && links.length) {
         var scrollTop = streamCol.scrollTop;
-        var viewMid = scrollTop + streamCol.clientHeight * 0.35;
+        var viewMid = scrollTop + streamCol.clientHeight * 0.4;
         var activeIdx = 0;
-        dividers.forEach(function(div, i) {
-          if (div.offsetTop <= viewMid) activeIdx = i + 1;
+        blocks.forEach(function(block, i) {
+          if (block.offsetTop <= viewMid) activeIdx = i;
         });
         links.forEach(function(link, i) {
           link.classList.toggle('active', i === activeIdx);
+        });
+
+        // Update chapter block header accent
+        blocks.forEach(function(block, i) {
+          block.classList.toggle('fc-chapter-block--active', i === activeIdx);
         });
       }
 
@@ -9602,9 +9803,9 @@ window.fcToggleLike = function(btn) {
     }
 
     streamCol.addEventListener('scroll', updateScroll, { passive: true });
-    streamCol.addEventListener('scrollend', updateScroll, { passive: true });
-    // Initial paint
-    setTimeout(updateScroll, 200);
+    setTimeout(updateScroll, 300);
+    // Re-run after feed renders
+    window.addEventListener('feed-rendered', updateScroll);
   });
 })();
 
@@ -9774,7 +9975,10 @@ document.addEventListener('DOMContentLoaded', function() {
     ghost.style.left = x + 'px';
     ghost.style.top  = y + 'px';
   }
-  function showGhost() { positionGhost(); ghost.classList.add('visible'); }
+  function showGhost() {
+    if (document.body.classList.contains('surface-feed')) return;
+    positionGhost(); ghost.classList.add('visible');
+  }
   function hideGhost() { ghost.classList.remove('visible'); }
   var wrap = document.getElementById('rp-dl-wrap');
   if (wrap) {
