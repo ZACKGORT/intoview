@@ -4463,13 +4463,17 @@ body.surface-feed #feed-surface {
     document.querySelectorAll('.hoverable-stat').forEach(function(el){
       // Mouse (desktop)
       el.addEventListener('mouseenter', function(){
+        // Suppress profile panel ghosts when feed surface is active
+        var inFeed = document.body.classList.contains('surface-feed');
+        var isFeedViewer = !!el.closest('#feed-viewers');
+        if(inFeed && !isFeedViewer) return;
         var label=el.dataset.ghostLabel||'Detail', data;
         try{ data=JSON.parse(el.dataset.ghost||'[]'); }catch(e){ data=[]; }
         if(activeEl&&activeEl!==el) activeEl.classList.remove('ghost-active');
         activeEl=el; el.classList.add('ghost-active');
         var gw=ghost.offsetWidth||240, gh=ghost.offsetHeight||80;
         // Feed viewer cards: anchor ghost to the left of the feed rail
-        if(el.closest('#feed-viewers')) {
+        if(isFeedViewer) {
           var rail=document.getElementById('feed-rail');
           var rr=rail?rail.getBoundingClientRect():{left:window.innerWidth-280};
           ix=rr.left - gw - 12;
@@ -4488,6 +4492,9 @@ body.surface-feed #feed-surface {
       // Touch (mobile) — tap to toggle ghost
       el.addEventListener('touchstart', function(e){
         e.stopPropagation(); // prevent doc listener from closing immediately
+        var inFeed = document.body.classList.contains('surface-feed');
+        var isFeedViewer = !!el.closest('#feed-viewers');
+        if(inFeed && !isFeedViewer) return;
         var label=el.dataset.ghostLabel||'Detail', data;
         try{ data=JSON.parse(el.dataset.ghost||'[]'); }catch(e){ data=[]; }
         if(visible && activeEl===el){ hideGhost(); return; }
@@ -5153,6 +5160,11 @@ function updateChapterWidget(ch) {
   document.getElementById('cw-dropdown').querySelectorAll('.cw-item').forEach(function(item) {
     item.addEventListener('click', function(e) {
       e.stopPropagation(); closeDD();
+      // Exit free scroll so stepping by chapter/sentence is active
+      if (document.body.classList.contains('scroll-free')) {
+        var exitBtn = document.getElementById('scroll-toggle');
+        if (exitBtn) exitBtn.click();
+      }
       goTo(CH_FIRST[parseInt(item.dataset.ch)] || 0);
     });
   });
@@ -5244,6 +5256,21 @@ requestAnimationFrame(function() {
       if (hudIcon) hudIcon.textContent = '⇅';
     }
   }
+  var freeScrollRaf = null;
+  function freeScrollTrack() {
+    if (!scrollFree) return;
+    var mid = window.innerHeight / 2;
+    var best = current, bestDist = Infinity;
+    navigable.forEach(function(el, i) {
+      var r = el.getBoundingClientRect();
+      var center = r.top + r.height / 2;
+      var dist = Math.abs(center - mid);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    // Update image + chapter color without scrolling
+    if (best !== current) goTo(best, { noScroll: true });
+    freeScrollRaf = requestAnimationFrame(freeScrollTrack);
+  }
   function enter() {
     scrollFree = true; btn.classList.add('on'); syncHud(true);
     document.body.classList.add('scroll-free');
@@ -5252,6 +5279,7 @@ requestAnimationFrame(function() {
     all.forEach(function(el) { el.classList.add('revealed'); el.classList.remove('active'); });
     document.querySelectorAll('.ch-header').forEach(function(g) { g.classList.add('revealed'); });
     ALL_NAV.forEach(function(c) { cursor.classList.remove(c); });
+    freeScrollRaf = requestAnimationFrame(freeScrollTrack);
   }
   function exit() {
     // Find nearest navigable sentence to current scroll position BEFORE removing scroll-free
@@ -5264,6 +5292,7 @@ requestAnimationFrame(function() {
       var dist = Math.abs(center - (scrollY + window.innerHeight / 2));
       if (dist < bestDist) { bestDist = dist; nearest = i; }
     });
+    if (freeScrollRaf) { cancelAnimationFrame(freeScrollRaf); freeScrollRaf = null; }
     scrollFree = false; btn.classList.remove('on'); syncHud(false);
     document.body.classList.remove('scroll-free');
     document.documentElement.style.overflow = '';
@@ -5602,8 +5631,32 @@ document.addEventListener('wheel', function(e) {
     return;
   }
   var now = Date.now(); if (now - lastWheel < 550) return; lastWheel = now;
-  e.deltaY > 0 ? next() : prev();
+  // Default wheel: step through chapters, not sentences
+  if (e.deltaY > 0) nextChapter(); else prevChapter();
 }, {passive: false});
+
+function getChapterOf(idx) {
+  var el = navigable[idx];
+  return el ? (parseInt(el.dataset.ch) || 1) : 1;
+}
+function nextChapter() {
+  var ch = getChapterOf(current);
+  var nextCh = ch + 1;
+  while (nextCh <= 9 && !(nextCh in CH_FIRST)) nextCh++;
+  if (nextCh in CH_FIRST) goTo(CH_FIRST[nextCh]);
+  else goTo(navigable.length - 1); // last sentence if no next chapter
+}
+function prevChapter() {
+  var ch = getChapterOf(current);
+  // If not at first sentence of chapter, go to start of current chapter
+  if (CH_FIRST[ch] !== undefined && current > CH_FIRST[ch]) {
+    goTo(CH_FIRST[ch]); return;
+  }
+  var prevCh = ch - 1;
+  while (prevCh >= 1 && !(prevCh in CH_FIRST)) prevCh--;
+  if (prevCh in CH_FIRST) goTo(CH_FIRST[prevCh]);
+  else goTo(0);
+}
 
 // ── CANVAS PHOTO GRID ────────────────────────────────────────────────────────
 // Pure 2D canvas. Drag + inertia + pinch-zoom + click to jump to sentence.
@@ -8526,6 +8579,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
     if (surface === 'feed') {
       document.body.classList.remove('scroll-free');
+      if (typeof hideGhost === 'function') hideGhost();
     }
     
     var feedBtn = document.getElementById('st-feed-btn');
