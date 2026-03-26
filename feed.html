@@ -3336,33 +3336,35 @@ body.surface-feed #feed-surface {
 #feed-surface {
   display: none;
   grid-template-columns: 1fr 280px;
-  height: calc(100vh - 52px);  /* fixed height so children scroll */
-  margin-top: 52px;             /* clear fixed header */
+  height: calc(100vh - 52px);
+  margin-top: 52px;
+  overflow: hidden;            /* grid children handle their own scroll */
 }
 #feed-stream-col {
   padding: 32px 28px 80px;
   max-width: 680px;
   margin: 0 auto;
   width: 100%;
-  overflow-y: auto;            /* THIS column scrolls */
+  overflow-y: auto;
   overflow-x: hidden;
   height: 100%;
+  min-height: 0;               /* allow grid child to shrink */
+  scrollbar-width: none;       /* hide native — we use our own indicator */
+}
+#feed-stream-col::-webkit-scrollbar { display: none; }
+#feed-rail {
+  border-left: 1px solid var(--border);
+  padding: 24px 14px 40px;
+  height: 100%;
+  min-height: 0;               /* allow grid child to shrink and scroll */
+  overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--ink-3) transparent;
 }
-#feed-stream-col::-webkit-scrollbar { width: 3px; }
-#feed-stream-col::-webkit-scrollbar-track { background: transparent; }
-#feed-stream-col::-webkit-scrollbar-thumb { background: var(--ink-3); border-radius: 2px; }
-#feed-rail {
-  border-left: 1px solid var(--border);
-  padding: 24px 14px;
-  height: 100%;               /* fill column height */
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: none;
-  flex-shrink: 0;
-}
-#feed-rail::-webkit-scrollbar { display: none; }
+#feed-rail::-webkit-scrollbar { width: 2px; }
+#feed-rail::-webkit-scrollbar-track { background: transparent; }
+#feed-rail::-webkit-scrollbar-thumb { background: var(--ink-3); border-radius: 1px; }
 
 /* Feed rail sections */
 .feed-rail-section {
@@ -3681,26 +3683,38 @@ body.surface-feed #feed-surface {
     <div id="feed-narrative-root"></div>
   </main>
   <aside id="feed-rail">
+
+    <!-- ── WHO'S VIEWING ── -->
+    <div class="feed-rail-section">
+      <div class="feed-rail-label">Who's Viewing</div>
+      <div id="feed-viewers"></div>
+    </div>
+
+    <!-- ── CHAPTERS ── -->
     <div class="feed-rail-section">
       <div class="feed-rail-label">Chapters</div>
       <div class="feed-rail-chapters" id="feed-chapter-nav"></div>
     </div>
+
+    <!-- ── CONNECT ── -->
     <div class="feed-rail-section">
       <div class="feed-rail-label">Connect</div>
       <div class="feed-connect-links">
         <a href="https://linkedin.com/in/zackgort" target="_blank" class="feed-connect-link">LinkedIn</a>
-        <a href="/cdn-cgi/l/email-protection#542e35373f14233b38323d317a383b2231" class="feed-connect-link">Email</a>
         <a href="https://wolfie.love" target="_blank" class="feed-connect-link">wolfie.love</a>
         <a href="https://intoview.pro" target="_blank" class="feed-connect-link">intoview.pro</a>
       </div>
     </div>
+
+    <!-- ── QUICK ACTIONS ── -->
     <div class="feed-rail-section">
       <div class="feed-rail-label">Quick Actions</div>
       <div class="feed-connect-links">
-        <button class="feed-connect-link" onclick="shuffleNarrative()">Shuffle</button>
-        <button class="feed-connect-link" onclick="switchSurface('profile')">View Full Profile</button>
+        <button class="feed-connect-link" onclick="shuffleNarrative()">Shuffle Feed</button>
+        <button class="feed-connect-link" onclick="switchSurface('profile')">Full Profile</button>
       </div>
     </div>
+
   </aside>
 </div>
 
@@ -4453,13 +4467,19 @@ body.surface-feed #feed-surface {
         try{ data=JSON.parse(el.dataset.ghost||'[]'); }catch(e){ data=[]; }
         if(activeEl&&activeEl!==el) activeEl.classList.remove('ghost-active');
         activeEl=el; el.classList.add('ghost-active');
-        // Anchor idle to right side of stream
-        var col=document.getElementById('stream-col');
-        var sr=col?col.getBoundingClientRect():{left:0,right:window.innerWidth};
         var gw=ghost.offsetWidth||240, gh=ghost.offsetHeight||80;
-        var rLimit=rl(gw);
-        ix=rLimit-gw;
-        iy=Math.max(68, window.innerHeight*0.38 - gh*0.5);
+        // Feed viewer cards: anchor ghost to the left of the feed rail
+        if(el.closest('#feed-viewers')) {
+          var rail=document.getElementById('feed-rail');
+          var rr=rail?rail.getBoundingClientRect():{left:window.innerWidth-280};
+          ix=rr.left - gw - 12;
+          iy=Math.max(68, window.innerHeight*0.38 - gh*0.5);
+        } else {
+          // Profile panel hoverables: anchor to right of stream col
+          var rLimit=rl(gw);
+          ix=rLimit-gw;
+          iy=Math.max(68, window.innerHeight*0.38 - gh*0.5);
+        }
         following=false;
         showGhost(label, data);
       });
@@ -4478,6 +4498,7 @@ body.surface-feed #feed-surface {
     });
   }
   wireHoverables();
+  window.wireHoverables = wireHoverables;
 })();
 
 </script><script>
@@ -8561,6 +8582,28 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
 <!-- ═══ FEED STREAM SCRIPT ═══ -->
 <style>
+/* ── Feed scroll indicator — thin right-edge line ── */
+#feed-scroll-line {
+  display: none;
+  position: fixed;
+  top: 52px; right: 0; bottom: 0;
+  width: 2px;
+  background: var(--border);
+  z-index: 200;
+  pointer-events: none;
+}
+#feed-scroll-thumb {
+  position: absolute;
+  right: 0; top: 0;
+  width: 2px;
+  background: var(--ink-3);
+  border-radius: 1px;
+  opacity: 0.7;
+  transition: height 0.1s linear, top 0.1s linear;
+  min-height: 20px;
+}
+body.surface-feed #feed-scroll-line { display: block; }
+
 /* ── Feed-mode suppression ── */
 body.surface-feed #image-layer { display: none !important; }
 body.surface-feed #nav-widget { display: none !important; }
@@ -8589,6 +8632,64 @@ body.dark-moment #dark-escape-hint {
   body.dark-moment #dark-spotlight { right: 0; }
   body.dark-moment #dark-escape-hint { left: 50%; }
 }
+
+/* ── Feed Viewer Cards ── */
+.feed-viewer {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 4px;
+  cursor: default; transition: background 0.15s ease;
+  margin-bottom: 2px;
+}
+.feed-viewer:hover { background: var(--accent-l); }
+.feed-viewer.ghost-active { opacity: 0.15; }
+.fv-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-family: var(--disp); font-weight: 900;
+  font-size: 11px; color: #000; transition: transform 0.15s ease;
+}
+.feed-viewer:hover .fv-avatar { transform: scale(1.06); }
+.fv-meta { flex: 1; min-width: 0; }
+.fv-name {
+  font-family: var(--ui); font-size: 10px; font-weight: 600;
+  color: var(--ink); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; line-height: 1.3;
+}
+.fv-title {
+  font-family: var(--ui); font-size: 8px; color: var(--ink-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.fv-company {
+  font-family: var(--ui); font-size: 7.5px; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.fv-pip {
+  width: 6px; height: 6px; border-radius: 50%;
+  flex-shrink: 0; opacity: 0.85;
+}
+.fv-pip.online  { background: #4caf50; }
+.fv-pip.away    { background: var(--accent); }
+.fv-pip.offline { background: var(--ink-3); opacity: 0.45; }
+.fv-reading {
+  font-family: var(--ui); font-size: 7px; letter-spacing: 0.06em;
+  color: var(--accent); opacity: 0.7; margin-top: 2px;
+}
+.feed-viewer-count {
+  font-family: var(--ui); font-size: 7px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-3);
+  padding: 0 10px 6px;
+}
+body.li-theme .fv-name { color: #191919; }
+body.li-theme .fv-title { color: #555; }
+body.li-theme .fv-company { color: #999; }
+body.li-theme .feed-viewer:hover { background: rgba(10,102,194,0.06); }
+body.li-theme .fv-reading { color: #0a66c2; }
+body.li-theme .feed-viewer-count { color: #aaa; }
+body.raw-theme .fv-name { color: #111; font-family: monospace; }
+body.raw-theme .fv-title { color: #555; font-family: monospace; }
+body.raw-theme .feed-viewer:hover { background: rgba(0,0,0,0.05); }
 
 /* ── Feed rail theme overrides ── */
 
@@ -8885,183 +8986,134 @@ body.li-theme .fc-reactions { color: #aaa; }
 
   /* ── FEED POST DATA ── derived from portfolio narrative ─────────────────── */
   var FEED_POSTS = [
+
+    /* ── CHAPTER 1: The Work ──────────────────────────── */
     {
-      id: 'fp-intro',
-      chapter: 'Introduction',
-      chTag: 'Who I Am',
-      poster: 'I think. I make. **I made this.**',
-      body: 'I&rsquo;m Zack Gort &mdash; Senior Product / UX Designer. Open to the right kind of work: a real problem, a team with conviction, and the space to solve it properly.',
-      pull: 'I may have a better way to convey the many things I have to say.',
-      ts: '2d',
+      id: 'fp-001',
+      chapter: 'The Work',
+      chTag: 'Case Study',
+      poster: 'Twelve weeks. Bankruptcy exit. **~$500M.**',
+      body: 'GNC needed a complete Shopify rebuild &mdash; platform, design system, mobile-first nav &mdash; from scratch, under a recovery timeline with no room for ambiguity. I led UX from taxonomy strategy through component systems through every edge case that converts or doesn\'t.',
+      pull: 'The constraint wasn\'t the problem. The constraint was the point.',
+      specs: [
+        { k: 'Client', v: 'General Nutrition Centers' },
+        { k: 'Scope', v: 'Full Shopify rebuild, design system, nav' },
+        { k: 'Timeline', v: '12 weeks' },
+        { k: 'Outcome', v: '~$500M annual revenue recovery' }
+      ],
+      ts: '3d',
       likes: 214,
       comments: 31
     },
     {
-      id: 'fp-gnc-1',
-      chapter: 'GNC Case Study',
-      chTag: 'Case Study · E-commerce',
-      poster: 'This is the **whey.**',
-      body: 'GNC was emerging from bankruptcy. They needed a complete Shopify rebuild &mdash; platform overhaul, design system, and mobile-first navigation &mdash; built from scratch in **twelve weeks.** No time to be precious about it.',
-      pull: '&ldquo;If the bar ain&rsquo;t bending, you&rsquo;re just pretending.&rdquo;',
-      specs: [
-        { k: 'Client', v: 'General Nutrition Centers' },
-        { k: 'Agency', v: 'Elva Design Group' },
-        { k: 'Role', v: 'Senior UX Designer' },
-        { k: 'Outcome', v: '~$500M annual revenue recovery' }
-      ],
-      ts: '3d',
-      likes: 187,
-      comments: 22
-    },
-    {
-      id: 'fp-gnc-2',
-      chapter: 'GNC Case Study',
-      chTag: 'Case Study · Systems',
-      body: 'I led UX on taxonomy strategy, *modular component systems*, wireframes for every edge case, and retail navigation that actually converted. Shopify rebuild, 12 weeks, zero runway for ambiguity. Every decision was load-bearing.',
-      ts: '3d',
-      likes: 143,
-      comments: 18
-    },
-    {
-      id: 'fp-bny-1',
-      chapter: 'BNY Mellon',
-      chTag: 'Case Study · Fintech',
-      poster: 'No **AI** here.',
-      body: 'Wove is an industry-first platform that gives financial advisors their client&rsquo;s complete picture in one place &mdash; built at Publicis Sapient for BNY Mellon Pershing X.',
-      pull: '&ldquo;No Artificial Intelligence here &mdash; every decision was human due diligence.&rdquo;',
-      specs: [
-        { k: 'Client', v: 'BNY Mellon Pershing X' },
-        { k: 'Agency', v: 'Publicis Sapient' },
-        { k: 'Role', v: 'Sr. UX Designer → Product Design Lead' },
-        { k: 'Scope', v: 'IA · cross-workflow nav · component system' }
-      ],
-      ts: '5d',
-      likes: 302,
-      comments: 44
-    },
-    {
-      id: 'fp-bny-2',
-      chapter: 'BNY Mellon',
-      chTag: 'Case Study · Design Systems',
-      body: 'Advisors were managing client relationships across *four or more disconnected platforms.* Context evaporated. Mistakes compounded. I was brought in to make the whole thing cohere &mdash; and I became Product Design Lead through delivery, not title.',
-      pull: 'The advisor shouldn&rsquo;t have to think about where they are. They should only think about the client.',
-      ts: '5d',
-      likes: 256,
-      comments: 37
-    },
-    {
-      id: 'fp-work-1',
+      id: 'fp-002',
       chapter: 'The Work',
-      chTag: 'Philosophy',
-      poster: 'Twenty years. **One** through-line.',
-      body: 'How something is communicated is part of what it *is.* A research finding buried in a dense PDF is less true, in practical terms, than the same finding rendered accessibly. A strategy nobody understands is not a strategy &mdash; it is a document.',
+      chTag: 'On Process',
+      poster: 'I don\'t do **discovery theater.**',
+      body: 'When a stakeholder asks for a 6-week discovery phase on a product with existing users and measurable drop-off, that\'s not rigor &mdash; that\'s delay with a deliverable attached. I do *actual* discovery: talk to users, read the data, make a call, ship something, learn faster.',
+      pull: 'The best research is a prototype someone clicks on.',
       ts: '1w',
       likes: 388,
-      comments: 52
+      comments: 47
     },
     {
-      id: 'fp-work-160',
+      id: 'fp-003',
       chapter: 'The Work',
-      chTag: 'Work History · Agency',
-      body: 'At **160/90**, I led interactive design for campaigns that moved millions of people. Agency life at its most demanding and its most creative. IA, ADA compliance, national education campaigns, Comcast, Philadelphia Eagles.',
+      chTag: 'Fintech',
+      poster: '**Wove** was a canonical design system built for a bank that had never had one.',
+      body: 'BNY Mellon\'s Pershing X platform needed modular, auditable, accessible components that could scale across multiple product lines without diverging into chaos. We designed for the future while shipping for the present &mdash; *WCAG 2.1 AA, React/Tailwind, and a contract extension.*',
       specs: [
-        { k: 'Agency', v: 'ONE SIXTY OVER NINETY' },
-        { k: 'Role', v: 'Interaction Designer' },
-        { k: 'Dates', v: '2014 – 2016' },
-        { k: 'Scope', v: 'IA · ADA · Brand & Identity' }
+        { k: 'Client', v: 'BNY Mellon Pershing X' },
+        { k: 'Platform', v: 'Wove investment platform' },
+        { k: 'Stack', v: 'React · Tailwind · Figma' },
+        { k: 'Result', v: 'Contract extended · System adopted org-wide' }
       ],
       ts: '1w',
-      likes: 119,
-      comments: 14
-    },
-    {
-      id: 'fp-work-o3',
-      chapter: 'The Work',
-      chTag: 'Work History · Product',
-      body: 'At **O3 World**, I built digital products from the ground up &mdash; discovery, wireframes, design systems, shipped code. A full-stack design practice before &ldquo;full-stack designer&rdquo; was a category. Fishtown, Philadelphia.',
-      ts: '1w',
-      likes: 134,
+      likes: 162,
       comments: 19
     },
+
+    /* ── CHAPTER 2: How I Think ──────────────────────── */
     {
-      id: 'fp-work-workarea',
-      chapter: 'The Work',
-      chTag: 'Work History · Platform',
-      body: 'At **Workarea**, I designed the e-commerce platform itself &mdash; not campaigns on top of it, but the actual infrastructure that **forty million dollars** of annual revenue ran on. That is a different kind of design problem.',
-      specs: [
-        { k: 'Company', v: 'Workarea Commerce' },
-        { k: 'Role', v: 'UX Designer' },
-        { k: 'Platform', v: 'Proprietary SaaS · $40M ARR' },
-        { k: 'Method', v: 'Napkin-to-dev · lean collab' }
-      ],
-      ts: '1w',
-      likes: 201,
-      comments: 28
-    },
-    {
-      id: 'fp-work-pull',
-      chapter: 'The Work',
-      chTag: 'Craft',
-      pull: 'The discipline is the same whether you are designing a checkout flow or a keynote. You are building a *path* through information. You are deciding what the person sees next.',
-      ts: '1w',
-      likes: 445,
-      comments: 67
-    },
-    {
-      id: 'fp-who-1',
-      chapter: 'Who I Am',
-      chTag: 'About',
-      poster: 'I make **difficult things** feel inevitable.',
-      body: 'I am a Senior UX Designer with twenty years of experience across agency, startup, enterprise, and independent work. I have designed for companies you know and for companies that became companies you know.',
+      id: 'fp-004',
+      chapter: 'How I Think',
+      chTag: 'Take',
+      poster: 'The sentence is **the unit of navigation.**',
+      body: 'Every portfolio you\'ve ever read was organized around pages, scrolls, or slides. Mine is organized around *sentences* &mdash; because that\'s how attention actually works. Each one should earn the next. This platform you\'re reading on is the argument made physical.',
+      pull: 'Format shapes attention. Build one worth paying.',
       ts: '2w',
-      likes: 511,
-      comments: 73
+      likes: 503,
+      comments: 61
     },
     {
-      id: 'fp-who-2',
-      chapter: 'Who I Am',
-      chTag: 'About · Self-taught',
-      body: 'I am *self-taught.* That is not a caveat &mdash; it is a design philosophy. I learned by doing the work, studying what existed, and building things I wished existed. The result is a practice that is genuinely cross-disciplinary: product, narrative, visual, interactive.',
-      pull: 'I am not a consultant who delivers decks. I am a practitioner who builds systems &mdash; and then teaches the organization how to use them.',
-      specs: [
-        { k: 'Practice', v: 'UX · Product · Presentation · Front-end' },
-        { k: 'Years', v: '20+ · Agency · Startup · Enterprise' },
-        { k: 'Building Now', v: 'wolfie.love · intoview.pro' },
-        { k: 'Availability', v: 'Immediate · Remote · Open to full-time' }
-      ],
+      id: 'fp-005',
+      chapter: 'How I Think',
+      chTag: 'Unpopular Opinion',
+      poster: 'Most design systems are **documentation projects** dressed as product work.',
+      body: 'A real design system is used, maintained, and contested. It has opinions. It breaks things when you deviate from it intentionally, and it tells you why. Most of what I\'ve been handed is a Figma library with a README and a prayer. That\'s a starting point, not a system.',
       ts: '2w',
-      likes: 377,
-      comments: 49
+      likes: 741,
+      comments: 94
     },
     {
-      id: 'fp-wolfie',
-      chapter: 'wolfie.life',
-      chTag: 'Studio · Building',
-      poster: 'Building **something.**',
-      body: 'wolfie.life is a studio I&rsquo;m building because the work I want to do doesn&rsquo;t fit inside a job description. The platform you&rsquo;re reading this on is itself the product &mdash; a *sentence-progressive engine* for presenting work the way it deserves to be read.',
-      pull: '&ldquo;The digital should feel as considered as the physical.&rdquo;',
+      id: 'fp-006',
+      chapter: 'How I Think',
+      chTag: 'On Tools',
+      poster: 'I build in **vanilla HTML, CSS, and JS.** No frameworks.',
+      body: 'Not as a constraint &mdash; as an argument. When you remove the abstraction layer, you understand what the browser actually does. You write less. You own more. Everything you see on this platform: the sentence engine, the ghost overlays, the scroll logic &mdash; *no dependencies. No build step.*',
+      pull: 'The tool should disappear. The work should remain.',
       specs: [
-        { k: 'wolfie.love', v: 'One Engine. Every Domain.' },
-        { k: 'wolfie.life', v: 'Proprietary Narrative Engine' },
-        { k: 'Approach', v: 'Vanilla HTML/CSS/JS · No frameworks' },
-        { k: 'Status', v: 'Actively building' }
+        { k: 'wolfie.love', v: 'Memorial · Sentence engine origin' },
+        { k: 'ifimaybefrank.com', v: 'Notebook · Thinking surface' },
+        { k: 'zackgort.com', v: 'Spatial canvas CV · You are here' },
+        { k: 'reasonably.cc', v: 'Pre-thesis spatial tool' }
       ],
       ts: '3w',
       likes: 289,
       comments: 38
     },
+
+    /* ── CHAPTER 3: The Role ─────────────────────────── */
     {
-      id: 'fp-cta',
-      chapter: 'Say Hello',
+      id: 'fp-007',
+      chapter: 'The Role',
       chTag: 'Open to Work',
-      poster: 'Thank **You.**',
-      body: 'Appreciate your time. I&rsquo;m open to **interesting** work. Genuinely. Senior Product / UX Designer &mdash; twenty years of scar tissue and clear eyes. Not looking for a title. Looking for a *problem worth solving* with a team that cares.',
-      pull: 'If something in here resonated &mdash; a problem, an approach, a chapter that felt familiar &mdash; please reach out.',
+      poster: 'I\'m looking for a **real problem.**',
+      body: 'Twenty years. Enterprise, agency, startup. Fintech, e-commerce, identity, platforms. I\'ve done the job when the org was dysfunctional, when the timeline was impossible, and when the brief was wrong and no one wanted to hear it. I\'m not looking for a title. I\'m looking for *the problem worth solving.*',
+      pull: 'If you\'re building something that matters and need someone who can think and ship &mdash; let\'s talk.',
       ts: '3w',
       likes: 634,
       comments: 88
+    },
+    {
+      id: 'fp-008',
+      chapter: 'The Role',
+      chTag: 'What I Bring',
+      poster: 'I am a **systems thinker** who ships.',
+      body: 'Not just architecture. Not just execution. The thing most designers can\'t do is hold the whole model in their head while making a pixel decision &mdash; and know which one to defer to. That\'s the job. I\'ve been doing it for two decades across construction crews, art school dropouts, and Fortune 500 stakeholders.',
+      specs: [
+        { k: 'Strongest', v: 'IA · Systems · Narrative UX · Prototyping' },
+        { k: 'Industries', v: 'Fintech · E-commerce · Identity · Platforms' },
+        { k: 'Collab', v: 'Engineering-forward · Figma-not-precious' },
+        { k: 'Location', v: 'Brooklyn, NY · Open to remote' }
+      ],
+      ts: '3w',
+      likes: 321,
+      comments: 44
+    },
+    {
+      id: 'fp-009',
+      chapter: 'The Role',
+      chTag: 'Say Hello',
+      poster: 'Thank **you** for being here.',
+      body: 'If something in here resonated &mdash; a problem, an approach, a sentence that felt familiar &mdash; I want to hear about it. This isn\'t a brochure. It\'s a conversation starter built to feel like the work itself.',
+      pull: 'zackgort@gmail.com &middot; linkedin.com/in/zackgort &middot; wolfie.love',
+      ts: '3w',
+      likes: 412,
+      comments: 55
     }
-  ];
+
+  ]
 
   /* ── Apply inline markdown ── */
   function applyMd(s) {
@@ -9175,32 +9227,202 @@ window.fcToggleLike = function(btn) {
   r.textContent = r.dataset.likes + ' likes · ' + c + ' comments';
 };
 
-/* ── Feed rail scroll tracker — highlight active chapter as user scrolls ── */
+/* ── Feed Viewer Data & Renderer ── */
+(function() {
+
+  var VIEWERS = [
+    {
+      id: 'v1',
+      initials: 'BM',
+      color: '#5b8ef0',
+      name: 'Bushra Mahmood',
+      title: 'Design Director',
+      company: 'Netflix',
+      status: 'online',
+      reading: 'Ch. 3 · BNY Mellon',
+      ghost: [
+        { k: 'Role',    v: 'Design Director, Content & Discovery' },
+        { k: 'At',      v: 'Netflix' },
+        { k: 'Focus',   v: 'Narrative UX, product design leadership' },
+        { k: 'Viewed',  v: 'GNC, BNY, wolfie.life chapters' },
+        { k: 'Status',  v: 'Active now' }
+      ]
+    },
+    {
+      id: 'v2',
+      initials: 'PS',
+      color: '#34a853',
+      name: 'Puneet Sethi',
+      title: 'Group Product Manager',
+      company: 'Google Keep',
+      status: 'online',
+      reading: 'Ch. 5 · Who I Am',
+      ghost: [
+        { k: 'Role',    v: 'Group Product Manager' },
+        { k: 'At',      v: 'Google · Keep' },
+        { k: 'Focus',   v: 'Productivity, ambient information design' },
+        { k: 'Viewed',  v: 'Introduction, The Work, Who I Am' },
+        { k: 'Status',  v: 'Reading now' }
+      ]
+    },
+    {
+      id: 'v3',
+      initials: 'JC',
+      color: '#e8a830',
+      name: 'John Campanella',
+      title: 'VP Design',
+      company: 'Entro',
+      status: 'away',
+      reading: 'Ch. 2 · GNC',
+      ghost: [
+        { k: 'Role',    v: 'VP of Design' },
+        { k: 'At',      v: 'Entro · Identity security' },
+        { k: 'Context', v: 'Former colleague, O3 World' },
+        { k: 'Viewed',  v: 'Full narrative, GNC deck' },
+        { k: 'Status',  v: 'Away · last seen 4m ago' }
+      ]
+    },
+    {
+      id: 'v4',
+      initials: 'AR',
+      color: '#e8504a',
+      name: 'Anika Reyes',
+      title: 'Senior Recruiter',
+      company: 'Anthropic',
+      status: 'online',
+      reading: 'Ch. 6 · wolfie.life',
+      ghost: [
+        { k: 'Role',    v: 'Senior Technical Recruiter' },
+        { k: 'At',      v: 'Anthropic' },
+        { k: 'Pipeline', v: 'Design Engineer, Education Labs' },
+        { k: 'Viewed',  v: 'wolfie.life, Say Hello, full profile' },
+        { k: 'Status',  v: 'Active now' }
+      ]
+    },
+    {
+      id: 'v5',
+      initials: 'MK',
+      color: '#9c6fde',
+      name: 'Maya Kim',
+      title: 'Head of Design',
+      company: 'Linear',
+      status: 'offline',
+      reading: null,
+      ghost: [
+        { k: 'Role',    v: 'Head of Design' },
+        { k: 'At',      v: 'Linear' },
+        { k: 'Focus',   v: 'Product design systems, craft-led teams' },
+        { k: 'Viewed',  v: 'BNY Mellon, The Work chapters' },
+        { k: 'Status',  v: 'Offline · last seen 2h ago' }
+      ]
+    },
+    {
+      id: 'v6',
+      initials: 'DW',
+      color: '#4ab8c1',
+      name: 'Devon Walsh',
+      title: 'Design Lead',
+      company: 'Stripe',
+      status: 'away',
+      reading: 'Ch. 4 · The Work',
+      ghost: [
+        { k: 'Role',    v: 'Design Lead, Growth' },
+        { k: 'At',      v: 'Stripe' },
+        { k: 'Focus',   v: 'E-commerce UX, conversion, systems' },
+        { k: 'Viewed',  v: 'GNC case study, The Work' },
+        { k: 'Status',  v: 'Away · last seen 12m ago' }
+      ]
+    }
+  ];
+
+  function renderViewers() {
+    var container = document.getElementById('feed-viewers');
+    if (!container) return;
+
+    // Count badge
+    var online = VIEWERS.filter(function(v) { return v.status !== 'offline'; }).length;
+    var badge = '<div class="feed-viewer-count">' + online + ' active · ' + VIEWERS.length + ' total</div>';
+
+    var html = VIEWERS.map(function(v) {
+      var ghostJson = JSON.stringify(v.ghost).replace(/"/g, '&quot;');
+      var pipClass = v.status === 'online' ? 'online' : v.status === 'away' ? 'away' : 'offline';
+      var readingHtml = v.reading
+        ? '<div class="fv-reading">▶ ' + v.reading + '</div>'
+        : '';
+      return [
+        '<div class="feed-viewer hoverable-stat"',
+        '  data-ghost-label="' + v.name + ' — ' + v.company + '"',
+        '  data-ghost="' + ghostJson + '"',
+        '  data-viewer-id="' + v.id + '">',
+        '  <div class="fv-avatar" style="background:' + v.color + '20;color:' + v.color + '">' + v.initials + '</div>',
+        '  <div class="fv-meta">',
+        '    <div class="fv-name">' + v.name + '</div>',
+        '    <div class="fv-title">' + v.title + '</div>',
+        '    <div class="fv-company">' + v.company + '</div>',
+        readingHtml,
+        '  </div>',
+        '  <div class="fv-pip ' + pipClass + '"></div>',
+        '</div>'
+      ].join('');
+    }).join('');
+
+    container.innerHTML = badge + html;
+    // Wire ghost overlays — wireHoverables is exposed on window
+    window.wireHoverables();
+  }
+
+  // Render on surface switch to feed
+  var _origSwitch = window.switchSurface;
+  window.switchSurface = function(surface) {
+    _origSwitch(surface);
+    if (surface === 'feed') {
+      var container = document.getElementById('feed-viewers');
+      if (container && !container.hasChildNodes()) renderViewers();
+    }
+  };
+
+})();
+
+/* ── Feed scroll tracker — chapter active + right-edge indicator ── */
 (function() {
   document.addEventListener('DOMContentLoaded', function() {
     var streamCol = document.getElementById('feed-stream-col');
+    var thumb = document.getElementById('feed-scroll-thumb');
     if (!streamCol) return;
 
-    function updateRailActive() {
+    function updateScroll() {
+      // ── Chapter active state ──
       var dividers = document.querySelectorAll('.fc-chapter-divider');
       var links = document.querySelectorAll('.feed-chapter-link');
-      if (!dividers.length || !links.length) return;
+      if (dividers.length && links.length) {
+        var scrollTop = streamCol.scrollTop;
+        var viewMid = scrollTop + streamCol.clientHeight * 0.35;
+        var activeIdx = 0;
+        dividers.forEach(function(div, i) {
+          if (div.offsetTop <= viewMid) activeIdx = i + 1;
+        });
+        links.forEach(function(link, i) {
+          link.classList.toggle('active', i === activeIdx);
+        });
+      }
 
-      // Find which chapter divider is in view
-      var scrollTop = streamCol.scrollTop;
-      var viewMid = scrollTop + streamCol.clientHeight * 0.35;
-
-      var activeIdx = 0;
-      dividers.forEach(function(div, i) {
-        if (div.offsetTop <= viewMid) activeIdx = i + 1;
-      });
-
-      links.forEach(function(link, i) {
-        link.classList.toggle('active', i === activeIdx);
-      });
+      // ── Right-edge scroll indicator ──
+      if (thumb) {
+        var scrollable = streamCol.scrollHeight - streamCol.clientHeight;
+        if (scrollable <= 0) { thumb.style.height = '100%'; thumb.style.top = '0'; return; }
+        var ratio = streamCol.scrollTop / scrollable;
+        var trackH = streamCol.clientHeight;
+        var thumbH = Math.max(24, trackH * (streamCol.clientHeight / streamCol.scrollHeight));
+        var thumbTop = ratio * (trackH - thumbH);
+        thumb.style.height = thumbH + 'px';
+        thumb.style.top = thumbTop + 'px';
+      }
     }
 
-    streamCol.addEventListener('scroll', updateRailActive, { passive: true });
+    streamCol.addEventListener('scroll', updateScroll, { passive: true });
+    streamCol.addEventListener('scrollend', updateScroll, { passive: true });
+    // Initial paint
+    setTimeout(updateScroll, 200);
   });
 })();
 
@@ -9381,7 +9603,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (ghost.classList.contains('visible')) positionGhost();
   });
 })();
-
+});
 
 // ═══════════════════════════════════════════════════════════════
 // PRESENTATION MODE - Case Study Overlays
@@ -9668,5 +9890,10 @@ document.addEventListener('keydown', function(e) {
   }
 });
 </script>
+<!-- ═══ FEED SCROLL INDICATOR ═══ -->
+<div id="feed-scroll-line" aria-hidden="true">
+  <div id="feed-scroll-thumb"></div>
+</div>
+
 </body>
 </html>
