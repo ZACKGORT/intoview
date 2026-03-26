@@ -3323,42 +3323,42 @@ header {
 body.surface-profile #shell { display: grid; }
 body.surface-profile #feed-surface { display: none; }
 
-/* Feed surface — takes over the viewport, handles its own scrolling */
+/* Feed surface — fixed overlay below header, two-column grid */
 body.surface-feed #shell { display: none; }
 body.surface-feed #feed-surface {
   display: grid;
   position: fixed;
-  inset: 52px 0 0 0;   /* below fixed header, full viewport */
+  top: 52px; left: 0; right: 0; bottom: 0;
   z-index: 5;
+  grid-template-columns: 1fr 280px;
+  grid-template-rows: 1fr;
+  overflow: hidden;
 }
 
-/* Feed surface layout */
-#feed-surface {
-  display: none;
-  grid-template-columns: 1fr 280px;
-  height: calc(100vh - 52px);
-  margin-top: 52px;
-  overflow: hidden;            /* grid children handle their own scroll */
-}
+/* Inactive state */
+#feed-surface { display: none; }
+
+/* Stream column — min-height:0 is the critical grid-child scroll fix */
 #feed-stream-col {
-  padding: 32px 28px 80px;
-  max-width: 680px;
-  margin: 0 auto;
-  width: 100%;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  height: 100%;
-  min-height: 0;               /* allow grid child to shrink */
-  scrollbar-width: none;       /* hide native — we use our own indicator */
+  padding: 32px 28px 80px;
+  scrollbar-width: none;
 }
 #feed-stream-col::-webkit-scrollbar { display: none; }
+#feed-narrative-root {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* Rail — same fix */
 #feed-rail {
-  border-left: 1px solid var(--border);
-  padding: 24px 14px 40px;
-  height: 100%;
-  min-height: 0;               /* allow grid child to shrink and scroll */
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  border-left: 1px solid var(--border);
+  padding: 24px 14px 40px;
   scrollbar-width: thin;
   scrollbar-color: var(--ink-3) transparent;
 }
@@ -8525,15 +8525,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     document.body.classList.add('surface-' + surface);
 
     if (surface === 'feed') {
-      // Lock the body/html so the profile sentence-engine can't scroll underneath
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
-      // Exit scroll-free mode if active — feed has its own scroll container
       document.body.classList.remove('scroll-free');
-    } else {
-      // Restore profile view — sentence engine manages overflow itself
-      document.documentElement.style.overflow = '';
-      document.body.style.overflow = '';
     }
     
     var feedBtn = document.getElementById('st-feed-btn');
@@ -9226,6 +9218,41 @@ window.fcToggleLike = function(btn) {
   r.dataset.likes = btn.classList.contains('liked') ? n + 1 : n - 1;
   r.textContent = r.dataset.likes + ' likes · ' + c + ' comments';
 };
+
+/* ── Feed scroll router ──
+   html/body are overflow:hidden globally. The #feed-surface is position:fixed
+   so it sits on top visually, but wheel/touch events target the document by
+   default. We intercept them on #feed-surface and manually scroll #feed-stream-col.
+*/
+(function() {
+  document.addEventListener('DOMContentLoaded', function() {
+    var surface = document.getElementById('feed-surface');
+    var col = document.getElementById('feed-stream-col');
+    if (!surface || !col) return;
+
+    // Wheel — reroute deltaY to the stream column
+    surface.addEventListener('wheel', function(e) {
+      if (!document.body.classList.contains('surface-feed')) return;
+      e.preventDefault();
+      col.scrollTop += e.deltaY;
+    }, { passive: false });
+
+    // Touch — track and translate to scrollTop
+    var touchStartY = 0;
+    var touchLastY = 0;
+    surface.addEventListener('touchstart', function(e) {
+      touchStartY = touchLastY = e.touches[0].clientY;
+    }, { passive: true });
+    surface.addEventListener('touchmove', function(e) {
+      if (!document.body.classList.contains('surface-feed')) return;
+      var dy = touchLastY - e.touches[0].clientY;
+      touchLastY = e.touches[0].clientY;
+      col.scrollTop += dy;
+      // Only prevent default if we actually scrolled to avoid killing rail/other touch
+      if (col.scrollHeight > col.clientHeight) e.preventDefault();
+    }, { passive: false });
+  });
+})();
 
 /* ── Feed Viewer Data & Renderer ── */
 (function() {
