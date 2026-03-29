@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Googlify — LinkedIn Profile Pic Editor</title>
+<link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #14141c;
+    --card: #1c1c28;
+    --accent: #ffe033;
+    --accent2: #ff6b35;
+    --white: #f0f0f0;
+    --muted: #888;
+    --radius: 18px;
+    --eye-white: #ffffff;
+    --eye-pupil: #1a1a2e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--white);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 16px 60px;
+    overflow-x: hidden;
+  }
+
+  /* Background blobs */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -200px; left: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(255,224,51,0.07) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -150px; right: -150px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(255,107,53,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 48px 0 32px;
+  }
+
+  .logo {
+    font-family: 'Boogaloo', cursive;
+    font-size: clamp(42px, 8vw, 72px);
+    letter-spacing: -1px;
+    line-height: 1;
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(255,224,51,0.3);
+  }
+
+  .logo span { color: var(--white); }
+
+  .tagline {
+    font-size: 15px;
+    color: var(--muted);
+    margin-top: 8px;
+    letter-spacing: 0.5px;
+  }
+
+  .linkedin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,119,181,0.15);
+    border: 1px solid rgba(0,119,181,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #4fb3ff;
+    margin-top: 12px;
+  }
+
+  .linkedin-badge svg { width: 14px; height: 14px; fill: #4fb3ff; }
+
+  /* Main layout */
+  .app {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 640px) {
+    .app { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 18px;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed rgba(255,224,51,0.25);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: rgba(255,224,51,0.02);
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(255,224,51,0.06);
+  }
+
+  .upload-icon {
+    font-size: 48px;
+    display: block;
+    margin-bottom: 12px;
+    animation: bounce 2s ease-in-out infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  .upload-text { font-size: 14px; color: var(--muted); }
+  .upload-text strong { color: var(--accent); }
+
+  #fileInput { display: none; }
+
+  /* Canvas area */
+  .canvas-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .canvas-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .canvas-placeholder .eyes-icon { font-size: 40px; }
+
+  #mainCanvas {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 8px;
+    display: none;
+    cursor: crosshair;
+  }
+
+  /* Controls */
+  .controls { display: flex; flex-direction: column; gap: 16px; }
+
+  .control-group label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .control-group label span { color: var(--white); font-weight: 500; }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.1);
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(255,224,51,0.4);
+    transition: transform 0.15s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .btn {
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #111;
+    flex: 1;
+  }
+
+  .btn-primary:hover { background: #ffd000; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,224,51,0.3); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-secondary {
+    background: rgba(255,255,255,0.07);
+    color: var(--white);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .btn-secondary:hover { background: rgba(255,255,255,0.12); }
+
+  .btn-danger {
+    background: rgba(255,80,80,0.1);
+    color: #ff8080;
+    border: 1px solid rgba(255,80,80,0.2);
+  }
+
+  .btn-danger:hover { background: rgba(255,80,80,0.2); }
+
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: flex;
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    padding: 8px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+    background: transparent;
+    color: var(--muted);
+  }
+
+  .mode-btn.active {
+    background: var(--card);
+    color: var(--white);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 8px;
+    min-height: 18px;
+  }
+
+  /* Eye list */
+  .eye-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
+  }
+
+  .eye-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--muted);
+    animation: slideIn 0.2s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .eye-remove {
+    background: none; border: none;
+    color: rgba(255,80,80,0.6);
+    cursor: pointer; font-size: 16px; line-height: 1;
+    padding: 0 4px;
+    transition: color 0.2s;
+  }
+  .eye-remove:hover { color: #ff5050; }
+
+  .empty-eyes {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 16px;
+  }
+
+  /* Download section */
+  .download-section {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, rgba(255,224,51,0.08), rgba(255,107,53,0.06));
+    border: 1px solid rgba(255,224,51,0.15);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+  }
+
+  .download-section .dl-text { flex: 1; }
+  .download-section .dl-text h3 { font-size: 15px; font-weight: 600; }
+  .download-section .dl-text p { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  /* Auto-detect spinner */
+  .detecting {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 8px;
+  }
+  .detecting.show { display: flex; }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,224,51,0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Preview circle (LinkedIn style) */
+  .preview-circle {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
+    display: none;
+    background: #222;
+  }
+  .preview-circle canvas { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Oogly<span>👀</span></div>
+  <p class="tagline">Give your LinkedIn profile pic the eyes it deserves</p>
+  <div class="linkedin-badge">
+    <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+    Profile-ready export · 400×400px
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- Left: Upload + Canvas -->
+  <div class="panel">
+    <div class="panel-title">Your Photo</div>
+
+    <div class="upload-zone" id="uploadZone">
+      <span class="upload-icon">📸</span>
+      <div class="upload-text"><strong>Drop your photo here</strong><br>or click to browse</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*">
+
+    <div class="detecting" id="detectingMsg">
+      <div class="spinner"></div>
+      Auto-detecting face…
+    </div>
+
+    <div class="canvas-wrapper" style="margin-top:14px;">
+      <div class="canvas-placeholder" id="placeholder">
+        <span class="eyes-icon">👀</span>
+        <span>Upload a photo to begin</span>
+      </div>
+      <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <p class="hint" id="hint"></p>
+  </div>
+
+  <!-- Right: Controls -->
+  <div class="panel">
+    <div class="panel-title">Eye Settings</div>
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="modeClick" onclick="setMode('click')">👆 Click to Place</button>
+      <button class="mode-btn" id="modeAuto" onclick="setMode('auto')">✨ Auto Detect</button>
+    </div>
+
+    <div class="controls" style="margin-top:16px;">
+
+      <div class="control-group">
+        <label>Eye Size <span id="sizeVal">60</span>px</label>
+        <input type="range" id="eyeSize" min="20" max="150" value="60">
+      </div>
+
+      <div class="control-group">
+        <label>Pupil Size <span id="pupilVal">45</span>%</label>
+        <input type="range" id="pupilSize" min="20" max="70" value="45">
+      </div>
+
+      <div class="control-group">
+        <label>Wobbliness <span id="wobbleVal">5</span></label>
+        <input type="range" id="wobble" min="1" max="10" value="5">
+      </div>
+
+      <div class="control-group">
+        <label>Eye Border <span id="borderVal">3</span>px</label>
+        <input type="range" id="eyeBorder" min="1" max="8" value="3">
+      </div>
+
+    </div>
+
+    <div class="btn-row" style="margin-top:18px;">
+      <button class="btn btn-primary" id="applyBtn" onclick="applyEyes()" disabled>Apply Eyes 👀</button>
+      <button class="btn btn-secondary" onclick="resetEyes()">Reset</button>
+    </div>
+
+    <hr style="border:none; border-top:1px solid rgba(255,255,255,0.06); margin:18px 0;">
+
+    <div class="panel-title">Placed Eyes</div>
+    <div class="eye-list" id="eyeList">
+      <div class="empty-eyes">No eyes placed yet</div>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-danger" id="clearBtn" onclick="clearEyes()" disabled>Clear All</button>
+      <button class="btn btn-secondary" id="undoBtn" onclick="undoLast()" disabled>Undo Last</button>
+    </div>
+  </div>
+
+  <!-- Bottom: Download -->
+  <div class="download-section" id="downloadSection" style="display:none;">
+    <canvas id="previewCanvas" width="80" height="80" style="border-radius:50%; flex-shrink:0; border:3px solid rgba(255,255,255,0.1);"></canvas>
+    <div class="dl-text">
+      <h3>Ready for LinkedIn! 🎉</h3>
+      <p>400×400px PNG · Square crop · Transparent-friendly</p>
+    </div>
+    <button class="btn btn-primary" onclick="downloadImage()" style="flex-shrink:0;">Download PNG</button>
+  </div>
+
+</div>
+
+<script>
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+const previewCanvas = document.getElementById('previewCanvas');
+const previewCtx = previewCanvas.getContext('2d');
+
+let originalImage = null;
+let eyes = [];
+let mode = 'click';
+let imageLoaded = false;
+
+// Sliders
+const eyeSizeSlider = document.getElementById('eyeSize');
+const pupilSlider = document.getElementById('pupilSize');
+const wobbleSlider = document.getElementById('wobble');
+const borderSlider = document.getElementById('eyeBorder');
+
+eyeSizeSlider.oninput = () => { document.getElementById('sizeVal').textContent = eyeSizeSlider.value; redrawIfNeeded(); };
+pupilSlider.oninput = () => { document.getElementById('pupilVal').textContent = pupilSlider.value; redrawIfNeeded(); };
+wobbleSlider.oninput = () => { document.getElementById('wobbleVal').textContent = wobbleSlider.value; redrawIfNeeded(); };
+borderSlider.oninput = () => { document.getElementById('borderVal').textContent = borderSlider.value; redrawIfNeeded(); };
+
+function redrawIfNeeded() {
+  if (imageLoaded && eyes.length > 0) renderAll();
+}
+
+// Upload
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadImage(file);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadImage(e.target.files[0]); });
+
+function loadImage(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      originalImage = img;
+      imageLoaded = true;
+      eyes = [];
+
+      const size = Math.min(img.width, img.height);
+      canvas.width = size;
+      canvas.height = size;
+      canvas.style.display = 'block';
+      document.getElementById('placeholder').style.display = 'none';
+
+      renderAll();
+      document.getElementById('applyBtn').disabled = false;
+      updateHint();
+      updateEyeList();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderAll() {
+  if (!originalImage) return;
+  const size = Math.min(originalImage.width, originalImage.height);
+  const offX = (originalImage.width - size) / 2;
+  const offY = (originalImage.height - size) / 2;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(originalImage, offX, offY, size, size, 0, 0, size, size);
+
+  const eyeSize = parseInt(eyeSizeSlider.value);
+  const pupilRatio = parseInt(pupilSlider.value) / 100;
+  const wobble = parseInt(wobbleSlider.value);
+  const border = parseInt(borderSlider.value);
+
+  eyes.forEach(eye => drawGooglyEye(ctx, eye.x, eye.y, eyeSize, pupilRatio, wobble, border));
+
+  // Update preview
+  previewCtx.clearRect(0, 0, 80, 80);
+  previewCtx.drawImage(canvas, 0, 0, 80, 80);
+
+  updateDownloadSection();
+}
+
+function drawGooglyEye(ctx, cx, cy, size, pupilRatio, wobble, borderWidth) {
+  const r = size / 2;
+
+  // Wobbly outline (ellipse with slight distortion)
+  ctx.save();
+  const rx = r * (1 + (Math.random() - 0.5) * 0.04 * wobble / 10);
+  const ry = r * (1 + (Math.random() - 0.5) * 0.04 * wobble / 10);
+  const rotation = (Math.random() - 0.5) * 0.15 * (wobble / 5);
+
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+
+  // Drop shadow
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = size * 0.2;
+  ctx.shadowOffsetY = size * 0.05;
+
+  // White of eye
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  // Border
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = '#222222';
+  ctx.lineWidth = borderWidth;
+  ctx.stroke();
+
+  // Veins (optional flair)
+  ctx.globalAlpha = 0.2;
+  for (let i = 0; i < 4; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const len = r * 0.3 + Math.random() * r * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle) * r * 0.3, Math.sin(angle) * r * 0.3);
+    ctx.quadraticCurveTo(
+      Math.cos(angle + 0.3) * len * 0.7, Math.sin(angle + 0.3) * len * 0.7,
+      Math.cos(angle + 0.1) * len, Math.sin(angle + 0.1) * len
+    );
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // Pupil (floating randomly)
+  const pr = r * pupilRatio;
+  const maxOff = r - pr - 4;
+  const pAngle = Math.random() * Math.PI * 2;
+  const pDist = Math.random() * maxOff;
+  const px = Math.cos(pAngle) * pDist;
+  const py = Math.sin(pAngle) * pDist;
+
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 4;
+  ctx.beginPath();
+  ctx.arc(px, py, pr, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fill();
+
+  // Pupil sheen
+  ctx.shadowColor = 'transparent';
+  ctx.beginPath();
+  ctx.arc(px - pr * 0.2, py - pr * 0.3, pr * 0.3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// Click to place
+canvas.addEventListener('click', e => {
+  if (!imageLoaded || mode !== 'click') return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  eyes.push({ x, y });
+  renderAll();
+  updateEyeList();
+  updateButtons();
+});
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('modeClick').classList.toggle('active', m === 'click');
+  document.getElementById('modeAuto').classList.toggle('active', m === 'auto');
+  updateHint();
+}
+
+function updateHint() {
+  const hint = document.getElementById('hint');
+  if (!imageLoaded) { hint.textContent = ''; return; }
+  if (mode === 'click') hint.textContent = '👆 Click on the photo to place googly eyes';
+  else hint.textContent = '✨ Hit "Apply Eyes" to auto-detect & place eyes';
+}
+
+function applyEyes() {
+  if (!imageLoaded) return;
+  if (mode === 'click') {
+    renderAll();
+    return;
+  }
+  // Auto mode: heuristic placement
+  const detecting = document.getElementById('detectingMsg');
+  detecting.classList.add('show');
+  setTimeout(() => {
+    autoPlaceEyes();
+    detecting.classList.remove('show');
+  }, 600);
+}
+
+function autoPlaceEyes() {
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // Heuristic: place two eyes in the upper-center region (typical face position)
+  const eyeY = h * 0.38 + (Math.random() - 0.5) * h * 0.05;
+  const spread = w * 0.16;
+  const cx = w * 0.5;
+
+  eyes = [
+    { x: cx - spread, y: eyeY },
+    { x: cx + spread, y: eyeY }
+  ];
+
+  renderAll();
+  updateEyeList();
+  updateButtons();
+}
+
+function resetEyes() {
+  eyes = [];
+  if (imageLoaded) renderAll();
+  updateEyeList();
+  updateButtons();
+  document.getElementById('downloadSection').style.display = 'none';
+}
+
+function clearEyes() { resetEyes(); }
+
+function undoLast() {
+  if (eyes.length === 0) return;
+  eyes.pop();
+  renderAll();
+  updateEyeList();
+  updateButtons();
+}
+
+function updateButtons() {
+  document.getElementById('clearBtn').disabled = eyes.length === 0;
+  document.getElementById('undoBtn').disabled = eyes.length === 0;
+}
+
+function updateEyeList() {
+  const list = document.getElementById('eyeList');
+  if (eyes.length === 0) {
+    list.innerHTML = '<div class="empty-eyes">No eyes placed yet</div>';
+    return;
+  }
+  list.innerHTML = eyes.map((e, i) => `
+    <div class="eye-item">
+      <span>👁️ Eye ${i + 1} &nbsp;·&nbsp; ${Math.round(e.x)}px, ${Math.round(e.y)}px</span>
+      <button class="eye-remove" onclick="removeEye(${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function removeEye(i) {
+  eyes.splice(i, 1);
+  renderAll();
+  updateEyeList();
+  updateButtons();
+}
+
+function updateDownloadSection() {
+  const section = document.getElementById('downloadSection');
+  if (eyes.length > 0 && imageLoaded) {
+    section.style.display = 'flex';
+  }
+}
+
+function downloadImage() {
+  if (!imageLoaded) return;
+
+  // Create 400x400 export canvas
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = 400;
+  exportCanvas.height = 400;
+  const ectx = exportCanvas.getContext('2d');
+
+  const scale = 400 / canvas.width;
+
+  ectx.drawImage(canvas, 0, 0, 400, 400);
+
+  // Redraw eyes at export scale
+  const eyeSize = parseInt(eyeSizeSlider.value) * scale;
+  const pupilRatio = parseInt(pupilSlider.value) / 100;
+  const wobble = parseInt(wobbleSlider.value);
+  const border = parseInt(borderSlider.value) * scale;
+
+  // We'll use the already-rendered canvas (which has the eyes drawn)
+  const link = document.createElement('a');
+  link.download = 'googlified-linkedin.png';
+  link.href = exportCanvas.toDataURL('image/png');
+  link.click();
+}
+</script>
+</body>
+</html>
