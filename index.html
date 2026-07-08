@@ -83,6 +83,11 @@ body.no-xy-lines .v-line,body.no-xy-lines .v-coord{display:none !important}
 .mnav-links a.active::before{transform:translateY(0)}
 .mnav-links a.active span{color:var(--bg)}
 .mnav-cta{flex:0 0 130px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--bg);background:var(--fg);cursor:none}
+.mnav-theme-toggle{flex:0 0 130px;display:flex;align-items:center;justify-content:center;background:var(--fg);border:none;cursor:none}
+.mnav-theme-toggle svg{width:18px;height:18px;color:var(--bg)}
+.mnav-theme-toggle .theme-icon-moon{display:none}
+body.theme-dark .mnav-theme-toggle .theme-icon-sun{display:none}
+body.theme-dark .mnav-theme-toggle .theme-icon-moon{display:block}
 
 .mnav-burger{display:none;flex:0 0 56px;align-items:center;justify-content:center;background:none;border:none;border-left:1px solid var(--rule);cursor:none}
 .mnav-burger svg{width:22px;height:22px;color:var(--fg);transition:transform .35s cubic-bezier(.16,1,.3,1),opacity .2s}
@@ -105,7 +110,7 @@ body.no-xy-lines .v-line,body.no-xy-lines .v-coord{display:none !important}
 .mnav-mobile-cta{padding:16px 20px;font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--bg);background:var(--fg)}
 
 @media(max-width:820px){
-  .mnav-links,.mnav-account,.mnav-cta{display:none}
+  .mnav-links,.mnav-account,.mnav-cta,.mnav-theme-toggle{display:none}
   .mnav-word{flex:1;border-right:none}
   .mnav-burger{display:flex}
 }
@@ -1208,8 +1213,16 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
     <a href="#" data-view="assembly"><span>General Assembly</span></a>
     <a href="#" data-view="agents"><span>Workflows</span></a>
   </div>
-  <button class="mnav-account" id="accountBtn"><span>Account</span></button>
-  <div class="mnav-cta">Sign in</div>
+  <button class="mnav-account" id="accountBtn"><span>Profile</span></button>
+  <button class="mnav-theme-toggle" id="mnavThemeToggle" aria-label="Switch theme">
+    <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+      <circle cx="12" cy="12" r="4.3"/>
+      <path d="M12 2.5v2.6M12 18.9v2.6M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12h2.6M18.9 12h2.6M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/>
+    </svg>
+    <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+      <path d="M20.2 14.3A8.5 8.5 0 1 1 9.7 3.8a7 7 0 0 0 10.5 10.5z"/>
+    </svg>
+  </button>
   <button class="mnav-burger" id="mnavBurger" aria-label="Menu" aria-expanded="false">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
       <path d="M12 2.5L20.5 7.25V16.75L12 21.5L3.5 16.75V7.25L12 2.5Z"/>
@@ -1224,8 +1237,8 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
   <a href="#" data-view="network">Circles</a>
   <a href="#" data-view="assembly">General Assembly</a>
   <a href="#" data-view="agents">Workflows</a>
-  <button id="mnavMobileAccount">Account</button>
-  <div class="mnav-mobile-cta">Sign in</div>
+  <button id="mnavMobileAccount">Profile</button>
+  <button class="mnav-mobile-cta" id="mnavMobileThemeToggle">Switch theme</button>
 </div>
 
 <!-- ═══ BREADCRUMBS — shown on any page beneath Home ═══ -->
@@ -2790,7 +2803,10 @@ function showView(name){
   window.scrollTo(0,0);
   if(window.ScrollTrigger) ScrollTrigger.refresh();
   if(name === 'network') setTimeout(()=>{ if(window.circlesUpdateScrollbar) window.circlesUpdateScrollbar(); }, 50);
-  if(name === 'assembly') setTimeout(()=>{ if(window.gaUpdateScrollbar) window.gaUpdateScrollbar(); }, 50);
+  if(name === 'assembly'){
+    if(!isDarkTheme) applyTheme(true);
+    setTimeout(()=>{ if(window.gaUpdateScrollbar) window.gaUpdateScrollbar(); }, 50);
+  }
   if(name === 'dock' && typeof renderDock === 'function') renderDock();
   const label = name === 'dock' ? 'Saved' : name === 'home' ? 'Home' : sub ? sub.label : 'Home';
   pageViews[label] = (pageViews[label] || 0) + 1;
@@ -2863,6 +2879,7 @@ function closePanel(){
   accountPanel.setAttribute('aria-hidden','true'); accountBtn.classList.remove('active');
 }
 accountBtn.addEventListener('click', ()=> accountPanel.classList.contains('open') ? closePanel() : openPanel());
+document.getElementById('mnavThemeToggle')?.addEventListener('click', ()=> applyTheme(!isDarkTheme));
 
 /* ─────────────────────────────────────────────
    MOBILE NAV — hamburger + slide-down menu
@@ -2885,6 +2902,7 @@ mnavBurger.addEventListener('click', toggleMobileNav);
 mnavMobileOverlay.addEventListener('click', closeMobileNav);
 mnavMobileMenu.querySelectorAll('a').forEach(a=> a.addEventListener('click', closeMobileNav));
 document.getElementById('mnavMobileAccount').addEventListener('click', ()=>{ closeMobileNav(); accountBtn.click(); });
+document.getElementById('mnavMobileThemeToggle')?.addEventListener('click', ()=>{ closeMobileNav(); applyTheme(!isDarkTheme); });
 window.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeMobileNav(); });
 panelOverlay.addEventListener('click', closePanel);
 panelClose.addEventListener('click', closePanel);
