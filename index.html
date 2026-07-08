@@ -358,6 +358,8 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
 }
 .canvas-grid-track{position:absolute;top:0;left:0;will-change:transform}
 .canvas-tile{position:absolute !important;box-sizing:border-box;min-height:0 !important;overflow:hidden;padding:18px !important}
+.canvas-tile.selected{outline:2px solid var(--fg);outline-offset:-2px;background:color-mix(in srgb, var(--fg) 5%, var(--bg))}
+.canvas-tile.selected::after{content:'\2713';position:absolute;top:10px;right:10px;width:20px;height:20px;border-radius:50%;background:var(--fg);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11px;z-index:3;pointer-events:none}
 .canvas-tile .feed-top{margin-bottom:10px}
 .canvas-tile .feed-kicker{margin-bottom:6px}
 .canvas-tile .feed-meta-line{margin-top:7px}
@@ -617,6 +619,20 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
   transition:background .18s,color .18s;
 }
 .poster-profile-btn:hover{background:#0a0a0a;color:#fff}
+
+/* Multi-select stack — several cards' content in one panel */
+.poster-stack{display:flex;flex-direction:column}
+.poster-stack-item{padding:22px 0;border-bottom:1px solid rgba(0,0,0,.08)}
+.poster-stack-item:first-child{padding-top:0}
+.poster-stack-item:last-child{border-bottom:none}
+.poster-stack-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.poster-stack-tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:rgba(0,0,0,.4)}
+.poster-stack-remove{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:rgba(0,0,0,.4);background:none;border:none;cursor:none;text-decoration:underline;text-underline-offset:3px}
+.poster-stack-remove:hover{color:#0a0a0a}
+.poster-stack-title{font-family:var(--serif);font-weight:600;font-size:20px;line-height:1.2;margin-bottom:10px;color:#0a0a0a}
+.poster-stack-title.style-quote{font-style:italic;font-weight:400}
+.poster-stack-title.style-bold{font-family:var(--sans);font-weight:800;text-transform:uppercase;font-size:16px;letter-spacing:-.005em}
+.poster-stack-body{font-family:var(--sans);font-size:13px;line-height:1.65;color:rgba(0,0,0,.62)}
 
 /* Related links */
 .poster-related{padding-top:20px;border-top:1px solid rgba(0,0,0,.08)}
@@ -1038,6 +1054,78 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
 /* ═══════════════ AGENTS PAGE — placeholder iframe ═══════════════ */
 .agents-page{padding-top:90px;height:100vh}
 
+/* ═══════════════ GENERAL ASSEMBLY — infinite canvas photo wall ═══════════════ */
+.ga-gallery-page .circles-split{height:calc(100vh - 130px)}
+@media(max-width:640px){.ga-gallery-page .circles-split{height:calc(100vh - 170px)}}
+.ga-gallery-sub{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--muted)}
+
+/* Vignette — the one deliberately "rich, authored color" surface on the
+   site; no grayscale filter on the photos themselves. The vignette is
+   theme-aware (fades to black in dark mode, white in light) rather than
+   a fixed color, so it reads correctly regardless of site theme. */
+.ga-gallery-viewport{position:relative}
+.ga-gallery-viewport::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:4;
+  background:radial-gradient(ellipse at center, transparent 45%, var(--bg) 105%);
+  transition:background .3s;
+}
+
+.ga-photo-tile{padding:0 !important;overflow:hidden;background:var(--faint);will-change:transform,box-shadow;transition:transform .35s cubic-bezier(.16,1,.3,1),box-shadow .35s cubic-bezier(.16,1,.3,1);cursor:none}
+.ga-photo-tile img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.ga-photo-idx{position:absolute;top:10px;left:12px;font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);z-index:2}
+.ga-photo-tile:hover{transform:translateY(-4px);box-shadow:0 46px 80px -24px rgba(0,0,0,.55),0 10px 24px -10px rgba(0,0,0,.4);z-index:5}
+
+/* Postcard — General Assembly only. A compact, typographic "event invite"
+   card rather than the site's usual full-height poster panel. */
+.ga-postcard-overlay{position:fixed;inset:0;z-index:9750;background:rgba(0,0,0,.65);opacity:0;pointer-events:none;transition:opacity .3s}
+.ga-postcard-overlay.open{opacity:1;pointer-events:auto}
+.ga-postcard{
+  position:fixed;top:50%;left:50%;z-index:9751;
+  width:min(480px,90vw);
+  background:#ffffff;color:#0a0a0a;
+  box-shadow:0 60px 120px -30px rgba(0,0,0,.5);
+  transform:translate(-50%,-50%) scale(.94);
+  opacity:0;pointer-events:none;
+  transition:transform .4s cubic-bezier(.16,1,.3,1),opacity .3s;
+}
+.ga-postcard.open{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}
+.ga-postcard-close{position:absolute;top:16px;right:20px;z-index:2;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.9);background:none;border:none;cursor:none;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ga-postcard-media{width:100%;height:280px;overflow:hidden;background:#eee}
+.ga-postcard-media img{width:100%;height:100%;object-fit:cover;display:block}
+.ga-postcard-type{padding:32px 34px 28px;text-align:center}
+.ga-postcard-kicker{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:rgba(0,0,0,.4);margin-bottom:16px}
+.ga-postcard-caption{font-family:'Fraunces',serif;font-style:italic;font-weight:400;font-size:clamp(20px,3vw,27px);line-height:1.35;color:#0a0a0a;margin-bottom:22px}
+.ga-postcard-foot{display:flex;justify-content:space-between;align-items:center;padding-top:18px;border-top:1px solid rgba(0,0,0,.1);font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:rgba(0,0,0,.45)}
+.ga-postcard-save{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:8px 16px;border:1px solid rgba(0,0,0,.15);background:none;color:#0a0a0a;cursor:none;transition:background .15s,color .15s}
+.ga-postcard-save:hover{background:#0a0a0a;color:#fff}
+@media(max-width:600px){
+  .ga-postcard{width:92vw}
+  .ga-postcard-media{height:220px}
+  .ga-postcard-type{padding:24px 22px 22px}
+}
+
+.ga-hud{position:fixed;left:0;right:0;bottom:0;z-index:400;background:var(--bg);border-top:1px solid var(--rule)}
+.ga-hud-handle{width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 24px;background:none;border:none;cursor:none;font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--fg)}
+.ga-hud-chev{transition:transform .25s;color:var(--muted)}
+.ga-hud.open .ga-hud-chev{transform:rotate(180deg)}
+.ga-hud-drawer{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.ga-hud.open .ga-hud-drawer{max-height:160px}
+.ga-hud-controls{display:flex;flex-wrap:wrap;gap:36px;padding:4px 24px 24px;align-items:flex-end}
+.ga-hud-control{display:flex;flex-direction:column;gap:8px}
+.ga-hud-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.ga-hud-control input[type="range"]{width:160px;-webkit-appearance:none;height:1px;background:var(--rule);outline:none}
+.ga-hud-control input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--fg);cursor:none}
+.ga-hud-control input[type="range"]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--fg);border:none;cursor:none}
+.ga-lens-toggle{display:flex;gap:4px}
+.ga-lens-toggle button{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:8px 16px;border:1px solid var(--rule);background:none;color:var(--muted);cursor:none;transition:background .15s,color .15s}
+.ga-lens-toggle button.active{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+@media(max-width:700px){
+  .ga-hud-controls{gap:20px;padding:4px 20px 20px}
+  .ga-hud-control input[type="range"]{width:120px}
+}
+
+
 /* ═══════════════ CIRCLES — node-graph management layer ═══════════════ */
 .circles-page{display:flex;flex-direction:column;height:100vh;padding-top:90px}
 .circles-split{display:flex;flex:1 1 auto;min-height:0}
@@ -1059,6 +1147,17 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
 .circ-control-slider input[type="range"]{width:170px;-webkit-appearance:none;height:1px;background:var(--rule);outline:none;margin-top:4px}
 .circ-control-slider input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--fg);cursor:none}
 .circ-control-slider input[type="range"]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--fg);border:none;cursor:none}
+
+.circ-top4-hud{position:absolute;top:16px;left:16px;z-index:4;background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:blur(6px);border:1px solid var(--rule);padding:12px 14px;max-width:200px}
+.circ-top4-hud-label{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.circ-top4-hud-grid{display:flex;gap:8px}
+.circ-top4-hud-item{display:flex;flex-direction:column;align-items:center;gap:5px;width:38px;cursor:none}
+.circ-top4-hud-avatar{width:28px;height:28px;border-radius:50%;background:var(--fg);color:var(--bg);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;transition:transform .2s;flex-shrink:0}
+.circ-top4-hud-item.type-company .circ-top4-hud-avatar{border-radius:5px}
+.circ-top4-hud-item.type-topic .circ-top4-hud-avatar{background:none;border:1.4px dashed var(--fg);color:var(--fg)}
+.circ-top4-hud-item:hover .circ-top4-hud-avatar{transform:translateY(-2px)}
+.circ-top4-hud-name{font-family:var(--mono);font-size:7px;text-align:center;color:var(--muted);line-height:1.2;max-width:38px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:700px){.circ-top4-hud{top:10px;left:10px;padding:9px 10px}.circ-top4-hud-item{width:32px}.circ-top4-hud-avatar{width:24px;height:24px}}
 .circ-bias-arrow{opacity:.5;text-transform:none;letter-spacing:0}
 
 .circles-canvas-wrap{position:relative;flex:0 0 auto;width:50%;min-height:0;overflow:hidden;background:var(--bg)}
@@ -1074,6 +1173,8 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
 .circ-lg-dashed{border-top-style:dashed}
 .circ-lg-dotted{border-top-style:dotted}
 .circles-hint{position:absolute;bottom:20px;right:24px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);opacity:.6;pointer-events:none;text-align:right;max-width:300px}
+.circ-ripple-toast{position:absolute;top:20px;left:50%;transform:translate(-50%,-12px);background:var(--fg);color:var(--bg);font-family:var(--mono);font-size:11px;letter-spacing:.03em;padding:10px 18px;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;z-index:6;white-space:nowrap}
+.circ-ripple-toast.show{opacity:1;transform:translate(-50%,0)}
 
 @media(max-width:900px){
   .circ-row-controls{gap:20px}
@@ -1104,6 +1205,7 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
   <div class="mnav-links">
     <a href="#" data-view="jobs"><span>Feeds</span></a>
     <a href="#" data-view="network"><span>Circles</span></a>
+    <a href="#" data-view="assembly"><span>General Assembly</span></a>
     <a href="#" data-view="agents"><span>Workflows</span></a>
   </div>
   <button class="mnav-account" id="accountBtn"><span>Account</span></button>
@@ -1120,6 +1222,7 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
 <div class="mnav-mobile-menu" id="mnavMobileMenu">
   <a href="#" data-view="jobs">Feeds</a>
   <a href="#" data-view="network">Circles</a>
+  <a href="#" data-view="assembly">General Assembly</a>
   <a href="#" data-view="agents">Workflows</a>
   <button id="mnavMobileAccount">Account</button>
   <div class="mnav-mobile-cta">Sign in</div>
@@ -1776,6 +1879,10 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
     <div class="circles-split">
     <div class="circles-canvas-wrap" id="circlesCanvasWrap">
       <canvas id="circlesCanvas"></canvas>
+      <div class="circ-top4-hud" id="circTop4Hud">
+        <div class="circ-top4-hud-label">Top 4</div>
+        <div class="circ-top4-hud-grid" id="circTop4HudGrid"></div>
+      </div>
       <div class="circles-legend">
         <div class="circ-legend-group">
           <div class="circ-legend-item"><span class="circ-lg-shape circ-lg-circle"></span>Peer</div>
@@ -2007,9 +2114,123 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
 <!-- ═══════════════════════ VIEW: AGENTS — placeholder iframe ═══════════════════════ -->
 <div id="view-agents" style="display:none">
   <div class="agents-page">
-    <iframe src="https://zack.cx/hoop.html" title="Workflows — placeholder" loading="lazy"></iframe>
+    <iframe src="https://zack.cx/shoot.html" title="Workflows — placeholder" loading="lazy"></iframe>
   </div>
 </div><!-- /view-agents -->
+
+<!-- ═══════════════════════ VIEW: GENERAL ASSEMBLY — infinite canvas photo wall ═══════════════════════ -->
+<div id="view-assembly" style="display:none">
+  <div class="feeds-page ga-gallery-page">
+    <div class="feeds-header-sticky">
+      <div class="feeds-toolbar">
+        <div class="feeds-title">General Assembly</div>
+        <div class="ga-gallery-sub">A social wall, eventually — for now, the view from here</div>
+      </div>
+    </div>
+
+    <div class="circles-split">
+      <div class="canvas-grid-viewport ga-gallery-viewport circles-canvas-wrap" id="gaCanvasViewport">
+        <div class="canvas-grid-track" id="gaCanvasTrack"></div>
+      </div>
+      <div class="circles-resize-handle" id="gaResizeHandle"></div>
+      <div class="circles-brief-panel" id="gaBriefPanel">
+        <div class="circles-brief-scrollbar" id="gaBriefScrollbar"><div class="circles-brief-scrollbar-thumb" id="gaBriefScrollbarThumb"></div></div>
+        <div class="cb-wrap">
+
+          <div class="cb-eyebrow">Concept &amp; Technical Brief — General Assembly</div>
+          <h1 class="cb-h1">This isn’t a skills page dressed up as a gallery. It’s the one place on this site built to be <em>looked at</em>, not read.</h1>
+          <p class="cb-hero-sub">What it’s for, why it breaks the site’s monochrome rule on purpose, and how the interaction here is deliberately different from every other card on the site.</p>
+
+          <div class="cb-sec">
+            <div class="cb-label">01 — The reframing</div>
+            <h2 class="cb-h2">A repertoire of buzzwords turned into a photo wall would have been the safe version of this page.</h2>
+            <p class="cb-lede">General Assembly could have stayed a grid of skill-tags and case-study fragments — useful, but easy to skim past without feeling anything. Recasting it as a photo wall does something a tag cloud can’t: it makes the page worth lingering on for its own sake, not just for what it proves.</p>
+            <p class="cb-body">The images aren’t illustrations of a skill list sitting somewhere else. They’re the actual raw material here — a genuine change in what this page is for, not a reskin of what it looked like before.</p>
+          </div>
+
+          <div class="cb-sec">
+            <div class="cb-label">02 — Why an infinite canvas</div>
+            <h2 class="cb-h2">The same pannable, tiled surface as Home and Feeds — the site’s native format, not a special case.</h2>
+            <p class="cb-lede">Every major browsing surface on this site already breaks from a scrolling list in favor of an infinite, pannable grid. General Assembly doesn’t introduce a new interaction model — it just points that same camera at photography instead of text.</p>
+            <p class="cb-body">That consistency matters more than it looks: someone who’s already learned to drag-pan Feeds or Home doesn’t have to relearn anything to use this page.</p>
+          </div>
+
+          <div class="cb-sec">
+            <div class="cb-label">03 — What a tile is</div>
+            <h2 class="cb-h2">Full color, full bleed — the one deliberate exception on a monochrome site.</h2>
+            <p class="cb-lede">Every other surface here stays strictly black, white, and gray, including photography used elsewhere on the site. This page is the single place that breaks that discipline on purpose.</p>
+            <p class="cb-body">No grayscale filter, no desaturation. Each tile is a real photograph, cropped to fill its cell edge-to-edge, with a small index number as its only chrome. The restraint everywhere else is exactly what makes the color here read as a decision, not an oversight.</p>
+          </div>
+
+          <div class="cb-sec">
+            <div class="cb-label">04 — What happens on interaction</div>
+            <h2 class="cb-h2">Hover lifts a shadow. Click opens an invitation, not a data sheet.</h2>
+            <p class="cb-lede">Every other clickable card on this site opens the same wide poster panel — kicker, headline, tag row, related pathways. This page deliberately doesn’t. Hovering a tile just deepens its shadow and lifts it slightly, a pure elevation cue with nowhere to click through to yet.</p>
+            <p class="cb-body">Clicking opens a small, centered card sized closer to an actual postcard than a sidebar — the photo up top, a caption set in italic serif underneath, nothing else competing for attention. It’s meant to feel like being handed something, not like opening a record.</p>
+          </div>
+
+          <div class="cb-sec">
+            <div class="cb-label">05 — Real controls, not decoration</div>
+            <h2 class="cb-h2">Grid size and image gap both touch the actual layout math, not a filter.</h2>
+            <p class="cb-lede">Two sliders live in the bottom drawer: grid size, which changes the tile dimensions used by the same panning physics as every other canvas grid on the site, and image gap, deliberately built as an independent control rather than tied to that same scale — so density and size can be tuned separately.</p>
+            <p class="cb-body">Neither is cosmetic. Move either one and the whole tiled pattern recomputes and re-centers live.</p>
+          </div>
+
+          <div class="cb-sec">
+            <div class="cb-label">06 — How it’s actually built</div>
+            <h2 class="cb-h2">One shared grid engine, extended with two small hooks rather than forked.</h2>
+            <p class="cb-lede">This page runs on the exact same panning, zoom, and tiling engine as Home and Feeds — not a parallel implementation that happens to look similar.</p>
+            <div class="cb-stack">
+              <div class="cb-srow2"><span class="cb-snum">01</span><div><b>Shared canvas-grid engine</b><p>Two small opt-in hooks were added to support this page — a custom tile renderer for full-bleed images, and a custom click handler — both inert unless a page explicitly asks for them.</p></div></div>
+              <div class="cb-srow2"><span class="cb-snum">02</span><div><b>Deduplicated source set</b><p>The photo pool was pulled from a longer list that included the same images uploaded twice in different formats. Each appears once.</p></div></div>
+              <div class="cb-srow2"><span class="cb-snum">03</span><div><b>The postcard is a separate object</b><p>Rather than resizing the site’s shared poster panel down to postcard scale, this page opens an entirely separate, smaller overlay — so the panel used everywhere else stays exactly as it is.</p></div></div>
+              <div class="cb-srow2"><span class="cb-snum">04</span><div><b>Independent margin control</b><p>Image gap required a small addition to the shared grid engine itself — previously, spacing was locked to the same scale as tile size. It’s now a separate multiplier any grid can opt into.</p></div></div>
+            </div>
+          </div>
+
+          <div class="cb-sec" style="border-bottom:none">
+            <div class="cb-label">07 — Scope, honestly</div>
+            <h2 class="cb-h2">What this is now, and what it deliberately isn’t yet.</h2>
+            <div class="cb-scope">
+              <div class="cb-scell">
+                <div class="cb-slabel">In scope for this pass</div>
+                <ul><li>Full-color infinite canvas populated with real photography, not placeholders</li><li>Independent grid-size and image-gap controls</li><li>A distinct postcard-style interaction, separate from the site’s shared panel</li><li>Deduplicated from the original source list — one image per photo</li></ul>
+              </div>
+              <div class="cb-scell">
+                <div class="cb-slabel">Deliberately deferred</div>
+                <ul><li>The social-wall version — aggregating contributions from people in your Circles, weighted by relationship preference, not just your own photography</li><li>Per-photo captions and context, rather than a small rotating set of placeholder lines</li><li>Contributor attribution, once this becomes genuinely multi-person</li></ul>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="ga-hud" id="gaHud">
+      <button class="ga-hud-handle" id="gaHudHandle">
+        <span>Grid controls</span>
+        <span class="ga-hud-chev">▴</span>
+      </button>
+      <div class="ga-hud-drawer" id="gaHudDrawer">
+        <div class="ga-hud-controls">
+          <div class="ga-hud-control">
+            <div class="ga-hud-label">Grid size</div>
+            <div class="canvas-scaler">
+              <span id="gaScaleLabel">13px</span>
+              <input type="range" id="gaScaleSlider" min="11" max="24" step="1" value="13">
+              <span class="canvas-scaler-hint">SHIFT+SCROLL</span>
+            </div>
+          </div>
+          <div class="ga-hud-control">
+            <div class="ga-hud-label">Image gap</div>
+            <input type="range" id="gaMarginSlider" min="0" max="3" step="0.1" value="0.2">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /view-assembly -->
 
 <footer class="foot">
   <span>intoview.pro — a thinking exercise in what a professional network could become</span>
@@ -2030,6 +2251,20 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
   <button class="case-detail-close" id="caseDetailClose">Close ×</button>
   <div class="case-detail-left" id="caseDetailLeft"></div>
   <div class="case-detail-right" id="caseDetailRight"></div>
+</div>
+
+<div class="ga-postcard-overlay" id="gaPostcardOverlay"></div>
+<div class="ga-postcard" id="gaPostcard">
+  <button class="ga-postcard-close" id="gaPostcardClose">Close ×</button>
+  <div class="ga-postcard-media" id="gaPostcardMedia"></div>
+  <div class="ga-postcard-type">
+    <div class="ga-postcard-kicker" id="gaPostcardKicker"></div>
+    <div class="ga-postcard-caption" id="gaPostcardCaption"></div>
+    <div class="ga-postcard-foot">
+      <span id="gaPostcardFootLabel"></span>
+      <button class="ga-postcard-save" id="gaPostcardSave">Save</button>
+    </div>
+  </div>
 </div>
 
 <button id="askOrb">Ask</button>
@@ -2330,37 +2565,21 @@ function initScrollFx(){
    real client/brand names, dual-canvas cursor dot
 ───────────────────────────────────────────── */
 
-function initWallParticles(){
-  // ── Real client/employer names from foundry ──────────────────────────────
-  const POEM_PHRASES = [
-    "Comcast","Charter","Rachel Roy","LimeCrime","Organic Girl","Goya",
-    "General Nutrition Centers","Worldwide Stereo","Simpson Strong-Tie",
-    "Shop Hardinge","YETI","Aquasana","Kent State University",
-    "University of Wisconsin-Madison","Texas A&M","Centro.edu.mx",
-    "Power Home Remodeling Group","TikTok For Business","BNY Pershing X",
-    "The Dana Foundation","Daz3D","Sentral Lifestyle Apartments",
-    "Publicis Sapient","Code & Theory","Huge","Elva Design Group",
-    "LiveArea","WebLinc","Workarea","O3 World","160OVER90",
-    "Leadnomics","Turn5 Inc","Phenom",
-  ];
+function createWallParticles(opts){
+  const { hero, canvas, cc, phrases } = opts;
+  if(!hero || !canvas || !cc) return null;
+  const ctx    = canvas.getContext('2d');
+  const cctx   = cc.getContext('2d');
 
-  // ── Fonts already loaded on this page ────────────────────────────────────
+  const PT_TETHER = 0.014, PT_DAMP = 0.76, PT_LERP = 0.11;
+  const FONT_SIZE = 16;
+  let CHAR_W = FONT_SIZE * 0.602, LINE_H = FONT_SIZE * 1.38;
   const PT_FONTS = [
     '"Inter",sans-serif',
     '"Fraunces",serif',
     'italic "Fraunces",serif',
     '"DM Mono",monospace',
   ];
-
-  const PT_TETHER = 0.014, PT_DAMP = 0.76, PT_LERP = 0.11;
-  const FONT_SIZE = 16;
-  let CHAR_W = FONT_SIZE * 0.602, LINE_H = FONT_SIZE * 1.38;
-
-  const hero   = document.querySelector('.hero-wall-block');
-  const canvas = document.getElementById('wallCanvas');
-  const cc     = document.getElementById('wallCanvasCC');
-  const ctx    = canvas.getContext('2d');
-  const cctx   = cc.getContext('2d');
 
   let W, H, DPR, allChars = [], loaded = false;
   let mX = -999, mY = -999;
@@ -2384,7 +2603,7 @@ function initWallParticles(){
     const placed = [];
     let x = 0, row = 0, i = 0, guard = 0, maxChars = cols*rows*2;
     while(row < rows && guard < maxChars){
-      const phrase = POEM_PHRASES[i % POEM_PHRASES.length];
+      const phrase = phrases[i % phrases.length];
       const font   = PT_FONTS[Math.floor(Math.random()*PT_FONTS.length)];
       const spaceW = charWidth(font, ' ');
       for(const ch of phrase){
@@ -2425,7 +2644,6 @@ function initWallParticles(){
     eVX = (mX-eX)*0.1; eVY = (mY-eY)*0.1;
     eX += (eVX *= 0.68); eY += (eVY *= 0.68);
 
-    // Read live theme — works with both light default and dark toggle
     const dark = isDarkTheme;
     const rgbFg   = dark ? '255,255,255' : '0,0,0';
     const rgbBg   = dark ? '0,0,0'       : '255,255,255';
@@ -2468,14 +2686,12 @@ function initWallParticles(){
         }
       }
 
-      // Bottom fade — same gradient approach as foundry
       const vg = ctx.createLinearGradient(0, H*0.78, 0, H);
       vg.addColorStop(0, `rgba(${rgbBg},0)`);
       vg.addColorStop(1, `rgba(${rgbBg},1)`);
       ctx.fillStyle = vg; ctx.fillRect(0, H*0.78, W, H*0.22);
     }
 
-    // ── Cursor dot overlay canvas (foundry's dual-canvas trick) ───────────
     cctx.clearRect(0,0,W,H);
     if(mX > 0){
       cctx.fillStyle = `rgba(${rgbFg},0.35)`;
@@ -2495,12 +2711,38 @@ function initWallParticles(){
   }, {passive:true});
   let _rTimer; window.addEventListener('resize', ()=>{ clearTimeout(_rTimer); _rTimer = setTimeout(rebuild, 120); });
 
-  window.resetWallParticles = function(){
-    for(const p of allChars){ p.x = p.restX; p.y = p.restY; p.vx = 0; p.vy = 0; }
-    mX = -999; mY = -999; bX = -999; bY = -999;
-  };
-
   rebuild(); loop();
+
+  return {
+    reset(){
+      for(const p of allChars){ p.x = p.restX; p.y = p.restY; p.vx = 0; p.vy = 0; }
+      mX = -999; mY = -999; bX = -999; bY = -999;
+    },
+    rebuildWithPhrases(newPhrases){
+      phrases.length = 0; phrases.push(...newPhrases);
+      rebuild();
+    },
+  };
+}
+
+function initWallParticles(){
+  const instance = createWallParticles({
+    hero: document.querySelector('.hero-wall-block'),
+    canvas: document.getElementById('wallCanvas'),
+    cc: document.getElementById('wallCanvasCC'),
+    phrases: [
+      "Comcast","Charter","Rachel Roy","LimeCrime","Organic Girl","Goya",
+      "General Nutrition Centers","Worldwide Stereo","Simpson Strong-Tie",
+      "Shop Hardinge","YETI","Aquasana","Kent State University",
+      "University of Wisconsin-Madison","Texas A&M","Centro.edu.mx",
+      "Power Home Remodeling Group","TikTok For Business","BNY Pershing X",
+      "The Dana Foundation","Daz3D","Sentral Lifestyle Apartments",
+      "Publicis Sapient","Code & Theory","Huge","Elva Design Group",
+      "LiveArea","WebLinc","Workarea","O3 World","160OVER90",
+      "Leadnomics","Turn5 Inc","Phenom",
+    ],
+  });
+  if(instance) window.resetWallParticles = instance.reset;
 }
 
 /* ─────────────────────────────────────────────
@@ -2516,6 +2758,7 @@ const viewFeed = document.getElementById('view-feed');
 const viewNetwork = document.getElementById('view-network');
 const viewAnalytics = document.getElementById('view-analytics');
 const viewAgents = document.getElementById('view-agents');
+const viewAssembly = document.getElementById('view-assembly');
 const bc = document.getElementById('bc');
 const bcCurrent = document.getElementById('bcCurrent');
 const SUBVIEWS = {
@@ -2526,6 +2769,7 @@ const SUBVIEWS = {
   network: { el: viewNetwork, label: 'Circles' },
   analytics: { el: viewAnalytics, label: 'Dashboard' },
   agents: { el: viewAgents, label: 'Workflows' },
+  assembly: { el: viewAssembly, label: 'General Assembly' },
 };
 
 let currentView = 'home';
@@ -2546,6 +2790,7 @@ function showView(name){
   window.scrollTo(0,0);
   if(window.ScrollTrigger) ScrollTrigger.refresh();
   if(name === 'network') setTimeout(()=>{ if(window.circlesUpdateScrollbar) window.circlesUpdateScrollbar(); }, 50);
+  if(name === 'assembly') setTimeout(()=>{ if(window.gaUpdateScrollbar) window.gaUpdateScrollbar(); }, 50);
   if(name === 'dock' && typeof renderDock === 'function') renderDock();
   const label = name === 'dock' ? 'Saved' : name === 'home' ? 'Home' : sub ? sub.label : 'Home';
   pageViews[label] = (pageViews[label] || 0) + 1;
@@ -2877,7 +3122,32 @@ const CIRCLES_EXTRA_EDGES = [
 ];
 const CIRCLES_TEMP_ORDER = ['warm','considered','casual','light','cold','ghosted'];
 const CIRCLES_TEMP_STRENGTH = { warm:0.024, considered:0.018, casual:0.013, light:0.009, cold:0.005, ghosted:0.003, you:0 };
-const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'diamond', mentor:'triangle', you:'circle' };
+const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'diamond', mentor:'triangle', you:'circle', topic:'diamond' };
+
+// Top-4 hubs — Rachel Kim already exists as a real node, so she's referenced
+// directly; the other three Top-4 entries (two companies, one topic) don't
+// have a node yet, so they get one here. Each hub gets 4 orbiting satellite
+// nodes representing recent shared activity — a visual stand-in for a
+// notification, seen in place on the graph rather than in a separate list.
+const CIRCLES_TOP4_NEW_HUBS = [
+  { id:'hub-atlas', name:'Studio Atlas', archetype:'hiring', isTopicHub:false },
+  { id:'hub-design', name:'Design Systems', archetype:'topic', isTopicHub:true },
+  { id:'hub-vector', name:'Vector Labs', archetype:'hiring', isTopicHub:false },
+];
+const CIRCLES_TOP4_HUB_IDS = ['rachel', 'hub-atlas', 'hub-design', 'hub-vector'];
+
+// The wave pool — public, not-yet-connected people who've marked themselves
+// available for discovery. No edge to "you" yet, since there's no
+// relationship — they drift independently, like lily pads, rather than
+// being pulled into the spring/repulsion physics of the main network.
+const CIRCLES_POOL_NODES = [
+  { id:'pool-1', name:'Jordan Vance',  role:'Product Designer',     company:'Anchor Studio', archetype:'peer',     shared:3, networkContent:5, granted:2 },
+  { id:'pool-2', name:'Sasha Reyes',   role:'Engineering Manager',  company:'Kite & Co.',     archetype:'hiring',   shared:2, networkContent:3, granted:1 },
+  { id:'pool-3', name:'Noor Fadel',    role:'Talent Partner',       company:'Recruiter',      archetype:'recruiter',shared:4, networkContent:2, granted:1 },
+  { id:'pool-4', name:'Miles Chen',    role:'Design Advisor',       company:'Independent',    archetype:'mentor',   shared:1, networkContent:4, granted:3 },
+  { id:'pool-5', name:'Aiko Tanaka',   role:'Product Manager',      company:'Loom Works',     archetype:'peer',     shared:5, networkContent:3, granted:2 },
+  { id:'pool-6', name:'Leo Marchetti', role:'Creative Director',    company:'Basin Studio',   archetype:'peer',     shared:3, networkContent:6, granted:2 },
+];
 
 (function(){
   const canvas = document.getElementById('circlesCanvas');
@@ -2885,7 +3155,7 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
   if(!canvas || !wrap) return;
   const ctx = canvas.getContext('2d');
 
-  const nodes = [CIRCLES_YOU, ...CIRCLES_NODES].map(n=>({
+  const nodes = [CIRCLES_YOU, ...CIRCLES_NODES, ...CIRCLES_TOP4_NEW_HUBS.map(h=>({ ...h, circle:'inner', temp:'warm' }))].map(n=>({
     ...n,
     x: n.id==='you' ? 0 : (Math.random()-0.5)*360,
     y: n.id==='you' ? 0 : (Math.random()-0.5)*360,
@@ -2895,10 +3165,114 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
   }));
   const nodeById = {};
   nodes.forEach(n=>{ nodeById[n.id]=n; });
-  const edges = CIRCLES_NODES.map(n=>({ from:'you', to:n.id, temp:n.temp }))
+  const edges = CIRCLES_NODES.concat(CIRCLES_TOP4_NEW_HUBS.map(h=>({ id:h.id, temp:'warm' })))
+    .map(n=>({ from:'you', to:n.id, temp:n.temp }))
     .concat(CIRCLES_EXTRA_EDGES)
     .map(e=>({ ...e, a:nodeById[e.from], b:nodeById[e.to] }))
     .filter(e=>e.a && e.b);
+
+  // Each Top-4 hub gets 4 orbiting satellite nodes — small stand-ins for
+  // recent shared activity, tracked dynamically against the hub's actual
+  // (physics-driven) position each frame rather than a fixed offset. A
+  // couple carry a visible activity indicator, demonstrating the idea:
+  // you see where something happened by glancing at the graph, not by
+  // scrolling a notification list.
+  const ACTIVITY_LABELS = ['Shared a post', 'Reacted', 'Posted an update', 'Commented'];
+  const top4Satellites = [];
+  CIRCLES_TOP4_HUB_IDS.forEach((hubId, hi)=>{
+    for(let s=0; s<4; s++){
+      top4Satellites.push({
+        id: hubId+'-sat-'+s, hubId,
+        angleOffset: (s/4)*Math.PI*2, orbitRadius: 42 + (s%2)*8,
+        orbitSpeed: 0.012 + s*0.002,
+        hasActivity: (hi===0 && s===0) || (hi===2 && s===1),
+        activityLabel: ACTIVITY_LABELS[(hi+s) % ACTIVITY_LABELS.length],
+        x:0, y:0, r:4.5,
+      });
+    }
+  });
+  let orbitTime = 0;
+  function updateTop4Satellites(){
+    orbitTime += 1;
+    top4Satellites.forEach(s=>{
+      const hub = nodeById[s.hubId];
+      if(!hub) return;
+      const angle = s.angleOffset + orbitTime*s.orbitSpeed;
+      s.x = hub.x + Math.cos(angle)*s.orbitRadius;
+      s.y = hub.y + Math.sin(angle)*s.orbitRadius;
+    });
+  }
+
+  // Scatter pool nodes in a wide ring well beyond the main network, each
+  // with its own drift phase/speed so the motion reads as organic rather
+  // than synchronized.
+  const poolNodes = CIRCLES_POOL_NODES.map((p,i)=>{
+    const angle = (i / CIRCLES_POOL_NODES.length) * Math.PI*2 + Math.random()*0.4;
+    const radius = 560 + Math.random()*160;
+    return {
+      ...p, r:10,
+      anchorX: Math.cos(angle)*radius, anchorY: Math.sin(angle)*radius,
+      x: Math.cos(angle)*radius, y: Math.sin(angle)*radius,
+      phase: Math.random()*Math.PI*2, speed: 0.006 + Math.random()*0.004,
+      amp: 14 + Math.random()*10,
+    };
+  });
+  let poolTime = 0;
+  function updatePoolNodes(){
+    poolTime += 1;
+    poolNodes.forEach(p=>{
+      p.x = p.anchorX + Math.sin(poolTime*p.speed + p.phase) * p.amp;
+      p.y = p.anchorY + Math.cos(poolTime*p.speed*0.8 + p.phase) * p.amp;
+    });
+  }
+
+  // Ripples — the "pull their node into yours" connection request. A ghost
+  // travels from the target's position toward "you", then resolves solid
+  // (confirmed) or stays hollow (cold), based on their existing temperature.
+  const RIPPLE_DURATION = 70, RIPPLE_HOLD = 100;
+  const ripples = [];
+  function requestRipple(node){
+    const isPool = typeof node.id === 'string' && node.id.startsWith('pool-');
+    const confirms = isPool ? Math.random() < 0.7 : ['warm','considered','casual'].includes(node.temp);
+    ripples.push({
+      name: node.name, startX: node.x, startY: node.y,
+      x: node.x, y: node.y, t: 0, resolved: false, confirms,
+    });
+    showRippleToast(node.name + ' \u2014 ripple sent\u2026');
+  }
+  function tickRipples(){
+    for(let i=ripples.length-1; i>=0; i--){
+      const r = ripples[i];
+      if(!r.resolved){
+        r.t++;
+        const p = Math.min(1, r.t / RIPPLE_DURATION);
+        const eased = 1 - Math.pow(1-p, 3);
+        r.x = r.startX + (0 - r.startX) * eased;
+        r.y = r.startY + (0 - r.startY) * eased;
+        if(p >= 1){
+          r.resolved = true; r.holdT = 0;
+          showRippleToast(r.name + (r.confirms ? ' \u2014 ripple confirmed' : ' \u2014 no response yet'));
+        }
+      } else {
+        r.holdT++;
+        if(r.holdT > RIPPLE_HOLD) ripples.splice(i,1);
+      }
+    }
+  }
+  let rippleToastTimer = null;
+  function showRippleToast(msg){
+    let toast = document.getElementById('circRippleToast');
+    if(!toast){
+      toast = document.createElement('div');
+      toast.id = 'circRippleToast';
+      toast.className = 'circ-ripple-toast';
+      wrap.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(rippleToastTimer);
+    rippleToastTimer = setTimeout(()=> toast.classList.remove('show'), 2600);
+  }
 
   let W=0,H=0,DPR=1;
   let camX=0, camY=0, zoom=1;
@@ -2970,6 +3344,8 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
       n.vx*=0.86; n.vy*=0.86;
       n.x+=n.vx; n.y+=n.vy;
     });
+    updatePoolNodes();
+    updateTop4Satellites();
   }
 
   function shapePath(shape, x, y, r){
@@ -2992,6 +3368,53 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
     ctx.save();
     ctx.translate(W/2+camX, H/2+camY);
     ctx.scale(zoom, zoom);
+
+    poolNodes.forEach(p=>{
+      ctx.save();
+      const rings = [
+        { radius: 52, count: p.shared,         speed: 0.0022, dotR: 2.6 },  // outer — shared connections
+        { radius: 36, count: p.networkContent,  speed: -0.0035, dotR: 2.2 }, // middle — network content
+        { radius: 21, count: p.granted,         speed: 0.006,  dotR: 2.0 }, // inner — granted content from them
+      ];
+      rings.forEach(ring=>{
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, ring.radius, 0, Math.PI*2);
+        ctx.strokeStyle = muted;
+        ctx.lineWidth = 0.7;
+        ctx.setLineDash([1,3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const rot = poolTime * ring.speed;
+        for(let i=0; i<ring.count; i++){
+          const a = rot + (i / ring.count) * Math.PI*2;
+          const dx = p.x + Math.cos(a)*ring.radius, dy = p.y + Math.sin(a)*ring.radius;
+          ctx.globalAlpha = 0.65;
+          ctx.beginPath();
+          ctx.arc(dx, dy, ring.dotR, 0, Math.PI*2);
+          ctx.fillStyle = muted;
+          ctx.fill();
+        }
+      });
+      ctx.globalAlpha = 0.85;
+      const shape = CIRCLES_ARCHETYPE_SHAPE[p.archetype] || 'circle';
+      shapePath(shape, p.x, p.y, p.r);
+      ctx.fillStyle = bg;
+      ctx.fill();
+      ctx.strokeStyle = muted;
+      ctx.lineWidth = 1.3;
+      ctx.setLineDash([2,2]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if(zoom > 0.55){
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = muted;
+        ctx.font = '10px "DM Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.name, p.x, p.y + rings[0].radius + 16);
+      }
+      ctx.restore();
+    });
 
     edges.forEach(e=>{
       if(!edgeVisible(e)) return;
@@ -3022,11 +3445,11 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
       ctx.globalAlpha = ghosted ? 0.4 : 1;
       const shape = CIRCLES_ARCHETYPE_SHAPE[n.archetype]||'circle';
       shapePath(shape, n.x, n.y, n.r);
-      ctx.fillStyle = (n.id==='you' || n.circle==='inner') ? fg : bg;
+      ctx.fillStyle = n.isTopicHub ? bg : ((n.id==='you' || n.circle==='inner') ? fg : bg);
       ctx.fill();
       ctx.strokeStyle = fg;
       ctx.lineWidth = 1.4;
-      ctx.setLineDash(n.circle==='outer' ? [3,2] : []);
+      ctx.setLineDash(n.isTopicHub ? [3,2] : (n.circle==='outer' ? [3,2] : []));
       ctx.stroke();
       ctx.setLineDash([]);
       if(zoom > 0.55){
@@ -3035,6 +3458,54 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
         ctx.textAlign = 'center';
         ctx.fillText(n.name, n.x, n.y + n.r + 15);
       }
+      ctx.restore();
+    });
+
+    top4Satellites.forEach(s=>{
+      const hub = nodeById[s.hubId];
+      if(!hub || !nodeVisible(hub)) return;
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = bg;
+      ctx.fill();
+      ctx.strokeStyle = muted;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      if(s.hasActivity){
+        ctx.beginPath();
+        ctx.arc(s.x + s.r*0.7, s.y - s.r*0.7, 2.6, 0, Math.PI*2);
+        ctx.fillStyle = fg;
+        ctx.fill();
+      }
+      ctx.restore();
+    });
+
+    ripples.forEach(r=>{
+      ctx.save();
+      const traveling = !r.resolved;
+      const fadeAlpha = r.resolved ? Math.max(0, 1 - r.holdT/RIPPLE_HOLD) : 1;
+      ctx.globalAlpha = fadeAlpha;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 9, 0, Math.PI*2);
+      if(traveling){
+        ctx.setLineDash([3,3]);
+        ctx.strokeStyle = muted;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+      } else if(r.confirms){
+        ctx.fillStyle = fg;
+        ctx.fill();
+      } else {
+        ctx.fillStyle = bg;
+        ctx.fill();
+        ctx.strokeStyle = fg;
+        ctx.lineWidth = 1.4;
+        ctx.setLineDash([]);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
       ctx.restore();
     });
 
@@ -3048,6 +3519,7 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
     if(visible){
       if(!wasVisible) resize();
       tick();
+      tickRipples();
       render();
     }
     wasVisible = visible;
@@ -3061,6 +3533,18 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
   }
   function hitNode(clientX, clientY){
     const { x, y } = toWorld(clientX, clientY);
+    for(let i=top4Satellites.length-1;i>=0;i--){
+      const s = top4Satellites[i];
+      const hub = nodeById[s.hubId];
+      if(!hub || !nodeVisible(hub)) continue;
+      const dx=x-s.x, dy=y-s.y;
+      if(dx*dx+dy*dy <= (s.r+6)*(s.r+6)) return s;
+    }
+    for(let i=poolNodes.length-1;i>=0;i--){
+      const p = poolNodes[i];
+      const dx=x-p.x, dy=y-p.y;
+      if(dx*dx+dy*dy <= (p.r+7)*(p.r+7)) return p;
+    }
     for(let i=nodes.length-1;i>=0;i--){
       const n = nodes[i];
       if(!nodeVisible(n)) continue;
@@ -3072,7 +3556,25 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
   function capitalize(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
   function openNodePanel(n){
     if(!window.openCardPanel) return;
-    const circleLabel = n.circle==='inner' ? 'Inner circle' : n.circle==='outer' ? 'Outer circle' : '';
+    if(n.hubId){
+      const hub = nodeById[n.hubId];
+      window.openCardPanel([
+        '<div class="poster-header">',
+          '<span class="poster-kicker">Recent activity</span>',
+          '<button class="poster-close" id="posterCloseBtn">Close ×</button>',
+        '</div>',
+        '<div class="poster-body-wrap">',
+          '<h2 class="poster-title style-plain">'+(hub ? hub.name : 'Activity')+'</h2>',
+          '<p class="poster-body">'+n.activityLabel+(n.hasActivity ? ' \u2014 new since your last visit.' : ' a little while ago.')+'</p>',
+        '</div>',
+      ].join(''));
+      document.getElementById('posterPanel').querySelector('#posterCloseBtn')?.addEventListener('click', ()=>{ if(window.closeCardPanel) window.closeCardPanel(); });
+      return;
+    }
+    const isPool = typeof n.id === 'string' && n.id.startsWith('pool-');
+    const circleLabel = isPool ? 'Public \u2014 not yet connected' : (n.circle==='inner' ? 'Inner circle' : n.circle==='outer' ? 'Outer circle' : '');
+    const rippleBtn = n.id !== 'you' ? '<button class="poster-save" id="posterRippleBtn">'+(isPool ? 'Request Connection \u2192' : 'Request Ripple \u2192')+'</button>' : '';
+    const tempTag = isPool ? '' : '<span class="poster-tag">Responsiveness: '+capitalize(n.temp)+'</span>';
     window.openCardPanel([
       '<div class="poster-header">',
         '<span class="poster-kicker">'+(n.company||'')+'</span>',
@@ -3083,11 +3585,16 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
         '<p class="poster-body">'+(n.role||'')+(n.company?' at '+n.company:'')+'. '+circleLabel+'.</p>',
         '<div class="poster-tagrow">',
           '<span class="poster-tag">'+capitalize(n.archetype)+'</span>',
-          '<span class="poster-tag">Responsiveness: '+capitalize(n.temp)+'</span>',
+          tempTag,
+          rippleBtn,
         '</div>',
       '</div>',
     ].join(''));
     document.getElementById('posterPanel').querySelector('#posterCloseBtn')?.addEventListener('click', ()=>{ if(window.closeCardPanel) window.closeCardPanel(); });
+    document.getElementById('posterPanel').querySelector('#posterRippleBtn')?.addEventListener('click', ()=>{
+      requestRipple(n);
+      if(window.closeCardPanel) window.closeCardPanel();
+    });
   }
 
   canvas.addEventListener('pointerdown', e=>{
@@ -3168,20 +3675,40 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
   });
   const biasSlider = document.getElementById('circBiasSlider');
   if(biasSlider) biasSlider.addEventListener('input', ()=>{ biasVal = parseFloat(biasSlider.value); });
+
+  // Top 4 — a nod to MySpace's Top 8. The full product concept keeps an
+  // adjustable count (4/8/12/16/24/56/72/96, defaulting to 8); this demo
+  // fixes it at 4 and renders it as a small in-graph HUD badge cluster
+  // rather than a separate full-width bar.
+  const TOP4_POOL = [
+    { type:'person', label:'Rachel Kim', initials:'RK' },
+    { type:'company', label:'Studio Atlas', initials:'SA' },
+    { type:'topic', label:'Design Systems', initials:'#' },
+    { type:'company', label:'Vector Labs', initials:'VL' },
+  ];
+  function renderTop4Hud(){
+    const grid = document.getElementById('circTop4HudGrid');
+    if(!grid) return;
+    grid.innerHTML = TOP4_POOL.map(item=>
+      '<div class="circ-top4-hud-item type-'+item.type+'"><div class="circ-top4-hud-avatar">'+item.initials+'</div><div class="circ-top4-hud-name">'+item.label+'</div></div>'
+    ).join('');
+  }
+  renderTop4Hud();
 })();
 
 /* ─────────────────────────────────────────────
-   CIRCLES SPLIT — draggable resize handle between
-   the graph and the brief panel (default 50:50),
-   plus a custom scroll indicator for the panel
-   (native scrollbar hidden via CSS above).
+   SPLIT PANEL — draggable resize handle between a
+   left interactive surface and a right brief panel
+   (default 50:50), plus a custom scroll indicator
+   for the panel. Shared by Circles and General
+   Assembly rather than duplicated per page.
 ───────────────────────────────────────────── */
-(function(){
-  const split = document.querySelector('.circles-split');
-  const canvasWrap = document.getElementById('circlesCanvasWrap');
-  const handle = document.getElementById('circlesResizeHandle');
-  const briefPanel = document.getElementById('circlesBriefPanel');
-  if(!split || !canvasWrap || !handle || !briefPanel) return;
+function initSplitPanel(opts){
+  const split = document.querySelector(opts.splitSel);
+  const canvasWrap = document.getElementById(opts.wrapId);
+  const handle = document.getElementById(opts.handleId);
+  const briefPanel = document.getElementById(opts.briefPanelId);
+  if(!split || !canvasWrap || !handle || !briefPanel) return null;
 
   let dragging = false;
   handle.addEventListener('pointerdown', e=>{
@@ -3195,14 +3722,14 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
     let pct = ((e.clientX - rect.left) / rect.width) * 100;
     pct = Math.min(80, Math.max(20, pct));
     canvasWrap.style.width = pct + '%';
-    if(window.circlesGraphResize) window.circlesGraphResize();
+    if(opts.onResize) opts.onResize();
   });
   function endDrag(){ dragging = false; handle.classList.remove('dragging'); }
   handle.addEventListener('pointerup', endDrag);
   handle.addEventListener('pointercancel', endDrag);
 
-  const track = document.getElementById('circlesBriefScrollbar');
-  const thumb = document.getElementById('circlesBriefScrollbarThumb');
+  const track = document.getElementById(opts.scrollbarId);
+  const thumb = document.getElementById(opts.thumbId);
   function updateScrollbar(){
     if(!track || !thumb) return;
     const ratio = briefPanel.clientHeight / briefPanel.scrollHeight;
@@ -3219,7 +3746,137 @@ const CIRCLES_ARCHETYPE_SHAPE = { peer:'circle', hiring:'square', recruiter:'dia
   }
   briefPanel.addEventListener('scroll', updateScrollbar);
   window.addEventListener('resize', updateScrollbar);
-  window.circlesUpdateScrollbar = updateScrollbar;
+  if(opts.exposeAs) window[opts.exposeAs] = updateScrollbar;
+  return updateScrollbar;
+}
+
+initSplitPanel({
+  splitSel: '.circles-split', wrapId: 'circlesCanvasWrap', handleId: 'circlesResizeHandle',
+  briefPanelId: 'circlesBriefPanel', scrollbarId: 'circlesBriefScrollbar', thumbId: 'circlesBriefScrollbarThumb',
+  onResize: ()=>{ if(window.circlesGraphResize) window.circlesGraphResize(); },
+  exposeAs: 'circlesUpdateScrollbar',
+});
+
+/* ═══════════════════════════════════════════════════════════
+   GENERAL ASSEMBLY — infinite canvas photo wall.
+   Same shared canvas-grid mechanism as Home and Feeds (panning, zoom,
+   tiling, click-to-open-poster-panel all inherited for free) but with
+   a custom media tile renderer instead of the text-card template, and
+   full color — the one deliberate exception to the site's monochrome
+   discipline elsewhere. A bottom HUD gives independent control over
+   grid size, margin, and a flat/warped "eye:lens" toggle.
+═══════════════════════════════════════════════════════════ */
+const GA_PHOTOS = [
+  "https://i.ibb.co/yc6ppFdj/ZAX01304.webp",
+  "https://i.ibb.co/Hpt4F9Kb/IMG-8403.webp",
+  "https://i.ibb.co/vC0H3LTF/DSC08656.webp",
+  "https://i.ibb.co/bMJNnQtg/DSC08604.webp",
+  "https://i.ibb.co/Y7wVfbfK/DSC08212.webp",
+  "https://i.ibb.co/99B3hgp3/2274809041971350857-5144774570.webp",
+  "https://i.ibb.co/HmmCNyS/603d61b96ca6f0c336165b6e-DSC09310.webp",
+  "https://i.ibb.co/mCK7D4Xb/1-Oen-HCQm-Ga10wp-Cz-R8o9-Pt-A.webp",
+  "https://i.ibb.co/GQM6jmpJ/1-1gjr-Eff-Bio-JYo-EAv-MWHf-KQ.webp",
+  "https://i.ibb.co/6Rqf37ft/6039d4bbb15be328fc33b54d-IMG-6478.webp",
+  "https://i.ibb.co/BKv7177j/603d6216612acc7c7e54bef2-IMG-1158.webp",
+  "https://i.ibb.co/QFKMY1sH/603d138e1d5ed053b509992a-IMG-5199.webp",
+  "https://i.ibb.co/N2cSNMf4/603d102d9f59a611886a6893-IMG-2151.webp",
+  "https://i.ibb.co/KjzkkW68/603d102d0f02c70fdf7d84eb-IMG-4696.webp",
+  "https://i.ibb.co/9HZMK0nw/603d0b8b038105ae6904872a-DSC08334.webp",
+  "https://i.ibb.co/yFz4P7cG/603d0b8b04655c6fd42d2253-DSC08281.webp",
+  "https://i.ibb.co/rR91Q0Z4/603a967ad03490104c2aaefe-ZAX01042-2.webp",
+  "https://i.ibb.co/Kph6fp3M/603a967a6a41f4d56ca33b1a-ZAX00794.webp",
+  "https://i.ibb.co/FLS6ZdgN/603a95ed29478f4bc91875b5-DSC08933.webp",
+  "https://i.ibb.co/5Xr0MDSw/603a93f06a41f45766a3361a-DSC09212.webp",
+  "https://i.ibb.co/wNFR8hJR/603a93f1d03490ae9d2aa64a-IMG-3824.webp",
+  "https://i.ibb.co/VcxChJB1/603a93eef8754819192222f7-DSC09720.webp",
+  "https://i.ibb.co/pjh1ftD4/603d0bb2331da47ee88db089-DSC02085.jpg",
+  "https://i.ibb.co/q32VwbxG/603d0b5635e8053bc120bec7-DSC09034.jpg",
+  "https://i.ibb.co/B57brGpH/603d0b8abf1990616037cc35-ZAX03810.jpg",
+  "https://i.ibb.co/KkHpvXt/603b3890dcd3ab104d67d405-ZAX01233-2.jpg",
+  "https://i.ibb.co/HfVqtzzn/603afe37ba16f8f9174cf501-IMG-1878.jpg",
+  "https://i.ibb.co/Y4cz47NK/603a967916b10d5bef5a6dd8-ZAX02712-1.jpg",
+  "https://i.ibb.co/Qvnn64Kb/603a967ac64cec73069e2454-ZAX09877.jpg",
+  "https://i.ibb.co/vxkSqfr5/603a967a5dc3e982f571b744-ZAX00968.jpg",
+  "https://i.ibb.co/xt9M8KB9/603a95ee83ba30ff4ac9bc6a-DSC00423-1.jpg",
+  "https://i.ibb.co/Ldw6P2Lb/603a95edd03490eb412aaedc-DSC08676.jpg",
+  "https://i.ibb.co/G39jGrk4/603a95edd9a3b56723de7edc-DSC00910.jpg",
+  "https://i.ibb.co/ch9YMGNW/603a93f0e815e830d1783e07-IMG-2033.jpg",
+  "https://i.ibb.co/JWb6r4zD/603a93efdfd184c21ef2d238-IMG-3352.jpg",
+  "https://i.ibb.co/Dgm1cLry/603a93eedcd3ab4b2e64fcbc-IMG-4204.jpg",
+  "https://i.ibb.co/tpvRzKWF/603a93eea83b1aab7a98c35b-DSC08228.jpg",
+  "https://i.ibb.co/S4DSwGfN/603a93eddcd3ab104d64fcbb-ZAX09767.jpg",
+];
+const GA_CAPTIONS = [
+  "Somewhere, recently.", "One of the ones worth keeping.", "No caption necessary.",
+  "Shot on the way to somewhere else.", "Kept for the light, not the subject.",
+];
+
+(function(){
+  const GA_POOL = GA_PHOTOS.map((url,i)=>({
+    kicker: "General Assembly",
+    tag: "Field notes \u00b7 " + String(i+1).padStart(2,"0"),
+    style: "plain",
+    headline: "",
+    meta: GA_CAPTIONS[i % GA_CAPTIONS.length],
+    img: url,
+  }));
+
+  function gaDataProvider(tab, count){
+    return expandPool(GA_POOL, count);
+  }
+  function gaTileRenderer(idx, c){
+    return '<img src="'+c.img+'" alt="" loading="lazy"><span class="ga-photo-idx">'+String(idx).padStart(2,"0")+'</span>';
+  }
+
+  const gaPostcardOverlay = document.getElementById("gaPostcardOverlay");
+  const gaPostcard = document.getElementById("gaPostcard");
+  function openGaPostcard(card){
+    if(!gaPostcard) return;
+    const img = card.querySelector("img")?.src || "";
+    const tag = card.dataset.tag || "";
+    const caption = card.dataset.body || "";
+    document.getElementById("gaPostcardMedia").innerHTML = img ? '<img src="'+img+'" alt="">' : "";
+    document.getElementById("gaPostcardKicker").textContent = tag;
+    document.getElementById("gaPostcardCaption").textContent = caption;
+    document.getElementById("gaPostcardFootLabel").textContent = "General Assembly";
+    gaPostcardOverlay.classList.add("open");
+    gaPostcard.classList.add("open");
+    document.body.classList.add("scroll-locked");
+    document.getElementById("gaPostcardSave").onclick = ()=>{ if(window.saveFeedCard) window.saveFeedCard(card); };
+  }
+  function closeGaPostcard(){
+    if(!gaPostcard) return;
+    gaPostcardOverlay.classList.remove("open");
+    gaPostcard.classList.remove("open");
+    document.body.classList.remove("scroll-locked");
+  }
+  document.getElementById("gaPostcardClose")?.addEventListener("click", closeGaPostcard);
+  gaPostcardOverlay?.addEventListener("click", closeGaPostcard);
+  window.closeGaPostcard = closeGaPostcard;
+
+  const gaGrid = initCanvasGrid({
+    viewportId: "gaCanvasViewport", trackId: "gaCanvasTrack",
+    defaultTab: "all", dataProvider: gaDataProvider,
+    scaleSliderId: "gaScaleSlider", scaleLabelId: "gaScaleLabel",
+    tileRenderer: gaTileRenderer, tileClass: "canvas-tile ga-photo-tile",
+    onCardClick: openGaPostcard,
+    defaultGridSize: 13, defaultMargin: 0.2,
+  });
+
+  const hud = document.getElementById("gaHud");
+  const hudHandle = document.getElementById("gaHudHandle");
+  const marginSlider = document.getElementById("gaMarginSlider");
+  if(hudHandle) hudHandle.addEventListener("click", ()=> hud.classList.toggle("open"));
+  if(marginSlider && gaGrid){
+    marginSlider.addEventListener("input", ()=> gaGrid.setMargin(parseFloat(marginSlider.value)));
+  }
+
+  initSplitPanel({
+    splitSel: ".ga-gallery-page .circles-split", wrapId: "gaCanvasViewport", handleId: "gaResizeHandle",
+    briefPanelId: "gaBriefPanel", scrollbarId: "gaBriefScrollbar", thumbId: "gaBriefScrollbarThumb",
+    onResize: ()=>{ if(gaGrid) gaGrid.rebuildAndCenter(); },
+    exposeAs: "gaUpdateScrollbar",
+  });
 })();
 
 /* ─────────────────────────────────────────────
@@ -3313,7 +3970,8 @@ function initCanvasGrid(cfg){
 
   let COLS = 4;
   const ROWS = 3;
-  let baseFontPx = 16;
+  let baseFontPx = cfg.defaultGridSize || 16;
+  let marginMult = cfg.defaultMargin ?? 1;
   let TW = 300, TH = 236, GAP = 16, setW = COLS*(TW+GAP), setH = ROWS*(TH+GAP);
   let copiesX = 1, copiesY = 1;
   let currentTab = cfg.defaultTab;
@@ -3329,7 +3987,7 @@ function initCanvasGrid(cfg){
   function recomputeDims(){
     COLS = computeCols();
     const scale = baseFontPx / 16;
-    TW = Math.round(300*scale); TH = Math.round(236*scale); GAP = Math.round(16*scale);
+    TW = Math.round(300*scale); TH = Math.round(236*scale); GAP = Math.round(16*scale*marginMult);
     setW = COLS*(TW+GAP); setH = ROWS*(TH+GAP);
     const vw = viewport.clientWidth || window.innerWidth;
     const vh = viewport.clientHeight || window.innerHeight;
@@ -3349,7 +4007,7 @@ function initCanvasGrid(cfg){
           const left = dxi*setW + col*(TW+GAP);
           const top = dyi*setH + row*(TH+GAP);
           const tile = document.createElement('div');
-          tile.className = 'feed-card canvas-tile' + (c.source ? ' job-'+c.source : '');
+          tile.className = (cfg.tileClass || 'feed-card canvas-tile') + (c.source ? ' job-'+c.source : '');
           tile.style.left = left+'px'; tile.style.top = top+'px';
           tile.style.width = TW+'px'; tile.style.height = TH+'px';
           tile.dataset.kicker = c.kicker || '';
@@ -3358,7 +4016,7 @@ function initCanvasGrid(cfg){
           tile.dataset.body = (c.meta || '').replace(/"/g,'&quot;');
           tile.dataset.source = c.source || '';
           tile.dataset.logo = c.logo || '';
-          tile.innerHTML = tileInnerHTML(i+1, c);
+          tile.innerHTML = cfg.tileRenderer ? cfg.tileRenderer(i+1, c) : tileInnerHTML(i+1, c);
           track.appendChild(tile);
         });
       }
@@ -3422,7 +4080,7 @@ function initCanvasGrid(cfg){
   function stopInertia(){ velX = 0; velY = 0; }
 
   viewport.addEventListener('pointerdown', e=>{
-    if(document.body.classList.contains('scroll-locked')) return;
+    if(!cfg.multiSelect && document.body.classList.contains('scroll-locked')) return;
     if(e.pointerType === 'mouse' && e.button !== 0) return;
     if(e.target.closest('.feed-quick-save')) return;
     stopInertia();
@@ -3443,6 +4101,70 @@ function initCanvasGrid(cfg){
     lastX = e.clientX; lastY = e.clientY;
     applyTransform();
   });
+  const selectedCards = [];
+  function renderStackedPanel(){
+    if(!window.openCardPanel) return;
+    if(!selectedCards.length){ if(window.closeCardPanel) window.closeCardPanel(); return; }
+    const items = selectedCards.map((card, i)=>{
+      const kicker = card.dataset.kicker || '';
+      const tag = card.dataset.tag || '';
+      const body = card.dataset.body || '';
+      const headlineEl = card.querySelector('.feed-headline');
+      const headline = headlineEl?.textContent.trim() || '';
+      const styleClass = [...(headlineEl?.classList || [])].find(c=>c.startsWith('style-')) || 'style-plain';
+      return [
+        '<div class="poster-stack-item">',
+          '<div class="poster-stack-head">',
+            '<span class="poster-stack-tag">'+tag+'</span>',
+            '<button class="poster-stack-remove" data-key="'+i+'">Remove ×</button>',
+          '</div>',
+          '<h3 class="poster-stack-title '+styleClass+'">'+headline+'</h3>',
+          '<p class="poster-stack-body">'+body+'</p>',
+        '</div>',
+      ].join('');
+    }).join('');
+    window.openCardPanel([
+      '<div class="poster-header">',
+        '<span class="poster-kicker">'+selectedCards.length+' selected</span>',
+        '<button class="poster-close" id="posterCloseBtn">Close ×</button>',
+      '</div>',
+      '<div class="poster-body-wrap">',
+        '<div class="poster-stack">'+items+'</div>',
+      '</div>',
+    ].join(''));
+    const panel = document.getElementById('posterPanel');
+    panel.querySelector('#posterCloseBtn')?.addEventListener('click', ()=>{ if(window.closeCardPanel) window.closeCardPanel(); });
+    panel.querySelectorAll('.poster-stack-remove').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const key = parseInt(btn.dataset.key, 10);
+        const card = selectedCards[key];
+        if(card) card.classList.remove('selected');
+        selectedCards.splice(key, 1);
+        renderStackedPanel();
+      });
+    });
+  }
+  function toggleCardSelection(card){
+    const idx = selectedCards.indexOf(card);
+    if(idx === -1){
+      card.classList.add('selected');
+      selectedCards.push(card);
+    } else {
+      card.classList.remove('selected');
+      selectedCards.splice(idx, 1);
+    }
+    renderStackedPanel();
+  }
+  const posterPanelForClear = document.getElementById('posterPanel');
+  if(cfg.multiSelect && posterPanelForClear){
+    new MutationObserver(()=>{
+      if(!posterPanelForClear.classList.contains('open') && selectedCards.length){
+        selectedCards.forEach(c=>c.classList.remove('selected'));
+        selectedCards.length = 0;
+      }
+    }).observe(posterPanelForClear, { attributes:true, attributeFilter:['class'] });
+  }
+
   function openCardFromTile(card){
     if(!window.openCardPanel) return;
     const kicker = card.dataset.kicker || '';
@@ -3501,7 +4223,11 @@ function initCanvasGrid(cfg){
       const hit = document.elementFromPoint(e.clientX, e.clientY);
       if(hit && !hit.closest('.feed-quick-save')){
         const card = hit.closest('.canvas-tile');
-        if(card) openCardFromTile(card);
+        if(card){
+          if(cfg.onCardClick) cfg.onCardClick(card);
+          else if(cfg.multiSelect) toggleCardSelection(card);
+          else openCardFromTile(card);
+        }
       }
     }
     pid = null;
@@ -3564,7 +4290,14 @@ function initCanvasGrid(cfg){
   centerPan();
   applyTransform();
 
-  return { rebuildAndCenter, buildTiles: (tab)=>{ buildTiles(tab); centerPan(); applyTransform(); } };
+  return {
+    rebuildAndCenter,
+    buildTiles: (tab)=>{ buildTiles(tab); centerPan(); applyTransform(); },
+    setMargin(mult){
+      marginMult = mult;
+      recomputeDims(); buildTiles(currentTab); centerPan(); applyTransform();
+    },
+  };
 }
 
 /* ─────────────────────────────────────────────
@@ -4398,6 +5131,7 @@ document.getElementById('caseDetailOverlay')?.addEventListener('click', closeCas
       html += `<button class="ctx-item" data-action="nav-jobs">Feeds</button>`;
       html += `<button class="ctx-item" data-action="nav-network">Circles</button>`;
       html += `<button class="ctx-item" data-action="nav-analytics">Dashboard</button>`;
+      html += `<button class="ctx-item" data-action="nav-assembly">General Assembly</button>`;
       html += `<button class="ctx-item" data-action="nav-agents">Workflows</button>`;
       html += `<button class="ctx-item" data-action="nav-profile">View public profile</button>`;
       html += `<div class="ctx-sep"></div>`;
@@ -4440,6 +5174,8 @@ document.getElementById('caseDetailOverlay')?.addEventListener('click', closeCas
           goToAnchor('ledger');
         } else if(action === 'nav-agents'){
           goToAnchor('assistant');
+        } else if(action === 'nav-assembly'){
+          showView('assembly');
         } else if(action === 'nav-profile'){
           showView('profile');
         } else if(action === 'theme'){
@@ -4462,6 +5198,7 @@ document.getElementById('caseDetailOverlay')?.addEventListener('click', closeCas
     if(document.getElementById('caseDetailView').classList.contains('open')){ closeCaseDetail(); return; }
     if(document.getElementById('activityOverlay').classList.contains('open')){ closeActivity(); return; }
     if(document.getElementById('posterOverlay').classList.contains('open')){ closePosterPanel(); return; }
+    if(document.getElementById('gaPostcard')?.classList.contains('open')){ window.closeGaPostcard(); return; }
     if(document.getElementById('accountPanel').classList.contains('open')){ closePanel(); return; }
     const expandedCell = document.querySelector('.m-cell.expanded');
     if(expandedCell){ collapseCell(expandedCell); return; }
