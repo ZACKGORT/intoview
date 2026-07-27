@@ -2621,7 +2621,16 @@ function coordEaseLoop(){
   }
 }
 
-document.addEventListener('mousemove', e=>{
+// Raw mousemove can fire far more often than the screen repaints (>60Hz on
+// fast mice/trackpads). Writing to 4 elements' style + a text node inside
+// the raw handler meant repeating that work between paints for nothing.
+// Instead: the handler only stores the latest point, and a single rAF-gated
+// flush does all the DOM writes once per frame, at most.
+let pendingMouseEvt = null, mouseFlushScheduled = false;
+function flushMouseUpdate(){
+  mouseFlushScheduled = false;
+  const e = pendingMouseEvt;
+  if(!e) return;
   cursorDot.style.left = e.clientX+'px';
   cursorDot.style.top = e.clientY+'px';
   cursorDot.classList.add('vis');
@@ -2639,6 +2648,10 @@ document.addEventListener('mousemove', e=>{
 
   vCoord.classList.add('vis');
   vCoord.textContent = 'X '+(e.clientX/window.innerWidth).toFixed(2)+' · Y '+(e.clientY/window.innerHeight).toFixed(2);
+}
+document.addEventListener('mousemove', e=>{
+  pendingMouseEvt = e;
+  if(!mouseFlushScheduled){ mouseFlushScheduled = true; requestAnimationFrame(flushMouseUpdate); }
 });
 document.addEventListener('mouseleave', ()=>{
   cursorDot.classList.remove('vis'); vLineH.classList.remove('vis'); vLineV.classList.remove('vis'); vCoord.classList.remove('vis');
@@ -2922,11 +2935,20 @@ function createWallParticles(opts){
     loaded = true;
   }
 
+  // Visibility is tracked via IntersectionObserver instead of polling
+  // hero.offsetParent every frame — reading offsetParent forces a
+  // synchronous layout recalc, and doing that 60x/sec was one of the
+  // biggest single costs in this file.
+  let isVisible = false;
+  const _visObserver = new IntersectionObserver(entries=>{
+    isVisible = entries[0].isIntersecting;
+  }, { threshold: 0 });
+  _visObserver.observe(hero);
+
   let wasVisible = false;
   function loop(){
     requestAnimationFrame(loop);
-    const visible = hero.offsetParent !== null;
-    if(!visible){ wasVisible = false; return; }
+    if(!isVisible){ wasVisible = false; return; }
     if(!wasVisible && (hero.clientWidth !== W || hero.clientHeight !== H)) rebuild();
     wasVisible = true;
 
@@ -2991,17 +3013,23 @@ function createWallParticles(opts){
     }
   }
 
+  // Cache the canvas rect instead of calling getBoundingClientRect() on
+  // every mousemove/touchmove — that forces a layout read at mouse-event
+  // frequency (which can exceed 60Hz), not just at animation-frame rate.
+  // Refresh the cache only when it can actually change: scroll/resize.
+  let cachedRect = canvas.getBoundingClientRect();
+  function refreshRect(){ cachedRect = canvas.getBoundingClientRect(); }
+  window.addEventListener('scroll', refreshRect, {passive:true});
+
   window.addEventListener('mousemove', e=>{
-    if(hero.offsetParent === null) return;
-    const r = canvas.getBoundingClientRect();
-    mX = e.clientX-r.left; mY = e.clientY-r.top;
+    if(!isVisible) return;
+    mX = e.clientX-cachedRect.left; mY = e.clientY-cachedRect.top;
   });
   window.addEventListener('touchmove', e=>{
-    if(hero.offsetParent === null) return;
-    const r = canvas.getBoundingClientRect();
-    mX = e.touches[0].clientX-r.left; mY = e.touches[0].clientY-r.top;
+    if(!isVisible) return;
+    mX = e.touches[0].clientX-cachedRect.left; mY = e.touches[0].clientY-cachedRect.top;
   }, {passive:true});
-  let _rTimer; window.addEventListener('resize', ()=>{ clearTimeout(_rTimer); _rTimer = setTimeout(rebuild, 120); });
+  let _rTimer; window.addEventListener('resize', ()=>{ clearTimeout(_rTimer); _rTimer = setTimeout(()=>{ rebuild(); refreshRect(); }, 120); });
 
   rebuild(); loop();
 
