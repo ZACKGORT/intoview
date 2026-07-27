@@ -166,10 +166,7 @@ body.theme-dark .mnav-theme-toggle .theme-icon-moon{display:block}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 .hero-sub{margin-top:22px;max-width:520px;font-size:clamp(14px,1.4vw,17px);line-height:1.7;color:var(--muted)}
 
-.hero-wall-block{position:relative;height:26vh;min-height:180px;max-height:280px;overflow:hidden;border-top:1px solid var(--rule)}
 .seo-crawl-text{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-#wallCanvas{position:absolute;inset:0;z-index:0;display:block;width:100%;height:100%}
-#wallCanvasCC{position:absolute;inset:0;z-index:1;display:block;width:100%;height:100%;pointer-events:none}
 .hero-scroll{position:absolute;right:20px;bottom:16px;z-index:2;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .hero-scroll .arrow{display:inline-block;animation:bob 1.7s ease-in-out infinite}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
@@ -1408,12 +1405,8 @@ a.m-tag:hover{background:var(--fg);color:var(--bg)}
     <h1 class="hero-title">The professional<br>graph, <em>redrawn.</em></h1>
     <p class="hero-sub">Not a resume. Not a feed. A living structure of the people you've built things with — read the way a magazine reads, not the way a database reports.</p>
   </div>
-  <div class="hero-wall-block">
-    <canvas id="wallCanvas"></canvas>
-    <canvas id="wallCanvasCC"></canvas>
-    <div class="hero-scroll">Scroll <span class="arrow">↓</span></div>
-    <div class="seo-crawl-text">Nine years of product design and backend engineering work spans Studio Atlas, Vector Labs, Nordhaus Studio, Meridian Analytics, Kent &amp; Vale, and Lower Deck Games — design systems, data platforms, applied ML, and creative direction shipped alongside people like Rachel Kim, recruited by founding engineers and mentored through Series B growth teams, civic tech initiatives, and climate fund partnerships. Every room on this feed traces back to real work: robotics labs, field research, brand strategy, hardware teams, open source contributions, and ops &amp; logistics built from the ground up, introduced through direct relationships rather than cold applications.</div>
-  </div>
+  <div class="hero-scroll">Scroll <span class="arrow">↓</span></div>
+  <div class="seo-crawl-text">Nine years of product design and backend engineering work spans Studio Atlas, Vector Labs, Nordhaus Studio, Meridian Analytics, Kent &amp; Vale, and Lower Deck Games — design systems, data platforms, applied ML, and creative direction shipped alongside people like Rachel Kim, recruited by founding engineers and mentored through Series B growth teams, civic tech initiatives, and climate fund partnerships. Every room on this feed traces back to real work: robotics labs, field research, brand strategy, hardware teams, open source contributions, and ops &amp; logistics built from the ground up, introduced through direct relationships rather than cold applications.</div>
 </header>
 
 <!-- FEATURED — infinite flickable canvas grid -->
@@ -2855,214 +2848,6 @@ function initScrollFx(){
       });
     });
   }
-}
-
-/* ─────────────────────────────────────────────
-   PARTICLE WALL — foundry engine transplanted;
-   real client/brand names, dual-canvas cursor dot
-───────────────────────────────────────────── */
-
-function createWallParticles(opts){
-  const { hero, canvas, cc, phrases } = opts;
-  if(!hero || !canvas || !cc) return null;
-  const ctx    = canvas.getContext('2d');
-  const cctx   = cc.getContext('2d');
-
-  const PT_TETHER = 0.014, PT_DAMP = 0.76, PT_LERP = 0.11;
-  const FONT_SIZE = 16;
-  let CHAR_W = FONT_SIZE * 0.602, LINE_H = FONT_SIZE * 1.38;
-  const PT_FONTS = [
-    '"Inter",sans-serif',
-    '"Fraunces",serif',
-    'italic "Fraunces",serif',
-    '"DM Mono",monospace',
-  ];
-
-  let W, H, DPR, allChars = [], loaded = false;
-  let mX = -999, mY = -999;
-  let bX = -999, bY = -999;
-  let eX = -999, eY = -999, eVX = 0, eVY = 0;
-
-  function buildChars(){
-    const cols = Math.max(4, Math.floor(W / CHAR_W));
-    const rows = Math.max(2, Math.floor(H / LINE_H));
-    const rowWidth = cols * CHAR_W;
-    const widthCache = {};
-    function charWidth(font, ch){
-      const key = font+'|'+ch;
-      if(widthCache[key] !== undefined) return widthCache[key];
-      const italic = font.startsWith('italic ');
-      const fam = italic ? font.slice(7) : font;
-      ctx.font = italic ? `italic 300 ${FONT_SIZE}px ${fam}` : `300 ${FONT_SIZE}px ${fam}`;
-      widthCache[key] = ctx.measureText(ch).width;
-      return widthCache[key];
-    }
-    const placed = [];
-    let x = 0, row = 0, i = 0, guard = 0, maxChars = cols*rows*2;
-    while(row < rows && guard < maxChars){
-      const phrase = phrases[i % phrases.length];
-      const font   = PT_FONTS[Math.floor(Math.random()*PT_FONTS.length)];
-      const spaceW = charWidth(font, ' ');
-      for(const ch of phrase){
-        const cw = charWidth(font, ch);
-        if(x > 0 && x+cw > rowWidth){ row++; x = 0; if(row >= rows) break; }
-        placed.push({ch, font, restX:x, restY:row*LINE_H});
-        x += cw; guard++;
-      }
-      if(row >= rows) break;
-      if(x > 0 && x+spaceW > rowWidth){ row++; x = 0; if(row >= rows) break; }
-      else { placed.push({ch:' ', font, restX:x, restY:row*LINE_H}); x += spaceW; guard++; }
-      i++;
-    }
-    const prev = allChars;
-    return placed.map((s, idx)=>{
-      const p = prev[idx];
-      return {ch:s.ch, font:s.font, restX:s.restX, restY:s.restY,
-        x:p?p.x:s.restX, y:p?p.y:s.restY, vx:p?p.vx:0, vy:p?p.vy:0};
-    });
-  }
-
-  function rebuild(){
-    DPR = Math.min(window.devicePixelRatio||1, 2);
-    W = hero.clientWidth; H = hero.clientHeight;
-    canvas.width  = cc.width  = W*DPR;
-    canvas.height = cc.height = H*DPR;
-    canvas.style.width  = cc.style.width  = W+'px';
-    canvas.style.height = cc.style.height = H+'px';
-    ctx.setTransform(DPR,0,0,DPR,0,0);
-    cctx.setTransform(DPR,0,0,DPR,0,0);
-    allChars = buildChars();
-    loaded = true;
-  }
-
-  // Visibility is tracked via IntersectionObserver instead of polling
-  // hero.offsetParent every frame — reading offsetParent forces a
-  // synchronous layout recalc, and doing that 60x/sec was one of the
-  // biggest single costs in this file.
-  let isVisible = false;
-  const _visObserver = new IntersectionObserver(entries=>{
-    isVisible = entries[0].isIntersecting;
-  }, { threshold: 0 });
-  _visObserver.observe(hero);
-
-  let wasVisible = false;
-  function loop(){
-    requestAnimationFrame(loop);
-    if(!isVisible){ wasVisible = false; return; }
-    if(!wasVisible && (hero.clientWidth !== W || hero.clientHeight !== H)) rebuild();
-    wasVisible = true;
-
-    bX += (mX-bX)*PT_LERP; bY += (mY-bY)*PT_LERP;
-    eVX = (mX-eX)*0.1; eVY = (mY-eY)*0.1;
-    eX += (eVX *= 0.68); eY += (eVY *= 0.68);
-
-    const dark = isDarkTheme;
-    const rgbFg   = dark ? '255,255,255' : '0,0,0';
-    const rgbBg   = dark ? '0,0,0'       : '255,255,255';
-    const bgSolid = dark ? '#000000'     : '#ffffff';
-    const fwt     = dark ? '300' : '400';
-
-    ctx.clearRect(0,0,W,H);
-    ctx.fillStyle = bgSolid; ctx.fillRect(0,0,W,H);
-
-    if(loaded){
-      const ptRepel = 110, ptRepelSq = ptRepel*ptRepel;
-      ctx.textBaseline = 'top';
-      let lastAlphaBucket = -1, lastFont = '';
-
-      for(const p of allChars){
-        if(p.x < -CHAR_W || p.x > W+CHAR_W || p.y < -LINE_H || p.y > H+LINE_H) continue;
-        const dx = p.x-bX, dy = p.y-bY, dSq = dx*dx+dy*dy;
-        p.vx += (p.restX-p.x)*PT_TETHER; p.vy += (p.restY-p.y)*PT_TETHER;
-        if(dSq < ptRepelSq && dSq > 0.25){
-          const d = Math.sqrt(dSq), f = 1-d/ptRepel;
-          p.vx += dx*f*f*16/d; p.vy += dy*f*f*16/d;
-        }
-        p.vx *= PT_DAMP; p.vy *= PT_DAMP;
-        p.x += p.vx; p.y += p.vy;
-        const dFade = dSq > 0.25 ? Math.sqrt(dSq) : 0;
-        const alpha = Math.min(1, Math.max(0, (dFade-18)/37));
-        if(alpha > 0.008){
-          const bucket = (alpha*64+0.5)|0;
-          if(bucket !== lastAlphaBucket){
-            ctx.fillStyle = `rgba(${rgbFg},${(bucket/64).toFixed(2)})`;
-            lastAlphaBucket = bucket;
-          }
-          const italic = p.font.startsWith('italic ');
-          const fam = italic ? p.font.slice(7) : p.font;
-          const fontStr = italic
-            ? `italic ${fwt} ${FONT_SIZE}px ${fam}`
-            : `${fwt} ${FONT_SIZE}px ${p.font}`;
-          if(fontStr !== lastFont){ ctx.font = fontStr; lastFont = fontStr; }
-          ctx.fillText(p.ch, p.x, p.y);
-        }
-      }
-
-      const vg = ctx.createLinearGradient(0, H*0.78, 0, H);
-      vg.addColorStop(0, `rgba(${rgbBg},0)`);
-      vg.addColorStop(1, `rgba(${rgbBg},1)`);
-      ctx.fillStyle = vg; ctx.fillRect(0, H*0.78, W, H*0.22);
-    }
-
-    cctx.clearRect(0,0,W,H);
-    if(mX > 0){
-      cctx.fillStyle = `rgba(${rgbFg},0.35)`;
-      cctx.beginPath(); cctx.arc(eX, eY, 4, 0, Math.PI*2); cctx.fill();
-      cctx.fillStyle = `rgb(${rgbFg})`;
-      cctx.beginPath(); cctx.arc(mX, mY, 1.5, 0, Math.PI*2); cctx.fill();
-    }
-  }
-
-  // Cache the canvas rect instead of calling getBoundingClientRect() on
-  // every mousemove/touchmove — that forces a layout read at mouse-event
-  // frequency (which can exceed 60Hz), not just at animation-frame rate.
-  // Refresh the cache only when it can actually change: scroll/resize.
-  let cachedRect = canvas.getBoundingClientRect();
-  function refreshRect(){ cachedRect = canvas.getBoundingClientRect(); }
-  window.addEventListener('scroll', refreshRect, {passive:true});
-
-  window.addEventListener('mousemove', e=>{
-    if(!isVisible) return;
-    mX = e.clientX-cachedRect.left; mY = e.clientY-cachedRect.top;
-  });
-  window.addEventListener('touchmove', e=>{
-    if(!isVisible) return;
-    mX = e.touches[0].clientX-cachedRect.left; mY = e.touches[0].clientY-cachedRect.top;
-  }, {passive:true});
-  let _rTimer; window.addEventListener('resize', ()=>{ clearTimeout(_rTimer); _rTimer = setTimeout(()=>{ rebuild(); refreshRect(); }, 120); });
-
-  rebuild(); loop();
-
-  return {
-    reset(){
-      for(const p of allChars){ p.x = p.restX; p.y = p.restY; p.vx = 0; p.vy = 0; }
-      mX = -999; mY = -999; bX = -999; bY = -999;
-    },
-    rebuildWithPhrases(newPhrases){
-      phrases.length = 0; phrases.push(...newPhrases);
-      rebuild();
-    },
-  };
-}
-
-function initWallParticles(){
-  const instance = createWallParticles({
-    hero: document.querySelector('.hero-wall-block'),
-    canvas: document.getElementById('wallCanvas'),
-    cc: document.getElementById('wallCanvasCC'),
-    phrases: [
-      "Comcast","Charter","Rachel Roy","LimeCrime","Organic Girl","Goya",
-      "General Nutrition Centers","Worldwide Stereo","Simpson Strong-Tie",
-      "Shop Hardinge","YETI","Aquasana","Kent State University",
-      "University of Wisconsin-Madison","Texas A&M","Centro.edu.mx",
-      "Power Home Remodeling Group","TikTok For Business","BNY Pershing X",
-      "The Dana Foundation","Daz3D","Sentral Lifestyle Apartments",
-      "Publicis Sapient","Code & Theory","Huge","Elva Design Group",
-      "LiveArea","WebLinc","Workarea","O3 World","160OVER90",
-      "Leadnomics","Turn5 Inc","Phenom",
-    ],
-  });
-  if(instance) window.resetWallParticles = instance.reset;
 }
 
 /* ─────────────────────────────────────────────
@@ -5482,8 +5267,7 @@ document.getElementById('caseDetailOverlay')?.addEventListener('click', closeCas
   document.addEventListener('contextmenu', e=>{
     e.preventDefault();
     const inProfile = currentView === 'profile' && e.target.closest('#view-profile');
-    const onWallCanvas = e.target === document.getElementById('wallCanvas') || e.target.closest('.hero-wall-block');
-    const card = !inProfile && !onWallCanvas ? e.target.closest(SAVEABLE_SELECTOR) : null;
+    const card = !inProfile ? e.target.closest(SAVEABLE_SELECTOR) : null;
     let html = '';
     ctxTarget = null; ctxSectionLabel = null;
 
@@ -5494,10 +5278,7 @@ document.getElementById('caseDetailOverlay')?.addEventListener('click', closeCas
     html += `<button class="ctx-item" data-action="forward" ${canForward ? '' : 'disabled'}>Forward${canForward ? ': '+labelForView(historyStack[historyIndex+1]) : ''} →</button>`;
     html += `<div class="ctx-sep"></div>`;
 
-    if(onWallCanvas){
-      html += `<button class="ctx-item" data-action="reset-wall">Reset particle text</button>`;
-      html += `<div class="ctx-sep"></div>`;
-    } else if(inProfile){
+    if(inProfile){
       ctxSectionLabel = profileSectionLabel(e.target);
       html += `<button class="ctx-item" data-action="edit">Edit ${ctxSectionLabel}</button>`;
       html += `<button class="ctx-item" data-action="recontextualize">Recontextualize…</button>`;
@@ -5532,9 +5313,7 @@ document.getElementById('caseDetailOverlay')?.addEventListener('click', closeCas
       btn.addEventListener('click', ev=>{
         ev.stopPropagation();
         const action = btn.dataset.action;
-        if(action === 'reset-wall'){
-          if(window.resetWallParticles) window.resetWallParticles();
-        } else if(action === 'back'){
+        if(action === 'back'){
           goBack();
         } else if(action === 'forward'){
           goForward();
@@ -5592,14 +5371,6 @@ document.getElementById('caseDetailOverlay')?.addEventListener('click', closeCas
 window.addEventListener('load', ()=>{
   initLenis();
   initScrollFx();
-  initWallParticles();
-
-  if(window.gsap && window.ScrollTrigger && !REDUCED){
-    gsap.to('#wallCanvas', {
-      opacity:0.15, ease:'none',
-      scrollTrigger:{ trigger:'.hero', start:'top top', end:'bottom top', scrub:.5 }
-    });
-  }
 });
 </script>
 </body>
