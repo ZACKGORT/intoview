@@ -1989,9 +1989,107 @@
         body[data-font='special'] .letter-card-frame.title-card-frame .letter-card-caption {
             color: rgba(28, 28, 30, 0.65) !important;
         }
+
+        /* ═══════════════════════════════════════════════════════════
+           LEFT CLAMP RAIL — view switcher widget
+           A vertically-centered, edge-clamped toolbar. Off by default;
+           opt-in surfaces set <body data-view-rail="on">.
+           ═══════════════════════════════════════════════════════════ */
+        .left-rail {
+            position: fixed;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%) translateX(-6px);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            align-items: stretch;
+            width: 46px;
+            padding: 8px 0;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(20px) saturate(1.1);
+            -webkit-backdrop-filter: blur(20px) saturate(1.1);
+            border: 1px solid var(--border);
+            border-left: none;
+            border-radius: 0 var(--radius) var(--radius) 0;
+            box-shadow: var(--shadow-floating);
+            font-family: var(--font-mono);
+            opacity: 0;
+            transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        opacity 0.35s ease;
+        }
+
+        body[data-view-rail="on"] .left-rail {
+            display: flex;
+            opacity: 1;
+            transform: translateY(-50%) translateX(0);
+        }
+
+        .left-rail-label {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            align-self: center;
+            padding: 4px 0 8px;
+            font-size: 7px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--ink-light);
+            opacity: 0.55;
+        }
+
+        .left-rail-divider {
+            height: 1px;
+            margin: 0 10px 4px;
+            background: var(--border);
+        }
+
+        .rail-btn {
+            appearance: none;
+            border: none;
+            background: transparent;
+            font-family: var(--font-mono);
+            font-size: 7px;
+            font-weight: 500;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--ink-light);
+            padding: 10px 0;
+            cursor: pointer;
+            text-align: center;
+            transition: color 0.15s ease, background 0.15s ease;
+        }
+        .rail-btn:hover {
+            color: var(--ink);
+            background: var(--faint);
+        }
+        .rail-btn.active {
+            color: var(--ink);
+            background: var(--accent);
+            font-weight: 600;
+        }
+
+        /* dark theme */
+        body[data-font='special'] .left-rail {
+            background: rgba(28, 28, 30, 0.92);
+        }
+        body[data-font='special'] .rail-btn.active {
+            background: rgba(229, 229, 103, 0.85);
+            color: #1c1c1e;
+        }
+
+        /* mobile: keep it out of the way */
+        @media (max-width: 640px) {
+            .left-rail {
+                width: 38px;
+            }
+            .rail-btn {
+                font-size: 6px;
+                padding: 8px 0;
+            }
+        }
     </style>
 </head>
-<body>
+<body data-view-rail="hidden">
 
     <!-- ─── CURSOR ─── -->
     <div class="write-cursor-ellipse" id="writeCursorEllipse" aria-hidden="true"></div>
@@ -2031,17 +2129,23 @@
         </div>
     </div>
 
-    <!-- ─── TOP HUD ─── -->
+    <!-- ─── TOP HUD · navigation only ─── -->
     <div class="hud hud-top" id="hudTop">
         <button class="btn btn-icon" id="hudPrev" title="Previous" aria-label="Previous letter">‹</button>
         <span class="hud-nav-counter" id="hudNavCounter" role="status" aria-live="polite">1/5</span>
         <button class="btn btn-icon" id="hudNext" title="Next" aria-label="Next letter">›</button>
-        <div class="hud-divider"></div>
-        <span class="hud-label">View</span>
-        <button class="btn active" id="hudViewList">List</button>
-        <button class="btn" id="hudViewGrid">Grid</button>
-        <button class="btn" id="hudViewBento">Bento</button>
     </div>
+
+    <!-- ─── LEFT CLAMP RAIL · view switcher ───
+         Disabled on this surface via <body data-view-rail="hidden">.
+         Set data-view-rail="on" (or remove the attribute) to enable. -->
+    <aside class="left-rail" id="leftRail" role="toolbar" aria-label="View switcher">
+        <span class="left-rail-label">View</span>
+        <div class="left-rail-divider"></div>
+        <button class="rail-btn active" data-view="list"  type="button" title="List view"  aria-label="List view">List</button>
+        <button class="rail-btn"        data-view="grid"  type="button" title="Grid view"  aria-label="Grid view">Grid</button>
+        <button class="rail-btn"        data-view="bento" type="button" title="Bento view" aria-label="Bento view">Bento</button>
+    </aside>
 
     <div class="wrap">
         <div class="letters-viewport" id="lettersViewport">
@@ -2270,6 +2374,7 @@
             function renderLetter(index) {
                 injectLetterContent(index);
                 assignColumnLabels();
+                syncViewRail();
                 if (index === activeIndex) {
                     updateBorderProgress();
                     const counter = document.getElementById('hudNavCounter');
@@ -2314,13 +2419,30 @@
                 const counter = document.getElementById('hudNavCounter');
                 if (counter) counter.textContent = `1/${letterData.length}`;
                 assignColumnLabels();
+                syncViewRail();
+            }
+
+            /* ── View switcher helpers (rail-driven) ── */
+            function setViewMode(mode) {
+                if (!letterData[activeIndex]) return;
+                letterData[activeIndex].viewMode = mode;
+                injectLetterContent(activeIndex);
+                assignColumnLabels();
+                syncViewRail();
+            }
+
+            function syncViewRail() {
+                const current = (letterData[activeIndex] && letterData[activeIndex].viewMode) || 'info';
+                document.querySelectorAll('.rail-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.view === current);
+                });
             }
 
             function activatePanel(newIndex) {
                 if (newIndex < 0) newIndex = letterData.length - 1;
                 if (newIndex >= letterData.length) newIndex = 0;
                 if (newIndex === activeIndex) { scrollToPanel(newIndex);
-                    updateBorderProgress(); return; }
+                    updateBorderProgress(); syncViewRail(); return; }
                 const panels = document.querySelectorAll('.letter-panel');
                 panels.forEach(p => p.classList.remove('active'));
                 activeIndex = newIndex;
@@ -2328,6 +2450,7 @@
                 injectLetterContent(activeIndex);
                 scrollToPanel(activeIndex);
                 updateBorderProgress();
+                syncViewRail();
                 const counter = document.getElementById('hudNavCounter');
                 if (counter) counter.textContent = `${activeIndex+1}/${letterData.length}`;
                 assignColumnLabels();
@@ -3061,26 +3184,9 @@
                 document.getElementById('letterHotspotPrev').addEventListener('click', () => activatePanel(activeIndex - 1));
                 document.getElementById('letterHotspotNext').addEventListener('click', () => activatePanel(activeIndex + 1));
 
-                document.getElementById('hudViewList').addEventListener('click', function() {
-                    if (!letterData[activeIndex]) return;
-                    letterData[activeIndex].viewMode = 'list';
-                    injectLetterContent(activeIndex);
-                    assignColumnLabels();
-                    ['hudViewList', 'hudViewGrid', 'hudViewBento'].forEach(id => document.getElementById(id).classList.toggle('active', id === 'hudViewList'));
-                });
-                document.getElementById('hudViewGrid').addEventListener('click', function() {
-                    if (!letterData[activeIndex]) return;
-                    letterData[activeIndex].viewMode = 'grid';
-                    injectLetterContent(activeIndex);
-                    assignColumnLabels();
-                    ['hudViewList', 'hudViewGrid', 'hudViewBento'].forEach(id => document.getElementById(id).classList.toggle('active', id === 'hudViewGrid'));
-                });
-                document.getElementById('hudViewBento').addEventListener('click', function() {
-                    if (!letterData[activeIndex]) return;
-                    letterData[activeIndex].viewMode = 'bento';
-                    injectLetterContent(activeIndex);
-                    assignColumnLabels();
-                    ['hudViewList', 'hudViewGrid', 'hudViewBento'].forEach(id => document.getElementById(id).classList.toggle('active', id === 'hudViewBento'));
+                /* ── View switcher: rail-driven ── */
+                document.querySelectorAll('.rail-btn').forEach(btn => {
+                    btn.addEventListener('click', () => setViewMode(btn.dataset.view));
                 });
 
                 document.getElementById('hudNew').addEventListener('click', function() {
@@ -3144,6 +3250,7 @@
                             panels[best].classList.add('active');
                             injectLetterContent(activeIndex);
                             updateBorderProgress();
+                            syncViewRail();
                             assignColumnLabels();
                             const counter = document.getElementById('hudNavCounter');
                             if (counter) counter.textContent = `${activeIndex+1}/${letterData.length}`;
