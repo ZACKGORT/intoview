@@ -261,9 +261,7 @@
             box-shadow: 0 24px 56px rgba(0, 0, 0, 0.18), 0 8px 20px rgba(0, 0, 0, 0.06);
         }
 
-        /* ═══ FOCUS MODE ═══
-           When any cluster is expanded, everything not part of it recedes
-           into a soft blur. The expanded cluster floats above and stays crisp. */
+        /* ═══ FOCUS MODE ═══ */
         body.has-focus .canvas-node:not(.is-focused) {
             filter: blur(2.5px) saturate(0.7);
             opacity: 0.45;
@@ -568,7 +566,6 @@
         }
         .cluster-leaf > .prov-card { width: var(--card-w); min-height: 260px; }
 
-        /* Array mode: leaves flow without wrapping so width is measured honestly */
         body[data-layout="array"] .cluster-leaves {
             max-width: none;
             flex-wrap: nowrap;
@@ -767,9 +764,47 @@
             opacity: 0.35; transition: opacity 0.3s ease, transform 0.3s ease; cursor: pointer;
         }
         .letter-panel.active { opacity: 1; cursor: auto; }
-        .letter-hotspot { position: absolute; top: 0; bottom: 0; width: clamp(56px, 9vw, 180px); z-index: 20; cursor: pointer; }
-        .letter-hotspot-prev { left: 0; }
-        .letter-hotspot-next { right: 0; }
+
+        /* ═══ HOTSPOTS — chevron cursors on carousel edges ═══ */
+        .letter-hotspot {
+            position: absolute; top: 0; bottom: 0;
+            width: clamp(72px, 11vw, 220px);
+            z-index: 20; cursor: pointer;
+            display: flex; align-items: center;
+            opacity: 0.35;
+            transition: opacity 0.25s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .letter-hotspot-prev { left: 0; justify-content: flex-start; padding-left: clamp(12px, 2.5vw, 36px); }
+        .letter-hotspot-next { right: 0; justify-content: flex-end; padding-right: clamp(12px, 2.5vw, 36px); }
+        .letter-hotspot:hover { opacity: 1; }
+
+        .hotspot-chevron {
+            display: flex; align-items: center; justify-content: center;
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            background: var(--card);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            color: var(--ink);
+            transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+                        box-shadow 0.2s ease,
+                        background 0.2s ease;
+        }
+        .hotspot-chevron svg { width: 18px; height: 18px; display: block; }
+
+        .letter-hotspot-prev:hover .hotspot-chevron {
+            transform: translateX(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+        .letter-hotspot-next:hover .hotspot-chevron {
+            transform: translateX(4px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        @media (max-width: 640px) {
+            .letter-hotspot { display: none; }
+        }
 
         .letter-card-frame {
             border: 1px solid var(--border); border-radius: var(--radius);
@@ -922,12 +957,46 @@
         .hud-top { top: calc(var(--topbar-height) + 8px); padding: 6px 12px; gap: 4px; }
         .hud-bottom { bottom: calc(12px + var(--scrollbar-height)); padding: 10px 18px; min-height: 48px; gap: 12px; }
         .hud .btn { min-height: 30px; padding: 5px 10px; font-size: 8px; }
+
+        /* ═══ NAV COUNTER — typographic, no pill ═══ */
         .hud-nav-counter {
-            display: inline-flex; align-items: center; justify-content: center;
-            background: var(--ink); color: var(--bg); padding: 1px 6px;
-            border-radius: var(--radius-sm); font-size: 7px; font-weight: 600;
-            min-width: 18px; text-align: center;
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+            padding: 0 6px;
+            margin: 0 2px;
+            background: none;
+            color: inherit;
+            font-family: var(--font-mono);
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum";
+            line-height: 1;
+            user-select: none;
+            min-width: 0;
         }
+        .hud-nav-counter .nav-current {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--fg);
+            letter-spacing: -0.03em;
+            line-height: 1;
+        }
+        .hud-nav-counter .nav-slash {
+            font-size: 13px;
+            font-weight: 400;
+            color: var(--ink-lighter);
+            letter-spacing: 0;
+            margin: 0 1px;
+            transform: translateY(-1px);
+        }
+        .hud-nav-counter .nav-total {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--ink-light);
+            letter-spacing: 0.01em;
+            line-height: 1;
+        }
+
         .hud-count { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--fg); line-height: 1; flex-shrink: 0; }
         .hud-sep { width: 1px; height: 12px; background: var(--border); flex-shrink: 0; display: block; }
         .hud-text {
@@ -1368,8 +1437,6 @@
 
         /* ═══════════════════════════════════════════════════════
            MOBILE COMPRESSION — MUST BE LAST
-           Every rule here overrides base rules of equal specificity;
-           keeping it at the end of the stylesheet is what makes it win.
            ═══════════════════════════════════════════════════════ */
         @media (max-width: 640px) {
             :root {
@@ -1454,8 +1521,8 @@
             <nav class="breadcrumb" id="breadcrumb" aria-label="Breadcrumb"></nav>
             <button class="btn mobile-back" id="mobileBackBtn" hidden aria-label="Back">← Back</button>
             <div class="topbar-right">
-                <button class="btn btn-grid" id="gridToggle" aria-label="Toggle grid outlines">
-                    <span class="dot-indicator"></span> Grid
+                <button class="btn btn-grid" id="gridToggle" aria-label="Toggle layout overlay">
+                    <span class="dot-indicator"></span> Layout
                 </button>
                 <div class="topbar-appearance-wrapper">
                     <button class="btn" id="appearanceTrigger" aria-haspopup="true" aria-expanded="false">Aa</button>
@@ -1468,7 +1535,11 @@
 
     <div class="hud hud-top" id="hudTop" hidden>
         <button class="btn" id="hudPrev" title="Previous" aria-label="Previous card">‹</button>
-        <span class="hud-nav-counter" id="hudNavCounter" role="status" aria-live="polite">1/1</span>
+        <span class="hud-nav-counter" id="hudNavCounter" role="status" aria-live="polite">
+            <span class="nav-current" id="navCurrent">1</span>
+            <span class="nav-slash" aria-hidden="true">/</span>
+            <span class="nav-total" id="navTotal">1</span>
+        </span>
         <button class="btn" id="hudNext" title="Next" aria-label="Next card">›</button>
     </div>
 
@@ -1491,7 +1562,7 @@
             <span class="ctx-indicator" aria-hidden="true"></span> Snap to grid
         </button>
         <button class="ctx-item" data-action="toggle-grid" role="menuitemcheckbox" type="button">
-            <span class="ctx-indicator" aria-hidden="true"></span> Show grid
+            <span class="ctx-indicator" aria-hidden="true"></span> Layout
         </button>
         <div class="ctx-divider"></div>
         <button class="ctx-item no-indicator" data-action="align-grid" role="menuitem" type="button">
@@ -1554,8 +1625,20 @@
     <div class="wrap" id="carouselWrap" hidden>
         <div class="letters-viewport">
             <div class="letters-track" id="lettersTrack"></div>
-            <div class="letter-hotspot letter-hotspot-prev" id="letterHotspotPrev" aria-hidden="true"></div>
-            <div class="letter-hotspot letter-hotspot-next" id="letterHotspotNext" aria-hidden="true"></div>
+            <div class="letter-hotspot letter-hotspot-prev" id="letterHotspotPrev" aria-hidden="true">
+                <span class="hotspot-chevron" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </span>
+            </div>
+            <div class="letter-hotspot letter-hotspot-next" id="letterHotspotNext" aria-hidden="true">
+                <span class="hotspot-chevron" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </span>
+            </div>
         </div>
     </div>
 
@@ -1604,6 +1687,14 @@
 
             const MIN_SCALE = 0.35;
             const MAX_SCALE = 2.5;
+
+            /* ═══ NAV COUNTER ═══ */
+            function updateNavCounter(current, total) {
+                const cur = document.getElementById('navCurrent');
+                const tot = document.getElementById('navTotal');
+                if (cur) cur.textContent = String(current);
+                if (tot) tot.textContent = String(total);
+            }
 
             /* ═══ DATA ═══ */
             const PROFILE = {
@@ -2096,7 +2187,6 @@
             let topZ = 10;
             const expandedClusters = new Set();
             const restPositions = new Map();
-            let preArraySnapshot = null;
 
             const CANVAS_STORAGE_KEY_OLD = 'intoview.canvas.v6';
             const CANVAS_STORAGE_KEY_V8 = 'intoview.canvas.v8';
@@ -2243,7 +2333,6 @@
                 if (!btn) return;
                 if (currentRoute.level === 'canvas') { btn.hidden = true; return; }
                 btn.hidden = false;
-                // identity/index aren't sections — they're canvas anchors.
                 const cid = currentRoute.clusterId;
                 if (currentRoute.level === 'cluster' && (cid === 'identity' || cid === 'index')) {
                     btn.textContent = '← Canvas';
@@ -2294,10 +2383,7 @@
                 return ['identity', 'index', ...CLUSTER_ORDER];
             }
 
-            /* ═══ FOCUS ═══
-               When any cluster is expanded, everything not part of it recedes
-               into a soft blur. The expanded cluster floats above and stays
-               crisp. This replaces the old displacement machinery. */
+            /* ═══ FOCUS ═══ */
             function applyFocus() {
                 const hasFocus = expandedClusters.size > 0 && canvasLayout !== 'array';
                 document.body.classList.toggle('has-focus', hasFocus);
@@ -2455,8 +2541,6 @@
                 return positions;
             }
 
-            /* Array packing — sequential shelf pack. No snapping, so the cursor
-               is always the actual right edge of the last placed node. */
             function packArray() {
                 const rowPitch = getRowPitch();
                 const isMob = isMobile();
@@ -2707,32 +2791,24 @@
                 jumpToNode(order[next]);
             }
 
-            /* ═══ CANVAS ACTIONS ═══ */
+            /* ═══ CANVAS ACTIONS ═══
+               Switching layout: array always expands everything; grid always
+               lands with everything collapsed. No prior state is restored. */
             function setCanvasLayout(layout) {
                 if (!layout) return;
                 if (layout === canvasLayout && layout !== 'array') return;
 
                 if (layout === 'array') {
-                    const positions = {};
-                    restPositions.forEach((pos, id) => { positions[id] = { x: pos.x, y: pos.y }; });
-                    preArraySnapshot = {
-                        positions,
-                        expanded: new Set(expandedClusters),
-                        layout: canvasLayout
-                    };
-
                     canvasLayout = 'array';
                     document.body.dataset.layout = 'array';
 
                     CLUSTER_ORDER.forEach(id => expandedClusters.add(id));
                     document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'true');
 
-                    applyFocus(); // clears focus in array mode
+                    applyFocus();
                     updateCanvasToolbarUI();
                     updateStatusText();
 
-                    // Wait for expansion to be laid out (two rAFs), then for
-                    // the CSS transition to finish, then measure & pack.
                     requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
                             setTimeout(() => {
@@ -2747,19 +2823,12 @@
                     return;
                 }
 
-                // Switching to grid
-                if (canvasLayout === 'array' && preArraySnapshot) {
-                    expandedClusters.clear();
-                    preArraySnapshot.expanded.forEach(id => expandedClusters.add(id));
-                    document.querySelectorAll('.cluster-stack').forEach(s => {
-                        const cid = s.closest('.canvas-node').dataset.clusterId;
-                        s.dataset.expanded = expandedClusters.has(cid) ? 'true' : 'false';
-                    });
-                }
+                // Switching to grid — collapse everything.
+                expandedClusters.clear();
+                document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
 
                 canvasLayout = 'grid';
                 document.body.dataset.layout = 'grid';
-                preArraySnapshot = null;
                 restPositions.clear();
 
                 const specs = getCanvasNodes();
@@ -2795,7 +2864,6 @@
                 canvasLayout = 'grid';
                 expandedClusters.clear();
                 restPositions.clear();
-                preArraySnapshot = null;
                 panOffset.x = 0; panOffset.y = 0;
                 scale = 1;
                 document.body.dataset.layout = 'grid';
@@ -3344,7 +3412,6 @@
 
                 canvasLayout = 'grid';
                 document.body.dataset.layout = 'grid';
-                preArraySnapshot = null;
 
                 const specs = getCanvasNodes();
                 const computed = getLayoutPositions('grid', specs);
@@ -3363,9 +3430,7 @@
                 updateStatusText();
             }
 
-            /* ═══ CLUSTER EXPAND / COLLAPSE ═══
-               No displacement. Expanding a cluster raises it above a
-               blurred field of neighbours. Collapsing restores clarity. */
+            /* ═══ CLUSTER EXPAND / COLLAPSE ═══ */
             function toggleCluster(id) {
                 if (!id) return;
                 if (canvasLayout === 'array') return;
@@ -3619,8 +3684,7 @@
                 if (panels[activeIndex]) panels[activeIndex].classList.add('active');
                 bindInteractions(track);
                 updateBorderProgress();
-                const counter = document.getElementById('hudNavCounter');
-                if (counter) counter.textContent = (activeIndex + 1) + '/' + currentCards.length;
+                updateNavCounter(activeIndex + 1, currentCards.length);
                 requestAnimationFrame(() => scrollToPanel(activeIndex, false));
                 updateStatusText();
             }
@@ -3634,8 +3698,7 @@
                 if (panels[activeIndex]) panels[activeIndex].classList.add('active');
                 scrollToPanel(activeIndex, true);
                 updateBorderProgress();
-                const counter = document.getElementById('hudNavCounter');
-                if (counter) counter.textContent = (activeIndex + 1) + '/' + currentCards.length;
+                updateNavCounter(activeIndex + 1, currentCards.length);
                 if (updateHash !== false) {
                     const card = currentCards[activeIndex];
                     if (card && card.type !== 'cluster') {
@@ -3869,7 +3932,7 @@
                         <button class="btn" type="button" data-canvas-layout="array">Array</button>
                         <button class="btn" type="button" data-action="fit">Fit view</button>
                         <button class="btn" type="button" data-action="toggle-snap">Snap</button>
-                        <button class="btn" type="button" data-action="toggle-grid">Grid lines</button>
+                        <button class="btn" type="button" data-action="toggle-grid">Layout</button>
                         <button class="btn" type="button" data-theme-toggle>Theme</button>
                         <button class="btn" type="button" data-action="reset">Reset</button>
                     </div>
@@ -3958,7 +4021,6 @@
                         canvasLayout = 'grid';
                         expandedClusters.clear();
                         restPositions.clear();
-                        preArraySnapshot = null;
                         panOffset.x = 0; panOffset.y = 0; scale = 1;
                         document.body.dataset.layout = 'grid';
                         location.hash = '#/';
@@ -4067,7 +4129,6 @@
                         canvasLayout = 'grid';
                         expandedClusters.clear();
                         restPositions.clear();
-                        preArraySnapshot = null;
                         panOffset.x = 0; panOffset.y = 0; scale = 1;
                         document.body.dataset.layout = 'grid';
                         location.hash = '#/';
@@ -4113,8 +4174,7 @@
                             activeIndex = best;
                             if (panels[best]) panels[best].classList.add('active');
                             updateBorderProgress();
-                            const counter = document.getElementById('hudNavCounter');
-                            if (counter) counter.textContent = (activeIndex + 1) + '/' + currentCards.length;
+                            updateNavCounter(activeIndex + 1, currentCards.length);
                             const card = currentCards[activeIndex];
                             if (card && card.type !== 'cluster') {
                                 navigate({ level: 'card', clusterId: card.clusterId || card.id, cardId: card.id }, true);
