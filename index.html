@@ -131,14 +131,26 @@
         .btn-grid .dot-indicator { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.4; transition: opacity 0.2s ease; }
         .btn-grid.active .dot-indicator { opacity: 1; background: white; }
 
+        /* ═══ TOPBAR ═══
+           The bar itself spans the full viewport width and sits above all
+           canvas HUDs (z-index 150). If it captured pointer events in its
+           empty space, anything dragged into that region (widget, minimap,
+           zoom HUD, carousel nav) would become unreachable. So: pass
+           pointer events through by default, and opt only the interactive
+           controls back in. */
         .topbar {
             position: sticky; top: 0; z-index: 150; background: transparent;
             padding: 6px 0; min-height: var(--topbar-height); display: flex; align-items: center;
+            pointer-events: none;
         }
+        .topbar .wordmark,
+        .topbar .btn,
+        .topbar .breadcrumb-item { pointer-events: auto; }
         .topbar .wrap {
             display: flex; align-items: center; gap: 12px;
             padding: 0 var(--margin); max-width: var(--max-width);
             margin: 0 auto; width: 100%;
+            pointer-events: none;
         }
         .wordmark {
             font-size: clamp(12px, 3.5vw, 20px); font-weight: 700; letter-spacing: -0.03em;
@@ -835,7 +847,7 @@
         }
         .letter-panel.active { opacity: 1; cursor: auto; }
 
-        /* ═══ HOTSPOTS — chevron cursors on carousel edges ═══ */
+        /* ═══ HOTSPOTS ═══ */
         .letter-hotspot {
             position: absolute; top: 0; bottom: 0;
             width: clamp(72px, 11vw, 220px);
@@ -1024,11 +1036,34 @@
             min-height: 44px; font-family: var(--font-mono);
             max-width: min(520px, calc(100vw - var(--margin) * 2));
         }
-        .hud-top { top: calc(var(--topbar-height) + 8px); padding: 6px 12px; gap: 4px; }
+        .hud-top {
+            top: calc(var(--topbar-height) + 8px);
+            padding: 6px 12px 6px 6px;
+            gap: 4px;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .hud-top.dragging {
+            cursor: grabbing;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.06);
+        }
+        .hud-top-grip {
+            display: flex; align-items: center; justify-content: center;
+            width: 20px; height: 26px;
+            background: none; border: none;
+            color: var(--ink-light); cursor: grab;
+            border-radius: 4px; flex-shrink: 0;
+            padding: 0; touch-action: none;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .hud-top-grip:hover { background: var(--faint); color: var(--ink); }
+        .hud-top-grip:active { cursor: grabbing; }
+        .hud-top-grip svg { display: block; }
+
         .hud-bottom { bottom: calc(12px + var(--scrollbar-height)); padding: 10px 18px; min-height: 48px; gap: 12px; }
         .hud .btn { min-height: 30px; padding: 5px 10px; font-size: 8px; }
 
-        /* ═══ NAV COUNTER — typographic, no pill ═══ */
+        /* ═══ NAV COUNTER ═══ */
         .hud-nav-counter {
             display: inline-flex;
             align-items: baseline;
@@ -1604,6 +1639,13 @@
     </div>
 
     <div class="hud hud-top" id="hudTop" hidden>
+        <button class="hud-top-grip" type="button" aria-label="Drag navigation" title="Drag">
+            <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
+                <circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/>
+                <circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/>
+                <circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/>
+            </svg>
+        </button>
         <button class="btn" id="hudPrev" title="Previous" aria-label="Previous card">‹</button>
         <span class="hud-nav-counter" id="hudNavCounter" role="status" aria-live="polite">
             <span class="nav-current" id="navCurrent">1</span>
@@ -1695,7 +1737,6 @@
         </div>
     </div>
 
-    <!-- ═══ ZOOM HUD ═══ -->
     <div class="canvas-zoomhud" id="canvasZoomHud" hidden role="toolbar" aria-label="Zoom controls">
         <button class="zoomhud-grip" type="button" aria-label="Drag zoom HUD" title="Drag">
             <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
@@ -2291,6 +2332,7 @@
             const MINIMAP_POS_KEY = 'intoview.minimap.pos';
             const ZOOMHUD_ON_KEY  = 'intoview.zoomhud.on';
             const ZOOMHUD_POS_KEY = 'intoview.zoomhud.pos';
+            const HUDTOP_POS_KEY  = 'intoview.hudtop.pos';
             const SNAP_KEY = 'intoview.snap';
 
             let widgetVisible = false;
@@ -2304,6 +2346,8 @@
 
             let zoomHudVisible = false;
             let zoomHudPos = null;
+
+            let hudTopPos = null;
 
             let hudCanvasIndex = 0;
 
@@ -2450,6 +2494,7 @@
                 applyWidgetVisibility();
                 applyMinimapVisibility();
                 applyZoomHudVisibility();
+                applyHudTopPos();
                 closeContextMenu();
                 updateStatusText();
             }
@@ -2642,13 +2687,6 @@
                 return positions;
             }
 
-            /* ═══ IDENTITY → INDEX STACK REFINEMENT ═══
-               The identity card renders taller than a standard card, so a fixed
-               rowPitch between identity and index leaves them visibly crowded.
-               Once the DOM has been laid out, measure identity's real height and
-               re-seat index one full row-gap below it. Only applies when index is
-               still in the stacked position next to identity; if the user has
-               dragged it elsewhere, we leave it alone. */
             function refineIdentityIndexStack() {
                 const surface = document.getElementById('canvasSurface');
                 if (!surface) return;
@@ -2664,7 +2702,6 @@
                 const standardCardH = isMobile() ? 176 : 280;
                 const gap = rowPitch - standardCardH;
 
-                // Only refine when index is still directly below identity.
                 const isStacked = Math.abs(indexPos.x - identityPos.x) < 4 &&
                                   indexPos.y > identityPos.y &&
                                   indexPos.y <= identityPos.y + rowPitch + 8;
@@ -2959,9 +2996,7 @@
                 jumpToNode(order[next]);
             }
 
-            /* ═══ CANVAS ACTIONS ═══
-               Switching layout: array always expands everything; grid always
-               lands with everything collapsed. No prior state is restored. */
+            /* ═══ CANVAS ACTIONS ═══ */
             function setCanvasLayout(layout) {
                 if (!layout) return;
                 if (layout === canvasLayout && layout !== 'array') return;
@@ -2991,7 +3026,6 @@
                     return;
                 }
 
-                // Switching to grid — collapse everything.
                 expandedClusters.clear();
                 document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
 
@@ -3146,6 +3180,22 @@
                 }
             }
 
+            function applyHudTopPos() {
+                const ht = document.getElementById('hudTop');
+                if (!ht) return;
+                if (hudTopPos && typeof hudTopPos.x === 'number' && typeof hudTopPos.y === 'number') {
+                    ht.style.left = hudTopPos.x + 'px';
+                    ht.style.top  = hudTopPos.y + 'px';
+                    ht.style.right = 'auto';
+                    ht.style.bottom = 'auto';
+                    ht.style.transform = 'none';
+                } else {
+                    ht.style.left = ''; ht.style.top = '';
+                    ht.style.right = ''; ht.style.bottom = '';
+                    ht.style.transform = '';
+                }
+            }
+
             function clampMinimapPos(x, y) {
                 const mm = document.getElementById('canvasMinimap');
                 if (!mm) return { x, y };
@@ -3159,6 +3209,15 @@
                 const zh = document.getElementById('canvasZoomHud');
                 if (!zh) return { x, y };
                 const w = zh.offsetWidth, h = zh.offsetHeight;
+                x = Math.max(4, Math.min(window.innerWidth  - w - 4, x));
+                y = Math.max(4, Math.min(window.innerHeight - h - 4, y));
+                return { x, y };
+            }
+
+            function clampHudTopPos(x, y) {
+                const ht = document.getElementById('hudTop');
+                if (!ht) return { x, y };
+                const w = ht.offsetWidth, h = ht.offsetHeight;
                 x = Math.max(4, Math.min(window.innerWidth  - w - 4, x));
                 y = Math.max(4, Math.min(window.innerHeight - h - 4, y));
                 return { x, y };
@@ -3414,6 +3473,52 @@
                         grip.removeEventListener('pointercancel', onUp);
                         try { grip.releasePointerCapture(e.pointerId); } catch (err) {}
                         try { if (zoomHudPos) localStorage.setItem(ZOOMHUD_POS_KEY, JSON.stringify(zoomHudPos)); } catch (err) {}
+                    };
+                    grip.addEventListener('pointermove', onMove);
+                    grip.addEventListener('pointerup', onUp);
+                    grip.addEventListener('pointercancel', onUp);
+                    e.preventDefault();
+                });
+            }
+
+            function setupHudTop() {
+                const ht = document.getElementById('hudTop');
+                if (!ht) return;
+
+                try {
+                    const pos = JSON.parse(localStorage.getItem(HUDTOP_POS_KEY) || 'null');
+                    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') hudTopPos = pos;
+                } catch (e) {}
+                applyHudTopPos();
+
+                const grip = ht.querySelector('.hud-top-grip');
+                if (!grip) return;
+                grip.addEventListener('pointerdown', (e) => {
+                    if (e.button !== 0) return;
+                    const rect = ht.getBoundingClientRect();
+                    const startX = e.clientX, startY = e.clientY;
+                    const startL = rect.left, startT = rect.top;
+                    ht.style.right = 'auto'; ht.style.bottom = 'auto';
+                    ht.style.left = startL + 'px'; ht.style.top = startT + 'px';
+                    ht.style.transform = 'none';
+                    ht.classList.add('dragging');
+                    try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+                    const onMove = (ev) => {
+                        if (ev.pointerId !== e.pointerId) return;
+                        const cx = startL + (ev.clientX - startX);
+                        const cy = startT + (ev.clientY - startY);
+                        const c = clampHudTopPos(cx, cy);
+                        ht.style.left = c.x + 'px'; ht.style.top = c.y + 'px';
+                        hudTopPos = c;
+                    };
+                    const onUp = (ev) => {
+                        if (ev.pointerId !== e.pointerId) return;
+                        ht.classList.remove('dragging');
+                        grip.removeEventListener('pointermove', onMove);
+                        grip.removeEventListener('pointerup', onUp);
+                        grip.removeEventListener('pointercancel', onUp);
+                        try { grip.releasePointerCapture(e.pointerId); } catch (err) {}
+                        try { if (hudTopPos) localStorage.setItem(HUDTOP_POS_KEY, JSON.stringify(hudTopPos)); } catch (err) {}
                     };
                     grip.addEventListener('pointermove', onMove);
                     grip.addEventListener('pointerup', onUp);
@@ -4039,7 +4144,7 @@
                 const ellipse = document.getElementById('writeCursorEllipse');
                 if (!dot || !ellipse) return;
                 if (window.matchMedia('(hover: none)').matches) return;
-                const NATIVE = ['button','a','input','textarea','select','[role="button"]','.letter-hotspot','.canvas-node','.canvas-widget','.canvas-context-menu','.prov-card','.cluster-peek-hit','.canvas-minimap','.canvas-zoomhud','.mobile-sheet','.mobile-menu-btn'].join(', ');
+                const NATIVE = ['button','a','input','textarea','select','[role="button"]','.letter-hotspot','.canvas-node','.canvas-widget','.canvas-context-menu','.prov-card','.cluster-peek-hit','.canvas-minimap','.canvas-zoomhud','.hud-top-grip','.mobile-sheet','.mobile-menu-btn'].join(', ');
                 const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .cluster-collapse-chip, .cluster-peek';
                 const LIGHT_SURFACE = '.prov-card[data-type="identity"]';
                 let ptrX = 0, ptrY = 0, prevX = 0, prevY = 0, init = false;
@@ -4347,6 +4452,7 @@
                 setupWidget();
                 setupMinimap();
                 setupZoomHud();
+                setupHudTop();
                 buildMobileSheet();
                 setupMobileSheet();
 
@@ -4569,6 +4675,12 @@
                                 applyZoomHudPos();
                                 try { localStorage.setItem(ZOOMHUD_POS_KEY, JSON.stringify(zoomHudPos)); } catch (e) {}
                             }
+                        }
+                        if (hudTopPos) {
+                            const c = clampHudTopPos(hudTopPos.x, hudTopPos.y);
+                            hudTopPos = c;
+                            applyHudTopPos();
+                            try { localStorage.setItem(HUDTOP_POS_KEY, JSON.stringify(hudTopPos)); } catch (e) {}
                         }
                     }, 220);
                 });
