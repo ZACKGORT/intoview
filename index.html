@@ -2750,7 +2750,11 @@
                 });
 
                 if (isMobile()) {
-                    reflowMobileColumn();
+                    requestAnimationFrame(() => {
+                        reflowMobileColumn();
+                        // One more pass after layout settles
+                        setTimeout(reflowMobileColumn, 100);
+                    });
                 } else {
                     refineIdentityIndexStack();
                 }
@@ -2886,7 +2890,9 @@
                     node.style.left = '0px';
                     node.style.top = cursorY + 'px';
                     restPositions.set(id, { x: 0, y: cursorY });
-                    cursorY += node.offsetHeight + gap;
+                    // Use getBoundingClientRect().height to force layout and get accurate height
+                    const h = node.getBoundingClientRect().height;
+                    cursorY += h + gap;
                 });
             }
 
@@ -2966,8 +2972,8 @@
                 const vh = window.innerHeight;
                 const topbarH = parseInt(getComputedStyle(document.documentElement)
                     .getPropertyValue('--topbar-height')) || 56;
-                const hudReserve = 96;
-                const padScreen = 20;
+                const hudReserve = 80; // reduced from 96 to allow closer zoom
+                const padScreen = 10; // reduced from 20 to allow closer zoom
 
                 const sLeft   = rect.x * scale + panOffset.x;
                 const sTop    = rect.y * scale + panOffset.y;
@@ -2983,7 +2989,8 @@
                 const availW = vw - padScreen * 2;
                 const availH = vh - topbarH - hudReserve - padScreen * 2;
                 const desired = Math.min(availW / rect.w, availH / rect.h);
-                let newScale = Math.min(1, desired);
+                // Allow scale to go up to 1.5 on mobile for closer view of small cards
+                let newScale = Math.min(1.5, desired);
                 newScale = Math.max(getMinScale(), Math.min(MAX_SCALE, newScale));
 
                 const cx = rect.x + rect.w / 2;
@@ -4397,6 +4404,12 @@
                         drawCanvasEdges();
                         queueMinimapLayout();
                     });
+                    // Add a delayed reflow to catch end of transitions
+                    setTimeout(() => {
+                        reflowMobileColumn();
+                        fitToFocus();
+                        drawCanvasEdges();
+                    }, 450);
                 } else {
                     setTimeout(() => {
                         drawCanvasEdges();
