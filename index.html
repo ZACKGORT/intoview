@@ -111,6 +111,25 @@
         .letters-track::-webkit-scrollbar { display: none; }
         .letters-track { scrollbar-width: none; -ms-overflow-style: none; }
 
+        /* Suppress native focus rings, shadows, and callouts on long-press/active states for canvas elements */
+        .canvas-node,
+        .canvas-node:focus,
+        .canvas-node:active,
+        .canvas-node:focus-within,
+        .cluster-stack,
+        .cluster-stack:focus,
+        .cluster-stack:active,
+        .cluster-stack:focus-within,
+        .cluster-leaves,
+        .cluster-leaves:focus,
+        .cluster-leaves:active,
+        .cluster-leaves:focus-within {
+            outline: none !important;
+            box-shadow: none !important;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+
         .btn {
             font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.08em;
             text-transform: uppercase; background: transparent; border: 1px solid var(--border);
@@ -259,6 +278,13 @@
                 opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
             will-change: left, top, filter;
         }
+        /* Disable the grab cursor when expanded to indicate it cannot be dragged */
+        .canvas-node.is-expanded {
+            cursor: default !important;
+        }
+        .canvas-node:not(.dragging) {
+            box-shadow: none !important;
+        }
         .canvas-node.dragging {
             cursor: grabbing;
             transition: box-shadow 0.15s ease;
@@ -274,8 +300,8 @@
         }
         body.has-focus .canvas-node.is-focused .cluster-title > .prov-card {
             box-shadow:
-                0 24px 56px rgba(0, 0, 0, 0.22),
-                0 8px 20px rgba(0, 0, 0, 0.08);
+                0 12px 28px rgba(0, 0, 0, 0.12),
+                0 3px 8px rgba(0, 0, 0, 0.06);
         }
 
         .prov-card {
@@ -287,9 +313,11 @@
             cursor: pointer; position: relative; overflow: hidden;
             transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
         }
-        .prov-card:hover { box-shadow: var(--shadow-hover); }
-        .canvas-node:not(.dragging):hover .prov-card { transform: translateY(-2px); }
-        @media (hover: none) { .canvas-node:not(.dragging):hover .prov-card { transform: none; } }
+
+        @media (hover: hover) and (pointer: fine) {
+            .prov-card:hover { box-shadow: var(--shadow-hover); }
+            .canvas-node:not(.dragging):hover .prov-card { transform: translateY(-2px); }
+        }
 
         .prov-card-kicker {
             display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -480,6 +508,7 @@
         .cluster-stack {
             display: flex; align-items: flex-start; gap: 24px;
             position: relative;
+            box-shadow: none !important;
         }
         .cluster-stack[data-expanded="true"] { padding-bottom: 40px; }
         .cluster-stack-inner { position: relative; flex-shrink: 0; }
@@ -494,14 +523,6 @@
             border-radius: var(--radius-sm);
             pointer-events: none;
             transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.25s ease;
-            box-shadow:
-                0 2px 6px rgba(0, 0, 0, 0.08),
-                0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-        body[data-theme='dark'] .cluster-peek {
-            box-shadow:
-                0 2px 8px rgba(0, 0, 0, 0.35),
-                0 1px 3px rgba(0, 0, 0, 0.25);
         }
         .cluster-peek[data-depth="1"] { transform: translate(4px, 8px);  z-index: 4; }
         .cluster-peek[data-depth="2"] { transform: translate(8px, 16px); z-index: 3; }
@@ -516,15 +537,24 @@
         }
         .cluster-stack[data-expanded="true"] .cluster-peek-hit { display: none; }
 
-        .cluster-peek-hit:hover ~ .cluster-peek[data-depth="1"] { transform: translate(6px, 12px); }
-        .cluster-peek-hit:hover ~ .cluster-peek[data-depth="2"] { transform: translate(12px, 24px); }
-        .cluster-peek-hit:hover ~ .cluster-peek[data-depth="3"] { transform: translate(18px, 36px); }
-        .cluster-peek-hit:hover ~ .cluster-peek[data-depth="4"] { transform: translate(24px, 48px); }
+        @media (hover: none) {
+            .cluster-peek { display: none !important; }
+        }
 
-        .cluster-stack[data-expanded="true"] .cluster-peek {
-            opacity: 0;
-            transform: translate(0, 0) !important;
-            transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s ease;
+        @media (hover: hover) and (pointer: fine) {
+            .cluster-peek-hit:hover ~ .cluster-peek[data-depth="1"] { transform: translate(6px, 12px); }
+            .cluster-peek-hit:hover ~ .cluster-peek[data-depth="2"] { transform: translate(12px, 24px); }
+            .cluster-peek-hit:hover ~ .cluster-peek[data-depth="3"] { transform: translate(18px, 36px); }
+            .cluster-peek-hit:hover ~ .cluster-peek[data-depth="4"] { transform: translate(24px, 48px); }
+        }
+
+        .cluster-stack[data-expanded="true"] .cluster-peek,
+        .cluster-stack[data-expanded="true"] .cluster-peek-hit {
+            display: none !important;
+            visibility: hidden !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            border-color: transparent !important;
         }
 
         .cluster-leaves {
@@ -534,6 +564,7 @@
             gap: 16px;
             max-width: var(--card-w);
             flex-shrink: 0;
+            box-shadow: none !important;
         }
         .cluster-stack[data-expanded="true"] .cluster-leaves { display: flex; }
         @media (min-width: 720px) { .cluster-leaves { max-width: calc(var(--card-w) * 2 + 16px * 2 + 4px); } }
@@ -2804,6 +2835,11 @@
                 stack.appendChild(chip);
 
                 wrap.appendChild(stack);
+
+                // Add the is-expanded class if the cluster is currently expanded
+                if (expandedClusters.has(cluster.id)) {
+                    wrap.classList.add('is-expanded');
+                }
             }
 
             /* ═══ LAYOUT ═══ */
@@ -3395,6 +3431,7 @@
 
                     CLUSTER_ORDER.forEach(id => expandedClusters.add(id));
                     document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'true');
+                    document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => n.classList.add('is-expanded'));
 
                     applyFocus();
                     updateCanvasToolbarUI();
@@ -3416,6 +3453,7 @@
 
                 expandedClusters.clear();
                 document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
+                document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => n.classList.remove('is-expanded'));
 
                 canvasLayout = 'grid';
                 document.body.dataset.layout = 'grid';
@@ -3959,12 +3997,12 @@
                 backBtn.type = 'button';
                 backBtn.className = 'ctx-item';
                 backBtn.setAttribute('role', 'menuitem');
-                
+
                 const backInd = document.createElement('span');
                 backInd.className = 'ctx-indicator';
                 backInd.setAttribute('aria-hidden', 'true');
                 backBtn.appendChild(backInd);
-                
+
                 const backLabel = document.createElement('span');
                 backLabel.className = 'ctx-item-title';
                 backLabel.style.fontWeight = '600';
@@ -3972,7 +4010,7 @@
                 backBtn.appendChild(backLabel);
 
                 backBtn.addEventListener('click', () => {
-                    const route = currentRoute.level === 'card' 
+                    const route = currentRoute.level === 'card'
                         ? { level: 'cluster', clusterId: currentRoute.clusterId }
                         : { level: 'canvas' };
                     navigate(route);
@@ -4248,6 +4286,10 @@
 
                 node.addEventListener('pointermove', (e) => {
                     if (!dragState || e.pointerId !== dragState.pointerId) return;
+
+                    // If the node is expanded, do not allow dragging
+                    if (node.classList.contains('is-expanded')) return;
+
                     const dx = (e.clientX - dragState.startX) / scale;
                     const dy = (e.clientY - dragState.startY) / scale;
                     if (!dragState.moved && Math.hypot(dx * scale, dy * scale) > 4) {
@@ -4303,6 +4345,7 @@
 
                 expandedClusters.clear();
                 document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
+                document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => n.classList.remove('is-expanded'));
 
                 canvasLayout = 'grid';
                 document.body.dataset.layout = 'grid';
@@ -4337,6 +4380,7 @@
                 if (node) {
                     const stack = node.querySelector('.cluster-stack');
                     if (stack) stack.dataset.expanded = wasExpanded ? 'false' : 'true';
+                    node.classList.toggle('is-expanded', !wasExpanded);
                 }
 
                 applyFocus();
@@ -4365,6 +4409,7 @@
                 if (expandedClusters.size === 0) return false;
                 expandedClusters.clear();
                 document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
+                document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => n.classList.remove('is-expanded'));
                 applyFocus();
                 saveCanvasState();
                 if (isMobile()) {
