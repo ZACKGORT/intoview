@@ -623,7 +623,7 @@
             margin-top: 5px; padding-top: 8px;
         }
 
-        /* ═══ WIDGET / MINIMAP ═══ */
+        /* ═══ WIDGET / MINIMAP / ZOOM HUD ═══ */
         .canvas-widget {
             position: fixed; top: calc(var(--topbar-height) + 8px); right: var(--margin);
             z-index: 95;
@@ -746,6 +746,76 @@
             border-radius: 2px; pointer-events: none;
             box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.14);
         }
+
+        /* ═══ ZOOM HUD ═══ */
+        .canvas-zoomhud {
+            position: fixed; z-index: 96;
+            top: calc(var(--topbar-height) + 12px);
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex; align-items: center; gap: 2px;
+            background: color-mix(in srgb, var(--bg) 92%, transparent);
+            backdrop-filter: blur(16px) saturate(1.1);
+            -webkit-backdrop-filter: blur(16px) saturate(1.1);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 4px 6px 4px 4px;
+            box-shadow: var(--shadow-floating);
+            font-family: var(--font-mono);
+            max-width: calc(100vw - 16px);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .canvas-zoomhud.dragging {
+            cursor: grabbing;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.06);
+        }
+        .zoomhud-grip {
+            display: flex; align-items: center; justify-content: center;
+            width: 20px; height: 26px;
+            background: none; border: none;
+            color: var(--ink-light); cursor: grab;
+            border-radius: 4px; flex-shrink: 0;
+            padding: 0; touch-action: none;
+        }
+        .zoomhud-grip:hover { background: var(--faint); color: var(--ink); }
+        .zoomhud-grip svg { display: block; }
+        .zoomhud-controls { display: flex; align-items: center; gap: 2px; }
+        .zoomhud-controls .btn {
+            min-height: 26px; font-size: 8px; padding: 3px 8px;
+            border-color: transparent; color: var(--ink-mid);
+        }
+        .zoomhud-controls .btn:hover { border-color: var(--ink); }
+        .zoomhud-zoom-btn {
+            width: 26px; padding: 0 !important;
+            font-size: 14px; line-height: 1;
+            font-family: var(--font-mono);
+        }
+        .zoomhud-percent {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 46px; height: 26px; padding: 0 6px;
+            background: none; border: 1px solid transparent;
+            color: var(--ink); cursor: pointer;
+            font-family: var(--font-mono);
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum";
+            font-size: 10px; font-weight: 600;
+            letter-spacing: 0.02em;
+            border-radius: var(--radius-sm);
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        }
+        .zoomhud-percent:hover { background: var(--faint); border-color: var(--border); }
+        .zoomhud-percent:active { transform: scale(0.96); }
+        .zoomhud-divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+        .zoomhud-close {
+            display: flex; align-items: center; justify-content: center;
+            width: 20px; height: 26px;
+            background: none; border: none;
+            color: var(--ink-light); font-size: 14px; line-height: 1;
+            cursor: pointer; border-radius: 4px;
+            flex-shrink: 0; padding: 0; margin-left: 2px;
+        }
+        .zoomhud-close:hover { background: var(--faint); color: var(--ink); }
 
         /* ═══ CAROUSEL ═══ */
         .letters-viewport { position: relative; overflow: hidden; width: 100vw; left: 50%; margin-left: -50vw; }
@@ -1581,6 +1651,9 @@
         <button class="ctx-item" data-action="toggle-minimap" role="menuitemcheckbox" type="button">
             <span class="ctx-indicator" aria-hidden="true"></span> Minimap
         </button>
+        <button class="ctx-item" data-action="toggle-zoomhud" role="menuitemcheckbox" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Zoom HUD
+        </button>
         <div class="ctx-hint">Drag to pan · Pinch to zoom · Esc collapses</div>
     </div>
 
@@ -1620,6 +1693,25 @@
             <div class="minimap-content" id="minimapContent"></div>
             <div class="minimap-frame" id="minimapFrame"></div>
         </div>
+    </div>
+
+    <!-- ═══ ZOOM HUD ═══ -->
+    <div class="canvas-zoomhud" id="canvasZoomHud" hidden role="toolbar" aria-label="Zoom controls">
+        <button class="zoomhud-grip" type="button" aria-label="Drag zoom HUD" title="Drag">
+            <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
+                <circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/>
+                <circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/>
+                <circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/>
+            </svg>
+        </button>
+        <div class="zoomhud-controls">
+            <button class="btn zoomhud-zoom-btn" type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out (−)">−</button>
+            <button class="zoomhud-percent" type="button" data-action="zoom-reset-100" id="zoomHudPercent" aria-label="Reset zoom to 100%" title="Reset to 100%">100%</button>
+            <button class="btn zoomhud-zoom-btn" type="button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in (+)">+</button>
+            <span class="zoomhud-divider" aria-hidden="true"></span>
+            <button class="btn" type="button" data-action="zoom-fit" aria-label="Fit to view" title="Fit to view">Fit</button>
+        </div>
+        <button class="zoomhud-close" type="button" aria-label="Hide zoom HUD" title="Hide">×</button>
     </div>
 
     <div class="wrap" id="carouselWrap" hidden>
@@ -1687,6 +1779,7 @@
 
             const MIN_SCALE = 0.35;
             const MAX_SCALE = 2.5;
+            const ZOOM_STEP = 1.25;
 
             /* ═══ NAV COUNTER ═══ */
             function updateNavCounter(current, total) {
@@ -2196,6 +2289,8 @@
             const WIDGET_POS_KEY = 'intoview.widget.pos';
             const MINIMAP_ON_KEY  = 'intoview.minimap.on';
             const MINIMAP_POS_KEY = 'intoview.minimap.pos';
+            const ZOOMHUD_ON_KEY  = 'intoview.zoomhud.on';
+            const ZOOMHUD_POS_KEY = 'intoview.zoomhud.pos';
             const SNAP_KEY = 'intoview.snap';
 
             let widgetVisible = false;
@@ -2206,6 +2301,9 @@
             const minimapNodeEls = new Map();
             let minimapLayoutQueued = false;
             let minimapFrameQueued  = false;
+
+            let zoomHudVisible = false;
+            let zoomHudPos = null;
 
             let hudCanvasIndex = 0;
 
@@ -2351,6 +2449,7 @@
                 document.getElementById('hudCanvas').hidden = inSection || !isMobile();
                 applyWidgetVisibility();
                 applyMinimapVisibility();
+                applyZoomHudVisibility();
                 closeContextMenu();
                 updateStatusText();
             }
@@ -2429,6 +2528,8 @@
                     node.style.top = spec.y + 'px';
                     node.style.zIndex = String(++topZ);
                 });
+
+                refineIdentityIndexStack();
 
                 document.body.dataset.layout = canvasLayout;
                 applyFocus();
@@ -2541,6 +2642,41 @@
                 return positions;
             }
 
+            /* ═══ IDENTITY → INDEX STACK REFINEMENT ═══
+               The identity card renders taller than a standard card, so a fixed
+               rowPitch between identity and index leaves them visibly crowded.
+               Once the DOM has been laid out, measure identity's real height and
+               re-seat index one full row-gap below it. Only applies when index is
+               still in the stacked position next to identity; if the user has
+               dragged it elsewhere, we leave it alone. */
+            function refineIdentityIndexStack() {
+                const surface = document.getElementById('canvasSurface');
+                if (!surface) return;
+                const identityNode = surface.querySelector('.canvas-node[data-node-id="identity"]');
+                const indexNode = surface.querySelector('.canvas-node[data-node-id="index"]');
+                if (!identityNode || !indexNode) return;
+
+                const identityPos = restPositions.get('identity');
+                const indexPos = restPositions.get('index');
+                if (!identityPos || !indexPos) return;
+
+                const rowPitch = getRowPitch();
+                const standardCardH = isMobile() ? 176 : 280;
+                const gap = rowPitch - standardCardH;
+
+                // Only refine when index is still directly below identity.
+                const isStacked = Math.abs(indexPos.x - identityPos.x) < 4 &&
+                                  indexPos.y > identityPos.y &&
+                                  indexPos.y <= identityPos.y + rowPitch + 8;
+                if (!isStacked) return;
+
+                const newY = identityPos.y + identityNode.offsetHeight + gap;
+                if (Math.abs(newY - indexPos.y) < 2) return;
+
+                indexNode.style.top = newY + 'px';
+                restPositions.set('index', { x: indexPos.x, y: newY });
+            }
+
             function packArray() {
                 const rowPitch = getRowPitch();
                 const isMob = isMobile();
@@ -2566,10 +2702,13 @@
                     identity.style.top = '0px';
                     restPositions.set('identity', { x: 0, y: 0 });
                 }
-                if (index) {
+                if (index && identity) {
+                    const standardCardH = isMob ? 176 : 280;
+                    const gap = rowPitch - standardCardH;
+                    const indexY = identity.offsetHeight + gap;
                     index.style.left = '0px';
-                    index.style.top = rowPitch + 'px';
-                    restPositions.set('index', { x: 0, y: rowPitch });
+                    index.style.top = indexY + 'px';
+                    restPositions.set('index', { x: 0, y: indexY });
                 }
 
                 let rowY = 0;
@@ -2663,6 +2802,8 @@
                 if (toggle) toggle.classList.toggle('active', widgetVisible);
                 const mmToggle = document.querySelector('#canvasContextMenu [data-action="toggle-minimap"]');
                 if (mmToggle) mmToggle.classList.toggle('active', minimapVisible);
+                const zhToggle = document.querySelector('#canvasContextMenu [data-action="toggle-zoomhud"]');
+                if (zhToggle) zhToggle.classList.toggle('active', zoomHudVisible);
                 const gridToggle = document.querySelector('#canvasContextMenu [data-action="toggle-grid"]');
                 if (gridToggle) gridToggle.classList.toggle('active', document.body.classList.contains('show-grid'));
                 updateMobileSheetActiveStates();
@@ -2674,6 +2815,8 @@
                     surface.style.transform =
                         `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) scale(${scale})`;
                 }
+                const pct = document.getElementById('zoomHudPercent');
+                if (pct) pct.textContent = Math.round(scale * 100) + '%';
                 queueMinimapFrame();
             }
 
@@ -2711,6 +2854,31 @@
                 panOffset.y = (topbarH + vh - hudReserve) / 2 - cy * scale;
                 applyPanTransform();
                 updateMobileHud();
+            }
+
+            /* ═══ ZOOM ═══ */
+            function zoomAt(newScale, clientX, clientY) {
+                const clamped = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+                if (clamped === scale) return;
+                const worldX = (clientX - panOffset.x) / scale;
+                const worldY = (clientY - panOffset.y) / scale;
+                panOffset.x = clientX - worldX * clamped;
+                panOffset.y = clientY - worldY * clamped;
+                scale = clamped;
+                applyPanTransform();
+                saveCanvasState();
+            }
+
+            function zoomStep(direction) {
+                const cx = window.innerWidth / 2;
+                const cy = window.innerHeight / 2;
+                zoomAt(scale * (direction > 0 ? ZOOM_STEP : 1 / ZOOM_STEP), cx, cy);
+            }
+
+            function zoomReset100() {
+                const cx = window.innerWidth / 2;
+                const cy = window.innerHeight / 2;
+                zoomAt(1, cx, cy);
             }
 
             /* ═══ CAMERA JUMP / MOBILE HUD ═══ */
@@ -2841,6 +3009,7 @@
                         const node = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(s.id)}"]`);
                         if (node) { node.style.left = pos.x + 'px'; node.style.top = pos.y + 'px'; }
                     });
+                    refineIdentityIndexStack();
                     applyFocus();
                     updateCanvasToolbarUI();
                     updateStatusText();
@@ -2894,7 +3063,7 @@
                 updateStatusText();
             }
 
-            /* ═══ WIDGET / MINIMAP ═══ */
+            /* ═══ WIDGET / MINIMAP / ZOOM HUD VISIBILITY ═══ */
             function applyWidgetVisibility() {
                 const widget = document.getElementById('canvasWidget');
                 if (!widget) return;
@@ -2926,6 +3095,27 @@
                 updateCanvasToolbarUI();
             }
 
+            function applyZoomHudVisibility() {
+                const zh = document.getElementById('canvasZoomHud');
+                if (!zh) return;
+                const inSection = currentRoute.level !== 'canvas';
+                const shouldShow = zoomHudVisible && !inSection && !isMobile();
+                const wasHidden = zh.hidden;
+                zh.hidden = !shouldShow;
+                if (shouldShow) {
+                    const pct = document.getElementById('zoomHudPercent');
+                    if (pct) pct.textContent = Math.round(scale * 100) + '%';
+                    if (wasHidden) applyZoomHudPos();
+                }
+            }
+
+            function setZoomHudVisible(on) {
+                zoomHudVisible = !!on;
+                try { localStorage.setItem(ZOOMHUD_ON_KEY, zoomHudVisible ? '1' : '0'); } catch (e) {}
+                applyZoomHudVisibility();
+                updateCanvasToolbarUI();
+            }
+
             function applyMinimapPos() {
                 const mm = document.getElementById('canvasMinimap');
                 if (!mm) return;
@@ -2940,10 +3130,35 @@
                 }
             }
 
+            function applyZoomHudPos() {
+                const zh = document.getElementById('canvasZoomHud');
+                if (!zh) return;
+                if (zoomHudPos && typeof zoomHudPos.x === 'number' && typeof zoomHudPos.y === 'number') {
+                    zh.style.left = zoomHudPos.x + 'px';
+                    zh.style.top  = zoomHudPos.y + 'px';
+                    zh.style.right = 'auto';
+                    zh.style.bottom = 'auto';
+                    zh.style.transform = 'none';
+                } else {
+                    zh.style.left = ''; zh.style.top = '';
+                    zh.style.right = ''; zh.style.bottom = '';
+                    zh.style.transform = '';
+                }
+            }
+
             function clampMinimapPos(x, y) {
                 const mm = document.getElementById('canvasMinimap');
                 if (!mm) return { x, y };
                 const w = mm.offsetWidth, h = mm.offsetHeight;
+                x = Math.max(4, Math.min(window.innerWidth  - w - 4, x));
+                y = Math.max(4, Math.min(window.innerHeight - h - 4, y));
+                return { x, y };
+            }
+
+            function clampZoomHudPos(x, y) {
+                const zh = document.getElementById('canvasZoomHud');
+                if (!zh) return { x, y };
+                const w = zh.offsetWidth, h = zh.offsetHeight;
                 x = Math.max(4, Math.min(window.innerWidth  - w - 4, x));
                 y = Math.max(4, Math.min(window.innerHeight - h - 4, y));
                 return { x, y };
@@ -3146,6 +3361,67 @@
                 viewport.addEventListener('pointercancel', endPan);
             }
 
+            function setupZoomHud() {
+                const zh = document.getElementById('canvasZoomHud');
+                if (!zh) return;
+
+                try {
+                    const stored = localStorage.getItem(ZOOMHUD_ON_KEY);
+                    if (stored === null) zoomHudVisible = true;
+                    else zoomHudVisible = stored === '1';
+                } catch (e) { zoomHudVisible = true; }
+
+                try {
+                    const pos = JSON.parse(localStorage.getItem(ZOOMHUD_POS_KEY) || 'null');
+                    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') zoomHudPos = pos;
+                } catch (e) {}
+                applyZoomHudPos();
+
+                zh.querySelector('.zoomhud-close').addEventListener('click', () => setZoomHudVisible(false));
+
+                zh.querySelector('[data-action="zoom-out"]').addEventListener('click', () => zoomStep(-1));
+                zh.querySelector('[data-action="zoom-in"]').addEventListener('click', () => zoomStep(1));
+                zh.querySelector('[data-action="zoom-reset-100"]').addEventListener('click', zoomReset100);
+                zh.querySelector('[data-action="zoom-fit"]').addEventListener('click', () => {
+                    fitCanvasToViewport();
+                    saveCanvasState();
+                });
+
+                const grip = zh.querySelector('.zoomhud-grip');
+                grip.addEventListener('pointerdown', (e) => {
+                    if (e.button !== 0) return;
+                    const rect = zh.getBoundingClientRect();
+                    const startX = e.clientX, startY = e.clientY;
+                    const startL = rect.left, startT = rect.top;
+                    zh.style.right = 'auto'; zh.style.bottom = 'auto';
+                    zh.style.left = startL + 'px'; zh.style.top = startT + 'px';
+                    zh.style.transform = 'none';
+                    zh.classList.add('dragging');
+                    try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+                    const onMove = (ev) => {
+                        if (ev.pointerId !== e.pointerId) return;
+                        const cx = startL + (ev.clientX - startX);
+                        const cy = startT + (ev.clientY - startY);
+                        const c = clampZoomHudPos(cx, cy);
+                        zh.style.left = c.x + 'px'; zh.style.top = c.y + 'px';
+                        zoomHudPos = c;
+                    };
+                    const onUp = (ev) => {
+                        if (ev.pointerId !== e.pointerId) return;
+                        zh.classList.remove('dragging');
+                        grip.removeEventListener('pointermove', onMove);
+                        grip.removeEventListener('pointerup', onUp);
+                        grip.removeEventListener('pointercancel', onUp);
+                        try { grip.releasePointerCapture(e.pointerId); } catch (err) {}
+                        try { if (zoomHudPos) localStorage.setItem(ZOOMHUD_POS_KEY, JSON.stringify(zoomHudPos)); } catch (err) {}
+                    };
+                    grip.addEventListener('pointermove', onMove);
+                    grip.addEventListener('pointerup', onUp);
+                    grip.addEventListener('pointercancel', onUp);
+                    e.preventDefault();
+                });
+            }
+
             /* ═══ CONTEXT MENU ═══ */
             function closeContextMenu() {
                 const menu = document.getElementById('canvasContextMenu');
@@ -3176,7 +3452,7 @@
                 if (!canvas || !menu) return;
 
                 canvas.addEventListener('contextmenu', (e) => {
-                    if (e.target.closest('.canvas-widget, .canvas-context-menu, .canvas-minimap')) return;
+                    if (e.target.closest('.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud')) return;
                     e.preventDefault();
                     openContextMenu(e.clientX, e.clientY);
                 });
@@ -3205,6 +3481,7 @@
                 menu.querySelector('[data-action="reset"]').addEventListener('click', () => { resetCanvas(); closeContextMenu(); });
                 menu.querySelector('[data-action="toggle-widget"]').addEventListener('click', () => setWidgetVisible(!widgetVisible));
                 menu.querySelector('[data-action="toggle-minimap"]').addEventListener('click', () => setMinimapVisible(!minimapVisible));
+                menu.querySelector('[data-action="toggle-zoomhud"]').addEventListener('click', () => setZoomHudVisible(!zoomHudVisible));
             }
 
             /* ═══ WIDGET ═══ */
@@ -3478,7 +3755,7 @@
                 canvasRoot.dataset.bound = '1';
 
                 canvasRoot.addEventListener('pointerdown', (e) => {
-                    if (e.target.closest('.canvas-widget, .canvas-context-menu, .canvas-minimap')) return;
+                    if (e.target.closest('.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud')) return;
                     if (e.pointerType !== 'touch' && e.target.closest('.canvas-node')) return;
                     if (e.button !== 0 && e.button !== 1) return;
                     if (e.pointerType === 'touch' && e.target.closest('.canvas-node') && canvasPointers.size === 0) {
@@ -3580,13 +3857,7 @@
                     if (e.ctrlKey || e.metaKey) {
                         e.preventDefault();
                         const factor = Math.exp(-e.deltaY * 0.0025);
-                        let newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
-                        const worldX = (e.clientX - panOffset.x) / scale;
-                        const worldY = (e.clientY - panOffset.y) / scale;
-                        panOffset.x = e.clientX - worldX * newScale;
-                        panOffset.y = e.clientY - worldY * newScale;
-                        scale = newScale;
-                        applyPanTransform();
+                        zoomAt(scale * factor, e.clientX, e.clientY);
                         return;
                     }
                     e.preventDefault();
@@ -3768,7 +4039,7 @@
                 const ellipse = document.getElementById('writeCursorEllipse');
                 if (!dot || !ellipse) return;
                 if (window.matchMedia('(hover: none)').matches) return;
-                const NATIVE = ['button','a','input','textarea','select','[role="button"]','.letter-hotspot','.canvas-node','.canvas-widget','.canvas-context-menu','.prov-card','.cluster-peek-hit','.canvas-minimap','.mobile-sheet','.mobile-menu-btn'].join(', ');
+                const NATIVE = ['button','a','input','textarea','select','[role="button"]','.letter-hotspot','.canvas-node','.canvas-widget','.canvas-context-menu','.prov-card','.cluster-peek-hit','.canvas-minimap','.canvas-zoomhud','.mobile-sheet','.mobile-menu-btn'].join(', ');
                 const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .cluster-collapse-chip, .cluster-peek';
                 const LIGHT_SURFACE = '.prov-card[data-type="identity"]';
                 let ptrX = 0, ptrY = 0, prevX = 0, prevY = 0, init = false;
@@ -4075,6 +4346,7 @@
                 setupContextMenu();
                 setupWidget();
                 setupMinimap();
+                setupZoomHud();
                 buildMobileSheet();
                 setupMobileSheet();
 
@@ -4239,6 +4511,12 @@
                         if (toggle) toggle.click();
                         e.preventDefault();
                     }
+                    if (currentRoute.level === 'canvas' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                        if (e.key === '=' || e.key === '+') { zoomStep(1); e.preventDefault(); }
+                        else if (e.key === '-' || e.key === '_') { zoomStep(-1); e.preventDefault(); }
+                        else if (e.key === '0') { zoomReset100(); e.preventDefault(); }
+                        else if (e.key === 'f' || e.key === 'F') { fitCanvas(); e.preventDefault(); }
+                    }
                 });
 
                 let lastMobile = isMobile();
@@ -4261,6 +4539,7 @@
                                     const n = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(s.id)}"]`);
                                     if (n) { n.style.left = pos.x + 'px'; n.style.top = pos.y + 'px'; }
                                 });
+                                refineIdentityIndexStack();
                             }
                             if (canvasLayout === 'array') packArray();
                             fitCanvasToViewport();
@@ -4282,6 +4561,14 @@
                                 try { localStorage.setItem(MINIMAP_POS_KEY, JSON.stringify(minimapPos)); } catch (e) {}
                             }
                             queueMinimapLayout();
+                        }
+                        if (zoomHudVisible && !isMobile()) {
+                            if (zoomHudPos) {
+                                const c = clampZoomHudPos(zoomHudPos.x, zoomHudPos.y);
+                                zoomHudPos = c;
+                                applyZoomHudPos();
+                                try { localStorage.setItem(ZOOMHUD_POS_KEY, JSON.stringify(zoomHudPos)); } catch (e) {}
+                            }
                         }
                     }, 220);
                 });
