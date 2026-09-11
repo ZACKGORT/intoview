@@ -58,6 +58,13 @@
             --grid-fill: rgba(0, 160, 255, 0.06);
             --grid-gutter: rgba(0, 160, 255, 0.10);
 
+            --card-w: 240px;
+            --col-pitch: 280px;
+            --row-pitch: 320px;
+            --grid-col-line: rgba(0, 0, 0, 0.07);
+            --grid-row-line: rgba(0, 0, 0, 0.035);
+            --grid-overlay-opacity: 0.55;
+
             --impact-gain: #2F6B4F;
             --impact-loss: #C63A2A;
             --impact-accent: #8A7A1F;
@@ -81,14 +88,13 @@
             --ink-light: #8e8e93;
             --ink-lighter: #6e6e73;
             --border: rgba(255, 255, 255, .12);
-
             --peek-bg: #303032;
             --peek-border: rgba(255, 255, 255, .10);
-
             --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
             --shadow-hover: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3);
             --shadow-floating: 0 8px 32px rgba(0, 0, 0, 0.6);
-
+            --grid-col-line: rgba(255, 255, 255, 0.09);
+            --grid-row-line: rgba(255, 255, 255, 0.04);
             --impact-gain: #6FCF97;
             --impact-loss: #FF6B6B;
             --impact-accent: #E5E567;
@@ -124,6 +130,7 @@
         .btn:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
         .btn:active { transform: scale(0.96); }
         .btn.ghost { color: var(--ink-light); }
+        .btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
         .btn-grid {
             font-size: 9px; min-height: 32px; padding: 4px 10px;
             border-color: var(--border); color: var(--ink-light);
@@ -171,15 +178,14 @@
         .breadcrumb-item.is-current { color: var(--ink); font-weight: 600; cursor: default; }
         .breadcrumb-item.is-current:hover { background: none; }
         .breadcrumb-sep { color: var(--ink-lighter); opacity: .55; flex-shrink: 0; }
-        @media (max-width: 640px) { .breadcrumb { display: none; } }
 
-        .mobile-back {
-            display: none;
-            font-size: 9px; min-height: 32px; padding: 4px 10px;
-            flex-shrink: 0;
-        }
+        .mobile-back { display: none; font-size: 9px; min-height: 32px; padding: 4px 10px; flex-shrink: 0; }
+        .mobile-menu-btn { display: none; font-size: 14px; min-height: 32px; padding: 4px 12px; line-height: 1; }
+
         @media (max-width: 640px) {
+            .breadcrumb { display: none; }
             .mobile-back:not([hidden]) { display: inline-flex; }
+            .mobile-menu-btn { display: inline-flex; }
         }
 
         .viewport-blur {
@@ -201,14 +207,10 @@
             -webkit-mask-image: linear-gradient(to top, black 0%, black 45%, transparent 100%);
         }
 
-        /* ═══════════════════════════════════════════════════════
-           CANVAS
-           ═══════════════════════════════════════════════════════ */
+        /* ═══ CANVAS ═══ */
         .canvas-root {
             position: fixed; inset: 0; z-index: 50; overflow: hidden;
             background: var(--bg);
-            background-image: radial-gradient(circle, rgba(var(--fg-rgb), 0.07) 1px, transparent 1px);
-            background-size: 24px 24px; background-position: 0 0;
             cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
         }
         .canvas-root.panning { cursor: grabbing; }
@@ -218,24 +220,42 @@
             position: absolute; top: 0; left: 0; width: 0; height: 0;
             transform-origin: 0 0; will-change: transform;
         }
+        .canvas-surface::before {
+            content: '';
+            position: absolute;
+            top: -10000px; left: -10000px;
+            width: 20000px; height: 20000px;
+            background-image:
+                repeating-linear-gradient(to right, var(--grid-col-line) 0 1px, transparent 1px var(--col-pitch)),
+                repeating-linear-gradient(to bottom, var(--grid-row-line) 0 1px, transparent 1px var(--row-pitch));
+            background-position: 10000px 0, 0 10000px;
+            background-repeat: repeat;
+            pointer-events: none; z-index: 0;
+            opacity: var(--grid-overlay-opacity);
+            transition: opacity 0.2s ease;
+        }
+        body.show-grid .canvas-surface::before { opacity: 1; }
+        body.dragging-node .canvas-surface::before { opacity: 1; }
+
         .canvas-edges {
             position: absolute; top: 0; left: 0;
             width: 1px; height: 1px;
-            overflow: visible; pointer-events: none; z-index: 0;
+            overflow: visible; pointer-events: none; z-index: 1;
         }
         .canvas-edge {
-            stroke: rgba(var(--fg-rgb), .18); stroke-width: 1;
+            stroke: rgba(var(--fg-rgb), .22); stroke-width: 1;
             fill: none; stroke-dasharray: 2 4;
         }
 
         .canvas-node {
             position: absolute;
             cursor: grab; user-select: none; -webkit-user-select: none;
+            z-index: 2;
             transition:
-                left 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-                top 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                left 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                top 0.35s cubic-bezier(0.22, 1, 0.36, 1),
                 box-shadow 0.15s ease;
-            will-change: left, top, transform;
+            will-change: left, top;
         }
         .canvas-node.dragging {
             cursor: grabbing;
@@ -243,12 +263,13 @@
             box-shadow: 0 24px 56px rgba(0, 0, 0, 0.18), 0 8px 20px rgba(0, 0, 0, 0.06);
         }
 
+        /* ═══ CARDS ═══ */
         .prov-card {
             background: var(--card); border: 1px solid var(--border);
             border-radius: var(--radius-sm); box-shadow: var(--shadow);
-            padding: 14px 16px 12px;
+            padding: 16px 18px 14px;
             display: flex; flex-direction: column; gap: 10px;
-            width: 260px; min-height: 140px;
+            width: var(--card-w); min-height: 260px;
             cursor: pointer; position: relative; overflow: hidden;
             transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
         }
@@ -270,6 +291,7 @@
         .prov-card[data-type="evidence"] .prov-card-type::before { background: var(--impact-gain); }
         .prov-card[data-type="reply"] .prov-card-type::before { background: var(--impact-accent); }
         .prov-card[data-type="update"] .prov-card-type::before { background: var(--impact-loss); }
+        .prov-card[data-type="identity"] .prov-card-type::before { background: var(--accent); }
 
         .prov-card-status {
             padding: 1px 7px; border-radius: 999px; font-size: 7px;
@@ -281,20 +303,21 @@
         .prov-card-status[data-status="contested"] { color: var(--impact-loss); }
         .prov-card-status[data-status="revised"]   { color: var(--impact-accent); }
         .prov-card-status[data-status="draft"]     { color: var(--ink-light); border-style: dashed; }
+        .prov-card-status[data-status="archived"]  { color: var(--ink-lighter); }
 
         .prov-card-title {
-            font-family: var(--font); font-size: 16px; font-weight: 700;
-            letter-spacing: -.01em; line-height: 1.22; color: var(--ink); margin: 0;
+            font-family: var(--font); font-size: 17px; font-weight: 700;
+            letter-spacing: -.01em; line-height: 1.2; color: var(--ink); margin: 0;
         }
         .prov-card-deck {
-            font-size: 12px; line-height: 1.45; color: var(--ink-mid); margin: 0;
-            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-            overflow: hidden; min-height: 2.9em;
+            font-size: 12.5px; line-height: 1.5; color: var(--ink-mid); margin: 0;
+            display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
+            overflow: hidden;
         }
         .prov-card-meta {
             display: flex; align-items: center; justify-content: space-between;
             gap: 8px; margin-top: auto;
-            padding-top: 10px; border-top: 1px solid var(--border);
+            padding-top: 12px; border-top: 1px solid var(--border);
             font-family: var(--font-mono); font-size: 8px; letter-spacing: .06em;
             text-transform: uppercase; color: var(--ink-light);
         }
@@ -303,12 +326,11 @@
         .prov-card-relation { display: flex; align-items: center; gap: 3px; opacity: .75; }
         .prov-card-relation strong { font-weight: 600; color: var(--ink-mid); }
 
+        /* Cluster — yellow */
         .prov-card[data-type="cluster"] {
             background: var(--accent); border-color: var(--accent); color: #1c1c1e;
-            width: 280px; min-height: 160px;
-
-            --fg: #1c1c1e;
-            --fg-rgb: 28, 28, 30;
+            width: var(--card-w); min-height: 280px;
+            --fg: #1c1c1e; --fg-rgb: 28, 28, 30;
             --ink: #1c1c1e;
             --ink-mid: rgba(28, 28, 30, .78);
             --ink-light: rgba(28, 28, 30, .60);
@@ -330,60 +352,145 @@
         .prov-card[data-type="cluster"] .prov-card-meta { border-top-color: rgba(28,28,30,.18); color: rgba(28,28,30,.62); }
         .prov-card[data-type="cluster"] .prov-card-status,
         .prov-card[data-type="cluster"] .prov-card-status[data-status] {
+            color: #1c1c1e; border-color: rgba(28, 28, 30, .45); border-style: solid;
+        }
+
+        /* ═══ IDENTITY CARD — white / inverted ═══ */
+        .prov-card[data-type="identity"] {
+            background: #ffffff;
+            border-color: rgba(0, 0, 0, .10);
             color: #1c1c1e;
-            border-color: rgba(28, 28, 30, .45);
-            border-style: solid;
+            width: var(--card-w);
+            min-height: 300px;
+            --fg: #1c1c1e; --fg-rgb: 28, 28, 30;
+            --ink: #1c1c1e;
+            --ink-mid: rgba(28, 28, 30, .78);
+            --ink-light: rgba(28, 28, 30, .58);
+            --ink-lighter: rgba(28, 28, 30, .35);
+            --border: rgba(28, 28, 30, .14);
+            --faint: rgba(28, 28, 30, .06);
+            --impact-gain: #2F6B4F;
+            --impact-loss: #C63A2A;
+            --impact-accent: #8A7A1F;
+        }
+        .prov-card[data-type="identity"] .prov-card-title,
+        .prov-card[data-type="identity"] .prov-card-deck,
+        .prov-card[data-type="identity"] .prov-card-kicker,
+        .prov-card[data-type="identity"] .prov-card-meta,
+        .prov-card[data-type="identity"] .prov-card-source { color: #1c1c1e; }
+        .prov-card[data-type="identity"] .prov-card-deck { color: rgba(28,28,30,.62); }
+        .prov-card[data-type="identity"] .prov-card-meta { border-top-color: rgba(28,28,30,.14); color: rgba(28,28,30,.55); }
+        .prov-card[data-type="identity"] .prov-card-status {
+            color: #1c1c1e; border-color: rgba(28,28,30,.45);
         }
 
-        .prov-card[data-type="master"] {
-            background: var(--card-dark); border-color: var(--card-dark); color: #fff;
-            width: 300px; min-height: 180px;
-        }
-        .prov-card[data-type="master"] .prov-card-type::before { background: var(--accent); }
-        .prov-card[data-type="master"] .prov-card-title,
-        .prov-card[data-type="master"] .prov-card-deck,
-        .prov-card[data-type="master"] .prov-card-kicker,
-        .prov-card[data-type="master"] .prov-card-meta,
-        .prov-card[data-type="master"] .prov-card-source,
-        .prov-card[data-type="master"] .prov-card-relation { color: #fff; }
-        .prov-card[data-type="master"] .prov-card-deck { color: rgba(255,255,255,.55); }
-        .prov-card[data-type="master"] .prov-card-meta { border-top-color: rgba(255,255,255,.12); color: rgba(255,255,255,.55); }
-        .prov-card[data-type="master"] .prov-card-status { color: rgba(255,255,255,.85); border-color: rgba(255,255,255,.35); }
-
-        /* ═══════════════════════════════════════════════════════
-           CLUSTER STACK
-           ═══════════════════════════════════════════════════════ */
-        .cluster-stack {
-            display: flex;
-            align-items: flex-start;
-            gap: 24px;
-            position: relative;
-        }
-        .cluster-stack[data-expanded="true"] {
-            padding-bottom: 40px;
-        }
-        .cluster-stack-inner {
-            position: relative;
+        .identity-monogram {
+            width: 48px; height: 48px; border-radius: 10px;
+            background: var(--accent); color: #1c1c1e;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 20px;
+            letter-spacing: -0.02em;
             flex-shrink: 0;
         }
-        .cluster-title {
-            position: relative;
-            z-index: 10;
+        .identity-role {
+            font-family: var(--font-mono); font-size: 9px;
+            letter-spacing: .06em; text-transform: uppercase;
+            color: var(--ink-light); margin: 0;
         }
-        .cluster-title > .prov-card {
-            position: relative;
-            z-index: 10;
+        .identity-meta {
+            display: flex; gap: 12px;
+            font-family: var(--font-mono); font-size: 9px;
+            color: var(--ink-light); letter-spacing: .04em;
+            text-transform: uppercase;
         }
+        .identity-stats {
+            display: flex; gap: 16px;
+            font-family: var(--font-mono); font-size: 9px;
+            color: var(--ink-light);
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+        .identity-stats strong {
+            color: var(--ink); font-weight: 600; margin-right: 4px;
+        }
+        .identity-availability {
+            font-family: var(--font-mono); font-size: 8px;
+            letter-spacing: .08em; text-transform: uppercase;
+            padding: 1px 7px; border-radius: 999px;
+            border: 1px solid currentColor;
+            color: var(--ink-light);
+        }
+        .identity-availability[data-availability="open"] { color: var(--impact-gain); }
+        .identity-availability[data-availability="engaged"] { color: var(--impact-accent); }
+        .identity-availability[data-availability="hiring"] { color: var(--impact-loss); }
+
+        /* ═══ INDEX CARD — directory ═══ */
+        .prov-card[data-type="index"] {
+            width: var(--card-w);
+            min-height: 280px;
+            padding: 14px 14px 12px;
+            gap: 8px;
+        }
+        .prov-card[data-type="index"] .prov-card-title {
+            font-size: 15px;
+        }
+        .index-list {
+            list-style: none; display: flex; flex-direction: column;
+            margin: 2px 0 0; padding: 0;
+            font-family: var(--font-mono); font-size: 10px;
+            flex: 1;
+        }
+        .index-row {
+            display: grid;
+            grid-template-columns: 22px 1fr auto auto;
+            gap: 8px;
+            align-items: center;
+            padding: 7px 6px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.15s ease;
+            border-radius: 4px;
+            color: var(--ink-mid);
+        }
+        .index-row:last-child { border-bottom: none; }
+        .index-row:hover { background: var(--faint); color: var(--ink); }
+        .index-num { color: var(--ink-light); font-weight: 600; font-size: 9px; }
+        .index-title {
+            color: var(--ink); font-weight: 500;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .index-count { color: var(--ink-light); font-size: 9px; }
+        .index-status {
+            font-size: 6.5px; letter-spacing: .08em; text-transform: uppercase;
+            padding: 1px 5px; border-radius: 999px;
+            border: 1px solid currentColor;
+            color: var(--ink-light);
+            white-space: nowrap;
+        }
+        .index-status[data-status="published"] { color: var(--ink); }
+        .index-status[data-status="verified"] { color: var(--impact-gain); }
+        .index-status[data-status="contested"] { color: var(--impact-loss); }
+        .index-status[data-status="revised"] { color: var(--impact-accent); }
+        .index-status[data-status="draft"] { color: var(--ink-light); border-style: dashed; }
+        .index-status[data-status="archived"] { color: var(--ink-lighter); }
+
+        /* ═══ CLUSTER STACK ═══ */
+        .cluster-stack {
+            display: flex; align-items: flex-start; gap: 24px;
+            position: relative;
+        }
+        .cluster-stack[data-expanded="true"] { padding-bottom: 40px; }
+        .cluster-stack-inner { position: relative; flex-shrink: 0; }
+        .cluster-title { position: relative; z-index: 10; }
+        .cluster-title > .prov-card { position: relative; z-index: 10; }
 
         .cluster-peek {
-            position: absolute;
-            inset: 0;
+            position: absolute; inset: 0;
             background: var(--peek-bg);
             border: 1px solid var(--peek-border);
             border-radius: var(--radius-sm);
             pointer-events: none;
-            transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                        opacity 0.25s ease;
+            transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.25s ease;
         }
         .cluster-peek[data-depth="1"] { transform: translate(2px, 6px);  z-index: 4; }
         .cluster-peek[data-depth="2"] { transform: translate(4px, 12px); z-index: 3; }
@@ -392,11 +499,8 @@
 
         .cluster-peek-hit {
             position: absolute;
-            left: -2px;
-            right: -14px;
-            top: 100%;
-            height: 40px;
-            z-index: 20;
+            left: -2px; right: -14px; top: 100%;
+            height: 48px; z-index: 20;
             cursor: pointer;
         }
         .cluster-stack[data-expanded="true"] .cluster-peek-hit { display: none; }
@@ -409,43 +513,40 @@
         .cluster-stack[data-expanded="true"] .cluster-peek {
             opacity: 0;
             transform: translate(0, 0) !important;
-            transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                        opacity 0.2s ease;
+            transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s ease;
         }
 
         .cluster-leaves {
-            position: relative;
-            display: none;
+            position: relative; display: none;
             flex-wrap: wrap;
             align-content: flex-start;
             gap: 16px;
-            max-width: 552px;
+            max-width: var(--card-w);
             flex-shrink: 0;
         }
         .cluster-stack[data-expanded="true"] .cluster-leaves { display: flex; }
+        @media (min-width: 720px) { .cluster-leaves { max-width: calc(var(--card-w) * 2 + 16px); } }
+        @media (min-width: 1080px) { .cluster-leaves { max-width: calc(var(--card-w) * 3 + 32px); } }
 
         .cluster-collapse-chip {
             display: none;
             position: absolute;
-            top: -32px;
-            right: 0;
+            top: -32px; right: 0;
             padding: 4px 12px;
-            background: var(--accent);
-            color: #1c1c1e;
+            background: var(--accent); color: #1c1c1e;
             border: 1px solid rgba(28, 28, 30, 0.18);
             border-radius: 999px;
-            font-family: var(--font-mono);
-            font-size: 8px;
-            font-weight: 600;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            cursor: pointer;
+            font-family: var(--font-mono); font-size: 8px;
+            font-weight: 600; letter-spacing: 0.08em;
+            text-transform: uppercase; cursor: pointer;
             z-index: 15;
             transition: background 0.15s ease, transform 0.15s ease;
         }
         .cluster-collapse-chip:hover { background: #d8d855; }
         .cluster-collapse-chip:active { transform: scale(0.96); }
         .cluster-stack[data-expanded="true"] .cluster-collapse-chip { display: inline-flex; }
+        body[data-layout="array"] .cluster-collapse-chip { display: none !important; }
+        body[data-layout="array"] .cluster-peek-hit { display: none !important; }
 
         .cluster-leaf {
             cursor: pointer;
@@ -457,30 +558,29 @@
         .cluster-leaf:nth-child(4) { animation-delay: 0.14s; }
         .cluster-leaf:nth-child(5) { animation-delay: 0.18s; }
         .cluster-leaf:nth-child(6) { animation-delay: 0.22s; }
-
         @keyframes leaf-in {
             from { opacity: 0; transform: translateX(-10px); }
             to   { opacity: 1; transform: translateX(0); }
         }
+        .cluster-leaf > .prov-card { width: var(--card-w); min-height: 260px; }
 
-        .cluster-leaf > .prov-card { width: 260px; }
+        @media (max-width: 640px) {
+            .cluster-stack { flex-direction: column; }
+            .cluster-stack-inner { width: 100%; }
+            .cluster-leaves { max-width: 100%; }
+        }
 
-        /* ═══════════════════════════════════════════════════════
-           CANVAS CONTEXT MENU
-           ═══════════════════════════════════════════════════════ */
+        /* ═══ CONTEXT MENU ═══ */
         .canvas-context-menu {
-            position: fixed;
-            z-index: 300;
-            min-width: 208px;
-            padding: 6px 0;
+            position: fixed; z-index: 300;
+            min-width: 208px; padding: 6px 0;
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 10px;
             box-shadow: var(--shadow-floating), 0 0 0 1px rgba(0,0,0,0.02);
             font-family: var(--font-mono);
             display: none;
-            user-select: none;
-            -webkit-user-select: none;
+            user-select: none; -webkit-user-select: none;
         }
         .canvas-context-menu.open {
             display: block;
@@ -492,71 +592,42 @@
         }
         .ctx-section-label {
             padding: 4px 14px 6px;
-            font-size: 8px;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-            color: var(--ink-light);
+            font-size: 8px; letter-spacing: 0.14em;
+            text-transform: uppercase; color: var(--ink-light);
         }
         .ctx-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            width: 100%;
-            padding: 7px 14px;
-            background: none;
-            border: none;
-            text-align: left;
-            font-family: inherit;
-            font-size: 10px;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: var(--ink-mid);
+            display: flex; align-items: center; gap: 10px;
+            width: 100%; padding: 7px 14px;
+            background: none; border: none;
+            text-align: left; font-family: inherit;
+            font-size: 10px; letter-spacing: 0.06em;
+            text-transform: uppercase; color: var(--ink-mid);
             cursor: pointer;
             transition: background 0.08s ease, color 0.08s ease;
         }
         .ctx-item:hover { background: var(--bg); color: var(--ink); }
-        .ctx-item:active { transform: none; }
         .ctx-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
+            width: 8px; height: 8px; border-radius: 50%;
             border: 1px solid var(--ink-lighter);
             flex-shrink: 0;
             transition: background 0.12s ease, border-color 0.12s ease;
         }
-        .ctx-item.active .ctx-indicator {
-            background: var(--ink);
-            border-color: var(--ink);
-        }
+        .ctx-item.active .ctx-indicator { background: var(--ink); border-color: var(--ink); }
         .ctx-item.no-indicator .ctx-indicator { visibility: hidden; }
-        .ctx-divider {
-            height: 1px;
-            background: var(--border);
-            margin: 5px 0;
-        }
+        .ctx-divider { height: 1px; background: var(--border); margin: 5px 0; }
         .ctx-hint {
             padding: 4px 14px 6px;
-            font-size: 8px;
-            letter-spacing: 0.06em;
-            color: var(--ink-light);
-            text-transform: none;
-            opacity: 0.75;
-            border-top: 1px solid var(--border);
-            margin-top: 5px;
-            padding-top: 8px;
+            font-size: 8px; letter-spacing: 0.06em;
+            color: var(--ink-light); text-transform: none;
+            opacity: 0.75; border-top: 1px solid var(--border);
+            margin-top: 5px; padding-top: 8px;
         }
 
-        /* ═══════════════════════════════════════════════════════
-           CANVAS WIDGET (movable)
-           ═══════════════════════════════════════════════════════ */
+        /* ═══ WIDGET / MINIMAP ═══ */
         .canvas-widget {
-            position: fixed;
-            top: calc(var(--topbar-height) + 8px);
-            right: var(--margin);
+            position: fixed; top: calc(var(--topbar-height) + 8px); right: var(--margin);
             z-index: 95;
-            display: flex;
-            align-items: center;
-            gap: 2px;
+            display: flex; align-items: center; gap: 2px;
             background: color-mix(in srgb, var(--bg) 92%, transparent);
             backdrop-filter: blur(16px) saturate(1.1);
             -webkit-backdrop-filter: blur(16px) saturate(1.1);
@@ -570,22 +641,16 @@
         .canvas-widget.dragging {
             cursor: grabbing;
             box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.06);
-            transition: box-shadow 0.15s ease;
         }
         .widget-grip {
             display: flex; align-items: center; justify-content: center;
             width: 20px; height: 26px;
             background: none; border: none;
-            color: var(--ink-light);
-            cursor: grab;
-            border-radius: 4px;
-            flex-shrink: 0;
-            padding: 0;
-            touch-action: none;
-            transition: background 0.15s ease, color 0.15s ease;
+            color: var(--ink-light); cursor: grab;
+            border-radius: 4px; flex-shrink: 0;
+            padding: 0; touch-action: none;
         }
         .widget-grip:hover { background: var(--faint); color: var(--ink); }
-        .widget-grip:active { cursor: grabbing; }
         .widget-grip svg { display: block; }
         .widget-controls { display: flex; align-items: center; gap: 2px; }
         .widget-controls .btn {
@@ -593,129 +658,92 @@
             border-color: transparent; color: var(--ink-mid);
         }
         .widget-controls .btn:hover { border-color: var(--ink); }
-        .widget-controls .btn.active {
-            background: var(--ink); color: var(--bg); border-color: var(--ink);
-        }
-        .widget-divider {
-            width: 1px; height: 16px;
-            background: var(--border);
-            margin: 0 4px;
-            flex-shrink: 0;
-        }
+        .widget-controls .btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+        .widget-divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
         .widget-close {
             display: flex; align-items: center; justify-content: center;
             width: 20px; height: 26px;
             background: none; border: none;
-            color: var(--ink-light);
-            font-size: 14px; line-height: 1;
-            cursor: pointer;
-            border-radius: 4px;
-            flex-shrink: 0;
-            padding: 0;
-            margin-left: 2px;
-            transition: background 0.15s ease, color 0.15s ease;
+            color: var(--ink-light); font-size: 14px; line-height: 1;
+            cursor: pointer; border-radius: 4px;
+            flex-shrink: 0; padding: 0; margin-left: 2px;
         }
         .widget-close:hover { background: var(--faint); color: var(--ink); }
 
-        /* ═══════════════════════════════════════════════════════
-           MOBILE HOME VIEW
-           ═══════════════════════════════════════════════════════ */
-        .home-root {
-            position: relative;
-            z-index: 50;
-            background: var(--bg);
-            background-image: radial-gradient(circle, rgba(var(--fg-rgb), 0.07) 1px, transparent 1px);
-            background-size: 24px 24px;
-            min-height: calc(100vh - var(--topbar-height));
-            padding: 16px var(--margin) calc(var(--hud-height) + 40px);
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        @media (min-width: 641px) {
-            .home-root { display: none !important; }
-        }
-        .home-page {
-            max-width: 520px;
-            margin: 0 auto;
-            padding-top: 8px;
-        }
-        .home-card {
-            background: var(--card-dark);
-            border: 1px solid var(--card-dark);
-            border-radius: var(--radius);
+        .canvas-minimap {
+            position: fixed; z-index: 96;
+            bottom: 24px; right: var(--margin);
+            width: 220px;
+            background: color-mix(in srgb, var(--bg) 94%, transparent);
+            backdrop-filter: blur(16px) saturate(1.1);
+            -webkit-backdrop-filter: blur(16px) saturate(1.1);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
             box-shadow: var(--shadow-floating);
-            padding: 22px 20px 12px;
-            color: #fff;
+            font-family: var(--font-mono);
+            user-select: none; -webkit-user-select: none;
+            overflow: hidden;
         }
-        .home-card-kicker {
-            display: flex; align-items: center; justify-content: space-between;
-            font-family: var(--font-mono); font-size: 9px; font-weight: 600;
-            letter-spacing: .12em; text-transform: uppercase;
-            color: rgba(255,255,255,.55);
+        .minimap-header {
+            display: flex; align-items: center; gap: 4px;
+            padding: 4px 6px 4px 4px;
+            border-bottom: 1px solid var(--border);
         }
-        .home-card-type { display: inline-flex; align-items: center; gap: 6px; }
-        .home-card-type::before {
-            content: ''; width: 6px; height: 6px; border-radius: 50%;
+        .minimap-grip {
+            display: flex; align-items: center; justify-content: center;
+            width: 20px; height: 22px;
+            background: none; border: none;
+            color: var(--ink-light); cursor: grab;
+            border-radius: 4px; flex-shrink: 0; padding: 0;
+            touch-action: none;
+        }
+        .minimap-grip:hover { background: var(--faint); color: var(--ink); }
+        .minimap-label {
+            flex: 1; padding-left: 2px;
+            font-size: 8px; font-weight: 600;
+            letter-spacing: 0.14em; text-transform: uppercase;
+            color: var(--ink-light);
+        }
+        .minimap-close {
+            display: flex; align-items: center; justify-content: center;
+            width: 20px; height: 22px;
+            background: none; border: none;
+            color: var(--ink-light); font-size: 14px; line-height: 1;
+            cursor: pointer; border-radius: 4px; flex-shrink: 0; padding: 0;
+        }
+        .minimap-close:hover { background: var(--faint); color: var(--ink); }
+        .minimap-viewport {
+            position: relative; width: 100%; height: 140px;
+            overflow: hidden; cursor: crosshair;
+            background-image: radial-gradient(circle, rgba(var(--fg-rgb), 0.09) 1px, transparent 1px);
+            background-size: 12px 12px;
+            touch-action: none;
+        }
+        .minimap-content {
+            position: absolute; top: 0; left: 0;
+            transform-origin: 0 0; will-change: transform;
+            pointer-events: none;
+        }
+        .minimap-node {
+            position: absolute; box-sizing: border-box;
+            border-radius: 1.5px;
+            background: color-mix(in srgb, var(--ink) 45%, transparent);
+            border: 1px solid color-mix(in srgb, var(--ink) 65%, transparent);
+        }
+        .minimap-node[data-kind="identity"] { background: #ffffff; border-color: rgba(0, 0, 0, .40); }
+        .minimap-node[data-kind="cluster"] {
             background: var(--accent);
+            border-color: color-mix(in srgb, var(--accent) 60%, #1c1c1e);
         }
-        .home-card-status {
-            padding: 2px 9px; border-radius: 999px;
-            border: 1px solid rgba(255,255,255,.4);
-            color: rgba(255,255,255,.85);
-            font-size: 8px; letter-spacing: .08em;
-        }
-        .home-card-title {
-            font-family: var(--font); font-size: clamp(26px, 8vw, 34px); font-weight: 800;
-            letter-spacing: -.02em; line-height: 1.05;
-            color: #fff; margin: 16px 0 8px;
-        }
-        .home-card-deck {
-            font-size: 14px; line-height: 1.5;
-            color: rgba(255,255,255,.55); margin: 0 0 18px;
-        }
-        .home-card-list {
-            list-style: none; margin: 0; padding: 0;
-            display: flex; flex-direction: column;
-        }
-        .home-card-row {
-            display: flex; align-items: center; gap: 14px;
-            width: 100%; padding: 16px 2px;
-            background: none; border: none; border-top: 1px solid rgba(255,255,255,.1);
-            cursor: pointer; text-align: left;
-            font-family: inherit; color: #fff;
-            transition: color .15s ease, background .15s ease;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .home-card-row:last-child { border-bottom: 1px solid rgba(255,255,255,.1); }
-        .home-card-row:active { background: rgba(255,255,255,.04); }
-        .home-card-num {
-            font-family: var(--font-mono); font-size: 12px;
-            color: rgba(255,255,255,.45); flex-shrink: 0;
-            letter-spacing: .04em; min-width: 24px;
-        }
-        .home-card-name {
-            flex: 1; min-width: 0;
-            font-family: var(--font); font-size: 16px; font-weight: 600;
-            letter-spacing: -.005em;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .home-card-count {
-            font-family: var(--font-mono); font-size: 9px;
-            color: rgba(255,255,255,.4);
-            letter-spacing: .06em; text-transform: uppercase;
-            flex-shrink: 0;
-        }
-        .home-card-arrow {
-            color: rgba(255,255,255,.45); font-size: 16px;
-            flex-shrink: 0;
-            transition: transform .15s ease, color .15s ease;
-        }
-        .home-card-row:active .home-card-arrow {
-            color: var(--accent); transform: translateX(3px);
+        .minimap-frame {
+            position: absolute; box-sizing: border-box;
+            border: 1.5px solid var(--accent);
+            background: rgba(229, 229, 103, 0.14);
+            border-radius: 2px; pointer-events: none;
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.14);
         }
 
-        /* carousel */
+        /* ═══ CAROUSEL ═══ */
         .letters-viewport { position: relative; overflow: hidden; width: 100vw; left: 50%; margin-left: -50vw; }
         .letters-track {
             display: flex; align-items: flex-start; gap: 22px;
@@ -767,9 +795,7 @@
             text-transform: uppercase; color: var(--ink-light);
         }
         .letter-provenance-field { display: inline-flex; gap: 6px; align-items: baseline; }
-        .letter-provenance-field strong {
-            font-weight: 600; color: var(--ink-mid); letter-spacing: .1em;
-        }
+        .letter-provenance-field strong { font-weight: 600; color: var(--ink-mid); letter-spacing: .1em; }
         .letter-provenance-status {
             display: inline-flex; align-items: center; gap: 4px;
             padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor;
@@ -875,35 +901,20 @@
         }
         .letter-never-context { margin: 6px 0 0; font-size: 13px; line-height: 1.5; font-style: italic; color: var(--ink-light); }
 
-        /* ═══════════════════════════════════════════════════════
-           HUD — centred, clamped against surrounding chrome
-           ═══════════════════════════════════════════════════════ */
+        /* ═══ HUD ═══ */
         .hud {
-            position: fixed;
-            left: 50%;
-            transform: translateX(-50%);
+            position: fixed; left: 50%; transform: translateX(-50%);
             z-index: 100;
             background: color-mix(in srgb, var(--bg) 92%, transparent);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: var(--radius);
             box-shadow: var(--shadow-floating);
             display: flex; align-items: center; justify-content: center;
             min-height: 44px; font-family: var(--font-mono);
             max-width: min(520px, calc(100vw - var(--margin) * 2));
         }
-        .hud-top {
-            top: calc(var(--topbar-height) + 8px);
-            padding: 6px 12px;
-            gap: 4px;
-        }
-        .hud-bottom {
-            bottom: calc(12px + var(--scrollbar-height));
-            padding: 10px 18px;
-            min-height: 48px;
-            gap: 12px;
-        }
+        .hud-top { top: calc(var(--topbar-height) + 8px); padding: 6px 12px; gap: 4px; }
+        .hud-bottom { bottom: calc(12px + var(--scrollbar-height)); padding: 10px 18px; min-height: 48px; gap: 12px; }
         .hud .btn { min-height: 30px; padding: 5px 10px; font-size: 8px; }
         .hud-nav-counter {
             display: inline-flex; align-items: center; justify-content: center;
@@ -911,14 +922,8 @@
             border-radius: var(--radius-sm); font-size: 7px; font-weight: 600;
             min-width: 18px; text-align: center;
         }
-        .hud-count {
-            font-size: 10px; font-weight: 700; letter-spacing: .06em;
-            color: var(--fg); line-height: 1; flex-shrink: 0;
-        }
-        .hud-sep {
-            width: 1px; height: 12px; background: var(--border);
-            flex-shrink: 0; display: block;
-        }
+        .hud-count { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--fg); line-height: 1; flex-shrink: 0; }
+        .hud-sep { width: 1px; height: 12px; background: var(--border); flex-shrink: 0; display: block; }
         .hud-text {
             font-size: 9px; font-weight: 500; letter-spacing: .12em;
             text-transform: uppercase; color: var(--ink-light);
@@ -945,9 +950,7 @@
         .scroll-border-corner-bl { bottom: 0; left: 0; width: 6px; height: 6px; }
         .scroll-border-corner-br { bottom: 0; right: 0; width: 6px; height: 6px; }
 
-        /* ═══════════════════════════════════════════════════════
-           CUSTOM CURSOR — contrast-aware
-           ═══════════════════════════════════════════════════════ */
+        /* ═══ CURSOR ═══ */
         body.custom-cursor-active { cursor: none; }
         .write-cursor-dot, .write-cursor-ellipse {
             position: fixed; top: 0; left: 0; z-index: 500; pointer-events: none;
@@ -959,13 +962,10 @@
         .write-cursor-dot { width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--ink); }
         .write-cursor-ellipse { width: 34px; height: 34px; margin: -17px 0 0 -17px; border: 1.5px solid var(--ink); border-radius: 50%; opacity: 0; }
         .write-cursor-ellipse.visible { opacity: 0.32; }
-
         body.cursor-on-accent .write-cursor-dot { background: #1c1c1e; }
         body.cursor-on-accent .write-cursor-ellipse { border-color: #1c1c1e; }
-
-        body.cursor-on-dark .write-cursor-dot { background: #ffffff; }
-        body.cursor-on-dark .write-cursor-ellipse { border-color: #ffffff; }
-
+        body.cursor-on-light .write-cursor-dot { background: #1c1c1e; }
+        body.cursor-on-light .write-cursor-ellipse { border-color: #1c1c1e; }
         body.custom-cursor-active.write-native-cursor { cursor: auto; }
         .write-native-cursor .write-cursor-dot, .write-native-cursor .write-cursor-ellipse { opacity: 0 !important; }
 
@@ -985,17 +985,6 @@
         .topbar-appearance-dropdown .menu-item:hover { background: var(--bg); color: var(--ink); }
         .topbar-appearance-dropdown .menu-item.active { background: var(--ink); color: var(--bg); }
 
-        .index-letter { display: grid; grid-template-rows: repeat(6, auto); grid-auto-flow: column; gap: 0.2rem 2rem; max-width: 480px; overflow: hidden; }
-        .index-letter a.idx-row {
-            display: flex; align-items: baseline; gap: 0.6rem; padding: 0.35rem 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer;
-            transition: color 0.2s, transform 0.15s; color: rgba(255, 255, 255, 0.85);
-            text-decoration: none;
-        }
-        .index-letter a.idx-row:hover { color: var(--accent); transform: translateX(4px); }
-        .index-letter .idx-num { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.04em; opacity: 0.45; flex-shrink: 0; min-width: 2.6em; color: rgba(255, 255, 255, 0.55); }
-        .index-letter .idx-title { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; color: #ffffff; }
-
         .letter-heading {
             font-size: clamp(40px, 6vw, 96px);
             line-height: .98; letter-spacing: -.02em; color: var(--fg); margin: 0;
@@ -1005,11 +994,6 @@
             letter-spacing: .14em; text-transform: uppercase; line-height: 1.5; color: var(--fg); margin: 0;
         }
         .letter-body p { font-size: 15px; line-height: 1.7; color: var(--ink-mid); margin: 0 0 20px; }
-        .letter-card-caption {
-            margin-top: auto; padding-top: var(--l-sp-4);
-            font-family: var(--font-mono); font-size: 8px; font-weight: 600;
-            letter-spacing: .08em; text-transform: uppercase; color: var(--ink-light);
-        }
         .conversation-stack-hint {
             margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
             font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.08em;
@@ -1019,11 +1003,8 @@
         .conversation-stack-hint::before { content: '⤵'; font-size: 1rem; opacity: 0.4; }
 
         .letter-card-frame.title-card-frame {
-            background: var(--accent);
-            border-color: var(--accent);
-
-            --fg: #1c1c1e;
-            --fg-rgb: 28, 28, 30;
+            background: var(--accent); border-color: var(--accent);
+            --fg: #1c1c1e; --fg-rgb: 28, 28, 30;
             --ink: #1c1c1e;
             --ink-mid: rgba(28, 28, 30, .78);
             --ink-light: rgba(28, 28, 30, .60);
@@ -1045,9 +1026,7 @@
         .letter-card-frame.title-card-frame .letter-provenance-field strong { color: #1c1c1e; }
         .letter-card-frame.title-card-frame .letter-provenance-status,
         .letter-card-frame.title-card-frame .letter-provenance-status[data-status] {
-            color: #1c1c1e;
-            border-color: rgba(28, 28, 30, .45);
-            border-style: solid;
+            color: #1c1c1e; border-color: rgba(28, 28, 30, .45); border-style: solid;
         }
         .letter-card-frame.title-card-frame .letter-accordion-trigger,
         .letter-card-frame.title-card-frame .letter-accordion-title,
@@ -1055,13 +1034,71 @@
         .letter-card-frame.title-card-frame .letter-tagline,
         .letter-card-frame.title-card-frame .letter-never-statement { color: #1c1c1e; }
 
-        .letter-card-frame.index-card-frame { background: var(--card-dark); border-color: var(--card-dark); }
-        .letter-card-frame.index-card-frame .letter-cover { border-bottom-color: rgba(255, 255, 255, 0.12); }
-        .letter-card-frame.index-card-frame .letter-cover-kicker,
-        .letter-card-frame.index-card-frame .letter-cover-deck { color: rgba(255, 255, 255, 0.55); }
-        .letter-card-frame.index-card-frame .letter-cover-name { color: #ffffff; }
-        .letter-card-frame.index-card-frame .letter-provenance { border-top-color: rgba(255,255,255,.14); color: rgba(255,255,255,.55); }
-        .letter-card-frame.index-card-frame .letter-provenance-field strong { color: rgba(255,255,255,.8); }
+        /* Identity letter view — white */
+        .letter-card-frame.identity-card-frame {
+            background: #ffffff; border-color: rgba(0,0,0,.10);
+            color: #1c1c1e;
+            --fg: #1c1c1e; --fg-rgb: 28, 28, 30;
+            --ink: #1c1c1e;
+            --ink-mid: rgba(28, 28, 30, .78);
+            --ink-light: rgba(28, 28, 30, .58);
+            --ink-lighter: rgba(28, 28, 30, .35);
+            --border: rgba(28, 28, 30, .14);
+            --faint: rgba(28, 28, 30, .06);
+            --card: #ffffff;
+            --impact-gain: #2F6B4F;
+            --impact-loss: #C63A2A;
+            --impact-accent: #8A7A1F;
+        }
+        .letter-card-frame.identity-card-frame .letter-cover { border-bottom-color: rgba(28,28,30,.14); }
+        .letter-card-frame.identity-card-frame .letter-cover-kicker,
+        .letter-card-frame.identity-card-frame .letter-cover-deck { color: rgba(28, 28, 30, 0.58); }
+        .letter-card-frame.identity-card-frame .letter-cover-name { color: #1c1c1e; }
+        .letter-card-frame.identity-card-frame .letter-provenance { border-top-color: rgba(28,28,30,.18); color: rgba(28,28,30,.58); }
+        .letter-card-frame.identity-card-frame .letter-provenance-field strong { color: #1c1c1e; }
+        .letter-card-frame.identity-card-frame .letter-provenance-status,
+        .letter-card-frame.identity-card-frame .letter-provenance-status[data-status] {
+            color: #1c1c1e; border-color: rgba(28,28,30,.45); border-style: solid;
+        }
+        .letter-card-frame.identity-card-frame .letter-heading,
+        .letter-card-frame.identity-card-frame .letter-tagline { color: #1c1c1e; }
+        .letter-card-frame.identity-card-frame .letter-body p { color: rgba(28,28,30,.72); }
+
+        /* Letter-nav index list */
+        .letter-index-list {
+            list-style: none; padding: 0; margin: 12px 0 0;
+            border-top: 1px solid var(--border);
+        }
+        .letter-index-list li { border-bottom: 1px solid var(--border); }
+        .letter-index-list a {
+            display: grid;
+            grid-template-columns: 32px 1fr auto auto;
+            gap: 16px; align-items: center;
+            padding: 16px 4px;
+            text-decoration: none;
+            color: var(--ink);
+            font-size: 15px;
+            transition: background 0.15s ease;
+            border-radius: 6px;
+        }
+        .letter-index-list a:hover { background: var(--faint); }
+        .letter-index-list .letter-index-num {
+            font-family: var(--font-mono); font-size: 10px;
+            color: var(--ink-light); font-weight: 600;
+        }
+        .letter-index-list .letter-index-count {
+            font-family: var(--font-mono); font-size: 10px;
+            color: var(--ink-light);
+        }
+        .letter-index-list .letter-index-status {
+            font-family: var(--font-mono); font-size: 8px;
+            text-transform: uppercase; letter-spacing: .08em;
+            padding: 2px 8px; border-radius: 999px;
+            border: 1px solid currentColor; color: var(--ink-light);
+        }
+        .letter-index-list .letter-index-status[data-status="published"] { color: var(--ink); }
+        .letter-index-list .letter-index-status[data-status="draft"] { color: var(--ink-light); border-style: dashed; }
+        .letter-index-list .letter-index-status[data-status="archived"] { color: var(--ink-lighter); }
 
         .edit-flow-mock { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1.5rem 1.2rem; margin: 1.5rem 0; }
         .edit-flow-mock .step { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
@@ -1124,10 +1161,183 @@
 
         body[data-theme='dark'] .viewport-blur-top { background: linear-gradient(to bottom, rgba(28, 28, 30, 0.7), rgba(28, 28, 30, 0)); }
         body[data-theme='dark'] .viewport-blur-bottom { background: linear-gradient(to top, rgba(28, 28, 30, 0.7), rgba(28, 28, 30, 0)); }
-        body[data-theme='dark'] .canvas-edge { stroke: rgba(255, 255, 255, .14); }
-        body[data-theme='dark'] .canvas-root,
-        body[data-theme='dark'] .home-root {
-            background-image: radial-gradient(circle, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+        body[data-theme='dark'] .canvas-edge { stroke: rgba(255, 255, 255, .18); }
+
+        /* ═══ MOBILE SHEET ═══ */
+        .mobile-sheet-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 400;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+        .mobile-sheet-backdrop.open { opacity: 1; }
+        .mobile-sheet {
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            z-index: 401;
+            background: var(--bg);
+            border-top: 1px solid var(--border);
+            border-radius: 16px 16px 0 0;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: 0 -8px 32px rgba(0,0,0,0.15);
+        }
+        .mobile-sheet.open { transform: translateY(0); }
+        .mobile-sheet-header {
+            position: relative;
+            padding: 10px 12px 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .mobile-sheet-grip {
+            width: 36px; height: 4px; border-radius: 2px;
+            background: var(--ink-lighter);
+        }
+        .mobile-sheet-close {
+            position: absolute; right: 8px; top: 4px;
+            width: 32px; height: 32px;
+            background: none; border: none;
+            color: var(--ink-light); font-size: 22px; line-height: 1;
+            cursor: pointer; border-radius: 6px;
+        }
+        .mobile-sheet-close:hover { background: var(--faint); color: var(--ink); }
+        .mobile-sheet-body {
+            overflow-y: auto;
+            padding: 4px 14px 32px;
+            flex: 1;
+            -webkit-overflow-scrolling: touch;
+        }
+        .mobile-identity-block {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            text-align: left;
+            cursor: pointer;
+            margin-bottom: 8px;
+            font-family: inherit;
+            color: var(--fg);
+            transition: transform 0.1s ease;
+        }
+        .mobile-identity-block:active { transform: scale(0.98); }
+        .mobile-identity-block .identity-monogram {
+            width: 40px; height: 40px; font-size: 16px; border-radius: 8px;
+        }
+        .mobile-identity-name {
+            font-weight: 700; font-size: 15px; color: var(--ink);
+            line-height: 1.2;
+        }
+        .mobile-identity-role {
+            font-family: var(--font-mono); font-size: 9px;
+            letter-spacing: .06em; text-transform: uppercase;
+            color: var(--ink-light); margin-top: 3px;
+        }
+        .mobile-identity-status {
+            margin-left: auto;
+            font-family: var(--font-mono); font-size: 8px;
+            letter-spacing: .08em; text-transform: uppercase;
+            padding: 3px 9px; border-radius: 999px;
+            border: 1px solid var(--impact-gain);
+            color: var(--impact-gain);
+            flex-shrink: 0;
+        }
+        .mobile-index-row {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: var(--font-mono);
+            color: var(--fg);
+            font-size: 11px;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            transition: transform 0.1s ease;
+        }
+        .mobile-index-row:active { transform: scale(0.98); }
+        .mobile-index-row .index-num { color: var(--ink-light); font-weight: 600; }
+        .mobile-index-row .mobile-index-label { flex: 1; text-align: left; color: var(--ink); }
+        .mobile-index-row .mobile-index-count {
+            font-size: 9px; color: var(--ink-light);
+        }
+        .mobile-section-label {
+            font-family: var(--font-mono); font-size: 9px;
+            font-weight: 600; letter-spacing: .14em;
+            text-transform: uppercase; color: var(--ink-light);
+            padding: 20px 4px 8px;
+        }
+        .mobile-sections { list-style: none; padding: 0; margin: 0; }
+        .mobile-section { border-bottom: 1px solid var(--border); }
+        .mobile-section-header {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 24px 1fr auto 20px;
+            gap: 10px;
+            align-items: center;
+            padding: 12px 6px;
+            background: none; border: none;
+            color: var(--fg); font-family: inherit;
+            text-align: left; cursor: pointer;
+            font-size: 14px;
+            border-radius: 6px;
+        }
+        .mobile-section-header:active { background: var(--faint); }
+        .mobile-section-header .mobile-section-title { font-weight: 600; color: var(--ink); }
+        .mobile-section-count {
+            font-family: var(--font-mono); font-size: 9px;
+            color: var(--ink-light);
+        }
+        .mobile-expand-icon {
+            font-size: 14px; color: var(--ink-light);
+            transition: transform 0.2s ease;
+            display: inline-block;
+        }
+        .mobile-section.expanded .mobile-expand-icon { transform: rotate(45deg); }
+        .mobile-section-cards {
+            list-style: none;
+            padding: 0 0 8px 34px;
+            margin: 0;
+        }
+        .mobile-card-row {
+            width: 100%;
+            display: flex; justify-content: space-between;
+            align-items: center; gap: 10px;
+            padding: 10px 8px;
+            background: none; border: none;
+            color: var(--fg); font-family: inherit;
+            text-align: left; cursor: pointer;
+            font-size: 13px;
+            border-radius: 6px;
+        }
+        .mobile-card-row:active { background: var(--faint); }
+        .mobile-card-title { color: var(--ink-mid); }
+        .mobile-card-status {
+            font-family: var(--font-mono); font-size: 7px;
+            letter-spacing: .06em; text-transform: uppercase;
+            color: var(--ink-light);
+        }
+        .mobile-canvas-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 4px 0 12px;
+        }
+        .mobile-canvas-controls .btn {
+            font-size: 9px; min-height: 32px; padding: 6px 12px;
         }
 
         @media (max-width: 820px) {
@@ -1140,11 +1350,12 @@
             .swiss-grid > * { grid-column: 1 / -1 !important; }
             body.show-grid .swiss-grid::before { display: none; }
             #gridToggle { display: none !important; }
-            .canvas-widget { display: none !important; }
+            .letter-index-list a { grid-template-columns: 24px 1fr auto; gap: 10px; padding: 12px 0; font-size: 14px; }
+            .letter-index-list .letter-index-status { display: none; }
         }
     </style>
 </head>
-<body data-theme="dark">
+<body data-theme="dark" data-layout="grid">
 
     <div class="write-cursor-ellipse" id="writeCursorEllipse" aria-hidden="true"></div>
     <div class="write-cursor-dot" id="writeCursorDot" aria-hidden="true"></div>
@@ -1175,6 +1386,7 @@
                     <button class="btn" id="appearanceTrigger" aria-haspopup="true" aria-expanded="false">Aa</button>
                 </div>
                 <button class="btn" id="topResetBtn">↺ Reset</button>
+                <button class="btn mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu" aria-haspopup="true">☰</button>
             </div>
         </div>
     </div>
@@ -1185,28 +1397,31 @@
         <button class="btn" id="hudNext" title="Next" aria-label="Next card">›</button>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════
-         CANVAS — desktop provenance graph
-         ═══════════════════════════════════════════════════════ -->
     <div class="canvas-root" id="canvasRoot" hidden>
         <div class="canvas-surface" id="canvasSurface">
             <svg class="canvas-edges" id="canvasEdges" aria-hidden="true"></svg>
         </div>
     </div>
 
-    <!-- Canvas right-click context menu (top-level, positioned fixed) -->
     <div class="canvas-context-menu" id="canvasContextMenu" role="menu" hidden aria-label="Canvas options">
         <div class="ctx-section-label">Layout</div>
-        <button class="ctx-item" data-canvas-layout="free" role="menuitemradio" type="button">
-            <span class="ctx-indicator" aria-hidden="true"></span> Free
-        </button>
         <button class="ctx-item" data-canvas-layout="grid" role="menuitemradio" type="button">
             <span class="ctx-indicator" aria-hidden="true"></span> Grid
         </button>
-        <button class="ctx-item" data-canvas-layout="radial" role="menuitemradio" type="button">
-            <span class="ctx-indicator" aria-hidden="true"></span> Radial
+        <button class="ctx-item" data-canvas-layout="array" role="menuitemradio" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Array
         </button>
         <div class="ctx-divider"></div>
+        <button class="ctx-item" data-action="toggle-snap" role="menuitemcheckbox" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Snap to grid
+        </button>
+        <button class="ctx-item" data-action="toggle-grid" role="menuitemcheckbox" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Show grid
+        </button>
+        <div class="ctx-divider"></div>
+        <button class="ctx-item no-indicator" data-action="align-grid" role="menuitem" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Align to grid
+        </button>
         <button class="ctx-item no-indicator" data-action="fit" role="menuitem" type="button">
             <span class="ctx-indicator" aria-hidden="true"></span> Fit to view
         </button>
@@ -1217,10 +1432,12 @@
         <button class="ctx-item" data-action="toggle-widget" role="menuitemcheckbox" type="button">
             <span class="ctx-indicator" aria-hidden="true"></span> Toolbar widget
         </button>
-        <div class="ctx-hint">Click title to read · Esc collapses</div>
+        <button class="ctx-item" data-action="toggle-minimap" role="menuitemcheckbox" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Minimap
+        </button>
+        <div class="ctx-hint">Drag to pan · Drag card to move · Esc collapses</div>
     </div>
 
-    <!-- Movable toolbar widget (hidden until toggled on) -->
     <div class="canvas-widget" id="canvasWidget" hidden role="toolbar" aria-label="Canvas controls">
         <button class="widget-grip" type="button" aria-label="Drag widget" title="Drag">
             <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
@@ -1230,9 +1447,10 @@
             </svg>
         </button>
         <div class="widget-controls">
-            <button class="btn" data-canvas-layout="free"   type="button">Free</button>
-            <button class="btn" data-canvas-layout="grid"   type="button">Grid</button>
-            <button class="btn" data-canvas-layout="radial" type="button">Radial</button>
+            <button class="btn" data-canvas-layout="grid"  type="button">Grid</button>
+            <button class="btn" data-canvas-layout="array" type="button">Array</button>
+            <span class="widget-divider" aria-hidden="true"></span>
+            <button class="btn" data-action="toggle-snap" type="button" title="Snap to grid">Snap</button>
             <span class="widget-divider" aria-hidden="true"></span>
             <button class="btn" data-action="fit"   type="button" title="Fit all nodes">Fit</button>
             <button class="btn" data-action="reset" type="button" title="Reset canvas">↺</button>
@@ -1240,14 +1458,24 @@
         <button class="widget-close" type="button" aria-label="Hide widget" title="Hide">×</button>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════
-         HOME — mobile scrollable index
-         ═══════════════════════════════════════════════════════ -->
-    <div class="home-root" id="homeRoot" hidden></div>
+    <div class="canvas-minimap" id="canvasMinimap" hidden aria-label="Canvas minimap">
+        <div class="minimap-header">
+            <button class="minimap-grip" type="button" aria-label="Drag minimap" title="Drag">
+                <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
+                    <circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/>
+                    <circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/>
+                    <circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/>
+                </svg>
+            </button>
+            <span class="minimap-label">Minimap</span>
+            <button class="minimap-close" type="button" aria-label="Hide minimap" title="Hide">×</button>
+        </div>
+        <div class="minimap-viewport" id="minimapViewport">
+            <div class="minimap-content" id="minimapContent"></div>
+            <div class="minimap-frame" id="minimapFrame"></div>
+        </div>
+    </div>
 
-    <!-- ═══════════════════════════════════════════════════════
-         CAROUSEL — full-card reading mode
-         ═══════════════════════════════════════════════════════ -->
     <div class="wrap" id="carouselWrap" hidden>
         <div class="letters-viewport">
             <div class="letters-track" id="lettersTrack"></div>
@@ -1264,19 +1492,99 @@
 
     <div class="topbar-appearance-dropdown" id="appearanceDropdown"></div>
 
+    <!-- ═══ MOBILE SHEET ═══ -->
+    <div class="mobile-sheet-backdrop" id="mobileSheetBackdrop" hidden></div>
+    <div class="mobile-sheet" id="mobileSheet" hidden role="dialog" aria-label="Menu">
+        <div class="mobile-sheet-header">
+            <div class="mobile-sheet-grip"></div>
+            <button class="mobile-sheet-close" id="mobileSheetClose" aria-label="Close">×</button>
+        </div>
+        <div class="mobile-sheet-body" id="mobileSheetBody"></div>
+    </div>
+
     <script>
         (function() {
             'use strict';
 
+            /* ═══ CONSTANTS ═══ */
+            const COL_PITCH = 280;
+            const ROW_PITCH = 320;
+            const snapTo = (v, pitch) => Math.round(v / pitch) * pitch;
+            const snapUp = (v, pitch) => Math.ceil(v / pitch) * pitch;
+
             const escapeHtml = (s) => (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;',
                     '"': '&quot;', "'": '&#39;' })[c]);
             const closestSafe = (node, selector) => node && node.nodeType === 1 && node.closest ? node.closest(selector) : null;
-            const isMobileView = () => window.matchMedia('(max-width: 640px)').matches;
 
             const CARDS = new Map();
             const CLUSTERS = new Map();
             const CLUSTER_ORDER = [];
 
+            /* ═══ PROFILE + INDEX DATA ═══ */
+            const PROFILE = {
+                id: 'identity',
+                type: 'identity',
+                title: 'Zack Gort',
+                monogram: 'ZG',
+                role: 'Product Designer',
+                org: 'intoview.pro',
+                location: 'Dallas, TX',
+                since: '2026',
+                availability: 'open',
+                deck: 'Designing products that hold up to the public record. Independent, available for select engagements.',
+                provenance: { status: 'published', source: 'intoview.pro', author: 'Zack Gort', date: '2026' },
+                fullContent: `
+                    <div class="swiss-grid">
+                        <h2 class="swiss-col swiss-col-span-9 letter-heading" style="font-weight:800">Zack Gort</h2>
+                        <p class="swiss-col swiss-col-span-7 letter-tagline">Product Designer · intoview.pro · Dallas, TX</p>
+                        <div class="swiss-col swiss-col-span-9">
+                            <div class="letter-body">
+                                <p>I design products that hold up to the public record. Twenty years working with teams that ship — enterprise retail, precision manufacturing, water treatment, building materials.</p>
+                                <p>Currently independent. Available for select engagements.</p>
+                                <p><strong>Contact</strong> · hello@intoview.pro</p>
+                            </div>
+                        </div>
+                    </div>
+                `
+            };
+
+            function getTotalCardCount() {
+                return CLUSTER_ORDER.reduce((sum, id) => sum + (CLUSTERS.get(id).cardIds.length || 0), 0);
+            }
+
+            function buildIndexFullContent() {
+                const rows = CLUSTER_ORDER.map(id => {
+                    const c = CLUSTERS.get(id);
+                    return `<li>
+                        <a href="#/${escapeHtml(c.id)}">
+                            <span class="letter-index-num">${escapeHtml(c.num)}</span>
+                            <span>${escapeHtml(c.title)}</span>
+                            <span class="letter-index-count">${c.cardIds.length} ${c.cardIds.length === 1 ? 'card' : 'cards'}</span>
+                            <span class="letter-index-status" data-status="${escapeHtml(c.provenance.status)}">${escapeHtml(c.provenance.status)}</span>
+                        </a>
+                    </li>`;
+                }).join('');
+                return `
+                    <div class="swiss-grid">
+                        <h2 class="swiss-col swiss-col-span-9 letter-heading" style="font-weight:800">Index</h2>
+                        <p class="swiss-col swiss-col-span-7 letter-tagline">Every section on this canvas, with card counts and provenance status.</p>
+                        <div class="swiss-col swiss-col-span-10">
+                            <ol class="letter-index-list">${rows}</ol>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const INDEX_META = {
+                id: 'index',
+                type: 'index',
+                title: 'Index',
+                deck: 'Every section, with card counts and provenance status.',
+                provenance: { status: 'published', source: 'intoview.pro', author: 'Zack Gort', date: '2026' },
+                fullContent: ''
+            };
+
+            /* ═══ DATA DEFINITION ═══ */
             function defineCluster(spec) {
                 const cluster = {
                     id: spec.id,
@@ -1285,17 +1593,30 @@
                     title: spec.title,
                     deck: spec.deck,
                     cardIds: spec.cardIds || [],
-                    provenance: {
-                        author: 'intoview.pro',
-                        date: '2026',
-                        source: 'intoview.pro',
-                        status: 'published'
-                    },
-                    relationships: { references: [], replies: [], updates: [] }
+                    provenance: spec.provenance || { author: 'intoview.pro', date: '2026', source: 'intoview.pro', status: 'published' },
+                    relationships: { references: [], replies: [], updates: [] },
+                    fullContent: ''
                 };
                 CLUSTERS.set(cluster.id, cluster);
                 CARDS.set(cluster.id, cluster);
                 CLUSTER_ORDER.push(cluster.id);
+                return cluster;
+            }
+
+            function definePseudoCluster(spec) {
+                const cluster = {
+                    id: spec.id,
+                    type: spec.type,
+                    num: spec.num || '—',
+                    title: spec.title,
+                    deck: spec.deck || '',
+                    cardIds: [],
+                    provenance: spec.provenance,
+                    relationships: { references: [], replies: [], updates: [] },
+                    fullContent: spec.fullContent || '',
+                    profile: spec.profile || null
+                };
+                CLUSTERS.set(cluster.id, cluster);
                 return cluster;
             }
 
@@ -1307,10 +1628,7 @@
                     deck: spec.deck || '',
                     clusterId: spec.clusterId,
                     provenance: Object.assign({
-                        author: 'Zack Gort',
-                        date: '2026',
-                        source: 'intoview.pro',
-                        status: 'published'
+                        author: 'Zack Gort', date: '2026', source: 'intoview.pro', status: 'published'
                     }, spec.provenance || {}),
                     relationships: Object.assign({ references: [], replies: [], updates: [] }, spec.relationships || {}),
                     fullContent: spec.fullContent || ''
@@ -1531,8 +1849,31 @@
                     deck: 'Everything prior.',
                     cardIds: ['archive/feed'] });
                 definePlaceholderCard('archive', 'Archive Feed', 'Everything prior, in reverse chronological order.', 'archived');
+
+                // Index + Identity pseudo-clusters (defined last so index can read CLUSTER_ORDER)
+                INDEX_META.fullContent = buildIndexFullContent();
+                definePseudoCluster({
+                    id: 'identity',
+                    type: 'identity',
+                    num: '—',
+                    title: PROFILE.title,
+                    deck: PROFILE.deck,
+                    provenance: PROFILE.provenance,
+                    fullContent: PROFILE.fullContent,
+                    profile: PROFILE
+                });
+                definePseudoCluster({
+                    id: 'index',
+                    type: 'index',
+                    num: '—',
+                    title: INDEX_META.title,
+                    deck: INDEX_META.deck,
+                    provenance: INDEX_META.provenance,
+                    fullContent: INDEX_META.fullContent
+                });
             }
 
+            /* ═══ RENDERERS ═══ */
             function renderCompactCard(card, opts = {}) {
                 const el = document.createElement('article');
                 el.className = 'prov-card';
@@ -1543,7 +1884,6 @@
                 const relCount = (rel.references?.length || 0) + (rel.replies?.length || 0) + (rel.updates?.length || 0);
 
                 const typeLabel = {
-                    master: 'Index',
                     cluster: 'Collection',
                     statement: 'Statement',
                     evidence: 'Evidence',
@@ -1568,20 +1908,83 @@
                 return el;
             }
 
+            function renderIdentityCard(profile) {
+                const el = document.createElement('article');
+                el.className = 'prov-card';
+                el.dataset.cardId = profile.id;
+                el.dataset.type = 'identity';
+                const sections = CLUSTER_ORDER.length;
+                const cards = getTotalCardCount();
+                el.innerHTML = `
+                    <div class="prov-card-kicker">
+                        <span class="prov-card-type">Identity</span>
+                        <span class="prov-card-status" data-status="${escapeHtml(profile.provenance.status)}">${escapeHtml(profile.provenance.status)}</span>
+                    </div>
+                    <div class="identity-monogram">${escapeHtml(profile.monogram)}</div>
+                    <h3 class="prov-card-title">${escapeHtml(profile.title)}</h3>
+                    <p class="identity-role">${escapeHtml(profile.role)} · ${escapeHtml(profile.org)}</p>
+                    <p class="prov-card-deck">${escapeHtml(profile.deck)}</p>
+                    <div class="identity-meta">
+                        <span>${escapeHtml(profile.location)}</span>
+                        <span>Since ${escapeHtml(profile.since)}</span>
+                    </div>
+                    <div class="identity-stats">
+                        <span><strong>${sections}</strong> sections</span>
+                        <span><strong>${cards}</strong> cards</span>
+                    </div>
+                    <div class="prov-card-meta">
+                        <span class="prov-card-source">${escapeHtml(profile.provenance.source)}</span>
+                        <span class="identity-availability" data-availability="${escapeHtml(profile.availability)}">${escapeHtml(profile.availability)}</span>
+                    </div>
+                `;
+                return el;
+            }
+
+            function renderIndexCard(indexMeta) {
+                const el = document.createElement('article');
+                el.className = 'prov-card';
+                el.dataset.cardId = indexMeta.id;
+                el.dataset.type = 'index';
+                const rows = CLUSTER_ORDER.map(id => {
+                    const c = CLUSTERS.get(id);
+                    return `<li class="index-row" data-cluster-id="${escapeHtml(c.id)}">
+                        <span class="index-num">${escapeHtml(c.num)}</span>
+                        <span class="index-title">${escapeHtml(c.title)}</span>
+                        <span class="index-count">${c.cardIds.length}</span>
+                        <span class="index-status" data-status="${escapeHtml(c.provenance.status)}">${escapeHtml(c.provenance.status)}</span>
+                    </li>`;
+                }).join('');
+                el.innerHTML = `
+                    <div class="prov-card-kicker">
+                        <span class="prov-card-type">Index</span>
+                        <span class="prov-card-status" data-status="${escapeHtml(indexMeta.provenance.status)}">${escapeHtml(indexMeta.provenance.status)}</span>
+                    </div>
+                    <h3 class="prov-card-title">${escapeHtml(indexMeta.title)}</h3>
+                    <ul class="index-list">${rows}</ul>
+                `;
+                return el;
+            }
+
             function renderFullCard(card, index, total) {
                 const panel = document.createElement('div');
                 panel.className = 'letter-panel' + (index === 0 ? ' active' : '');
                 panel.dataset.index = String(index);
                 panel.dataset.cardId = card.id;
+                panel.dataset.type = card.type;
 
                 const frame = document.createElement('div');
                 let frameClass = 'letter-card-frame';
                 if (card.type === 'cluster') frameClass += ' title-card-frame';
+                else if (card.type === 'identity') frameClass += ' identity-card-frame';
                 frame.className = frameClass;
 
                 const cover = document.createElement('div');
                 cover.className = 'letter-cover';
-                const label = card.type === 'cluster' ? 'SECTION' : 'CARD ' + String(index + 1).padStart(2, '0');
+                let label;
+                if (card.type === 'cluster') label = 'SECTION';
+                else if (card.type === 'identity') label = 'IDENTITY';
+                else if (card.type === 'index') label = 'INDEX';
+                else label = 'CARD ' + String(index + 1).padStart(2, '0');
                 const p = card.provenance;
                 cover.innerHTML = `
                     <div class="swiss-grid" style="gap:8px var(--swiss-gap,24px)">
@@ -1613,7 +2016,7 @@
 
                 const rels = card.relationships || {};
                 const allRels = [].concat(rels.references || [], rels.replies || [], rels.updates || []);
-                if (allRels.length) {
+                if (allRels.length && card.type !== 'identity' && card.type !== 'index') {
                     const relStrip = document.createElement('div');
                     relStrip.className = 'conversation-stack-hint';
                     relStrip.textContent = allRels.length + ' related card' + (allRels.length === 1 ? '' : 's');
@@ -1628,28 +2031,58 @@
                 return panel;
             }
 
-            /* ═══════════════════════════════════════════════════════
-               STATE
-               ═══════════════════════════════════════════════════════ */
+            /* ═══ STATE ═══ */
             let currentRoute = { level: 'canvas' };
             let currentCards = [];
             let activeIndex = 0;
-            let canvasLayout = 'free';
+            let canvasLayout = 'grid';    // 'grid' | 'array'
+            let snapEnabled = true;
             let panOffset = { x: 0, y: 0 };
             let topZ = 10;
             const expandedClusters = new Set();
             const restPositions = new Map();
-            const CANVAS_STORAGE_KEY = 'intoview.canvas.v4';
+            const clusterDisplacements = new Map();
+            let preArraySnapshot = null;   // { positions, expanded, layout }
+
+            const CANVAS_STORAGE_KEY_OLD = 'intoview.canvas.v6';
+            const CANVAS_STORAGE_KEY = 'intoview.canvas.v8';
             const THEME_STORAGE_KEY = 'intoview.theme';
             const WIDGET_ON_KEY = 'intoview.widget.on';
             const WIDGET_POS_KEY = 'intoview.widget.pos';
+            const MINIMAP_ON_KEY  = 'intoview.minimap.on';
+            const MINIMAP_POS_KEY = 'intoview.minimap.pos';
+            const SNAP_KEY = 'intoview.snap';
 
             let widgetVisible = false;
             let widgetPos = null;
 
-            /* ═══════════════════════════════════════════════════════
-               ROUTING
-               ═══════════════════════════════════════════════════════ */
+            let minimapVisible = false;
+            let minimapPos = null;
+            let minimapBounds = null;
+            const minimapNodeEls = new Map();
+            let minimapLayoutQueued = false;
+            let minimapFrameQueued  = false;
+
+            /* ═══ STORAGE MIGRATION ═══ */
+            function migrateCanvasState() {
+                try {
+                    const old = localStorage.getItem(CANVAS_STORAGE_KEY_OLD);
+                    if (!old) return;
+                    if (localStorage.getItem(CANVAS_STORAGE_KEY)) return; // already migrated
+                    const s = JSON.parse(old);
+                    if (s.positions && s.positions.master) {
+                        s.positions.identity = s.positions.master;
+                        delete s.positions.master;
+                    }
+                    if (s.layout === 'radial' || s.layout === 'free') s.layout = 'grid';
+                    if (s.layout !== 'grid' && s.layout !== 'array') s.layout = 'grid';
+                    delete s.displacements;
+                    localStorage.setItem(CANVAS_STORAGE_KEY, JSON.stringify(s));
+                    localStorage.removeItem(CANVAS_STORAGE_KEY_OLD);
+                } catch (e) {}
+            }
+
+            /* ═══ ROUTING ═══ */
             function parseHash() {
                 const raw = (location.hash || '').replace(/^#\/?/, '');
                 if (!raw) return { level: 'canvas' };
@@ -1679,11 +2112,7 @@
                 if (route.level === 'canvas') {
                     currentCards = [];
                     syncView();
-                    if (isMobileView()) {
-                        renderHome();
-                    } else {
-                        renderCanvas();
-                    }
+                    renderCanvas();
                     updateBreadcrumb();
                     updateMobileBack();
                     return;
@@ -1749,31 +2178,20 @@
             function updateMobileBack() {
                 const btn = document.getElementById('mobileBackBtn');
                 if (!btn) return;
-                if (currentRoute.level === 'canvas') {
-                    btn.hidden = true;
-                    return;
-                }
+                if (currentRoute.level === 'canvas') { btn.hidden = true; return; }
                 btn.hidden = false;
                 btn.textContent = currentRoute.level === 'card' ? '← Back' : '← Sections';
             }
 
-            /* ═══════════════════════════════════════════════════════
-               VIEW SYNC — canvas vs home vs carousel
-               ═══════════════════════════════════════════════════════ */
+            /* ═══ VIEW SYNC ═══ */
             function syncView() {
                 const inSection = currentRoute.level !== 'canvas';
-                const mobile = isMobileView();
-                const canvasRoot = document.getElementById('canvasRoot');
-                const homeRoot = document.getElementById('homeRoot');
-
-                canvasRoot.hidden = inSection || mobile;
-                homeRoot.hidden = inSection || !mobile;
-
+                document.getElementById('canvasRoot').hidden = inSection;
                 document.getElementById('carouselWrap').hidden = !inSection;
                 document.getElementById('hudTop').hidden = !inSection;
                 document.getElementById('hud').hidden = !inSection;
-
                 applyWidgetVisibility();
+                applyMinimapVisibility();
                 closeContextMenu();
                 updateStatusText();
             }
@@ -1784,7 +2202,7 @@
                 if (!statusCount || !statusText) return;
                 if (currentRoute.level === 'canvas') {
                     statusCount.textContent = String(CARDS.size);
-                    statusText.textContent = 'Cards';
+                    statusText.textContent = 'Cards · ' + canvasLayout + (snapEnabled ? ' · Snap' : '');
                 } else {
                     const cluster = CLUSTERS.get(currentRoute.clusterId);
                     statusCount.textContent = String(currentCards.length);
@@ -1792,70 +2210,12 @@
                 }
             }
 
-            /* ═══════════════════════════════════════════════════════
-               HOME VIEW — mobile index
-               ═══════════════════════════════════════════════════════ */
-            function renderHome() {
-                const root = document.getElementById('homeRoot');
-                if (!root) return;
-                root.innerHTML = '';
-
-                const page = document.createElement('div');
-                page.className = 'home-page';
-
-                const card = document.createElement('div');
-                card.className = 'home-card';
-
-                const rowsHtml = CLUSTER_ORDER.map(id => {
-                    const cluster = CLUSTERS.get(id);
-                    if (!cluster) return '';
-                    const count = cluster.cardIds.length;
-                    return `
-                        <li class="home-card-row" data-cluster-id="${escapeHtml(cluster.id)}">
-                            <span class="home-card-num">${escapeHtml(cluster.num || '')}</span>
-                            <span class="home-card-name">${escapeHtml(cluster.title)}</span>
-                            <span class="home-card-count">${count}</span>
-                            <span class="home-card-arrow">→</span>
-                        </li>
-                    `;
-                }).join('');
-
-                card.innerHTML = `
-                    <div class="home-card-kicker">
-                        <span class="home-card-type">Index</span>
-                        <span class="home-card-status">Published</span>
-                    </div>
-                    <h1 class="home-card-title">All Sections</h1>
-                    <p class="home-card-deck">${CLUSTERS.size} collections. Tap any section to open it.</p>
-                    <ul class="home-card-list">${rowsHtml}</ul>
-                `;
-
-                page.appendChild(card);
-                root.appendChild(page);
-
-                card.querySelectorAll('.home-card-row').forEach(row => {
-                    row.addEventListener('click', () => {
-                        const cid = row.dataset.clusterId;
-                        if (cid) navigate({ level: 'cluster', clusterId: cid });
-                    });
-                });
-            }
-
-            /* ═══════════════════════════════════════════════════════
-               CANVAS RENDERING
-               ═══════════════════════════════════════════════════════ */
+            /* ═══ CANVAS NODES ═══ */
             function getCanvasNodes() {
-                const master = {
-                    id: 'master', kind: 'master',
-                    card: {
-                        id: 'master', type: 'master',
-                        title: 'All Sections',
-                        deck: CLUSTERS.size + ' collections. Click a title to open. Click a stack to expand.',
-                        provenance: { status: 'published', source: 'intoview.pro' },
-                        relationships: {}
-                    }
-                };
-                return [master].concat(CLUSTER_ORDER.map(id => ({
+                return [
+                    { id: 'identity', kind: 'identity', card: PROFILE },
+                    { id: 'index',    kind: 'index',    card: INDEX_META }
+                ].concat(CLUSTER_ORDER.map(id => ({
                     id, kind: 'cluster', card: CLUSTERS.get(id)
                 })));
             }
@@ -1865,6 +2225,7 @@
                 const edges = document.getElementById('canvasEdges');
                 Array.from(surface.children).forEach(ch => { if (ch !== edges) ch.remove(); });
                 edges.innerHTML = '';
+                minimapNodeEls.clear();
 
                 const nodes = getCanvasNodeSpecsWithPositions();
                 nodes.forEach(spec => {
@@ -1873,8 +2234,10 @@
                     wrap.dataset.nodeId = spec.id;
                     wrap.dataset.kind = spec.kind;
 
-                    if (spec.kind === 'master') {
-                        wrap.appendChild(renderCompactCard(spec.card));
+                    if (spec.kind === 'identity') {
+                        wrap.appendChild(renderIdentityCard(spec.card));
+                    } else if (spec.kind === 'index') {
+                        wrap.appendChild(renderIndexCard(spec.card));
                     } else {
                         wrap.dataset.clusterId = spec.card.id;
                         renderClusterStack(wrap, spec.card);
@@ -1894,7 +2257,7 @@
                     node.style.zIndex = String(++topZ);
                 });
 
-                applyDisplacement();
+                document.body.dataset.layout = canvasLayout;
 
                 if (panOffset.x === 0 && panOffset.y === 0) {
                     requestAnimationFrame(fitCanvasToViewport);
@@ -1903,8 +2266,8 @@
                 }
                 updateCanvasToolbarUI();
                 attachCanvasHandlers();
-
                 requestAnimationFrame(() => drawCanvasEdges());
+                queueMinimapLayout();
             }
 
             function getCanvasNodeSpecsWithPositions() {
@@ -1947,7 +2310,6 @@
                 }
 
                 title.appendChild(renderCompactCard(cluster));
-
                 stackInner.appendChild(title);
                 stack.appendChild(stackInner);
 
@@ -1963,7 +2325,6 @@
                     leaf.appendChild(renderCompactCard(card));
                     leaves.appendChild(leaf);
                 });
-
                 stack.appendChild(leaves);
 
                 const chip = document.createElement('button');
@@ -1976,103 +2337,59 @@
                 wrap.appendChild(stack);
             }
 
+            /* ═══ LAYOUT ═══ */
             function getLayoutPositions(layout, nodes) {
                 const positions = {};
-                const nodeList = nodes.filter(n => n.id !== 'master');
+                positions.identity = { x: 0, y: 0 };
+                positions.index = { x: 0, y: ROW_PITCH };
 
-                if (layout === 'grid') {
-                    positions.master = { x: -840, y: -260 };
-                    const cols = Math.ceil(Math.sqrt(nodeList.length)) || 1;
-                    nodeList.forEach((n, i) => {
-                        const col = i % cols;
-                        const row = Math.floor(i / cols);
-                        positions[n.id] = { x: -260 + col * 340, y: -260 + row * 240 };
-                    });
-                } else if (layout === 'radial') {
-                    positions.master = { x: -160, y: -200 };
-                    const radius = 480;
-                    nodeList.forEach((n, i) => {
-                        const angle = (i / nodeList.length) * Math.PI * 2 - Math.PI / 2;
-                        positions[n.id] = {
-                            x: Math.cos(angle) * radius - 140,
-                            y: Math.sin(angle) * radius - 90
-                        };
-                    });
-                } else {
-                    positions.master = { x: -840, y: -240 };
-                    nodeList.forEach((n, i) => {
-                        const col = i % 3;
-                        const row = Math.floor(i / 3);
-                        positions[n.id] = {
-                            x: -320 + col * 360 + (row % 2) * 40,
-                            y: -260 + row * 300
-                        };
-                    });
-                }
+                const clusters = nodes.filter(n => n.kind === 'cluster');
+                // In array mode, packArray() will overwrite these; use grid as fallback
+                clusters.forEach((n, i) => {
+                    const col = i % 3;
+                    const row = Math.floor(i / 3);
+                    positions[n.id] = {
+                        x: (col + 1) * COL_PITCH,
+                        y: row * ROW_PITCH
+                    };
+                });
                 return positions;
             }
 
-            /* ═══════════════════════════════════════════════════════
-               MAGNETIC DISPLACEMENT
-               ═══════════════════════════════════════════════════════ */
-            const DISPLACE_EXCLUDE = new Set(['master']);
-            const DISPLACE_GAP = 32;
-            const DISPLACE_ITERATIONS = 8;
+            function packArray() {
+                const startX = COL_PITCH;   // right of the left rail
+                const gutterX = 40;
+                const gutterY = 28;
+                const margin = 32;
+                const maxRight = Math.min(window.innerWidth - margin, 3360);
+                const maxRowWidth = Math.max(COL_PITCH, maxRight - startX);
 
-            function applyDisplacement() {
-                const allNodes = [...document.querySelectorAll('.canvas-node')];
+                const clusterNodes = [...document.querySelectorAll('.canvas-node[data-kind="cluster"]')];
+                if (!clusterNodes.length) return;
 
-                const obstacles = [];
-                expandedClusters.forEach(id => {
-                    const node = document.querySelector(`.canvas-node[data-cluster-id="${CSS.escape(id)}"]`);
-                    if (!node) return;
-                    const rest = restPositions.get(node.dataset.nodeId);
-                    if (!rest) return;
-                    obstacles.push({
-                        id: node.dataset.nodeId,
-                        x: rest.x,
-                        y: rest.y,
-                        w: node.offsetWidth,
-                        h: node.offsetHeight
-                    });
+                // Sort by CLUSTER_ORDER so packing is deterministic
+                clusterNodes.sort((a, b) => {
+                    const ai = CLUSTER_ORDER.indexOf(a.dataset.clusterId);
+                    const bi = CLUSTER_ORDER.indexOf(b.dataset.clusterId);
+                    return ai - bi;
                 });
 
-                allNodes.forEach(node => {
-                    const id = node.dataset.nodeId;
-                    if (DISPLACE_EXCLUDE.has(id)) return;
-                    const rest = restPositions.get(id);
-                    if (!rest) return;
-
-                    if (node.dataset.kind === 'cluster' && expandedClusters.has(node.dataset.clusterId)) {
-                        node.style.left = rest.x + 'px';
-                        node.style.top = rest.y + 'px';
-                        return;
-                    }
-
-                    let x = rest.x;
-                    let y = rest.y;
+                let shelfX = 0, shelfY = 0, shelfH = 0;
+                clusterNodes.forEach(node => {
                     const w = node.offsetWidth;
                     const h = node.offsetHeight;
-
-                    for (let iter = 0; iter < DISPLACE_ITERATIONS; iter++) {
-                        let moved = false;
-                        for (const obs of obstacles) {
-                            if (obs.id === id) continue;
-                            const overlapX = x < obs.x + obs.w + DISPLACE_GAP && x + w + DISPLACE_GAP > obs.x;
-                            const overlapY = y < obs.y + obs.h + DISPLACE_GAP && y + h + DISPLACE_GAP > obs.y;
-                            if (overlapX && overlapY) {
-                                const pushRight = (obs.x + obs.w + DISPLACE_GAP) - x;
-                                const pushDown  = (obs.y + obs.h + DISPLACE_GAP) - y;
-                                if (pushRight <= pushDown) x += pushRight;
-                                else y += pushDown;
-                                moved = true;
-                            }
-                        }
-                        if (!moved) break;
+                    if (shelfX > 0 && shelfX + w > maxRowWidth) {
+                        shelfX = 0;
+                        shelfY += shelfH + gutterY;
+                        shelfH = 0;
                     }
-
+                    const x = snapTo(startX + shelfX, COL_PITCH);
+                    const y = shelfY;
                     node.style.left = x + 'px';
-                    node.style.top = y + 'px';
+                    node.style.top  = y + 'px';
+                    restPositions.set(node.dataset.nodeId, { x, y });
+                    shelfX += w + gutterX;
+                    if (h > shelfH) shelfH = h;
                 });
             }
 
@@ -2094,10 +2411,15 @@
                 const svg = document.getElementById('canvasEdges');
                 svg.innerHTML = '';
 
-                const masterNode = document.querySelector('.canvas-node[data-node-id="master"]');
-                if (!masterNode) return;
-                const masterCard = masterNode.querySelector('.prov-card');
-                const masterCenter = relCenter(masterCard);
+                const identityNode = document.querySelector('.canvas-node[data-node-id="identity"]');
+                const indexNode = document.querySelector('.canvas-node[data-node-id="index"]');
+                if (!identityNode || !indexNode) return;
+
+                const identityCard = identityNode.querySelector('.prov-card');
+                const indexCard = indexNode.querySelector('.prov-card');
+                const identityCenter = relCenter(identityCard);
+                const indexCenter = relCenter(indexCard);
+                if (!identityCenter || !indexCenter) return;
 
                 const ns = 'http://www.w3.org/2000/svg';
                 const addPath = (a, b) => {
@@ -2110,10 +2432,12 @@
                     svg.appendChild(path);
                 };
 
+                addPath(identityCenter, indexCenter);
+
                 document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(clusterNode => {
                     const titleCard = clusterNode.querySelector('.cluster-title > .prov-card');
                     const titleCenter = relCenter(titleCard);
-                    addPath(masterCenter, titleCenter);
+                    addPath(indexCenter, titleCenter);
 
                     const stack = clusterNode.querySelector('.cluster-stack');
                     if (stack && stack.dataset.expanded === 'true') {
@@ -2129,13 +2453,22 @@
                 document.querySelectorAll('[data-canvas-layout]').forEach(b => {
                     b.classList.toggle('active', b.dataset.canvasLayout === canvasLayout);
                 });
+                document.querySelectorAll('[data-action="toggle-snap"]').forEach(b => {
+                    b.classList.toggle('active', snapEnabled);
+                });
                 const toggle = document.querySelector('#canvasContextMenu [data-action="toggle-widget"]');
                 if (toggle) toggle.classList.toggle('active', widgetVisible);
+                const mmToggle = document.querySelector('#canvasContextMenu [data-action="toggle-minimap"]');
+                if (mmToggle) mmToggle.classList.toggle('active', minimapVisible);
+                const gridToggle = document.querySelector('#canvasContextMenu [data-action="toggle-grid"]');
+                if (gridToggle) gridToggle.classList.toggle('active', document.body.classList.contains('show-grid'));
+                updateMobileSheetActiveStates();
             }
 
             function applyPanTransform() {
                 const surface = document.getElementById('canvasSurface');
                 if (surface) surface.style.transform = `translate3d(${panOffset.x}px, ${panOffset.y}px, 0)`;
+                queueMinimapFrame();
             }
 
             function fitCanvasToViewport() {
@@ -2160,29 +2493,78 @@
                 applyPanTransform();
             }
 
-            /* ═══════════════════════════════════════════════════════
-               SHARED CANVAS ACTIONS
-               ═══════════════════════════════════════════════════════ */
+            /* ═══ CANVAS ACTIONS ═══ */
             function setCanvasLayout(layout) {
-                if (!layout) return;
-                canvasLayout = layout;
+                if (!layout || layout === canvasLayout) {
+                    if (layout === canvasLayout) return;
+                }
+
+                if (layout === 'array') {
+                    // Snapshot current state so we can restore on exit
+                    const positions = {};
+                    restPositions.forEach((pos, id) => { positions[id] = { x: pos.x, y: pos.y }; });
+                    preArraySnapshot = {
+                        positions,
+                        expanded: new Set(expandedClusters),
+                        layout: canvasLayout
+                    };
+
+                    canvasLayout = 'array';
+                    document.body.dataset.layout = 'array';
+
+                    // Force all clusters expanded
+                    CLUSTER_ORDER.forEach(id => expandedClusters.add(id));
+                    document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'true');
+
+                    updateCanvasToolbarUI();
+                    updateStatusText();
+
+                    // Wait for leaf transition before measuring
+                    setTimeout(() => {
+                        packArray();
+                        saveCanvasState();
+                        drawCanvasEdges();
+                        queueMinimapLayout();
+                        fitCanvasToViewport();
+                    }, 420);
+                    return;
+                }
+
+                // Switching to grid
+                if (canvasLayout === 'array' && preArraySnapshot) {
+                    // Restore prior expanded state
+                    expandedClusters.clear();
+                    preArraySnapshot.expanded.forEach(id => expandedClusters.add(id));
+                    document.querySelectorAll('.cluster-stack').forEach(s => {
+                        const cid = s.closest('.canvas-node').dataset.clusterId;
+                        s.dataset.expanded = expandedClusters.has(cid) ? 'true' : 'false';
+                    });
+                }
+
+                canvasLayout = 'grid';
+                document.body.dataset.layout = 'grid';
+                preArraySnapshot = null;
                 restPositions.clear();
+
                 const specs = getCanvasNodes();
-                const computed = getLayoutPositions(canvasLayout, specs);
-                specs.forEach(s => {
-                    const pos = computed[s.id] || { x: 0, y: 0 };
-                    restPositions.set(s.id, { x: pos.x, y: pos.y });
-                    const node = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(s.id)}"]`);
-                    if (node) { node.style.left = pos.x + 'px'; node.style.top = pos.y + 'px'; }
-                });
-                updateCanvasToolbarUI();
-                void document.body.offsetHeight;
-                applyDisplacement();
+                const computed = getLayoutPositions('grid', specs);
+
                 setTimeout(() => {
-                    fitCanvasToViewport();
-                    saveCanvasState();
-                    drawCanvasEdges();
-                }, 520);
+                    specs.forEach(s => {
+                        const pos = computed[s.id] || { x: 0, y: 0 };
+                        restPositions.set(s.id, { x: pos.x, y: pos.y });
+                        const node = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(s.id)}"]`);
+                        if (node) { node.style.left = pos.x + 'px'; node.style.top = pos.y + 'px'; }
+                    });
+                    updateCanvasToolbarUI();
+                    updateStatusText();
+                    setTimeout(() => {
+                        fitCanvasToViewport();
+                        saveCanvasState();
+                        drawCanvasEdges();
+                        queueMinimapLayout();
+                    }, 400);
+                }, 20);
             }
 
             function fitCanvas() {
@@ -2193,22 +2575,44 @@
             function resetCanvas() {
                 if (!confirm('Reset canvas layout?')) return;
                 try { localStorage.removeItem(CANVAS_STORAGE_KEY); } catch (e) {}
-                canvasLayout = 'free';
+                canvasLayout = 'grid';
                 expandedClusters.clear();
                 restPositions.clear();
+                clusterDisplacements.clear();
+                preArraySnapshot = null;
                 panOffset.x = 0; panOffset.y = 0;
+                document.body.dataset.layout = 'grid';
                 renderCanvas();
             }
 
-            /* ═══════════════════════════════════════════════════════
-               WIDGET VISIBILITY
-               ═══════════════════════════════════════════════════════ */
+            function alignAllToGrid() {
+                document.querySelectorAll('.canvas-node').forEach(node => {
+                    const x = parseFloat(node.style.left) || 0;
+                    const y = parseFloat(node.style.top) || 0;
+                    const nx = snapTo(x, COL_PITCH);
+                    const ny = snapTo(y, ROW_PITCH);
+                    node.style.left = nx + 'px';
+                    node.style.top = ny + 'px';
+                    restPositions.set(node.dataset.nodeId, { x: nx, y: ny });
+                });
+                saveCanvasState();
+                drawCanvasEdges();
+                queueMinimapLayout();
+            }
+
+            function setSnap(on) {
+                snapEnabled = !!on;
+                try { localStorage.setItem(SNAP_KEY, snapEnabled ? '1' : '0'); } catch (e) {}
+                updateCanvasToolbarUI();
+                updateStatusText();
+            }
+
+            /* ═══ WIDGET / MINIMAP VISIBILITY ═══ */
             function applyWidgetVisibility() {
                 const widget = document.getElementById('canvasWidget');
                 if (!widget) return;
                 const inSection = currentRoute.level !== 'canvas';
-                const mobile = isMobileView();
-                widget.hidden = !widgetVisible || inSection || mobile;
+                widget.hidden = !widgetVisible || inSection;
             }
 
             function setWidgetVisible(on) {
@@ -2218,9 +2622,252 @@
                 updateCanvasToolbarUI();
             }
 
-            /* ═══════════════════════════════════════════════════════
-               CONTEXT MENU
-               ═══════════════════════════════════════════════════════ */
+            function applyMinimapVisibility() {
+                const mm = document.getElementById('canvasMinimap');
+                if (!mm) return;
+                const inSection = currentRoute.level !== 'canvas';
+                const shouldShow = minimapVisible && !inSection;
+                const wasHidden = mm.hidden;
+                mm.hidden = !shouldShow;
+                if (shouldShow && wasHidden) {
+                    requestAnimationFrame(() => updateMinimapLayout());
+                }
+            }
+
+            function setMinimapVisible(on) {
+                minimapVisible = !!on;
+                try { localStorage.setItem(MINIMAP_ON_KEY, minimapVisible ? '1' : '0'); } catch (e) {}
+                applyMinimapVisibility();
+                updateCanvasToolbarUI();
+            }
+
+            function applyMinimapPos() {
+                const mm = document.getElementById('canvasMinimap');
+                if (!mm) return;
+                if (minimapPos && typeof minimapPos.x === 'number' && typeof minimapPos.y === 'number') {
+                    mm.style.left = minimapPos.x + 'px';
+                    mm.style.top  = minimapPos.y + 'px';
+                    mm.style.right = 'auto';
+                    mm.style.bottom = 'auto';
+                } else {
+                    mm.style.left = ''; mm.style.top = '';
+                    mm.style.right = ''; mm.style.bottom = '';
+                }
+            }
+
+            function clampMinimapPos(x, y) {
+                const mm = document.getElementById('canvasMinimap');
+                if (!mm) return { x, y };
+                const w = mm.offsetWidth, h = mm.offsetHeight;
+                x = Math.max(4, Math.min(window.innerWidth  - w - 4, x));
+                y = Math.max(4, Math.min(window.innerHeight - h - 4, y));
+                return { x, y };
+            }
+
+            function queueMinimapLayout() {
+                if (minimapLayoutQueued) return;
+                minimapLayoutQueued = true;
+                requestAnimationFrame(() => {
+                    minimapLayoutQueued = false;
+                    updateMinimapLayout();
+                });
+            }
+
+            function queueMinimapFrame() {
+                if (minimapLayoutQueued || minimapFrameQueued) return;
+                minimapFrameQueued = true;
+                requestAnimationFrame(() => {
+                    minimapFrameQueued = false;
+                    updateMinimapFrame();
+                });
+            }
+
+            function updateMinimapLayout() {
+                const mm = document.getElementById('canvasMinimap');
+                const content = document.getElementById('minimapContent');
+                const viewport = document.getElementById('minimapViewport');
+                if (!mm || mm.hidden || !content || !viewport) return;
+
+                const nodes = [...document.querySelectorAll('.canvas-node')];
+                if (!nodes.length) {
+                    content.style.transform = '';
+                    minimapNodeEls.clear();
+                    minimapBounds = null;
+                    return;
+                }
+
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                const nodeData = nodes.map(n => {
+                    const x = parseFloat(n.style.left) || 0;
+                    const y = parseFloat(n.style.top)  || 0;
+                    const w = n.offsetWidth;
+                    const h = n.offsetHeight;
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x + w > maxX) maxX = x + w;
+                    if (y + h > maxY) maxY = y + h;
+                    return { el: n, x, y, w, h };
+                });
+
+                const pad = 80;
+                minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+
+                const worldW = Math.max(1, maxX - minX);
+                const worldH = Math.max(1, maxY - minY);
+
+                const mmW = viewport.clientWidth  || 220;
+                const mmH = viewport.clientHeight || 140;
+                const innerPad = 6;
+                const usableW = mmW - innerPad * 2;
+                const usableH = mmH - innerPad * 2;
+                const scale = Math.min(usableW / worldW, usableH / worldH);
+                const offsetX = innerPad + (usableW - worldW * scale) / 2;
+                const offsetY = innerPad + (usableH - worldH * scale) / 2;
+
+                minimapBounds = { minX, minY, maxX, maxY, scale, offsetX, offsetY };
+
+                const seen = new Set();
+                nodeData.forEach(nd => {
+                    const id = nd.el.dataset.nodeId;
+                    seen.add(id);
+                    let el = minimapNodeEls.get(id);
+                    if (!el) {
+                        el = document.createElement('div');
+                        el.className = 'minimap-node';
+                        minimapNodeEls.set(id, el);
+                        content.appendChild(el);
+                    }
+                    el.dataset.kind = nd.el.dataset.kind || 'card';
+                    el.style.left   = nd.x + 'px';
+                    el.style.top    = nd.y + 'px';
+                    el.style.width  = nd.w + 'px';
+                    el.style.height = nd.h + 'px';
+                });
+                minimapNodeEls.forEach((el, id) => {
+                    if (!seen.has(id)) { el.remove(); minimapNodeEls.delete(id); }
+                });
+
+                content.style.transform =
+                    `translate(${offsetX - minX * scale}px, ${offsetY - minY * scale}px) scale(${scale})`;
+
+                updateMinimapFrame();
+            }
+
+            function updateMinimapFrame() {
+                const frame = document.getElementById('minimapFrame');
+                if (!frame || !minimapBounds) return;
+                const { scale, offsetX, offsetY, minX, minY } = minimapBounds;
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const wx = -panOffset.x;
+                const wy = -panOffset.y;
+                frame.style.left   = (offsetX + (wx - minX) * scale) + 'px';
+                frame.style.top    = (offsetY + (wy - minY) * scale) + 'px';
+                frame.style.width  = (vw * scale) + 'px';
+                frame.style.height = (vh * scale) + 'px';
+            }
+
+            function minimapJump(clientX, clientY) {
+                const viewport = document.getElementById('minimapViewport');
+                if (!viewport || !minimapBounds) return;
+                const rect = viewport.getBoundingClientRect();
+                const mx = clientX - rect.left;
+                const my = clientY - rect.top;
+                const { scale, offsetX, offsetY, minX, minY } = minimapBounds;
+                const wx = (mx - offsetX) / scale + minX;
+                const wy = (my - offsetY) / scale + minY;
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const topbarH = parseInt(getComputedStyle(document.documentElement)
+                    .getPropertyValue('--topbar-height')) || 72;
+                panOffset.x = vw / 2 - wx;
+                panOffset.y = (vh + topbarH) / 2 - wy;
+                applyPanTransform();
+            }
+
+            function setupMinimap() {
+                const mm = document.getElementById('canvasMinimap');
+                if (!mm) return;
+
+                try {
+                    const stored = localStorage.getItem(MINIMAP_ON_KEY);
+                    if (stored === null) {
+                        // Default off on mobile, on desktop
+                        minimapVisible = window.innerWidth > 640;
+                    } else {
+                        minimapVisible = stored === '1';
+                    }
+                } catch (e) { minimapVisible = window.innerWidth > 640; }
+
+                try {
+                    const pos = JSON.parse(localStorage.getItem(MINIMAP_POS_KEY) || 'null');
+                    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') minimapPos = pos;
+                } catch (e) {}
+                applyMinimapPos();
+
+                mm.querySelector('.minimap-close').addEventListener('click', () => setMinimapVisible(false));
+
+                const grip = mm.querySelector('.minimap-grip');
+                grip.addEventListener('pointerdown', (e) => {
+                    if (e.button !== 0) return;
+                    const rect = mm.getBoundingClientRect();
+                    const startX = e.clientX, startY = e.clientY;
+                    const startL = rect.left, startT = rect.top;
+
+                    mm.style.right = 'auto'; mm.style.bottom = 'auto';
+                    mm.style.left = startL + 'px'; mm.style.top = startT + 'px';
+                    mm.classList.add('dragging');
+                    try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+
+                    const onMove = (ev) => {
+                        if (ev.pointerId !== e.pointerId) return;
+                        const cx = startL + (ev.clientX - startX);
+                        const cy = startT + (ev.clientY - startY);
+                        const c = clampMinimapPos(cx, cy);
+                        mm.style.left = c.x + 'px'; mm.style.top = c.y + 'px';
+                        minimapPos = c;
+                    };
+                    const onUp = (ev) => {
+                        if (ev.pointerId !== e.pointerId) return;
+                        mm.classList.remove('dragging');
+                        grip.removeEventListener('pointermove', onMove);
+                        grip.removeEventListener('pointerup', onUp);
+                        grip.removeEventListener('pointercancel', onUp);
+                        try { grip.releasePointerCapture(e.pointerId); } catch (err) {}
+                        try { if (minimapPos) localStorage.setItem(MINIMAP_POS_KEY, JSON.stringify(minimapPos)); } catch (err) {}
+                    };
+                    grip.addEventListener('pointermove', onMove);
+                    grip.addEventListener('pointerup', onUp);
+                    grip.addEventListener('pointercancel', onUp);
+                    e.preventDefault();
+                });
+
+                const viewport = mm.querySelector('.minimap-viewport');
+                let panState = null;
+                viewport.addEventListener('pointerdown', (e) => {
+                    if (e.button !== 0) return;
+                    panState = { pointerId: e.pointerId };
+                    try { viewport.setPointerCapture(e.pointerId); } catch (err) {}
+                    viewport.style.cursor = 'grabbing';
+                    minimapJump(e.clientX, e.clientY);
+                    e.preventDefault();
+                });
+                viewport.addEventListener('pointermove', (e) => {
+                    if (!panState || e.pointerId !== panState.pointerId) return;
+                    minimapJump(e.clientX, e.clientY);
+                });
+                const endPan = (e) => {
+                    if (!panState || e.pointerId !== panState.pointerId) return;
+                    panState = null;
+                    viewport.style.cursor = '';
+                    try { viewport.releasePointerCapture(e.pointerId); } catch (err) {}
+                    saveCanvasState();
+                };
+                viewport.addEventListener('pointerup', endPan);
+                viewport.addEventListener('pointercancel', endPan);
+            }
+
+            /* ═══ CONTEXT MENU ═══ */
             function closeContextMenu() {
                 const menu = document.getElementById('canvasContextMenu');
                 if (!menu) return;
@@ -2231,25 +2878,17 @@
             function openContextMenu(x, y) {
                 const menu = document.getElementById('canvasContextMenu');
                 if (!menu) return;
-
-                // Sync active states before showing
                 updateCanvasToolbarUI();
-
-                // Reset transform for measurement
                 menu.hidden = false;
-                menu.style.left = '0px';
-                menu.style.top = '0px';
+                menu.style.left = '0px'; menu.style.top = '0px';
                 menu.classList.add('open');
-
                 const mr = menu.getBoundingClientRect();
-                const vw = window.innerWidth;
-                const vh = window.innerHeight;
+                const vw = window.innerWidth, vh = window.innerHeight;
                 if (x + mr.width > vw - 8) x = vw - mr.width - 8;
                 if (y + mr.height > vh - 8) y = vh - mr.height - 8;
                 if (x < 8) x = 8;
                 if (y < 8) y = 8;
-                menu.style.left = x + 'px';
-                menu.style.top = y + 'px';
+                menu.style.left = x + 'px'; menu.style.top = y + 'px';
             }
 
             function setupContextMenu() {
@@ -2258,42 +2897,38 @@
                 if (!canvas || !menu) return;
 
                 canvas.addEventListener('contextmenu', (e) => {
-                    if (e.target.closest('.canvas-widget, .canvas-context-menu')) return;
+                    if (e.target.closest('.canvas-widget, .canvas-context-menu, .canvas-minimap')) return;
                     e.preventDefault();
                     openContextMenu(e.clientX, e.clientY);
                 });
 
-                // Dismiss on any pointerdown outside the menu
                 document.addEventListener('pointerdown', (e) => {
                     if (!menu.classList.contains('open')) return;
                     if (menu.contains(e.target)) return;
                     closeContextMenu();
                 }, true);
 
-                // Wire menu items
                 menu.querySelectorAll('[data-canvas-layout]').forEach(btn => {
                     btn.addEventListener('click', () => {
                         setCanvasLayout(btn.dataset.canvasLayout);
                         closeContextMenu();
                     });
                 });
-                menu.querySelector('[data-action="fit"]').addEventListener('click', () => {
-                    fitCanvas();
-                    closeContextMenu();
+                menu.querySelector('[data-action="toggle-snap"]').addEventListener('click', () => setSnap(!snapEnabled));
+                menu.querySelector('[data-action="toggle-grid"]').addEventListener('click', () => {
+                    const on = document.body.classList.toggle('show-grid');
+                    const topToggle = document.getElementById('gridToggle');
+                    if (topToggle) topToggle.classList.toggle('active', on);
+                    updateCanvasToolbarUI();
                 });
-                menu.querySelector('[data-action="reset"]').addEventListener('click', () => {
-                    resetCanvas();
-                    closeContextMenu();
-                });
-                menu.querySelector('[data-action="toggle-widget"]').addEventListener('click', () => {
-                    setWidgetVisible(!widgetVisible);
-                    closeContextMenu();
-                });
+                menu.querySelector('[data-action="align-grid"]').addEventListener('click', () => { alignAllToGrid(); closeContextMenu(); });
+                menu.querySelector('[data-action="fit"]').addEventListener('click', () => { fitCanvas(); closeContextMenu(); });
+                menu.querySelector('[data-action="reset"]').addEventListener('click', () => { resetCanvas(); closeContextMenu(); });
+                menu.querySelector('[data-action="toggle-widget"]').addEventListener('click', () => setWidgetVisible(!widgetVisible));
+                menu.querySelector('[data-action="toggle-minimap"]').addEventListener('click', () => setMinimapVisible(!minimapVisible));
             }
 
-            /* ═══════════════════════════════════════════════════════
-               MOVABLE WIDGET
-               ═══════════════════════════════════════════════════════ */
+            /* ═══ WIDGET ═══ */
             function applyWidgetPos() {
                 const widget = document.getElementById('canvasWidget');
                 if (!widget) return;
@@ -2303,18 +2938,15 @@
                     widget.style.right = 'auto';
                     widget.style.bottom = 'auto';
                 } else {
-                    widget.style.left = '';
-                    widget.style.top = '';
-                    widget.style.right = '';
-                    widget.style.bottom = '';
+                    widget.style.left = ''; widget.style.top = '';
+                    widget.style.right = ''; widget.style.bottom = '';
                 }
             }
 
             function clampWidgetPos(x, y) {
                 const widget = document.getElementById('canvasWidget');
                 if (!widget) return { x, y };
-                const w = widget.offsetWidth;
-                const h = widget.offsetHeight;
+                const w = widget.offsetWidth, h = widget.offsetHeight;
                 x = Math.max(4, Math.min(window.innerWidth - w - 4, x));
                 y = Math.max(4, Math.min(window.innerHeight - h - 4, y));
                 return { x, y };
@@ -2324,50 +2956,31 @@
                 const widget = document.getElementById('canvasWidget');
                 if (!widget) return;
 
-                // Restore visibility and position
                 try { widgetVisible = localStorage.getItem(WIDGET_ON_KEY) === '1'; } catch (e) {}
                 try {
                     const pos = JSON.parse(localStorage.getItem(WIDGET_POS_KEY) || 'null');
-                    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
-                        widgetPos = pos;
-                    }
+                    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') widgetPos = pos;
                 } catch (e) {}
-
                 applyWidgetPos();
 
-                // Close button
-                widget.querySelector('.widget-close').addEventListener('click', () => {
-                    setWidgetVisible(false);
-                });
-
-                // Layout buttons
+                widget.querySelector('.widget-close').addEventListener('click', () => setWidgetVisible(false));
                 widget.querySelectorAll('[data-canvas-layout]').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        setCanvasLayout(btn.dataset.canvasLayout);
-                    });
+                    btn.addEventListener('click', () => setCanvasLayout(btn.dataset.canvasLayout));
                 });
-
-                // Fit / reset
+                widget.querySelector('[data-action="toggle-snap"]').addEventListener('click', () => setSnap(!snapEnabled));
                 widget.querySelector('[data-action="fit"]').addEventListener('click', fitCanvas);
                 widget.querySelector('[data-action="reset"]').addEventListener('click', resetCanvas);
 
-                // Drag via grip
                 const grip = widget.querySelector('.widget-grip');
                 grip.addEventListener('pointerdown', (e) => {
                     if (e.button !== 0) return;
                     const rect = widget.getBoundingClientRect();
-                    const startX = e.clientX;
-                    const startY = e.clientY;
-                    const startL = rect.left;
-                    const startT = rect.top;
+                    const startX = e.clientX, startY = e.clientY;
+                    const startL = rect.left, startT = rect.top;
 
-                    // Switch to left/top positioning immediately
-                    widget.style.right = 'auto';
-                    widget.style.bottom = 'auto';
-                    widget.style.left = startL + 'px';
-                    widget.style.top = startT + 'px';
+                    widget.style.right = 'auto'; widget.style.bottom = 'auto';
+                    widget.style.left = startL + 'px'; widget.style.top = startT + 'px';
                     widget.classList.add('dragging');
-
                     try { grip.setPointerCapture(e.pointerId); } catch (err) {}
 
                     const onMove = (ev) => {
@@ -2386,21 +2999,16 @@
                         grip.removeEventListener('pointerup', onUp);
                         grip.removeEventListener('pointercancel', onUp);
                         try { grip.releasePointerCapture(e.pointerId); } catch (err) {}
-                        try {
-                            if (widgetPos) localStorage.setItem(WIDGET_POS_KEY, JSON.stringify(widgetPos));
-                        } catch (err) {}
+                        try { if (widgetPos) localStorage.setItem(WIDGET_POS_KEY, JSON.stringify(widgetPos)); } catch (err) {}
                     };
                     grip.addEventListener('pointermove', onMove);
                     grip.addEventListener('pointerup', onUp);
                     grip.addEventListener('pointercancel', onUp);
-
                     e.preventDefault();
                 });
             }
 
-            /* ═══════════════════════════════════════════════════════
-               CANVAS INTERACTION
-               ═══════════════════════════════════════════════════════ */
+            /* ═══ NODE DRAG ═══ */
             function attachNodeHandlers(node) {
                 let dragState = null;
 
@@ -2423,12 +3031,25 @@
                     if (!dragState || e.pointerId !== dragState.pointerId) return;
                     const dx = e.clientX - dragState.startX;
                     const dy = e.clientY - dragState.startY;
-                    if (!dragState.moved && Math.hypot(dx, dy) > 4) dragState.moved = true;
+                    if (!dragState.moved && Math.hypot(dx, dy) > 4) {
+                        dragState.moved = true;
+                        document.body.classList.add('dragging-node');
+                        // Exiting array on first actual drag; keep dragged node where it is
+                        if (canvasLayout === 'array' && node.dataset.kind === 'cluster') {
+                            exitArrayForDrag(node);
+                        }
+                    }
                     if (!dragState.moved) return;
                     const x = dragState.startLeft + dx;
                     const y = dragState.startTop + dy;
                     node.style.left = x + 'px';
                     node.style.top = y + 'px';
+
+                    const mmEl = minimapNodeEls.get(node.dataset.nodeId);
+                    if (mmEl) {
+                        mmEl.style.left = x + 'px';
+                        mmEl.style.top  = y + 'px';
+                    }
                 });
 
                 const endDrag = (e) => {
@@ -2436,22 +3057,51 @@
                     const state = dragState;
                     dragState = null;
                     node.classList.remove('dragging');
+                    document.body.classList.remove('dragging-node');
                     try { node.releasePointerCapture(state.pointerId); } catch (err) {}
 
                     if (state.moved) {
-                        const nx = parseFloat(node.style.left) || 0;
-                        const ny = parseFloat(node.style.top) || 0;
+                        let nx = parseFloat(node.style.left) || 0;
+                        let ny = parseFloat(node.style.top) || 0;
+                        if (snapEnabled) {
+                            nx = snapTo(nx, COL_PITCH);
+                            ny = snapTo(ny, ROW_PITCH);
+                            node.style.left = nx + 'px';
+                            node.style.top  = ny + 'px';
+                        }
                         restPositions.set(node.dataset.nodeId, { x: nx, y: ny });
 
-                        if (canvasLayout !== 'free') { canvasLayout = 'free'; updateCanvasToolbarUI(); }
+                        clusterDisplacements.forEach((list, cid) => {
+                            const idx = list.findIndex(d => d.nodeId === node.dataset.nodeId);
+                            if (idx >= 0) {
+                                list.splice(idx, 1);
+                                if (!list.length) clusterDisplacements.delete(cid);
+                            }
+                        });
 
-                        applyDisplacement();
                         saveCanvasState();
                         requestAnimationFrame(() => drawCanvasEdges());
+                        queueMinimapLayout();
                         return;
                     }
 
                     const target = state.origTarget;
+
+                    // Index card row → cluster
+                    if (target.closest && target.closest('.index-row')) {
+                        const cid = target.closest('.index-row').dataset.clusterId;
+                        if (cid) { navigate({ level: 'cluster', clusterId: cid }); return; }
+                    }
+                    // Identity card → identity letter
+                    if (node.dataset.kind === 'identity') {
+                        navigate({ level: 'cluster', clusterId: 'identity' });
+                        return;
+                    }
+                    // Index card → index letter
+                    if (node.dataset.kind === 'index') {
+                        navigate({ level: 'cluster', clusterId: 'index' });
+                        return;
+                    }
 
                     if (target.closest && target.closest('.cluster-collapse-chip')) {
                         toggleCluster(node.dataset.clusterId);
@@ -2476,32 +3126,173 @@
                 node.addEventListener('pointercancel', endDrag);
             }
 
+            function exitArrayForDrag(draggedNode) {
+                if (canvasLayout !== 'array') return;
+                const draggedId = draggedNode.dataset.nodeId;
+                const draggedX = parseFloat(draggedNode.style.left) || 0;
+                const draggedY = parseFloat(draggedNode.style.top) || 0;
+
+                // Collapse all
+                expandedClusters.clear();
+                document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
+
+                canvasLayout = 'grid';
+                document.body.dataset.layout = 'grid';
+                preArraySnapshot = null;
+
+                const specs = getCanvasNodes();
+                const computed = getLayoutPositions('grid', specs);
+                specs.forEach(s => {
+                    if (s.id === draggedId) {
+                        restPositions.set(s.id, { x: draggedX, y: draggedY });
+                        return;
+                    }
+                    const pos = computed[s.id] || { x: 0, y: 0 };
+                    restPositions.set(s.id, { x: pos.x, y: pos.y });
+                    const n = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(s.id)}"]`);
+                    if (n) { n.style.left = pos.x + 'px'; n.style.top = pos.y + 'px'; }
+                });
+                updateCanvasToolbarUI();
+                updateStatusText();
+            }
+
+            /* ═══ CLUSTER EXPAND / COLLAPSE ═══ */
             function toggleCluster(id) {
                 if (!id) return;
-                if (expandedClusters.has(id)) expandedClusters.delete(id);
+                if (canvasLayout === 'array') return; // no manual toggle in array
+                const wasExpanded = expandedClusters.has(id);
+                if (wasExpanded) expandedClusters.delete(id);
                 else expandedClusters.add(id);
 
                 const node = document.querySelector(`.canvas-node[data-cluster-id="${CSS.escape(id)}"]`);
                 if (node) {
                     const stack = node.querySelector('.cluster-stack');
-                    if (stack) stack.dataset.expanded = expandedClusters.has(id) ? 'true' : 'false';
+                    if (stack) stack.dataset.expanded = wasExpanded ? 'false' : 'true';
                 }
 
-                void document.body.offsetHeight;
-                applyDisplacement();
-                saveCanvasState();
-                setTimeout(() => drawCanvasEdges(), 520);
+                if (!wasExpanded) {
+                    const snapshot = new Map();
+                    document.querySelectorAll('.canvas-node').forEach(n => {
+                        snapshot.set(n.dataset.nodeId, {
+                            x: parseFloat(n.style.left) || 0,
+                            y: parseFloat(n.style.top) || 0
+                        });
+                    });
+                    setTimeout(() => {
+                        const displaced = pushOverlaps(snapshot);
+                        if (displaced.length) clusterDisplacements.set(id, displaced);
+                        saveCanvasState();
+                        drawCanvasEdges();
+                        queueMinimapLayout();
+                    }, 360);
+                } else {
+                    const displaced = clusterDisplacements.get(id);
+                    if (displaced) {
+                        displaced.forEach(({ nodeId, x, y }) => {
+                            const n = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(nodeId)}"]`);
+                            if (!n) return;
+                            n.style.left = x + 'px';
+                            n.style.top = y + 'px';
+                            restPositions.set(nodeId, { x, y });
+                        });
+                        clusterDisplacements.delete(id);
+                    }
+                    saveCanvasState();
+                    setTimeout(() => {
+                        if (expandedClusters.size > 0) {
+                            const snapshot = new Map();
+                            document.querySelectorAll('.canvas-node').forEach(n => {
+                                snapshot.set(n.dataset.nodeId, {
+                                    x: parseFloat(n.style.left) || 0,
+                                    y: parseFloat(n.style.top) || 0
+                                });
+                            });
+                            pushOverlaps(snapshot);
+                            saveCanvasState();
+                        }
+                        drawCanvasEdges();
+                        queueMinimapLayout();
+                    }, 360);
+                }
             }
 
             function collapseAllClusters() {
                 if (expandedClusters.size === 0) return false;
                 expandedClusters.clear();
                 document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
-                void document.body.offsetHeight;
-                applyDisplacement();
+
+                clusterDisplacements.forEach((list) => {
+                    list.forEach(({ nodeId, x, y }) => {
+                        const n = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(nodeId)}"]`);
+                        if (!n) return;
+                        n.style.left = x + 'px';
+                        n.style.top = y + 'px';
+                        restPositions.set(nodeId, { x, y });
+                    });
+                });
+                clusterDisplacements.clear();
+
                 saveCanvasState();
-                setTimeout(() => drawCanvasEdges(), 520);
+                setTimeout(() => { drawCanvasEdges(); queueMinimapLayout(); }, 360);
                 return true;
+            }
+
+            function pushOverlaps(snapshot) {
+                const expandedNodes = [];
+                document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => {
+                    if (expandedClusters.has(n.dataset.clusterId)) expandedNodes.push(n);
+                });
+                if (!expandedNodes.length) return [];
+
+                const gap = 32;
+                const displaced = new Map();
+
+                for (let pass = 0; pass < 4; pass++) {
+                    let movedThisPass = false;
+                    document.querySelectorAll('.canvas-node').forEach(node => {
+                        if (node.dataset.kind === 'cluster' && expandedClusters.has(node.dataset.clusterId)) return;
+                        if (node.dataset.nodeId === 'identity' || node.dataset.nodeId === 'index') return;
+
+                        const nx = parseFloat(node.style.left) || 0;
+                        const ny = parseFloat(node.style.top) || 0;
+                        const nw = node.offsetWidth;
+                        const nh = node.offsetHeight;
+
+                        for (const ex of expandedNodes) {
+                            if (ex === node) continue;
+                            const exX = parseFloat(ex.style.left) || 0;
+                            const exY = parseFloat(ex.style.top) || 0;
+                            const exW = ex.offsetWidth;
+                            const exH = ex.offsetHeight;
+
+                            const overlapX = nx < exX + exW + gap && nx + nw + gap > exX;
+                            const overlapY = ny < exY + exH + gap && ny + nh + gap > exY;
+                            if (!overlapX || !overlapY) continue;
+
+                            const pushRight = exX + exW + gap - nx;
+                            const pushDown  = exY + exH + gap - ny;
+
+                            let newX = nx, newY = ny;
+                            if (pushRight <= pushDown) newX = snapUp(nx + pushRight, COL_PITCH);
+                            else newY = snapUp(ny + pushDown, ROW_PITCH);
+
+                            if (snapshot && !displaced.has(node.dataset.nodeId)) {
+                                const orig = snapshot.get(node.dataset.nodeId);
+                                if (orig) displaced.set(node.dataset.nodeId, {
+                                    nodeId: node.dataset.nodeId, x: orig.x, y: orig.y
+                                });
+                            }
+
+                            node.style.left = newX + 'px';
+                            node.style.top  = newY + 'px';
+                            restPositions.set(node.dataset.nodeId, { x: newX, y: newY });
+                            movedThisPass = true;
+                            break;
+                        }
+                    });
+                    if (!movedThisPass) break;
+                }
+                return Array.from(displaced.values());
             }
 
             function attachCanvasHandlers() {
@@ -2511,14 +3302,12 @@
 
                 canvasRoot.addEventListener('pointerdown', (e) => {
                     if (e.target.closest('.canvas-node')) return;
-                    if (e.target.closest('.canvas-widget, .canvas-context-menu')) return;
+                    if (e.target.closest('.canvas-widget, .canvas-context-menu, .canvas-minimap')) return;
                     if (e.button !== 0 && e.button !== 1) return;
                     const state = {
                         startX: e.clientX, startY: e.clientY,
                         startPanX: panOffset.x, startPanY: panOffset.y,
-                        pointerId: e.pointerId,
-                        button: e.button,
-                        moved: false
+                        pointerId: e.pointerId, button: e.button, moved: false
                     };
                     try { canvasRoot.setPointerCapture(e.pointerId); } catch (err) {}
                     canvasRoot.classList.add('panning');
@@ -2539,8 +3328,7 @@
                         canvasRoot.removeEventListener('pointerup', onUp);
                         canvasRoot.removeEventListener('pointercancel', onUp);
                         try { canvasRoot.releasePointerCapture(state.pointerId); } catch (err) {}
-                        // A click (no drag) on empty canvas collapses all expanded clusters.
-                        if (!state.moved && state.button === 0 && expandedClusters.size > 0) {
+                        if (!state.moved && state.button === 0 && expandedClusters.size > 0 && canvasLayout !== 'array') {
                             collapseAllClusters();
                         }
                         saveCanvasState();
@@ -2558,19 +3346,20 @@
                 }, { passive: false });
             }
 
-            /* ═══════════════════════════════════════════════════════
-               CANVAS PERSISTENCE
-               ═══════════════════════════════════════════════════════ */
+            /* ═══ PERSISTENCE ═══ */
             function saveCanvasState() {
                 const positions = {};
-                restPositions.forEach((pos, id) => {
-                    positions[id] = { x: pos.x, y: pos.y };
-                });
+                restPositions.forEach((pos, id) => { positions[id] = { x: pos.x, y: pos.y }; });
+
+                const displacements = {};
+                clusterDisplacements.forEach((list, cid) => { displacements[cid] = list; });
+
                 const state = {
                     layout: canvasLayout,
                     positions,
                     pan: { x: panOffset.x, y: panOffset.y },
-                    expanded: Array.from(expandedClusters)
+                    expanded: Array.from(expandedClusters),
+                    displacements
                 };
                 try { localStorage.setItem(CANVAS_STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
             }
@@ -2582,9 +3371,7 @@
                 } catch (e) { return null; }
             }
 
-            /* ═══════════════════════════════════════════════════════
-               CAROUSEL RENDERING
-               ═══════════════════════════════════════════════════════ */
+            /* ═══ CAROUSEL ═══ */
             function handleAccordion(e) {
                 const trigger = e.currentTarget;
                 const item = trigger.closest('.letter-accordion-item');
@@ -2648,7 +3435,7 @@
                 if (updateHash !== false) {
                     const card = currentCards[activeIndex];
                     if (card && card.type !== 'cluster') {
-                        navigate({ level: 'card', clusterId: card.clusterId, cardId: card.id }, true);
+                        navigate({ level: 'card', clusterId: card.clusterId || card.id, cardId: card.id }, true);
                         updateBreadcrumb();
                         updateMobileBack();
                     } else if (card && card.type === 'cluster') {
@@ -2687,9 +3474,7 @@
                 corners.forEach(el => el && el.classList.toggle('show', percent > 0 || percent < 100));
             }
 
-            /* ═══════════════════════════════════════════════════════
-               VIEWPORT BLUR / CURSOR / DROPDOWN / GRID
-               ═══════════════════════════════════════════════════════ */
+            /* ═══ VIEWPORT BLUR / CURSOR / THEME ═══ */
             function setupViewportBlur() {
                 const top = document.getElementById('viewportBlurTop');
                 const bottom = document.getElementById('viewportBlurBottom');
@@ -2715,9 +3500,9 @@
                 const dot = document.getElementById('writeCursorDot');
                 const ellipse = document.getElementById('writeCursorEllipse');
                 if (!dot || !ellipse) return;
-                const NATIVE = ['button','a','input','textarea','select','[role="button"]','.letter-hotspot','.canvas-node','.canvas-widget','.canvas-context-menu','.prov-card','.cluster-peek-hit','.home-card-row'].join(', ');
+                const NATIVE = ['button','a','input','textarea','select','[role="button"]','.letter-hotspot','.canvas-node','.canvas-widget','.canvas-context-menu','.prov-card','.cluster-peek-hit','.canvas-minimap','.mobile-sheet','.mobile-menu-btn'].join(', ');
                 const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .cluster-collapse-chip, .cluster-peek';
-                const DARK_SURFACE = '.prov-card[data-type="master"], .home-card, .letter-card-frame.index-card-frame';
+                const LIGHT_SURFACE = '.prov-card[data-type="identity"]';
                 let ptrX = 0, ptrY = 0, prevX = 0, prevY = 0, init = false;
                 let angle = 0, sx = 1, sy = 1, raf = null;
                 function lerpAngle(cur, tgt, f) {
@@ -2741,12 +3526,12 @@
                     const el = (e.target && e.target.nodeType === 1) ? e.target : null;
                     const overNative = !!(el && el.closest(NATIVE));
                     const overAccent = !!(el && el.closest(ACCENT_SURFACE));
-                    const overDark = !overAccent && !!(el && el.closest(DARK_SURFACE));
+                    const overLight = !overAccent && !!(el && el.closest(LIGHT_SURFACE));
 
                     document.body.classList.add('custom-cursor-active');
                     document.body.classList.toggle('write-native-cursor', overNative);
                     document.body.classList.toggle('cursor-on-accent', overAccent);
-                    document.body.classList.toggle('cursor-on-dark', overDark);
+                    document.body.classList.toggle('cursor-on-light', overLight);
 
                     ptrX = e.clientX; ptrY = e.clientY;
                     dot.style.transform = 'translate(' + ptrX + 'px,' + ptrY + 'px)';
@@ -2756,7 +3541,7 @@
                 });
                 document.addEventListener('mouseleave', () => {
                     dot.classList.remove('visible'); ellipse.classList.remove('visible');
-                    document.body.classList.remove('write-native-cursor','custom-cursor-active','cursor-on-accent','cursor-on-dark');
+                    document.body.classList.remove('write-native-cursor','custom-cursor-active','cursor-on-accent','cursor-on-light');
                     if (raf) { cancelAnimationFrame(raf); raf = null; }
                 });
             })();
@@ -2785,15 +3570,10 @@
                 const wrapper = document.querySelector('.topbar-appearance-wrapper');
                 if (!trigger || !dropdown) return;
 
-                const themes = [
-                    { id: 'light', label: 'Light' },
-                    { id: 'dark',  label: 'Dark'  }
-                ];
-
+                const themes = [{ id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }];
                 function currentTheme() {
                     return document.body.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
                 }
-
                 function renderMenu() {
                     const ct = currentTheme();
                     dropdown.innerHTML = '';
@@ -2812,7 +3592,6 @@
                         dropdown.appendChild(item);
                     });
                 }
-
                 trigger.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const isOpen = dropdown.classList.contains('open');
@@ -2839,21 +3618,203 @@
                 toggle.addEventListener('click', () => {
                     const on = document.body.classList.toggle('show-grid');
                     toggle.classList.toggle('active', on);
+                    updateCanvasToolbarUI();
                 });
             }
 
-            /* ═══════════════════════════════════════════════════════
-               INIT
-               ═══════════════════════════════════════════════════════ */
-            defineAllCards();
+            /* ═══ MOBILE SHEET ═══ */
+            function buildMobileSheet() {
+                const body = document.getElementById('mobileSheetBody');
+                if (!body) return;
+                const sectionsHtml = CLUSTER_ORDER.map(id => {
+                    const c = CLUSTERS.get(id);
+                    const cardsHtml = c.cardIds.map(cid => {
+                        const card = CARDS.get(cid);
+                        if (!card) return '';
+                        return `<li><button class="mobile-card-row" data-cluster-id="${escapeHtml(c.id)}" data-card-id="${escapeHtml(card.id)}">
+                            <span class="mobile-card-title">${escapeHtml(card.title)}</span>
+                            <span class="mobile-card-status">${escapeHtml(card.provenance.status)}</span>
+                        </button></li>`;
+                    }).join('');
+                    return `<li class="mobile-section" data-cluster-id="${escapeHtml(c.id)}">
+                        <button class="mobile-section-header" type="button">
+                            <span class="index-num" style="color:var(--ink-light);font-family:var(--font-mono);font-size:9px;font-weight:600;">${escapeHtml(c.num)}</span>
+                            <span class="mobile-section-title">${escapeHtml(c.title)}</span>
+                            <span class="mobile-section-count">${c.cardIds.length}</span>
+                            <span class="mobile-expand-icon">+</span>
+                        </button>
+                        <ul class="mobile-section-cards" hidden>${cardsHtml}</ul>
+                    </li>`;
+                }).join('');
 
-            (function restoreTheme() {
-                let saved = null;
-                try { saved = localStorage.getItem(THEME_STORAGE_KEY); } catch (e) {}
-                if (saved === 'light' || saved === 'dark') {
-                    document.body.setAttribute('data-theme', saved);
+                body.innerHTML = `
+                    <button class="mobile-identity-block" type="button" data-nav="identity">
+                        <div class="identity-monogram">${escapeHtml(PROFILE.monogram)}</div>
+                        <div style="min-width:0;">
+                            <div class="mobile-identity-name">${escapeHtml(PROFILE.title)}</div>
+                            <div class="mobile-identity-role">${escapeHtml(PROFILE.role)} · ${escapeHtml(PROFILE.org)}</div>
+                        </div>
+                        <span class="mobile-identity-status">${escapeHtml(PROFILE.availability)}</span>
+                    </button>
+                    <button class="mobile-index-row" type="button" data-nav="index">
+                        <span class="index-num">—</span>
+                        <span class="mobile-index-label">Index</span>
+                        <span class="mobile-index-count">${CLUSTER_ORDER.length} sections</span>
+                    </button>
+                    <div class="mobile-section-label">Sections</div>
+                    <ul class="mobile-sections">${sectionsHtml}</ul>
+                    <div class="mobile-section-label" id="mobileCanvasLabel">Canvas</div>
+                    <div class="mobile-canvas-controls" id="mobileCanvasControls">
+                        <button class="btn" type="button" data-canvas-layout="grid">Grid</button>
+                        <button class="btn" type="button" data-canvas-layout="array">Array</button>
+                        <button class="btn" type="button" data-action="fit">Fit</button>
+                        <button class="btn" type="button" data-action="toggle-snap">Snap</button>
+                        <button class="btn" type="button" data-action="toggle-grid">Grid lines</button>
+                        <button class="btn" type="button" data-action="toggle-widget">Widget</button>
+                        <button class="btn" type="button" data-action="toggle-minimap">Minimap</button>
+                        <button class="btn" type="button" data-theme-toggle>Theme</button>
+                        <button class="btn" type="button" data-action="reset">Reset</button>
+                    </div>
+                `;
+            }
+
+            function updateMobileSheetActiveStates() {
+                const body = document.getElementById('mobileSheetBody');
+                if (!body) return;
+                body.querySelectorAll('[data-canvas-layout]').forEach(b => {
+                    b.classList.toggle('active', b.dataset.canvasLayout === canvasLayout);
+                });
+                body.querySelectorAll('[data-action="toggle-snap"]').forEach(b => b.classList.toggle('active', snapEnabled));
+                body.querySelectorAll('[data-action="toggle-grid"]').forEach(b => b.classList.toggle('active', document.body.classList.contains('show-grid')));
+                body.querySelectorAll('[data-action="toggle-widget"]').forEach(b => b.classList.toggle('active', widgetVisible));
+                body.querySelectorAll('[data-action="toggle-minimap"]').forEach(b => b.classList.toggle('active', minimapVisible));
+                body.querySelectorAll('[data-theme-toggle]').forEach(b => {
+                    b.textContent = document.body.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light';
+                });
+            }
+
+            function setupMobileSheet() {
+                const btn = document.getElementById('mobileMenuBtn');
+                const sheet = document.getElementById('mobileSheet');
+                const backdrop = document.getElementById('mobileSheetBackdrop');
+                const closeBtn = document.getElementById('mobileSheetClose');
+                if (!btn || !sheet || !backdrop || !closeBtn) return;
+
+                function openSheet() {
+                    backdrop.hidden = false;
+                    sheet.hidden = false;
+                    updateMobileSheetActiveStates();
+                    requestAnimationFrame(() => {
+                        sheet.classList.add('open');
+                        backdrop.classList.add('open');
+                    });
                 }
+                function closeSheet() {
+                    sheet.classList.remove('open');
+                    backdrop.classList.remove('open');
+                    setTimeout(() => {
+                        sheet.hidden = true;
+                        backdrop.hidden = true;
+                    }, 320);
+                }
+                function toggleSheet() {
+                    if (sheet.classList.contains('open')) closeSheet();
+                    else openSheet();
+                }
+
+                btn.addEventListener('click', (e) => { e.stopPropagation(); toggleSheet(); });
+                closeBtn.addEventListener('click', closeSheet);
+                backdrop.addEventListener('click', closeSheet);
+
+                // Reset transform on scroll to top when opened (in case)
+                const body = document.getElementById('mobileSheetBody');
+                body.querySelectorAll('[data-nav]').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const nav = el.dataset.nav;
+                        if (nav === 'identity') navigate({ level: 'cluster', clusterId: 'identity' });
+                        else if (nav === 'index') navigate({ level: 'cluster', clusterId: 'index' });
+                        closeSheet();
+                    });
+                });
+                body.querySelectorAll('.mobile-section-header').forEach(h => {
+                    h.addEventListener('click', () => {
+                        const section = h.closest('.mobile-section');
+                        const cards = section.querySelector('.mobile-section-cards');
+                        section.classList.toggle('expanded');
+                        cards.hidden = !section.classList.contains('expanded');
+                    });
+                });
+                body.querySelectorAll('.mobile-card-row').forEach(r => {
+                    r.addEventListener('click', () => {
+                        navigate({ level: 'card', clusterId: r.dataset.clusterId, cardId: r.dataset.cardId });
+                        closeSheet();
+                    });
+                });
+                body.querySelectorAll('[data-canvas-layout]').forEach(b => {
+                    b.addEventListener('click', () => {
+                        setCanvasLayout(b.dataset.canvasLayout);
+                        updateMobileSheetActiveStates();
+                    });
+                });
+                body.querySelectorAll('[data-action="fit"]').forEach(b => b.addEventListener('click', () => { fitCanvas(); closeSheet(); }));
+                body.querySelectorAll('[data-action="reset"]').forEach(b => b.addEventListener('click', () => {
+                    if (confirm('Reset everything?')) {
+                        try { localStorage.removeItem(CANVAS_STORAGE_KEY); } catch (e) {}
+                        canvasLayout = 'grid';
+                        expandedClusters.clear();
+                        restPositions.clear();
+                        clusterDisplacements.clear();
+                        preArraySnapshot = null;
+                        panOffset.x = 0; panOffset.y = 0;
+                        document.body.dataset.layout = 'grid';
+                        location.hash = '#/';
+                        renderCanvas();
+                        closeSheet();
+                    }
+                }));
+                body.querySelectorAll('[data-action="toggle-snap"]').forEach(b => b.addEventListener('click', () => { setSnap(!snapEnabled); updateMobileSheetActiveStates(); }));
+                body.querySelectorAll('[data-action="toggle-grid"]').forEach(b => b.addEventListener('click', () => {
+                    const on = document.body.classList.toggle('show-grid');
+                    document.getElementById('gridToggle')?.classList.toggle('active', on);
+                    updateMobileSheetActiveStates();
+                    updateCanvasToolbarUI();
+                }));
+                body.querySelectorAll('[data-action="toggle-widget"]').forEach(b => b.addEventListener('click', () => { setWidgetVisible(!widgetVisible); updateMobileSheetActiveStates(); }));
+                body.querySelectorAll('[data-action="toggle-minimap"]').forEach(b => b.addEventListener('click', () => { setMinimapVisible(!minimapVisible); updateMobileSheetActiveStates(); }));
+                body.querySelectorAll('[data-theme-toggle]').forEach(b => b.addEventListener('click', () => {
+                    const cur = document.body.getAttribute('data-theme');
+                    applyTheme(cur === 'light' ? 'dark' : 'light');
+                    updateMobileSheetActiveStates();
+                }));
+
+                // Public close helper
+                sheet._closeSheet = closeSheet;
+                sheet._isOpen = () => sheet.classList.contains('open');
+            }
+
+            /* ═══ TOP COUNT ═══ */
+            function updateTopCount() {
+                const el = document.getElementById('topCount');
+                if (el) el.textContent = CLUSTER_ORDER.length + '§';
+            }
+
+            /* ═══ INIT ═══ */
+            defineAllCards();
+            updateTopCount();
+
+            (function restorePrefs() {
+                try {
+                    const t = localStorage.getItem(THEME_STORAGE_KEY);
+                    if (t === 'light' || t === 'dark') document.body.setAttribute('data-theme', t);
+                } catch (e) {}
+                try {
+                    const s = localStorage.getItem(SNAP_KEY);
+                    if (s === '0') snapEnabled = false;
+                    else if (s === '1') snapEnabled = true;
+                } catch (e) {}
             })();
+
+            migrateCanvasState();
 
             document.addEventListener('DOMContentLoaded', function() {
                 setupViewportBlur();
@@ -2861,17 +3822,43 @@
                 setupGridToggle();
                 setupContextMenu();
                 setupWidget();
+                setupMinimap();
+                buildMobileSheet();
+                setupMobileSheet();
 
                 const saved = loadCanvasState();
                 if (saved) {
-                    if (saved.layout) canvasLayout = saved.layout;
+                    if (saved.layout === 'grid' || saved.layout === 'array') {
+                        canvasLayout = saved.layout;
+                    } else {
+                        canvasLayout = 'grid';
+                    }
+                    document.body.dataset.layout = canvasLayout;
                     if (saved.expanded && Array.isArray(saved.expanded)) {
                         saved.expanded.forEach(id => expandedClusters.add(id));
+                    }
+                    if (saved.displacements && typeof saved.displacements === 'object') {
+                        Object.entries(saved.displacements).forEach(([cid, list]) => {
+                            if (Array.isArray(list)) clusterDisplacements.set(cid, list);
+                        });
                     }
                     if (saved.pan) { panOffset.x = saved.pan.x; panOffset.y = saved.pan.y; }
                 }
 
                 handleRoute();
+
+                // If restored layout is array, do the pack after render
+                if (canvasLayout === 'array') {
+                    requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            packArray();
+                            fitCanvasToViewport();
+                            drawCanvasEdges();
+                            queueMinimapLayout();
+                        }, 500);
+                    });
+                }
+
                 window.addEventListener('hashchange', handleRoute);
 
                 document.getElementById('hudPrev').addEventListener('click', () => activatePanel(activeIndex - 1));
@@ -2892,22 +3879,15 @@
                 document.getElementById('topResetBtn').addEventListener('click', function() {
                     if (confirm('Reset everything?')) {
                         try { localStorage.removeItem(CANVAS_STORAGE_KEY); } catch (e) {}
-                        canvasLayout = 'free';
+                        canvasLayout = 'grid';
                         expandedClusters.clear();
                         restPositions.clear();
+                        clusterDisplacements.clear();
+                        preArraySnapshot = null;
                         panOffset.x = 0; panOffset.y = 0;
+                        document.body.dataset.layout = 'grid';
                         location.hash = '#/';
-                        navigate({ level: 'canvas' });
-                    }
-                });
-
-                document.addEventListener('click', function(e) {
-                    const jump = closestSafe(e.target, '[data-jump-card]');
-                    if (jump) {
-                        e.preventDefault();
-                        const cardId = jump.dataset.jumpCard;
-                        const card = CARDS.get(cardId);
-                        if (card) navigate({ level: 'card', clusterId: card.clusterId, cardId: card.id });
+                        renderCanvas();
                     }
                 });
 
@@ -2926,9 +3906,9 @@
                     if (!isDragging) return;
                     track.scrollLeft = dragStartScroll - (e.clientX - dragStartX);
                 });
-                const endDrag = () => { isDragging = false; track.classList.remove('dragging'); };
-                track.addEventListener('pointerup', endDrag);
-                track.addEventListener('pointercancel', endDrag);
+                const endDragTrack = () => { isDragging = false; track.classList.remove('dragging'); };
+                track.addEventListener('pointerup', endDragTrack);
+                track.addEventListener('pointercancel', endDragTrack);
 
                 let settleTimer = null;
                 track.addEventListener('scroll', () => {
@@ -2953,7 +3933,7 @@
                             if (counter) counter.textContent = (activeIndex + 1) + '/' + currentCards.length;
                             const card = currentCards[activeIndex];
                             if (card && card.type !== 'cluster') {
-                                navigate({ level: 'card', clusterId: card.clusterId, cardId: card.id }, true);
+                                navigate({ level: 'card', clusterId: card.clusterId || card.id, cardId: card.id }, true);
                                 updateBreadcrumb();
                                 updateMobileBack();
                             } else if (card && card.type === 'cluster') {
@@ -2976,22 +3956,23 @@
                             e.preventDefault();
                             return;
                         }
-
-                        // Close context menu first, if open
                         const ctxMenu = document.getElementById('canvasContextMenu');
                         if (ctxMenu && ctxMenu.classList.contains('open')) {
                             closeContextMenu();
                             e.preventDefault();
                             return;
                         }
-
-                        // Esc on the canvas collapses any expanded clusters.
-                        if (currentRoute.level === 'canvas' && expandedClusters.size > 0) {
+                        const sheet = document.getElementById('mobileSheet');
+                        if (sheet && sheet._isOpen && sheet._isOpen()) {
+                            sheet._closeSheet();
+                            e.preventDefault();
+                            return;
+                        }
+                        if (currentRoute.level === 'canvas' && expandedClusters.size > 0 && canvasLayout !== 'array') {
                             collapseAllClusters();
                             e.preventDefault();
                             return;
                         }
-
                         if (currentRoute.level === 'card') {
                             navigate({ level: 'cluster', clusterId: currentRoute.clusterId });
                             e.preventDefault();
@@ -3006,39 +3987,42 @@
                         if (e.key === 'ArrowLeft')  { activatePanel(activeIndex - 1); e.preventDefault(); }
                         if (e.key === 'ArrowRight') { activatePanel(activeIndex + 1); e.preventDefault(); }
                     }
-                    if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey && currentRoute.level !== 'canvas') {
+                    if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
                         const toggle = document.getElementById('gridToggle');
                         if (toggle) toggle.click();
                         e.preventDefault();
                     }
                 });
 
-                let lastIsMobile = isMobileView();
                 let resizeTimer;
                 window.addEventListener('resize', () => {
                     clearTimeout(resizeTimer);
                     resizeTimer = setTimeout(() => {
-                        const nowMobile = isMobileView();
-                        if (nowMobile !== lastIsMobile) {
-                            lastIsMobile = nowMobile;
-                            if (currentRoute.level === 'canvas') {
-                                syncView();
-                                if (nowMobile) renderHome();
-                                else renderCanvas();
-                            }
-                        } else if (currentRoute.level === 'canvas' && !nowMobile) {
-                            void document.body.offsetHeight;
-                            applyDisplacement();
+                        if (currentRoute.level === 'canvas') {
                             drawCanvasEdges();
+                            queueMinimapLayout();
+                            // Array mode re-packs because leaf columns can change
+                            if (canvasLayout === 'array') {
+                                packArray();
+                                fitCanvasToViewport();
+                            }
                         }
-                        // Clamp widget position on resize
                         if (widgetVisible && widgetPos) {
                             const clamped = clampWidgetPos(widgetPos.x, widgetPos.y);
                             widgetPos = clamped;
                             applyWidgetPos();
                             try { localStorage.setItem(WIDGET_POS_KEY, JSON.stringify(widgetPos)); } catch (e) {}
                         }
-                    }, 180);
+                        if (minimapVisible) {
+                            if (minimapPos) {
+                                const c = clampMinimapPos(minimapPos.x, minimapPos.y);
+                                minimapPos = c;
+                                applyMinimapPos();
+                                try { localStorage.setItem(MINIMAP_POS_KEY, JSON.stringify(minimapPos)); } catch (e) {}
+                            }
+                            queueMinimapLayout();
+                        }
+                    }, 200);
                 });
             });
         })();
