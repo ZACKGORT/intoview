@@ -29,7 +29,6 @@
             --ink-lighter: #b0b0b6;
             --border: #e6e6e8;
 
-            /* stacked cards sitting behind a cluster title card */
             --peek-bg: #dcdce1;
             --peek-border: rgba(28, 28, 30, .12);
 
@@ -66,9 +65,6 @@
         @media (min-width: 640px) { :root { --margin: 24px; --topbar-height: 64px; --hud-height: 70px; } }
         @media (min-width: 1024px) { :root { --margin: 32px; --topbar-height: 72px; --hud-height: 76px; } }
 
-        /* ═══════════════════════════════════════════════════════
-           DARK THEME
-           ═══════════════════════════════════════════════════════ */
         body[data-theme='dark'] {
             --bg: #1c1c1e;
             --fg: #ffffff;
@@ -307,8 +303,6 @@
         .prov-card-relation { display: flex; align-items: center; gap: 3px; opacity: .75; }
         .prov-card-relation strong { font-weight: 600; color: var(--ink-mid); }
 
-        /* Cluster variant — always the yellow accent surface, in both themes.
-           All ink variables are re-mapped so every descendant reads dark-on-yellow. */
         .prov-card[data-type="cluster"] {
             background: var(--accent); border-color: var(--accent); color: #1c1c1e;
             width: 280px; min-height: 160px;
@@ -334,7 +328,6 @@
         .prov-card[data-type="cluster"] .prov-card-relation { color: #1c1c1e; }
         .prov-card[data-type="cluster"] .prov-card-deck { color: rgba(28,28,30,.72); }
         .prov-card[data-type="cluster"] .prov-card-meta { border-top-color: rgba(28,28,30,.18); color: rgba(28,28,30,.62); }
-        /* status pill — never white-on-yellow */
         .prov-card[data-type="cluster"] .prov-card-status,
         .prov-card[data-type="cluster"] .prov-card-status[data-status] {
             color: #1c1c1e;
@@ -342,7 +335,6 @@
             border-style: solid;
         }
 
-        /* Master variant — always dark ink, always light text */
         .prov-card[data-type="master"] {
             background: var(--card-dark); border-color: var(--card-dark); color: #fff;
             width: 300px; min-height: 180px;
@@ -383,7 +375,6 @@
             z-index: 10;
         }
 
-        /* stacked cards behind the title — theme aware, never the accent colour */
         .cluster-peek {
             position: absolute;
             inset: 0;
@@ -433,7 +424,6 @@
         }
         .cluster-stack[data-expanded="true"] .cluster-leaves { display: flex; }
 
-        /* ── Collapse chip: top-right corner of the expanded cluster ── */
         .cluster-collapse-chip {
             display: none;
             position: absolute;
@@ -476,7 +466,159 @@
         .cluster-leaf > .prov-card { width: 260px; }
 
         /* ═══════════════════════════════════════════════════════
-           MOBILE HOME VIEW — scrollable index
+           CANVAS CONTEXT MENU
+           ═══════════════════════════════════════════════════════ */
+        .canvas-context-menu {
+            position: fixed;
+            z-index: 300;
+            min-width: 208px;
+            padding: 6px 0;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-floating), 0 0 0 1px rgba(0,0,0,0.02);
+            font-family: var(--font-mono);
+            display: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .canvas-context-menu.open {
+            display: block;
+            animation: ctx-in 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        @keyframes ctx-in {
+            from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .ctx-section-label {
+            padding: 4px 14px 6px;
+            font-size: 8px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--ink-light);
+        }
+        .ctx-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 7px 14px;
+            background: none;
+            border: none;
+            text-align: left;
+            font-family: inherit;
+            font-size: 10px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--ink-mid);
+            cursor: pointer;
+            transition: background 0.08s ease, color 0.08s ease;
+        }
+        .ctx-item:hover { background: var(--bg); color: var(--ink); }
+        .ctx-item:active { transform: none; }
+        .ctx-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            border: 1px solid var(--ink-lighter);
+            flex-shrink: 0;
+            transition: background 0.12s ease, border-color 0.12s ease;
+        }
+        .ctx-item.active .ctx-indicator {
+            background: var(--ink);
+            border-color: var(--ink);
+        }
+        .ctx-item.no-indicator .ctx-indicator { visibility: hidden; }
+        .ctx-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 5px 0;
+        }
+        .ctx-hint {
+            padding: 4px 14px 6px;
+            font-size: 8px;
+            letter-spacing: 0.06em;
+            color: var(--ink-light);
+            text-transform: none;
+            opacity: 0.75;
+            border-top: 1px solid var(--border);
+            margin-top: 5px;
+            padding-top: 8px;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           CANVAS WIDGET (movable)
+           ═══════════════════════════════════════════════════════ */
+        .canvas-widget {
+            position: fixed;
+            top: calc(var(--topbar-height) + 8px);
+            right: var(--margin);
+            z-index: 95;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            background: color-mix(in srgb, var(--bg) 92%, transparent);
+            backdrop-filter: blur(16px) saturate(1.1);
+            -webkit-backdrop-filter: blur(16px) saturate(1.1);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 4px 6px 4px 4px;
+            box-shadow: var(--shadow-floating);
+            font-family: var(--font-mono);
+            max-width: calc(100vw - 16px);
+        }
+        .canvas-widget.dragging {
+            cursor: grabbing;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.06);
+            transition: box-shadow 0.15s ease;
+        }
+        .widget-grip {
+            display: flex; align-items: center; justify-content: center;
+            width: 20px; height: 26px;
+            background: none; border: none;
+            color: var(--ink-light);
+            cursor: grab;
+            border-radius: 4px;
+            flex-shrink: 0;
+            padding: 0;
+            touch-action: none;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .widget-grip:hover { background: var(--faint); color: var(--ink); }
+        .widget-grip:active { cursor: grabbing; }
+        .widget-grip svg { display: block; }
+        .widget-controls { display: flex; align-items: center; gap: 2px; }
+        .widget-controls .btn {
+            min-height: 26px; font-size: 8px; padding: 3px 8px;
+            border-color: transparent; color: var(--ink-mid);
+        }
+        .widget-controls .btn:hover { border-color: var(--ink); }
+        .widget-controls .btn.active {
+            background: var(--ink); color: var(--bg); border-color: var(--ink);
+        }
+        .widget-divider {
+            width: 1px; height: 16px;
+            background: var(--border);
+            margin: 0 4px;
+            flex-shrink: 0;
+        }
+        .widget-close {
+            display: flex; align-items: center; justify-content: center;
+            width: 20px; height: 26px;
+            background: none; border: none;
+            color: var(--ink-light);
+            font-size: 14px; line-height: 1;
+            cursor: pointer;
+            border-radius: 4px;
+            flex-shrink: 0;
+            padding: 0;
+            margin-left: 2px;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .widget-close:hover { background: var(--faint); color: var(--ink); }
+
+        /* ═══════════════════════════════════════════════════════
+           MOBILE HOME VIEW
            ═══════════════════════════════════════════════════════ */
         .home-root {
             position: relative;
@@ -572,26 +714,6 @@
         .home-card-row:active .home-card-arrow {
             color: var(--accent); transform: translateX(3px);
         }
-
-        /* Canvas toolbar */
-        .canvas-toolbar {
-            position: fixed; top: calc(var(--topbar-height) + 8px); right: var(--margin);
-            z-index: 90; display: flex; align-items: center; gap: 4px;
-            background: color-mix(in srgb, var(--bg) 92%, transparent);
-            backdrop-filter: blur(16px) saturate(1.1); -webkit-backdrop-filter: blur(16px) saturate(1.1);
-            border: 1px solid var(--border); border-radius: var(--radius-sm);
-            padding: 5px 8px; box-shadow: var(--shadow-floating); font-family: var(--font-mono);
-            max-width: calc(100vw - var(--margin) * 2);
-        }
-        .canvas-toolbar .btn { min-height: 26px; font-size: 8px; padding: 3px 8px; }
-        .canvas-toolbar .btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-        .canvas-toolbar-divider { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
-        .canvas-toolbar-hint {
-            font-size: 8px; color: var(--ink-light); letter-spacing: 0.04em;
-            padding: 0 6px; opacity: 0.7;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        @media (max-width: 800px) { .canvas-toolbar-hint { display: none; } }
 
         /* carousel */
         .letters-viewport { position: relative; overflow: hidden; width: 100vw; left: 50%; margin-left: -50vw; }
@@ -896,9 +1018,6 @@
         }
         .conversation-stack-hint::before { content: '⤵'; font-size: 1rem; opacity: 0.4; }
 
-        /* ── Accent title-card frame ──────────────────────────
-           Yellow surface in BOTH themes. Every ink variable is re-mapped
-           so all nested content renders dark-on-yellow with real contrast. */
         .letter-card-frame.title-card-frame {
             background: var(--accent);
             border-color: var(--accent);
@@ -1021,6 +1140,7 @@
             .swiss-grid > * { grid-column: 1 / -1 !important; }
             body.show-grid .swiss-grid::before { display: none; }
             #gridToggle { display: none !important; }
+            .canvas-widget { display: none !important; }
         }
     </style>
 </head>
@@ -1072,15 +1192,52 @@
         <div class="canvas-surface" id="canvasSurface">
             <svg class="canvas-edges" id="canvasEdges" aria-hidden="true"></svg>
         </div>
-        <div class="canvas-toolbar" id="canvasToolbar" role="toolbar" aria-label="Canvas controls">
-            <button class="btn active" data-canvas-layout="free"   type="button">Free</button>
+    </div>
+
+    <!-- Canvas right-click context menu (top-level, positioned fixed) -->
+    <div class="canvas-context-menu" id="canvasContextMenu" role="menu" hidden aria-label="Canvas options">
+        <div class="ctx-section-label">Layout</div>
+        <button class="ctx-item" data-canvas-layout="free" role="menuitemradio" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Free
+        </button>
+        <button class="ctx-item" data-canvas-layout="grid" role="menuitemradio" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Grid
+        </button>
+        <button class="ctx-item" data-canvas-layout="radial" role="menuitemradio" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Radial
+        </button>
+        <div class="ctx-divider"></div>
+        <button class="ctx-item no-indicator" data-action="fit" role="menuitem" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Fit to view
+        </button>
+        <button class="ctx-item no-indicator" data-action="reset" role="menuitem" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Reset layout
+        </button>
+        <div class="ctx-divider"></div>
+        <button class="ctx-item" data-action="toggle-widget" role="menuitemcheckbox" type="button">
+            <span class="ctx-indicator" aria-hidden="true"></span> Toolbar widget
+        </button>
+        <div class="ctx-hint">Click title to read · Esc collapses</div>
+    </div>
+
+    <!-- Movable toolbar widget (hidden until toggled on) -->
+    <div class="canvas-widget" id="canvasWidget" hidden role="toolbar" aria-label="Canvas controls">
+        <button class="widget-grip" type="button" aria-label="Drag widget" title="Drag">
+            <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
+                <circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/>
+                <circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/>
+                <circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/>
+            </svg>
+        </button>
+        <div class="widget-controls">
+            <button class="btn" data-canvas-layout="free"   type="button">Free</button>
             <button class="btn" data-canvas-layout="grid"   type="button">Grid</button>
             <button class="btn" data-canvas-layout="radial" type="button">Radial</button>
-            <span class="canvas-toolbar-divider"></span>
-            <button class="btn" id="canvasFitBtn" type="button" title="Fit all nodes">Fit</button>
-            <button class="btn" id="canvasResetBtn" type="button" title="Reset canvas">↺</button>
-            <span class="canvas-toolbar-hint">Click title to read · Click stack to expand · Esc to collapse</span>
+            <span class="widget-divider" aria-hidden="true"></span>
+            <button class="btn" data-action="fit"   type="button" title="Fit all nodes">Fit</button>
+            <button class="btn" data-action="reset" type="button" title="Reset canvas">↺</button>
         </div>
+        <button class="widget-close" type="button" aria-label="Hide widget" title="Hide">×</button>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════
@@ -1484,6 +1641,11 @@
             const restPositions = new Map();
             const CANVAS_STORAGE_KEY = 'intoview.canvas.v4';
             const THEME_STORAGE_KEY = 'intoview.theme';
+            const WIDGET_ON_KEY = 'intoview.widget.on';
+            const WIDGET_POS_KEY = 'intoview.widget.pos';
+
+            let widgetVisible = false;
+            let widgetPos = null;
 
             /* ═══════════════════════════════════════════════════════
                ROUTING
@@ -1610,6 +1772,9 @@
                 document.getElementById('carouselWrap').hidden = !inSection;
                 document.getElementById('hudTop').hidden = !inSection;
                 document.getElementById('hud').hidden = !inSection;
+
+                applyWidgetVisibility();
+                closeContextMenu();
                 updateStatusText();
             }
 
@@ -1801,8 +1966,6 @@
 
                 stack.appendChild(leaves);
 
-                // Collapse chip — now a direct child of the stack so it can be
-                // anchored to the top-right corner of the whole expanded cluster.
                 const chip = document.createElement('button');
                 chip.type = 'button';
                 chip.className = 'cluster-collapse-chip';
@@ -1966,6 +2129,8 @@
                 document.querySelectorAll('[data-canvas-layout]').forEach(b => {
                     b.classList.toggle('active', b.dataset.canvasLayout === canvasLayout);
                 });
+                const toggle = document.querySelector('#canvasContextMenu [data-action="toggle-widget"]');
+                if (toggle) toggle.classList.toggle('active', widgetVisible);
             }
 
             function applyPanTransform() {
@@ -1993,6 +2158,244 @@
                 panOffset.x = vw / 2 - cx;
                 panOffset.y = (vh + topbarH) / 2 - cy;
                 applyPanTransform();
+            }
+
+            /* ═══════════════════════════════════════════════════════
+               SHARED CANVAS ACTIONS
+               ═══════════════════════════════════════════════════════ */
+            function setCanvasLayout(layout) {
+                if (!layout) return;
+                canvasLayout = layout;
+                restPositions.clear();
+                const specs = getCanvasNodes();
+                const computed = getLayoutPositions(canvasLayout, specs);
+                specs.forEach(s => {
+                    const pos = computed[s.id] || { x: 0, y: 0 };
+                    restPositions.set(s.id, { x: pos.x, y: pos.y });
+                    const node = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(s.id)}"]`);
+                    if (node) { node.style.left = pos.x + 'px'; node.style.top = pos.y + 'px'; }
+                });
+                updateCanvasToolbarUI();
+                void document.body.offsetHeight;
+                applyDisplacement();
+                setTimeout(() => {
+                    fitCanvasToViewport();
+                    saveCanvasState();
+                    drawCanvasEdges();
+                }, 520);
+            }
+
+            function fitCanvas() {
+                fitCanvasToViewport();
+                saveCanvasState();
+            }
+
+            function resetCanvas() {
+                if (!confirm('Reset canvas layout?')) return;
+                try { localStorage.removeItem(CANVAS_STORAGE_KEY); } catch (e) {}
+                canvasLayout = 'free';
+                expandedClusters.clear();
+                restPositions.clear();
+                panOffset.x = 0; panOffset.y = 0;
+                renderCanvas();
+            }
+
+            /* ═══════════════════════════════════════════════════════
+               WIDGET VISIBILITY
+               ═══════════════════════════════════════════════════════ */
+            function applyWidgetVisibility() {
+                const widget = document.getElementById('canvasWidget');
+                if (!widget) return;
+                const inSection = currentRoute.level !== 'canvas';
+                const mobile = isMobileView();
+                widget.hidden = !widgetVisible || inSection || mobile;
+            }
+
+            function setWidgetVisible(on) {
+                widgetVisible = !!on;
+                try { localStorage.setItem(WIDGET_ON_KEY, widgetVisible ? '1' : '0'); } catch (e) {}
+                applyWidgetVisibility();
+                updateCanvasToolbarUI();
+            }
+
+            /* ═══════════════════════════════════════════════════════
+               CONTEXT MENU
+               ═══════════════════════════════════════════════════════ */
+            function closeContextMenu() {
+                const menu = document.getElementById('canvasContextMenu');
+                if (!menu) return;
+                menu.classList.remove('open');
+                menu.hidden = true;
+            }
+
+            function openContextMenu(x, y) {
+                const menu = document.getElementById('canvasContextMenu');
+                if (!menu) return;
+
+                // Sync active states before showing
+                updateCanvasToolbarUI();
+
+                // Reset transform for measurement
+                menu.hidden = false;
+                menu.style.left = '0px';
+                menu.style.top = '0px';
+                menu.classList.add('open');
+
+                const mr = menu.getBoundingClientRect();
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                if (x + mr.width > vw - 8) x = vw - mr.width - 8;
+                if (y + mr.height > vh - 8) y = vh - mr.height - 8;
+                if (x < 8) x = 8;
+                if (y < 8) y = 8;
+                menu.style.left = x + 'px';
+                menu.style.top = y + 'px';
+            }
+
+            function setupContextMenu() {
+                const canvas = document.getElementById('canvasRoot');
+                const menu = document.getElementById('canvasContextMenu');
+                if (!canvas || !menu) return;
+
+                canvas.addEventListener('contextmenu', (e) => {
+                    if (e.target.closest('.canvas-widget, .canvas-context-menu')) return;
+                    e.preventDefault();
+                    openContextMenu(e.clientX, e.clientY);
+                });
+
+                // Dismiss on any pointerdown outside the menu
+                document.addEventListener('pointerdown', (e) => {
+                    if (!menu.classList.contains('open')) return;
+                    if (menu.contains(e.target)) return;
+                    closeContextMenu();
+                }, true);
+
+                // Wire menu items
+                menu.querySelectorAll('[data-canvas-layout]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        setCanvasLayout(btn.dataset.canvasLayout);
+                        closeContextMenu();
+                    });
+                });
+                menu.querySelector('[data-action="fit"]').addEventListener('click', () => {
+                    fitCanvas();
+                    closeContextMenu();
+                });
+                menu.querySelector('[data-action="reset"]').addEventListener('click', () => {
+                    resetCanvas();
+                    closeContextMenu();
+                });
+                menu.querySelector('[data-action="toggle-widget"]').addEventListener('click', () => {
+                    setWidgetVisible(!widgetVisible);
+                    closeContextMenu();
+                });
+            }
+
+            /* ═══════════════════════════════════════════════════════
+               MOVABLE WIDGET
+               ═══════════════════════════════════════════════════════ */
+            function applyWidgetPos() {
+                const widget = document.getElementById('canvasWidget');
+                if (!widget) return;
+                if (widgetPos && typeof widgetPos.x === 'number' && typeof widgetPos.y === 'number') {
+                    widget.style.left = widgetPos.x + 'px';
+                    widget.style.top = widgetPos.y + 'px';
+                    widget.style.right = 'auto';
+                    widget.style.bottom = 'auto';
+                } else {
+                    widget.style.left = '';
+                    widget.style.top = '';
+                    widget.style.right = '';
+                    widget.style.bottom = '';
+                }
+            }
+
+            function clampWidgetPos(x, y) {
+                const widget = document.getElementById('canvasWidget');
+                if (!widget) return { x, y };
+                const w = widget.offsetWidth;
+                const h = widget.offsetHeight;
+                x = Math.max(4, Math.min(window.innerWidth - w - 4, x));
+                y = Math.max(4, Math.min(window.innerHeight - h - 4, y));
+                return { x, y };
+            }
+
+            function setupWidget() {
+                const widget = document.getElementById('canvasWidget');
+                if (!widget) return;
+
+                // Restore visibility and position
+                try { widgetVisible = localStorage.getItem(WIDGET_ON_KEY) === '1'; } catch (e) {}
+                try {
+                    const pos = JSON.parse(localStorage.getItem(WIDGET_POS_KEY) || 'null');
+                    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+                        widgetPos = pos;
+                    }
+                } catch (e) {}
+
+                applyWidgetPos();
+
+                // Close button
+                widget.querySelector('.widget-close').addEventListener('click', () => {
+                    setWidgetVisible(false);
+                });
+
+                // Layout buttons
+                widget.querySelectorAll('[data-canvas-layout]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        setCanvasLayout(btn.dataset.canvasLayout);
+                    });
+                });
+
+                // Fit / reset
+                widget.querySelector('[data-action="fit"]').addEventListener('click', fitCanvas);
+                widget.querySelector('[data-action="reset"]').addEventListener('click', resetCanvas);
+
+                // Drag via grip
+                const grip = widget.querySelector('.widget-grip');
+                grip.addEventListener('pointerdown', (e) => {
+                    if (e.button !== 0) return;
+                    const rect = widget.getBoundingClientRect();
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startL = rect.left;
+                    const startT = rect.top;
+
+                    // Switch to left/top positioning immediately
+                    widget.style.right = 'auto';
+                    widget.style.bottom = 'auto';
+                    widget.style.left = startL + 'px';
+                    widget.style.top = startT + 'px';
+                    widget.classList.add('dragging');
+
+                    try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+
+                    const onMove = (ev) => {
+                        if (ev.pointerId !== e.pointerId) return;
+                        const cx = startL + (ev.clientX - startX);
+                        const cy = startT + (ev.clientY - startY);
+                        const clamped = clampWidgetPos(cx, cy);
+                        widget.style.left = clamped.x + 'px';
+                        widget.style.top = clamped.y + 'px';
+                        widgetPos = { x: clamped.x, y: clamped.y };
+                    };
+                    const onUp = (ev) => {
+                        if (ev.pointerId !== e.pointerId) return;
+                        widget.classList.remove('dragging');
+                        grip.removeEventListener('pointermove', onMove);
+                        grip.removeEventListener('pointerup', onUp);
+                        grip.removeEventListener('pointercancel', onUp);
+                        try { grip.releasePointerCapture(e.pointerId); } catch (err) {}
+                        try {
+                            if (widgetPos) localStorage.setItem(WIDGET_POS_KEY, JSON.stringify(widgetPos));
+                        } catch (err) {}
+                    };
+                    grip.addEventListener('pointermove', onMove);
+                    grip.addEventListener('pointerup', onUp);
+                    grip.addEventListener('pointercancel', onUp);
+
+                    e.preventDefault();
+                });
             }
 
             /* ═══════════════════════════════════════════════════════
@@ -2108,7 +2511,7 @@
 
                 canvasRoot.addEventListener('pointerdown', (e) => {
                     if (e.target.closest('.canvas-node')) return;
-                    if (e.target.closest('.canvas-toolbar')) return;
+                    if (e.target.closest('.canvas-widget, .canvas-context-menu')) return;
                     if (e.button !== 0 && e.button !== 1) return;
                     const state = {
                         startX: e.clientX, startY: e.clientY,
@@ -2308,12 +2711,11 @@
                 update();
             }
 
-            /* ── custom cursor, contrast aware over accent / dark surfaces ── */
             (function initWriteCursor() {
                 const dot = document.getElementById('writeCursorDot');
                 const ellipse = document.getElementById('writeCursorEllipse');
                 if (!dot || !ellipse) return;
-                const NATIVE = ['button','a','input','textarea','select','[role="button"]','.letter-hotspot','.canvas-node','.canvas-toolbar','.prov-card','.cluster-peek-hit','.home-card-row'].join(', ');
+                const NATIVE = ['button','a','input','textarea','select','[role="button"]','.letter-hotspot','.canvas-node','.canvas-widget','.canvas-context-menu','.prov-card','.cluster-peek-hit','.home-card-row'].join(', ');
                 const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .cluster-collapse-chip, .cluster-peek';
                 const DARK_SURFACE = '.prov-card[data-type="master"], .home-card, .letter-card-frame.index-card-frame';
                 let ptrX = 0, ptrY = 0, prevX = 0, prevY = 0, init = false;
@@ -2372,7 +2774,6 @@
                 panel.style.left = left + 'px';
             }
 
-            /* ── appearance: Light / Dark only ── */
             function applyTheme(theme) {
                 document.body.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
                 try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch (e) {}
@@ -2458,6 +2859,8 @@
                 setupViewportBlur();
                 setupAppearanceDropdown();
                 setupGridToggle();
+                setupContextMenu();
+                setupWidget();
 
                 const saved = loadCanvasState();
                 if (saved) {
@@ -2481,39 +2884,6 @@
                         navigate({ level: 'cluster', clusterId: currentRoute.clusterId });
                     } else if (currentRoute.level === 'cluster') {
                         navigate({ level: 'canvas' });
-                    }
-                });
-
-                document.querySelectorAll('[data-canvas-layout]').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        canvasLayout = btn.dataset.canvasLayout;
-                        restPositions.clear();
-                        const specs = getCanvasNodes();
-                        const computed = getLayoutPositions(canvasLayout, specs);
-                        specs.forEach(s => {
-                            const pos = computed[s.id] || { x: 0, y: 0 };
-                            restPositions.set(s.id, { x: pos.x, y: pos.y });
-                            const node = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(s.id)}"]`);
-                            if (node) { node.style.left = pos.x + 'px'; node.style.top = pos.y + 'px'; }
-                        });
-                        updateCanvasToolbarUI();
-                        void document.body.offsetHeight;
-                        applyDisplacement();
-                        setTimeout(() => { fitCanvasToViewport(); saveCanvasState(); drawCanvasEdges(); }, 520);
-                    });
-                });
-                document.getElementById('canvasFitBtn').addEventListener('click', () => {
-                    fitCanvasToViewport();
-                    saveCanvasState();
-                });
-                document.getElementById('canvasResetBtn').addEventListener('click', () => {
-                    if (confirm('Reset canvas layout?')) {
-                        try { localStorage.removeItem(CANVAS_STORAGE_KEY); } catch (e) {}
-                        canvasLayout = 'free';
-                        expandedClusters.clear();
-                        restPositions.clear();
-                        panOffset.x = 0; panOffset.y = 0;
-                        renderCanvas();
                     }
                 });
 
@@ -2607,6 +2977,14 @@
                             return;
                         }
 
+                        // Close context menu first, if open
+                        const ctxMenu = document.getElementById('canvasContextMenu');
+                        if (ctxMenu && ctxMenu.classList.contains('open')) {
+                            closeContextMenu();
+                            e.preventDefault();
+                            return;
+                        }
+
                         // Esc on the canvas collapses any expanded clusters.
                         if (currentRoute.level === 'canvas' && expandedClusters.size > 0) {
                             collapseAllClusters();
@@ -2652,6 +3030,13 @@
                             void document.body.offsetHeight;
                             applyDisplacement();
                             drawCanvasEdges();
+                        }
+                        // Clamp widget position on resize
+                        if (widgetVisible && widgetPos) {
+                            const clamped = clampWidgetPos(widgetPos.x, widgetPos.y);
+                            widgetPos = clamped;
+                            applyWidgetPos();
+                            try { localStorage.setItem(WIDGET_POS_KEY, JSON.stringify(widgetPos)); } catch (e) {}
                         }
                     }, 180);
                 });
