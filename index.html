@@ -1777,6 +1777,19 @@
             .cluster-peek[data-depth="4"] { transform: translate(12px, 24px); z-index: 1; }
 
             body.show-grid .canvas-surface::before { opacity: 1; }
+
+            /* Mobile Array Layout Overrides */
+            body[data-layout="array"] .cluster-stack {
+                flex-direction: column;
+                gap: 12px;
+            }
+            body[data-layout="array"] .cluster-leaves {
+                flex-wrap: wrap;
+                max-width: 100%;
+            }
+            body[data-layout="array"] .cluster-leaf > .prov-card {
+                width: var(--card-w);
+            }
         }
     </style>
 </head>
@@ -2576,7 +2589,11 @@
                     updateMobileHud();
                     if (isMobile()) {
                         requestAnimationFrame(() => {
-                            reflowMobileColumn();
+                            if (canvasLayout === 'array') {
+                                packArray();
+                            } else {
+                                reflowMobileColumn();
+                            }
                             updateMobileHud();
                             fitToFocus({ force: true });
                         });
@@ -2752,14 +2769,20 @@
                 });
 
                 if (isMobile()) {
-                    requestAnimationFrame(() => {
-                        reflowMobileColumn();
-                        // One more pass after layout settles
-                        setTimeout(reflowMobileColumn, 100);
-                        setTimeout(reflowMobileColumn, 500);
-                        setTimeout(reflowMobileColumn, 1000);
-                        setupResizeObserver();
-                    });
+                    if (canvasLayout === 'array') {
+                        requestAnimationFrame(() => {
+                            packArray();
+                            setupResizeObserver();
+                        });
+                    } else {
+                        requestAnimationFrame(() => {
+                            reflowMobileColumn();
+                            setTimeout(reflowMobileColumn, 100);
+                            setTimeout(reflowMobileColumn, 500);
+                            setTimeout(reflowMobileColumn, 1000);
+                            setupResizeObserver();
+                        });
+                    }
                 } else {
                     refineIdentityIndexStack();
                 }
@@ -2787,7 +2810,11 @@
                 if (!isMobile()) return;
 
                 resizeObserver = new ResizeObserver(() => {
-                    reflowMobileColumn();
+                    if (canvasLayout === 'array') {
+                        packArray();
+                    } else {
+                        reflowMobileColumn();
+                    }
                 });
 
                 document.querySelectorAll('.canvas-node').forEach(n => {
@@ -2883,7 +2910,13 @@
                 positions.index = { x: 0, y: rowPitch };
 
                 const clusters = nodes.filter(n => n.kind === 'cluster');
-                if (mobile) {
+                if (mobile && layout !== 'array') {
+                    const startY = rowPitch * 2;
+                    clusters.forEach((n, i) => {
+                        positions[n.id] = { x: 0, y: startY + i * rowPitch };
+                    });
+                } else if (mobile) {
+                    // Array on mobile - rough estimate, packArray will fix heights
                     const startY = rowPitch * 2;
                     clusters.forEach((n, i) => {
                         positions[n.id] = { x: 0, y: startY + i * rowPitch };
@@ -2903,6 +2936,7 @@
 
             function reflowMobileColumn() {
                 if (!isMobile()) return;
+                if (canvasLayout === 'array') return; // Array layout handles its own packing
                 const surface = document.getElementById('canvasSurface');
                 if (!surface) return;
 
@@ -3038,15 +3072,11 @@
             }
 
             function packArray() {
-                const rowPitch = getRowPitch();
                 const isMob = isMobile();
-                const startX = isMob ? 12 : getColPitch();
-                const gutterX = isMob ? 20 : 40;
-                const gutterY = isMob ? 20 : 28;
-                const margin = isMob ? 12 : 32;
-                const maxRight = Math.min(window.innerWidth - margin, 3360);
+                const surface = document.getElementById('canvasSurface');
+                if (!surface) return;
 
-                const clusterNodes = [...document.querySelectorAll('.canvas-node[data-kind="cluster"]')];
+                const clusterNodes = [...surface.querySelectorAll('.canvas-node[data-kind="cluster"]')];
                 if (!clusterNodes.length) return;
 
                 clusterNodes.sort((a, b) => {
@@ -3055,43 +3085,63 @@
                     return ai - bi;
                 });
 
-                const identity = document.querySelector('.canvas-node[data-node-id="identity"]');
-                const index = document.querySelector('.canvas-node[data-node-id="index"]');
+                const identity = surface.querySelector('.canvas-node[data-node-id="identity"]');
+                const index = surface.querySelector('.canvas-node[data-node-id="index"]');
+
+                let cursorY = 0;
+                const gap = 28;
+
                 if (identity) {
                     identity.style.left = '0px';
-                    identity.style.top = '0px';
-                    restPositions.set('identity', { x: 0, y: 0 });
+                    identity.style.top = cursorY + 'px';
+                    restPositions.set('identity', { x: 0, y: cursorY });
+                    cursorY += identity.offsetHeight + gap;
                 }
-                if (index && identity) {
-                    const standardCardH = isMob ? 176 : 280;
-                    const gap = rowPitch - standardCardH;
-                    const indexY = identity.offsetHeight + gap;
+                if (index) {
                     index.style.left = '0px';
-                    index.style.top = indexY + 'px';
-                    restPositions.set('index', { x: 0, y: indexY });
+                    index.style.top = cursorY + 'px';
+                    restPositions.set('index', { x: 0, y: cursorY });
+                    cursorY += index.offsetHeight + gap;
                 }
 
-                let rowY = 0;
-                let rowH = 0;
-                let cursorX = startX;
+                if (isMob) {
+                    // Mobile: Stack vertically
+                    clusterNodes.forEach(node => {
+                        node.style.left = '0px';
+                        node.style.top = cursorY + 'px';
+                        restPositions.set(node.dataset.nodeId, { x: 0, y: cursorY });
+                        cursorY += node.offsetHeight + gap;
+                    });
+                } else {
+                    // Desktop: Horizontal packing
+                    const startX = getColPitch();
+                    const gutterX = 40;
+                    const gutterY = 28;
+                    const margin = 32;
+                    const maxRight = Math.min(window.innerWidth - margin, 3360);
 
-                clusterNodes.forEach(node => {
-                    const w = node.offsetWidth;
-                    const h = node.offsetHeight;
+                    let rowY = 0;
+                    let rowH = 0;
+                    let cursorX = startX;
 
-                    if (cursorX > startX && cursorX + w > maxRight) {
-                        rowY += rowH + gutterY;
-                        rowH = 0;
-                        cursorX = startX;
-                    }
+                    clusterNodes.forEach(node => {
+                        const w = node.offsetWidth;
+                        const h = node.offsetHeight;
 
-                    node.style.left = cursorX + 'px';
-                    node.style.top = rowY + 'px';
-                    restPositions.set(node.dataset.nodeId, { x: cursorX, y: rowY });
+                        if (cursorX > startX && cursorX + w > maxRight) {
+                            rowY += rowH + gutterY;
+                            rowH = 0;
+                            cursorX = startX;
+                        }
 
-                    cursorX += w + gutterX;
-                    if (h > rowH) rowH = h;
-                });
+                        node.style.left = cursorX + 'px';
+                        node.style.top = rowY + 'px';
+                        restPositions.set(node.dataset.nodeId, { x: cursorX, y: rowY });
+
+                        cursorX += w + gutterX;
+                        if (h > rowH) rowH = h;
+                    });
+                }
             }
 
             function relCenter(el) {
@@ -4434,18 +4484,16 @@
                         focusedNodeId = id;
                     }
                     requestAnimationFrame(() => {
-                        reflowMobileColumn();
+                        if (canvasLayout === 'array') {
+                            packArray();
+                        } else {
+                            reflowMobileColumn();
+                        }
                         updateMobileHud();
                         fitToFocus();
                         drawCanvasEdges();
                         queueMinimapLayout();
                     });
-                    // Add a delayed reflow to catch end of transitions
-                    setTimeout(() => {
-                        reflowMobileColumn();
-                        fitToFocus();
-                        drawCanvasEdges();
-                    }, 450);
                 } else {
                     setTimeout(() => {
                         drawCanvasEdges();
@@ -4463,7 +4511,11 @@
                 saveCanvasState();
                 if (isMobile()) {
                     requestAnimationFrame(() => {
-                        reflowMobileColumn();
+                        if (canvasLayout === 'array') {
+                            packArray();
+                        } else {
+                            reflowMobileColumn();
+                        }
                         updateMobileHud();
                         fitToFocus();
                         drawCanvasEdges();
@@ -5287,7 +5339,11 @@
                         if (currentRoute.level === 'canvas') {
                             if (crossed && nowMobile) {
                                 restPositions.clear();
-                                reflowMobileColumn();
+                                if (canvasLayout === 'array') {
+                                    packArray();
+                                } else {
+                                    reflowMobileColumn();
+                                }
                                 fitToFocus({ force: true });
                             } else if (crossed && !nowMobile) {
                                 restPositions.clear();
@@ -5299,10 +5355,15 @@
                                     const n = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(s.id)}"]`);
                                     if (n) { n.style.left = pos.x + 'px'; n.style.top = pos.y + 'px'; }
                                 });
-                                refineIdentityIndexStack();
+                                if (canvasLayout === 'array') packArray();
+                                else refineIdentityIndexStack();
                                 fitCanvasToViewport();
                             } else if (nowMobile) {
-                                reflowMobileColumn();
+                                if (canvasLayout === 'array') {
+                                    packArray();
+                                } else {
+                                    reflowMobileColumn();
+                                }
                                 fitToFocus();
                             } else {
                                 fitCanvasToViewport();
