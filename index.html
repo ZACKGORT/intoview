@@ -1989,6 +1989,7 @@
 
             const MIN_SCALE = 0.35;
             const MAX_SCALE = 2.5;
+            const getMaxScale = () => isMobile() ? 3.5 : MAX_SCALE;
             const ZOOM_STEP = 1.25;
 
             const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -2512,6 +2513,7 @@
             let zoomHudPos = null;
 
             let hudTopPos = null;
+            let resizeObserver = null;
 
             function migrateCanvasState() {
                 try {
@@ -2754,6 +2756,9 @@
                         reflowMobileColumn();
                         // One more pass after layout settles
                         setTimeout(reflowMobileColumn, 100);
+                        setTimeout(reflowMobileColumn, 500);
+                        setTimeout(reflowMobileColumn, 1000);
+                        setupResizeObserver();
                     });
                 } else {
                     refineIdentityIndexStack();
@@ -2774,12 +2779,33 @@
                 updateMobileHud();
             }
 
+            function setupResizeObserver() {
+                if (resizeObserver) {
+                    resizeObserver.disconnect();
+                    resizeObserver = null;
+                }
+                if (!isMobile()) return;
+
+                resizeObserver = new ResizeObserver(() => {
+                    reflowMobileColumn();
+                });
+
+                document.querySelectorAll('.canvas-node').forEach(n => {
+                    resizeObserver.observe(n);
+                });
+            }
+
             function getCanvasNodeSpecsWithPositions() {
                 const specs = getCanvasNodes();
                 const saved = loadCanvasState();
                 const savedPositions = (saved && saved.positions) || {};
                 const computed = getLayoutPositions(canvasLayout, specs);
                 return specs.map(spec => {
+                    // On mobile, always use computed layout to ensure correct stacking
+                    if (isMobile()) {
+                        const compPos = computed[spec.id] || { x: 0, y: 0 };
+                        return Object.assign({}, spec, { x: compPos.x, y: compPos.y });
+                    }
                     const savedPos = savedPositions[spec.id];
                     const compPos = computed[spec.id] || { x: 0, y: 0 };
                     return Object.assign({}, spec, {
@@ -2884,16 +2910,26 @@
                 const gap = 28;
                 let cursorY = 0;
 
+                const nodes = order.map(id => surface.querySelector(`.canvas-node[data-node-id="${CSS.escape(id)}"]`)).filter(Boolean);
+
+                // Disable transitions to get accurate measurements and instant layout
+                nodes.forEach(n => { n.style.transition = 'none'; });
+
                 order.forEach(id => {
                     const node = surface.querySelector(`.canvas-node[data-node-id="${CSS.escape(id)}"]`);
                     if (!node) return;
                     node.style.left = '0px';
                     node.style.top = cursorY + 'px';
                     restPositions.set(id, { x: 0, y: cursorY });
-                    // Use getBoundingClientRect().height to force layout and get accurate height
-                    const h = node.getBoundingClientRect().height;
-                    cursorY += h + gap;
+                    // Use offsetHeight which is more reliable after forcing a reflow
+                    cursorY += node.offsetHeight + gap;
                 });
+
+                // Force reflow
+                void surface.offsetHeight;
+
+                // Restore transitions
+                nodes.forEach(n => { n.style.transition = ''; });
             }
 
             function refineIdentityIndexStack() {
@@ -2972,8 +3008,8 @@
                 const vh = window.innerHeight;
                 const topbarH = parseInt(getComputedStyle(document.documentElement)
                     .getPropertyValue('--topbar-height')) || 56;
-                const hudReserve = 80; // reduced from 96 to allow closer zoom
-                const padScreen = 10; // reduced from 20 to allow closer zoom
+                const hudReserve = 80;
+                const padScreen = 10;
 
                 const sLeft   = rect.x * scale + panOffset.x;
                 const sTop    = rect.y * scale + panOffset.y;
@@ -2989,9 +3025,9 @@
                 const availW = vw - padScreen * 2;
                 const availH = vh - topbarH - hudReserve - padScreen * 2;
                 const desired = Math.min(availW / rect.w, availH / rect.h);
-                // Allow scale to go up to 1.5 on mobile for closer view of small cards
-                let newScale = Math.min(1.5, desired);
-                newScale = Math.max(getMinScale(), Math.min(MAX_SCALE, newScale));
+                // Allow scale to go up to getMaxScale() on mobile for closer view of small cards
+                let newScale = Math.min(getMaxScale(), desired);
+                newScale = Math.max(getMinScale(), Math.min(getMaxScale(), newScale));
 
                 const cx = rect.x + rect.w / 2;
                 const cy = rect.y + rect.h / 2;
@@ -3164,7 +3200,7 @@
                 const desired = Math.min(availW / contentW, availH / contentH);
 
                 let newScale = Math.min(1, desired);
-                newScale = Math.max(getMinScale(), Math.min(MAX_SCALE, newScale));
+                newScale = Math.max(getMinScale(), Math.min(getMaxScale(), newScale));
                 scale = newScale;
 
                 const cx = (minX + maxX) / 2;
@@ -3177,7 +3213,7 @@
 
             /* ═══ ZOOM ═══ */
             function zoomAt(newScale, clientX, clientY) {
-                const clamped = Math.max(getMinScale(), Math.min(MAX_SCALE, newScale));
+                const clamped = Math.max(getMinScale(), Math.min(getMaxScale(), newScale));
                 if (clamped === scale) return;
                 const worldX = (clientX - panOffset.x) / scale;
                 const worldY = (clientY - panOffset.y) / scale;
@@ -4494,7 +4530,7 @@
                         const p1 = pts[0], p2 = pts[1];
                         const newDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
                         let newScale = canvasPinchState.startScale * (newDist / canvasPinchState.startDist);
-                        newScale = Math.max(getMinScale(), Math.min(MAX_SCALE, newScale));
+                        newScale = Math.max(getMinScale(), Math.min(getMaxScale(), newScale));
 
                         const worldX = (canvasPinchState.focalX - canvasPinchState.startPanX) / canvasPinchState.startScale;
                         const worldY = (canvasPinchState.focalY - canvasPinchState.startPanY) / canvasPinchState.startScale;
@@ -5072,7 +5108,7 @@
                         if (valid) focusedNodeId = saved.focus;
                     }
                     if (saved.pan) { panOffset.x = saved.pan.x; panOffset.y = saved.pan.y; }
-                    if (typeof saved.scale === 'number') scale = Math.max(getMinScale(), Math.min(MAX_SCALE, saved.scale));
+                    if (typeof saved.scale === 'number') scale = Math.max(getMinScale(), Math.min(getMaxScale(), saved.scale));
                 }
 
                 handleRoute();
