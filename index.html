@@ -1717,7 +1717,7 @@
 
         @media (max-width: 640px) {
             :root {
-                --card-w: 170px;
+                --card-w: 172px;
                 --col-pitch: 192px;
                 --row-pitch: 212px;
                 --grid-col-line: rgba(0,0,0,.05);
@@ -1762,17 +1762,9 @@
             .index-status { font-size: 5.5px; padding: 0 4px; }
             .index-count { font-size: 7px; }
 
-            /* Vertical stack inside cluster so title + leaves align to grid column */
-            .cluster-stack {
-                flex-direction: column;
-                gap: 8px;
-            }
-            .cluster-stack[data-expanded="true"] { padding-bottom: 12px; }
-            .cluster-leaves {
-                gap: 8px;
-                max-width: 100%;
-                flex-wrap: wrap;
-            }
+            .cluster-stack { gap: 8px; }
+            .cluster-stack[data-expanded="true"] { padding-bottom: 16px; }
+            .cluster-leaves { gap: 8px; }
             .cluster-peek-hit { height: 32px; right: -8px; }
             .cluster-collapse-chip {
                 font-size: 7px; padding: 3px 10px; top: -26px;
@@ -2598,7 +2590,11 @@
                     updateMobileHud();
                     if (isMobile()) {
                         requestAnimationFrame(() => {
-                            reflowMobileColumn();
+                            if (canvasLayout === 'array') {
+                                packArray();
+                            } else {
+                                reflowMobileColumn();
+                            }
                             updateMobileHud();
                             fitToFocus({ force: true });
                         });
@@ -2815,7 +2811,11 @@
                 if (!isMobile()) return;
 
                 resizeObserver = new ResizeObserver(() => {
-                    reflowMobileColumn();
+                    if (canvasLayout === 'array') {
+                        packArray();
+                    } else {
+                        reflowMobileColumn();
+                    }
                 });
 
                 document.querySelectorAll('.canvas-node').forEach(n => {
@@ -3033,7 +3033,6 @@
                 }
             }
 
-            // On mobile, prefer scale ~1 so single column fills width; pan vertically to focused node
             function fitToFocus(opts = {}) {
                 if (!isMobile()) return;
                 const id = focusedNodeId;
@@ -3044,53 +3043,37 @@
                 const vh = window.innerHeight;
                 const topbarH = parseInt(getComputedStyle(document.documentElement)
                     .getPropertyValue('--topbar-height')) || 56;
-                const hudReserve = 96;
-                const topPad = 12;
+                const hudReserve = 80;
+                const padScreen = 10;
 
-                // Single column: scale to fit column width (usually 1)
-                const bounds = getContentBounds();
-                let newScale = 1;
-                if (bounds) {
-                    const contentW = bounds.maxX - bounds.minX;
-                    if (contentW > 0 && contentW > vw - 8) {
-                        newScale = (vw - 8) / contentW;
-                    }
-                }
+                const sLeft   = rect.x * scale + panOffset.x;
+                const sTop    = rect.y * scale + panOffset.y;
+                const sRight  = (rect.x + rect.w) * scale + panOffset.x;
+                const sBottom = (rect.y + rect.h) * scale + panOffset.y;
+                const fitsNow = sLeft >= padScreen &&
+                                sTop >= topbarH + padScreen &&
+                                sRight <= vw - padScreen &&
+                                sBottom <= vh - hudReserve - padScreen;
+
+                if (fitsNow && !opts.force) return;
+
+                const availW = vw - padScreen * 2;
+                const availH = vh - topbarH - hudReserve - padScreen * 2;
+                const desired = Math.min(availW / rect.w, availH / rect.h);
+                // Allow scale to go up to getMaxScale() on mobile for closer view of small cards
+                let newScale = Math.min(getMaxScale(), desired);
                 newScale = Math.max(getMinScale(), Math.min(getMaxScale(), newScale));
 
-                // Pan to focused node: top of node near topbar
                 const cx = rect.x + rect.w / 2;
-                let targetPanX = vw / 2 - cx * newScale;
-                let targetPanY = (topbarH + topPad) - rect.y * newScale;
-
-                // Clamp so we don't scroll past content
-                if (bounds) {
-                    const topScreen = bounds.minY * newScale + targetPanY;
-                    if (topScreen > topbarH + topPad) {
-                        targetPanY = (topbarH + topPad) - bounds.minY * newScale;
-                    }
-                    const bottomScreen = bounds.maxY * newScale + targetPanY;
-                    const vhLimit = vh - hudReserve;
-                    if (bottomScreen < vhLimit) {
-                        targetPanY = vhLimit - bounds.maxY * newScale;
-                    }
-                }
-
-                if (!opts.force && Math.abs(newScale - scale) < 0.01 &&
-                    Math.abs(targetPanX - panOffset.x) < 2 &&
-                    Math.abs(targetPanY - panOffset.y) < 2) {
-                    return;
-                }
+                const cy = rect.y + rect.h / 2;
+                const targetPanX = vw / 2 - cx * newScale;
+                const targetPanY = (topbarH + vh - hudReserve) / 2 - cy * newScale;
 
                 tweenCamera(newScale, targetPanX, targetPanY, 360);
             }
 
             function packArray() {
-                if (isMobile()) {
-                    // On mobile, array layout uses the same vertical column stack
-                    reflowMobileColumn();
-                    return;
-                }
+                const isMob = isMobile();
                 const surface = document.getElementById('canvasSurface');
                 if (!surface) return;
 
@@ -3122,33 +3105,44 @@
                     cursorY += index.offsetHeight + gap;
                 }
 
-                const startX = getColPitch();
-                const gutterX = 40;
-                const gutterY = 28;
-                const margin = 32;
-                const maxRight = Math.min(window.innerWidth - margin, 3360);
+                if (isMob) {
+                    // Mobile: Stack vertically
+                    clusterNodes.forEach(node => {
+                        node.style.left = '0px';
+                        node.style.top = cursorY + 'px';
+                        restPositions.set(node.dataset.nodeId, { x: 0, y: cursorY });
+                        cursorY += node.offsetHeight + gap;
+                    });
+                } else {
+                    // Desktop: Horizontal packing
+                    const startX = getColPitch();
+                    const gutterX = 40;
+                    const gutterY = 28;
+                    const margin = 32;
+                    const maxRight = Math.min(window.innerWidth - margin, 3360);
 
-                let rowY = 0;
-                let rowH = 0;
-                let cursorX = startX;
+                    let rowY = 0;
+                    let rowH = 0;
+                    let cursorX = startX;
 
-                clusterNodes.forEach(node => {
-                    const w = node.offsetWidth;
-                    const h = node.offsetHeight;
+                    clusterNodes.forEach(node => {
+                        const w = node.offsetWidth;
+                        const h = node.offsetHeight;
 
-                    if (cursorX > startX && cursorX + w > maxRight) {
-                        rowY += rowH + gutterY;
-                        rowH = 0;
-                        cursorX = startX;
-                    }
+                        if (cursorX > startX && cursorX + w > maxRight) {
+                            rowY += rowH + gutterY;
+                            rowH = 0;
+                            cursorX = startX;
+                        }
 
-                    node.style.left = cursorX + 'px';
-                    node.style.top = rowY + 'px';
-                    restPositions.set(node.dataset.nodeId, { x: cursorX, y: rowY });
+                        node.style.left = cursorX + 'px';
+                        node.style.top = rowY + 'px';
+                        restPositions.set(node.dataset.nodeId, { x: cursorX, y: rowY });
 
-                    cursorX += w + gutterX;
-                    if (h > rowH) rowH = h;
-                });
+                        cursorX += w + gutterX;
+                        if (h > rowH) rowH = h;
+                    });
+                }
             }
 
             function relCenter(el) {
@@ -3449,14 +3443,75 @@
 
             function maybeSnapToNearestNode() {
                 if (!isMobile()) return false;
-                // Vertical scrolling is the intended gesture; don't auto-pan
-                return false;
+                const order = getNodeOrder();
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const worldX = (vw / 2 - panOffset.x) / scale;
+                const worldY = (vh / 2 - panOffset.y) / scale;
+                let best = null, bestDist = Infinity, bestId = null;
+                order.forEach(id => {
+                    const node = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(id)}"]`);
+                    if (!node) return;
+                    const x = parseFloat(node.style.left) || 0;
+                    const y = parseFloat(node.style.top) || 0;
+                    const cx = x + node.offsetWidth / 2;
+                    const cy = y + node.offsetHeight / 2;
+                    const d = Math.hypot(cx - worldX, cy - worldY);
+                    if (d < bestDist) { bestDist = d; best = { cx, cy }; bestId = id; }
+                });
+                if (!best) return false;
+                const threshold = (Math.min(vw, vh) * 0.22) / scale;
+                if (bestDist > threshold) return false;
+
+                if (bestId && bestId !== focusedNodeId) {
+                    focusedNodeId = bestId;
+                    updateMobileHud();
+                }
+
+                const topbarH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-height')) || 56;
+                const hudH = 96;
+                let tx = vw / 2 - best.cx * scale;
+                let ty = (topbarH + vh - hudH) / 2 - best.cy * scale;
+
+                const lim = getPanLimits();
+                if (lim) {
+                    tx = Math.max(lim.minX, Math.min(lim.maxX, tx));
+                    ty = Math.max(lim.minY, Math.min(lim.maxY, ty));
+                }
+
+                if (Math.abs(tx - panOffset.x) < 1 && Math.abs(ty - panOffset.y) < 1) return false;
+                tweenCamera(scale, tx, ty, 260);
+                return true;
             }
 
             function runMobileGuardrails() {
                 if (!isMobile()) return;
-                // Vertical scrolling is expected on mobile column, so only clamp bounds
-                settlePanIntoBounds();
+
+                let nearest = ZOOM_LEVELS[0];
+                let bestDist = Math.abs(scale - nearest);
+                for (const z of ZOOM_LEVELS) {
+                    const d = Math.abs(scale - z);
+                    if (d < bestDist) { bestDist = d; nearest = z; }
+                }
+                const zoomClose = (bestDist / scale) < 0.06;
+                const zoomNeedsTween = zoomClose && Math.abs(nearest - scale) > 0.005;
+
+                if (zoomNeedsTween) {
+                    const cx = window.innerWidth / 2;
+                    const cy = window.innerHeight / 2;
+                    const worldX = (cx - panOffset.x) / scale;
+                    const worldY = (cy - panOffset.y) / scale;
+                    const targetPanX = cx - worldX * nearest;
+                    const targetPanY = cy - worldY * nearest;
+                    tweenCamera(nearest, targetPanX, targetPanY, 220);
+                    setTimeout(() => {
+                        const snapped = maybeSnapToNearestNode();
+                        if (!snapped) settlePanIntoBounds();
+                    }, 240);
+                } else {
+                    const snapped = maybeSnapToNearestNode();
+                    if (!snapped) settlePanIntoBounds();
+                }
             }
 
             /* ═══ CANVAS ACTIONS ═══ */
@@ -4430,7 +4485,11 @@
                         focusedNodeId = id;
                     }
                     requestAnimationFrame(() => {
-                        reflowMobileColumn();
+                        if (canvasLayout === 'array') {
+                            packArray();
+                        } else {
+                            reflowMobileColumn();
+                        }
                         updateMobileHud();
                         fitToFocus();
                         drawCanvasEdges();
@@ -4453,7 +4512,11 @@
                 saveCanvasState();
                 if (isMobile()) {
                     requestAnimationFrame(() => {
-                        reflowMobileColumn();
+                        if (canvasLayout === 'array') {
+                            packArray();
+                        } else {
+                            reflowMobileColumn();
+                        }
                         updateMobileHud();
                         fitToFocus();
                         drawCanvasEdges();
@@ -5277,7 +5340,11 @@
                         if (currentRoute.level === 'canvas') {
                             if (crossed && nowMobile) {
                                 restPositions.clear();
-                                reflowMobileColumn();
+                                if (canvasLayout === 'array') {
+                                    packArray();
+                                } else {
+                                    reflowMobileColumn();
+                                }
                                 fitToFocus({ force: true });
                             } else if (crossed && !nowMobile) {
                                 restPositions.clear();
@@ -5293,7 +5360,11 @@
                                 else refineIdentityIndexStack();
                                 fitCanvasToViewport();
                             } else if (nowMobile) {
-                                reflowMobileColumn();
+                                if (canvasLayout === 'array') {
+                                    packArray();
+                                } else {
+                                    reflowMobileColumn();
+                                }
                                 fitToFocus();
                             } else {
                                 fitCanvasToViewport();
