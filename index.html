@@ -1717,7 +1717,7 @@
 
         @media (max-width: 640px) {
             :root {
-                --card-w: 172px;
+                --card-w: 170px;
                 --col-pitch: 192px;
                 --row-pitch: 212px;
                 --grid-col-line: rgba(0,0,0,.05);
@@ -1762,9 +1762,17 @@
             .index-status { font-size: 5.5px; padding: 0 4px; }
             .index-count { font-size: 7px; }
 
-            .cluster-stack { gap: 8px; }
-            .cluster-stack[data-expanded="true"] { padding-bottom: 16px; }
-            .cluster-leaves { gap: 8px; }
+            /* Vertical stack inside cluster so title + leaves align to grid column */
+            .cluster-stack {
+                flex-direction: column;
+                gap: 8px;
+            }
+            .cluster-stack[data-expanded="true"] { padding-bottom: 12px; }
+            .cluster-leaves {
+                gap: 8px;
+                max-width: 100%;
+                flex-wrap: wrap;
+            }
             .cluster-peek-hit { height: 32px; right: -8px; }
             .cluster-collapse-chip {
                 font-size: 7px; padding: 3px 10px; top: -26px;
@@ -1989,6 +1997,27 @@
             const isMobile = () => window.innerWidth <= 640;
             const getColPitch = () => isMobile() ? 192 : 280;
             const getRowPitch = () => isMobile() ? 212 : 320;
+
+            const getMobileGrid = () => {
+                const vw = window.innerWidth;
+                const pad = 14;
+                const gap = 10;
+                const targetCardW = 170;
+                let cols = Math.floor((vw - pad * 2 + gap) / (targetCardW + gap));
+                cols = Math.max(2, Math.min(3, cols));
+                const available = vw - pad * 2 - gap * (cols - 1);
+                const cardW = Math.floor(available / cols);
+                return { cols, cardW, gap, pad };
+            };
+
+            function applyMobileCardWidth() {
+                if (!isMobile()) {
+                    document.documentElement.style.removeProperty('--card-w');
+                    return;
+                }
+                const { cardW } = getMobileGrid();
+                document.documentElement.style.setProperty('--card-w', cardW + 'px');
+            }
 
             const snapTo = (v, pitch) => Math.round(v / pitch) * pitch;
 
@@ -2593,7 +2622,7 @@
                             if (canvasLayout === 'array') {
                                 packArray();
                             } else {
-                                reflowMobileColumn();
+                                reflowMobileGrid();
                             }
                             updateMobileHud();
                             fitToFocus({ force: true });
@@ -2770,20 +2799,14 @@
                 });
 
                 if (isMobile()) {
-                    if (canvasLayout === 'array') {
-                        requestAnimationFrame(() => {
-                            packArray();
-                            setupResizeObserver();
-                        });
-                    } else {
-                        requestAnimationFrame(() => {
-                            reflowMobileColumn();
-                            setTimeout(reflowMobileColumn, 100);
-                            setTimeout(reflowMobileColumn, 500);
-                            setTimeout(reflowMobileColumn, 1000);
-                            setupResizeObserver();
-                        });
-                    }
+                    applyMobileCardWidth();
+                    requestAnimationFrame(() => {
+                        reflowMobileGrid();
+                        setTimeout(reflowMobileGrid, 100);
+                        setTimeout(reflowMobileGrid, 500);
+                        setTimeout(reflowMobileGrid, 1000);
+                        setupResizeObserver();
+                    });
                 } else {
                     refineIdentityIndexStack();
                 }
@@ -2811,11 +2834,7 @@
                 if (!isMobile()) return;
 
                 resizeObserver = new ResizeObserver(() => {
-                    if (canvasLayout === 'array') {
-                        packArray();
-                    } else {
-                        reflowMobileColumn();
-                    }
+                    reflowMobileGrid();
                 });
 
                 document.querySelectorAll('.canvas-node').forEach(n => {
@@ -2935,35 +2954,40 @@
                 return positions;
             }
 
-            function reflowMobileColumn() {
+            /* Masonry grid on mobile: pack nodes into N columns, shortest-column-first */
+            function reflowMobileGrid() {
                 if (!isMobile()) return;
-                if (canvasLayout === 'array') return; // Array layout handles its own packing
                 const surface = document.getElementById('canvasSurface');
                 if (!surface) return;
 
+                applyMobileCardWidth();
+                const { cols, cardW, gap, pad } = getMobileGrid();
                 const order = ['identity', 'index', ...CLUSTER_ORDER];
-                const gap = 28;
-                let cursorY = 0;
 
                 const nodes = order.map(id => surface.querySelector(`.canvas-node[data-node-id="${CSS.escape(id)}"]`)).filter(Boolean);
+                if (!nodes.length) return;
 
-                // Disable transitions to get accurate measurements and instant layout
+                // Disable transitions while positioning for instant layout
                 nodes.forEach(n => { n.style.transition = 'none'; });
 
-                order.forEach(id => {
-                    const node = surface.querySelector(`.canvas-node[data-node-id="${CSS.escape(id)}"]`);
-                    if (!node) return;
-                    node.style.left = '0px';
-                    node.style.top = cursorY + 'px';
-                    restPositions.set(id, { x: 0, y: cursorY });
-                    // Use offsetHeight which is more reliable after forcing a reflow
-                    cursorY += node.offsetHeight + gap;
-                });
-
-                // Force reflow
+                // Force reflow so heights reflect new card-w
                 void surface.offsetHeight;
 
-                // Restore transitions
+                const colHeights = new Array(cols).fill(0);
+                nodes.forEach(node => {
+                    let minCol = 0, minH = colHeights[0];
+                    for (let i = 1; i < cols; i++) {
+                        if (colHeights[i] < minH - 0.5) { minH = colHeights[i]; minCol = i; }
+                    }
+                    const x = pad + minCol * (cardW + gap);
+                    const y = minH;
+                    node.style.left = x + 'px';
+                    node.style.top = y + 'px';
+                    restPositions.set(node.dataset.nodeId, { x, y });
+                    colHeights[minCol] = y + node.offsetHeight + gap;
+                });
+
+                void surface.offsetHeight;
                 nodes.forEach(n => { n.style.transition = ''; });
             }
 
@@ -3033,6 +3057,7 @@
                 }
             }
 
+            // On mobile, prefer scale ~1 so 2-3 columns fit; pan to focused node
             function fitToFocus(opts = {}) {
                 if (!isMobile()) return;
                 const id = focusedNodeId;
@@ -3043,37 +3068,54 @@
                 const vh = window.innerHeight;
                 const topbarH = parseInt(getComputedStyle(document.documentElement)
                     .getPropertyValue('--topbar-height')) || 56;
-                const hudReserve = 80;
-                const padScreen = 10;
+                const hudReserve = 96;
+                const topPad = 12;
 
-                const sLeft   = rect.x * scale + panOffset.x;
-                const sTop    = rect.y * scale + panOffset.y;
-                const sRight  = (rect.x + rect.w) * scale + panOffset.x;
-                const sBottom = (rect.y + rect.h) * scale + panOffset.y;
-                const fitsNow = sLeft >= padScreen &&
-                                sTop >= topbarH + padScreen &&
-                                sRight <= vw - padScreen &&
-                                sBottom <= vh - hudReserve - padScreen;
-
-                if (fitsNow && !opts.force) return;
-
-                const availW = vw - padScreen * 2;
-                const availH = vh - topbarH - hudReserve - padScreen * 2;
-                const desired = Math.min(availW / rect.w, availH / rect.h);
-                // Allow scale to go up to getMaxScale() on mobile for closer view of small cards
-                let newScale = Math.min(getMaxScale(), desired);
+                // Fit grid width — usually scale=1
+                const bounds = getContentBounds();
+                let newScale = 1;
+                if (bounds) {
+                    const contentW = bounds.maxX - bounds.minX;
+                    if (contentW > 0 && contentW > vw - 8) {
+                        newScale = (vw - 8) / contentW;
+                    }
+                }
                 newScale = Math.max(getMinScale(), Math.min(getMaxScale(), newScale));
 
+                // Pan to focused node: top of node near topbar
                 const cx = rect.x + rect.w / 2;
-                const cy = rect.y + rect.h / 2;
-                const targetPanX = vw / 2 - cx * newScale;
-                const targetPanY = (topbarH + vh - hudReserve) / 2 - cy * newScale;
+                let targetPanX = vw / 2 - cx * newScale;
+                let targetPanY = (topbarH + topPad) - rect.y * newScale;
+
+                // Clamp so we don't scroll past content
+                if (bounds) {
+                    const topScreen = bounds.minY * newScale + targetPanY;
+                    if (topScreen > topbarH + topPad) {
+                        targetPanY = (topbarH + topPad) - bounds.minY * newScale;
+                    }
+                    const bottomScreen = bounds.maxY * newScale + targetPanY;
+                    const vhLimit = vh - hudReserve;
+                    if (bottomScreen < vhLimit) {
+                        targetPanY = vhLimit - bounds.maxY * newScale;
+                    }
+                }
+
+                if (!opts.force && Math.abs(newScale - scale) < 0.01 &&
+                    Math.abs(targetPanX - panOffset.x) < 2 &&
+                    Math.abs(targetPanY - panOffset.y) < 2) {
+                    return;
+                }
 
                 tweenCamera(newScale, targetPanX, targetPanY, 360);
             }
 
             function packArray() {
-                const isMob = isMobile();
+                if (isMobile()) {
+                    // On mobile, array layout also uses masonry grid
+                    reflowMobileGrid();
+                    return;
+                }
+                const isMob = false;
                 const surface = document.getElementById('canvasSurface');
                 if (!surface) return;
 
@@ -3105,44 +3147,33 @@
                     cursorY += index.offsetHeight + gap;
                 }
 
-                if (isMob) {
-                    // Mobile: Stack vertically
-                    clusterNodes.forEach(node => {
-                        node.style.left = '0px';
-                        node.style.top = cursorY + 'px';
-                        restPositions.set(node.dataset.nodeId, { x: 0, y: cursorY });
-                        cursorY += node.offsetHeight + gap;
-                    });
-                } else {
-                    // Desktop: Horizontal packing
-                    const startX = getColPitch();
-                    const gutterX = 40;
-                    const gutterY = 28;
-                    const margin = 32;
-                    const maxRight = Math.min(window.innerWidth - margin, 3360);
+                const startX = getColPitch();
+                const gutterX = 40;
+                const gutterY = 28;
+                const margin = 32;
+                const maxRight = Math.min(window.innerWidth - margin, 3360);
 
-                    let rowY = 0;
-                    let rowH = 0;
-                    let cursorX = startX;
+                let rowY = 0;
+                let rowH = 0;
+                let cursorX = startX;
 
-                    clusterNodes.forEach(node => {
-                        const w = node.offsetWidth;
-                        const h = node.offsetHeight;
+                clusterNodes.forEach(node => {
+                    const w = node.offsetWidth;
+                    const h = node.offsetHeight;
 
-                        if (cursorX > startX && cursorX + w > maxRight) {
-                            rowY += rowH + gutterY;
-                            rowH = 0;
-                            cursorX = startX;
-                        }
+                    if (cursorX > startX && cursorX + w > maxRight) {
+                        rowY += rowH + gutterY;
+                        rowH = 0;
+                        cursorX = startX;
+                    }
 
-                        node.style.left = cursorX + 'px';
-                        node.style.top = rowY + 'px';
-                        restPositions.set(node.dataset.nodeId, { x: cursorX, y: rowY });
+                    node.style.left = cursorX + 'px';
+                    node.style.top = rowY + 'px';
+                    restPositions.set(node.dataset.nodeId, { x: cursorX, y: rowY });
 
-                        cursorX += w + gutterX;
-                        if (h > rowH) rowH = h;
-                    });
-                }
+                    cursorX += w + gutterX;
+                    if (h > rowH) rowH = h;
+                });
             }
 
             function relCenter(el) {
@@ -3467,51 +3498,13 @@
                     focusedNodeId = bestId;
                     updateMobileHud();
                 }
-
-                const topbarH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-height')) || 56;
-                const hudH = 96;
-                let tx = vw / 2 - best.cx * scale;
-                let ty = (topbarH + vh - hudH) / 2 - best.cy * scale;
-
-                const lim = getPanLimits();
-                if (lim) {
-                    tx = Math.max(lim.minX, Math.min(lim.maxX, tx));
-                    ty = Math.max(lim.minY, Math.min(lim.maxY, ty));
-                }
-
-                if (Math.abs(tx - panOffset.x) < 1 && Math.abs(ty - panOffset.y) < 1) return false;
-                tweenCamera(scale, tx, ty, 260);
-                return true;
+                return false; // Don't auto-pan on mobile grid — let user scroll vertically
             }
 
             function runMobileGuardrails() {
                 if (!isMobile()) return;
-
-                let nearest = ZOOM_LEVELS[0];
-                let bestDist = Math.abs(scale - nearest);
-                for (const z of ZOOM_LEVELS) {
-                    const d = Math.abs(scale - z);
-                    if (d < bestDist) { bestDist = d; nearest = z; }
-                }
-                const zoomClose = (bestDist / scale) < 0.06;
-                const zoomNeedsTween = zoomClose && Math.abs(nearest - scale) > 0.005;
-
-                if (zoomNeedsTween) {
-                    const cx = window.innerWidth / 2;
-                    const cy = window.innerHeight / 2;
-                    const worldX = (cx - panOffset.x) / scale;
-                    const worldY = (cy - panOffset.y) / scale;
-                    const targetPanX = cx - worldX * nearest;
-                    const targetPanY = cy - worldY * nearest;
-                    tweenCamera(nearest, targetPanX, targetPanY, 220);
-                    setTimeout(() => {
-                        const snapped = maybeSnapToNearestNode();
-                        if (!snapped) settlePanIntoBounds();
-                    }, 240);
-                } else {
-                    const snapped = maybeSnapToNearestNode();
-                    if (!snapped) settlePanIntoBounds();
-                }
+                // Vertical scrolling is expected on mobile grid, so only clamp bounds
+                settlePanIntoBounds();
             }
 
             /* ═══ CANVAS ACTIONS ═══ */
@@ -3564,7 +3557,7 @@
                         if (node) { node.style.left = pos.x + 'px'; node.style.top = pos.y + 'px'; }
                     });
                     if (isMobile()) {
-                        reflowMobileColumn();
+                        reflowMobileGrid();
                     } else {
                         refineIdentityIndexStack();
                     }
@@ -4485,11 +4478,7 @@
                         focusedNodeId = id;
                     }
                     requestAnimationFrame(() => {
-                        if (canvasLayout === 'array') {
-                            packArray();
-                        } else {
-                            reflowMobileColumn();
-                        }
+                        reflowMobileGrid();
                         updateMobileHud();
                         fitToFocus();
                         drawCanvasEdges();
@@ -4512,11 +4501,7 @@
                 saveCanvasState();
                 if (isMobile()) {
                     requestAnimationFrame(() => {
-                        if (canvasLayout === 'array') {
-                            packArray();
-                        } else {
-                            reflowMobileColumn();
-                        }
+                        reflowMobileGrid();
                         updateMobileHud();
                         fitToFocus();
                         drawCanvasEdges();
@@ -5337,14 +5322,12 @@
                         const crossed = nowMobile !== lastMobile;
                         lastMobile = nowMobile;
 
+                        applyMobileCardWidth();
+
                         if (currentRoute.level === 'canvas') {
                             if (crossed && nowMobile) {
                                 restPositions.clear();
-                                if (canvasLayout === 'array') {
-                                    packArray();
-                                } else {
-                                    reflowMobileColumn();
-                                }
+                                reflowMobileGrid();
                                 fitToFocus({ force: true });
                             } else if (crossed && !nowMobile) {
                                 restPositions.clear();
@@ -5360,11 +5343,7 @@
                                 else refineIdentityIndexStack();
                                 fitCanvasToViewport();
                             } else if (nowMobile) {
-                                if (canvasLayout === 'array') {
-                                    packArray();
-                                } else {
-                                    reflowMobileColumn();
-                                }
+                                reflowMobileGrid();
                                 fitToFocus();
                             } else {
                                 fitCanvasToViewport();
