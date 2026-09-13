@@ -35,7 +35,7 @@
 @media (min-width:640px){:root{--margin:24px;--topbar-height:64px;--hud-height:70px}}
 @media (min-width:1024px){:root{--margin:32px;--topbar-height:72px;--hud-height:76px}}
 body[data-theme='dark']{
-  --bg:#1c1c1e; --fg:#fff; --fg-rgb:255,255,255; --nav-bg-rgb:28,28,30;
+  --bg:#1c1c1e; --fg:#fff; --fg-rgb:255,255,255; --nav-bg-rgb:28,28,28;
   --rule:rgba(255,255,255,.08); --faint:rgba(255,255,255,.04); --muted:rgba(255,255,255,.55);
   --card:#232325; --card-mid:#3a3a3c;
   --ink:#fff; --ink-mid:#b0b0b6; --ink-light:#8e8e93; --ink-lighter:#6e6e73;
@@ -273,7 +273,6 @@ body[data-reader="open"] #galleryRoot{filter:blur(3px) saturate(.8);pointer-even
 .flow-item{position:absolute;width:var(--card-w);cursor:pointer;transition:filter .3s,opacity .3s;z-index:1}
 .flow-item:hover{z-index:30}
 
-/* The gallery cover card — first item in every browse view */
 .prov-card.gallery-cover-card{
   width:100%;
   min-height:0;
@@ -2045,8 +2044,7 @@ function renderGalleryView() {
 }
 
 /* The gallery cover card — first item in every browse view.
-   Returns a `.prov-card[data-type="cluster"]` (accent styling)
-   with the `.gallery-cover-card` class layered on top. */
+   Rendered with accent styling to match the canvas cluster card. */
 function renderGalleryCoverCard() {
   const cl = currentRoute.scope ? CLUSTERS.get(currentRoute.scope) : null;
   const section = currentRoute.section;
@@ -2339,7 +2337,6 @@ function renderGalleryFlow(cards) {
 
   let cursorX = COVER_X + coverW + COL_GUTTER;
   flowColX = plans.map(p => { const x = cursorX; cursorX += p.width + COL_GUTTER; return x; });
-  const trackWidth = cursorX + 120;
 
   monthKeys.forEach((k, m) => {
     const line = document.createElement('div');
@@ -2390,8 +2387,27 @@ function renderGalleryFlow(cards) {
     flowItemsLayer.appendChild(colWrap);
   });
 
-  flowMaxScroll = Math.max(0, trackWidth - window.innerWidth + 240);
-  flowScrollTarget = Math.max(-120, Math.min(flowMaxScroll, flowScrollTarget));
+  // ── Measure the actual rendered extent rather than trusting planColumn's
+  //    estimate. The estimate and the render can diverge (subCol shift, jitter,
+  //    padding rounding), and when they do, flowMaxScroll lands short and the
+  //    last column becomes unreachable. Two passes: once now, once after layout.
+  const measure = () => {
+    let maxRight = 0;
+    flowItemsLayer.querySelectorAll('.flow-col-items').forEach(col => {
+      const colLeft = parseFloat(col.style.left) || 0;
+      col.querySelectorAll('.flow-item').forEach(item => {
+        const itemLeft = parseFloat(item.style.left) || 0;
+        const itemRight = colLeft + itemLeft + item.offsetWidth;
+        if (itemRight > maxRight) maxRight = itemRight;
+      });
+    });
+    const measured = Math.max(maxRight, cursorX) + 200;
+    flowMaxScroll = Math.max(0, measured - window.innerWidth);
+    flowScrollTarget = Math.max(-120, Math.min(flowMaxScroll, flowScrollTarget));
+  };
+  measure();
+  requestAnimationFrame(measure);
+
   if (!flowTrackBound) {
     setupFlowInteractions();
     flowTrackBound = true;
@@ -2406,7 +2422,11 @@ function setupFlowInteractions() {
   let dragging = false, lastX = 0;
   flowViewport.addEventListener('wheel', e => {
     e.preventDefault();
-    flowScrollTarget += (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY);
+    const useX = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+    const raw = useX ? e.deltaX : e.deltaY;
+    // Trackpad two-finger swipes come in at ~10–40px per event; mouse wheels at ~100.
+    // Scale the raw delta so neither feels like it's pushing through molasses.
+    flowScrollTarget += raw * (useX ? 1.4 : 2.2);
     flowScrollTarget = Math.max(-120, Math.min(flowMaxScroll, flowScrollTarget));
   }, { passive: false });
   flowViewport.addEventListener('mousedown', e => {
@@ -2418,8 +2438,12 @@ function setupFlowInteractions() {
   window.addEventListener('mouseup', () => { dragging = false; flowViewport.classList.remove('grabbing'); });
   window.addEventListener('mousemove', e => {
     if (!dragging) return;
-    flowScrollTarget -= (e.clientX - lastX) * 1.4;
+    flowScrollTarget -= (e.clientX - lastX) * 1.0;
     flowScrollTarget = Math.max(-120, Math.min(flowMaxScroll, flowScrollTarget));
+    // Snap during drag so the content tracks the cursor 1:1. The lerp is for
+    // wheel/trackpad motion and post-drag settle only; applying it during drag
+    // makes the user fight the easing and reads as jitter.
+    flowScrollX = flowScrollTarget;
     lastX = e.clientX;
   });
   let lt = 0;
@@ -2428,20 +2452,21 @@ function setupFlowInteractions() {
     const x = e.touches[0].clientX;
     flowScrollTarget -= (x - lt) * 1.4;
     flowScrollTarget = Math.max(-120, Math.min(flowMaxScroll, flowScrollTarget));
+    flowScrollX = flowScrollTarget;
     lt = x;
   }, { passive: true });
 }
 
-const BG_SPEED = 0.35, ITEMS_SPEED = 0.72, LINES_SPEED = 1.0;
+const BG_SPEED = 0.35, ITEMS_SPEED = 1.0, LINES_SPEED = 1.0;
 function flowTick() {
   if (!flowTrack || !flowItemsLayer || !flowBg) { requestAnimationFrame(flowTick); return; }
-  flowScrollX += (flowScrollTarget - flowScrollX) * 0.085;
+  flowScrollX += (flowScrollTarget - flowScrollX) * 0.14;
   flowTrack.style.transform = `translate3d(${-flowScrollX * LINES_SPEED}px,0,0)`;
   flowItemsLayer.style.transform = `translate3d(${-flowScrollX * ITEMS_SPEED}px,0,0)`;
   flowBg.style.transform = `translate3d(${-flowScrollX * BG_SPEED}px,-50%,0)`;
   flowColBobEls.forEach(col => {
     const seed = +col.getAttribute('data-col-seed');
-    col.style.transform = `translate3d(0,${(Math.sin(flowScrollX * 0.0016 + seed) * 8).toFixed(1)}px,0)`;
+    col.style.transform = `translate3d(0,${(Math.sin(flowScrollX * 0.0016 + seed) * 4).toFixed(1)}px,0)`;
   });
   if (browseMode === 'gallery') updateBorderProgress();
   requestAnimationFrame(flowTick);
@@ -2452,7 +2477,6 @@ function renderGalleryList(cards) {
   const wrap = document.getElementById('list-wrap');
   wrap.innerHTML = '';
 
-  // Cover section at top
   const coverSection = document.createElement('div');
   coverSection.className = 'list-cover-section';
   coverSection.appendChild(renderGalleryCoverCard());
@@ -2511,7 +2535,6 @@ function renderGalleryGrid(cards) {
   const wrap = document.getElementById('grid-items');
   wrap.innerHTML = '';
 
-  // Cover spans the full grid
   const coverItem = document.createElement('div');
   coverItem.className = 'g-item g-cover-item';
   coverItem.appendChild(renderGalleryCoverCard());
