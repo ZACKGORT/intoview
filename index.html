@@ -122,7 +122,35 @@ body.custom-cursor-active{cursor:none}
 .write-cursor-ellipse.visible{opacity:.32}
 body.custom-cursor-active.write-native-cursor{cursor:auto}
 .write-native-cursor .write-cursor-dot,.write-native-cursor .write-cursor-ellipse{opacity:0 !important}
-@media (hover:none){body.custom-cursor-active{cursor:auto}.write-cursor-dot,.write-cursor-ellipse{display:none}}
+
+/* Chevron cursor — engaged when hovering a prev/next reader hotspot.
+   Takes over from dot/ellipse; the circular hotspot markers are suppressed
+   in this state (see .letter-hotspot rules below). */
+.write-cursor-chevron{
+  position:fixed;top:0;left:0;z-index:501;pointer-events:none;
+  width:36px;height:36px;margin:-18px 0 0 -18px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink);
+  opacity:0;transform:translate(-9999px,-9999px);
+  transition:opacity .18s ease;
+  will-change:transform;
+}
+.write-cursor-chevron svg{width:22px;height:22px;display:block;transition:transform .22s cubic-bezier(.22,1,.36,1)}
+.write-cursor-chevron.visible{opacity:1}
+body.cursor-chevron-prev .write-cursor-chevron svg{transform:rotate(180deg)}
+
+/* Force-hide any native cursor when the chevron is engaged — some elements
+   (like .letter-hotspot) declare their own pointer cursor that would
+   otherwise override the body rule. */
+body.cursor-chevron-prev,
+body.cursor-chevron-next,
+body.cursor-chevron-prev *,
+body.cursor-chevron-next *{cursor:none !important}
+
+@media (hover:none){
+  body.custom-cursor-active{cursor:auto}
+  .write-cursor-dot,.write-cursor-ellipse,.write-cursor-chevron{display:none}
+}
 
 /* ═══ CANVAS ═══ */
 #canvasRoot{position:fixed;inset:0;z-index:50;overflow:hidden;background:var(--bg);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -365,14 +393,30 @@ body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:1
 .letter-panel{flex:0 0 auto;width:min(92vw,1000px);max-width:1000px;scroll-snap-align:center;box-sizing:border-box;opacity:.35;transition:opacity .3s ease,transform .3s ease;cursor:pointer}
 .letter-panel.active{opacity:1;cursor:auto}
 
-.letter-hotspot{position:absolute;top:0;bottom:0;width:clamp(72px,11vw,220px);z-index:20;cursor:pointer;display:flex;align-items:center;opacity:.35;transition:opacity .25s ease;-webkit-tap-highlight-color:transparent}
+/* ── LETTER HOTSPOT ──
+   Invisible by default. The circular chevron markers are a fallback that
+   only appears on hover when the custom cursor system is unavailable.
+   When the chevron cursor is engaged (body.cursor-chevron-prev/next),
+   the circular markers stay hidden and the cursor itself becomes the
+   directional indicator. */
+.letter-hotspot{position:absolute;top:0;bottom:0;width:clamp(72px,11vw,220px);z-index:20;cursor:pointer;display:flex;align-items:center;-webkit-tap-highlight-color:transparent}
 .letter-hotspot-prev{left:0;justify-content:flex-start;padding-left:clamp(12px,2.5vw,36px)}
 .letter-hotspot-next{right:0;justify-content:flex-end;padding-right:clamp(12px,2.5vw,36px)}
-.letter-hotspot:hover{opacity:1}
-.hotspot-chevron{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);color:var(--ink);transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,background .2s ease}
+.hotspot-chevron{
+  display:flex;align-items:center;justify-content:center;
+  width:48px;height:48px;border-radius:50%;
+  background:var(--card);border:1px solid var(--border);
+  box-shadow:var(--shadow);color:var(--ink);
+  opacity:0;pointer-events:none;
+  transition:opacity .25s ease,transform .25s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,background .2s ease;
+}
 .hotspot-chevron svg{width:18px;height:18px;display:block}
+.letter-hotspot:hover .hotspot-chevron{opacity:1}
 .letter-hotspot-prev:hover .hotspot-chevron{transform:translateX(-4px);box-shadow:var(--shadow-hover)}
 .letter-hotspot-next:hover .hotspot-chevron{transform:translateX(4px);box-shadow:var(--shadow-hover)}
+/* Chevron cursor takes over — suppress the fallback markers entirely. */
+body.cursor-chevron-prev .letter-hotspot .hotspot-chevron,
+body.cursor-chevron-next .letter-hotspot .hotspot-chevron{opacity:0 !important;transform:none !important}
 @media (max-width:640px){.letter-hotspot{display:none}}
 
 .letter-card-frame{border:1px solid var(--border);border-radius:var(--radius);padding:28px clamp(20px,3vw,36px) 40px;background:var(--card);box-shadow:var(--shadow);transition:box-shadow .3s ease,transform .3s ease;position:relative}
@@ -420,9 +464,6 @@ body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:1
 .cluster-reader-tile-date{margin-top:auto;padding-top:6px;font-family:var(--font-mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-light)}
 
 /* ═══ LETTER BENTO GRID ═══ */
-/* Applies to statement / evidence / reply / update cards that don't carry
-   a hand-authored fullContent. Media is constrained by an aspect-ratio on
-   its cell, so portrait sources never blow up the card layout. */
 .letter-bento{
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
@@ -497,8 +538,6 @@ body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:1
 .letter-bento-status[data-status="draft"]    {color:var(--ink-light);border-style:dashed}
 .letter-bento-status[data-status="archived"] {color:var(--ink-lighter)}
 
-/* Media cell — fixed aspect ratio, cover-fit. This is what stops a
-   portrait source from expanding the cell to its native height. */
 .letter-bento-cell.letter-bento-media{
   padding:0;
   background:var(--card-mid);
@@ -522,8 +561,6 @@ body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:1
     color-mix(in srgb, var(--card-mid) 75%, var(--bg)) 10px 20px
   );
 }
-
-/* When there's no media, the tagline cell absorbs the extra width. */
 .letter-bento-cell.is-wide{grid-column:span 2;}
 
 .letter-bento-hint{
@@ -770,6 +807,8 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 .hud-top-grip:hover{background:var(--faint);color:var(--ink)}
 .hud-bottom{bottom:calc(12px + var(--scrollbar-height));padding:10px 18px;min-height:48px;gap:12px}
 .hud .btn{min-height:30px;padding:5px 10px;font-size:8px}
+.hud .btn.hud-top-icon{padding:0;width:30px;min-height:30px;display:inline-flex;align-items:center;justify-content:center}
+.hud .btn.hud-top-icon svg{width:14px;height:14px;display:block}
 .hud-nav-counter{display:inline-flex;align-items:baseline;gap:6px;padding:0 6px;margin:0 2px;background:none;color:inherit;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:"tnum";line-height:1;user-select:none;min-width:0}
 .hud-nav-counter .nav-current{font-size:20px;font-weight:700;color:var(--fg);letter-spacing:-.03em;line-height:1}
 .hud-nav-counter .nav-slash{font-size:13px;font-weight:400;color:var(--ink-lighter);letter-spacing:0;margin:0 1px;transform:translateY(-1px)}
@@ -877,6 +916,11 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 <!-- ═══ CURSORS ═══ -->
 <div class="write-cursor-ellipse" id="writeCursorEllipse" aria-hidden="true"></div>
 <div class="write-cursor-dot" id="writeCursorDot" aria-hidden="true"></div>
+<div class="write-cursor-chevron" id="writeCursorChevron" aria-hidden="true">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
+  </svg>
+</div>
 
 <!-- ═══ SCROLL BORDER ═══ -->
 <div class="scroll-border-top" id="scrollBorderTop" role="progressbar"></div>
@@ -915,6 +959,14 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 <div class="hud hud-top" id="hudTop" hidden>
   <button class="hud-top-grip" type="button" aria-label="Drag navigation" title="Drag">
     <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg>
+  </button>
+  <button class="btn hud-top-icon" id="hudHome" type="button" title="Title card" aria-label="Go to title card">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2.5"/>
+      <circle cx="8.5" cy="11.5" r="1.9"/>
+      <path d="M5.2 17c.6-1.7 1.8-2.6 3.3-2.6s2.7.9 3.3 2.6"/>
+      <path d="M14.5 10.2h4.2M14.5 13.2h4.2M14.5 16.2h2.6"/>
+    </svg>
   </button>
   <button class="btn" id="hudPrev" title="Previous">‹</button>
   <span class="hud-nav-counter"><span class="nav-current" id="navCurrent">1</span><span class="nav-slash">/</span><span class="nav-total" id="navTotal">1</span></span>
@@ -1921,6 +1973,13 @@ function renderClusterStack(wrap, cluster) {
     leaf.dataset.cardId = card.id;
     leaf.dataset.clusterId = card.clusterId;
     leaf.appendChild(renderCompactCard(card));
+    // Native click handler — bypasses the drag pipeline so leaves are always
+    // clickable even inside an expanded cluster.
+    leaf.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      openReader(card.id);
+    });
     leaves.appendChild(leaf);
   });
 
@@ -1930,6 +1989,11 @@ function renderClusterStack(wrap, cluster) {
     more.className = 'cluster-browse-all';
     more.textContent = `Browse all ${cluster.cardIds.length} →`;
     more.dataset.clusterId = cluster.id;
+    more.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigate({ mode: 'gallery', scope: cluster.id });
+    });
     leaves.appendChild(more);
   }
 
@@ -1939,6 +2003,11 @@ function renderClusterStack(wrap, cluster) {
   chip.type = 'button';
   chip.className = 'cluster-collapse-chip';
   chip.textContent = 'Collapse';
+  chip.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleCluster(cluster.id);
+  });
   stack.appendChild(chip);
 
   wrap.appendChild(stack);
@@ -2898,11 +2967,6 @@ function buildReaderCover(card, index, total, opts) {
   return cover;
 }
 
-/**
- * Bento treatment for statement / evidence / reply / update cards.
- * Three-column grid of named cells. Media is constrained by an aspect-ratio
- * on its own cell, so portrait sources never expand the layout.
- */
 function renderLetterBentoBody(card) {
   const p = card.provenance;
   const rel = card.relationships || {};
@@ -2912,7 +2976,6 @@ function renderLetterBentoBody(card) {
 
   const typeLabel = cardTypeLabel(card.type);
 
-  // Media cell — fixed aspect ratio, cover-fit.
   const mediaCellHTML = card.media
     ? `<div class="letter-bento-cell letter-bento-media">
          ${card.media.k === 'video'
@@ -2921,11 +2984,8 @@ function renderLetterBentoBody(card) {
        </div>`
     : '';
 
-  // Tagline cell — spans 2 columns when there's no media so the grid doesn't
-  // end with a hole.
   const taglineWideClass = card.media ? '' : ' is-wide';
 
-  // Related links
   const relItems = [];
   if (card.parentId && CARDS.has(card.parentId)) {
     relItems.push({ label: 'Replying to', id: card.parentId, title: CARDS.get(card.parentId).title });
@@ -2983,8 +3043,6 @@ function renderLetterBentoBody(card) {
 }
 
 function renderStatementBody(card) {
-  // Legacy simple layout, still used for anything that isn't a general letter
-  // (kept for parity with editorial cards that don't carry fullContent).
   const media = card.media ? `
     <div class="swiss-col swiss-col-span-10">
       <div class="statement-media">
@@ -3096,10 +3154,8 @@ function renderReaderCard(card, index, total) {
   else content.innerHTML = renderStatementBody(card);
   frame.appendChild(content);
 
-  // Video wiring inside the bento media cell — autoplay on hover/enter.
   content.querySelectorAll('.letter-bento-media video').forEach(v => {
     v.muted = true;
-    // Pause others, play this one on hover (desktop) or intersection (touch)
     const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
     if (isTouch) {
       const io = new IntersectionObserver(entries => {
@@ -3254,6 +3310,11 @@ function attachNodeHandlers(node) {
   node.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
     if (canvasLayout === 'array') return;
+    // Interactive elements inside expanded clusters (leaves, the browse-all
+    // button, the collapse chip) handle their own native clicks. Letting them
+    // fall through here means the drag pipeline never preventDefaults or
+    // captures the pointer, so their click events fire reliably.
+    if (closestSafe(e.target, '.cluster-leaf, .cluster-browse-all, .cluster-collapse-chip')) return;
     if (e.pointerType === 'touch') {
       const sx = e.clientX, sy = e.clientY, target = e.target;
       const onUp = ev => {
@@ -4517,9 +4578,10 @@ function setupViewportBlur() {
 function initWriteCursor() {
   const dot = document.getElementById('writeCursorDot');
   const ellipse = document.getElementById('writeCursorEllipse');
-  if (!dot || !ellipse) return;
+  const chevron = document.getElementById('writeCursorChevron');
+  if (!dot || !ellipse || !chevron) return;
   if (window.matchMedia('(hover: none)').matches) return;
-  const NATIVE = 'button, a, input, textarea, select, [role="button"], .letter-hotspot, .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .list-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .cluster-reader-tile, .browse-widget';
+  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .list-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .cluster-reader-tile, .browse-widget';
   const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .cluster-collapse-chip, .cluster-peek';
   const LIGHT_SURFACE = '.prov-card[data-type="identity"]';
   let px = 0, py = 0, prevX = 0, prevY = 0, init = false;
@@ -4543,22 +4605,42 @@ function initWriteCursor() {
   }
   window.addEventListener('mousemove', e => {
     const el = (e.target && e.target.nodeType === 1) ? e.target : null;
-    const overNative = !!(el && el.closest && el.closest(NATIVE));
-    const overAccent = !!(el && el.closest && el.closest(ACCENT_SURFACE));
-    const overLight = !overAccent && !!(el && el.closest && el.closest(LIGHT_SURFACE));
+    /* Detect whether the cursor is inside a reader prev/next hotspot. When it
+       is, the cursor becomes the chevron and the fallback circle markers go
+       away (see CSS). This is the primary indicator path. */
+    const overPrev = !!(el && el.closest && el.closest('.letter-hotspot-prev'));
+    const overNext = !!(el && el.closest && el.closest('.letter-hotspot-next'));
+    const chevronMode = overPrev || overNext;
+
+    const overNative = !chevronMode && !!(el && el.closest && el.closest(NATIVE));
+    const overAccent = !chevronMode && !!(el && el.closest && el.closest(ACCENT_SURFACE));
+    const overLight = !chevronMode && !overAccent && !!(el && el.closest && el.closest(LIGHT_SURFACE));
+
     document.body.classList.add('custom-cursor-active');
     document.body.classList.toggle('write-native-cursor', overNative);
     document.body.classList.toggle('cursor-on-accent', overAccent);
     document.body.classList.toggle('cursor-on-light', overLight);
+    document.body.classList.toggle('cursor-chevron-prev', overPrev);
+    document.body.classList.toggle('cursor-chevron-next', overNext);
+
     px = e.clientX; py = e.clientY;
     dot.style.transform = 'translate(' + px + 'px,' + py + 'px)';
-    dot.classList.add('visible');
-    ellipse.classList.add('visible');
+    chevron.style.transform = 'translate(' + px + 'px,' + py + 'px)';
+
+    dot.classList.toggle('visible', !chevronMode);
+    ellipse.classList.toggle('visible', !chevronMode);
+    chevron.classList.toggle('visible', chevronMode);
+
     if (!raf) raf = requestAnimationFrame(step);
   });
   document.addEventListener('mouseleave', () => {
-    dot.classList.remove('visible'); ellipse.classList.remove('visible');
-    document.body.classList.remove('write-native-cursor','custom-cursor-active','cursor-on-accent','cursor-on-light');
+    dot.classList.remove('visible');
+    ellipse.classList.remove('visible');
+    chevron.classList.remove('visible');
+    document.body.classList.remove(
+      'write-native-cursor','custom-cursor-active','cursor-on-accent','cursor-on-light',
+      'cursor-chevron-prev','cursor-chevron-next'
+    );
     if (raf) { cancelAnimationFrame(raf); raf = null; }
   });
 }
@@ -4627,6 +4709,11 @@ function setupKeyboard() {
 function setupCarousel() {
   document.getElementById('hudPrev').addEventListener('click', () => activatePanel(activeIndex - 1));
   document.getElementById('hudNext').addEventListener('click', () => activatePanel(activeIndex + 1));
+  document.getElementById('hudHome').addEventListener('click', () => {
+    const idx = readerCards.findIndex(c => c.id === 'identity');
+    if (idx >= 0) activatePanel(idx);
+    else openReader('identity');
+  });
   document.getElementById('letterHotspotPrev').addEventListener('click', () => activatePanel(activeIndex - 1));
   document.getElementById('letterHotspotNext').addEventListener('click', () => activatePanel(activeIndex + 1));
 
