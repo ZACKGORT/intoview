@@ -81,18 +81,13 @@ body[data-reader="open"]{overflow:hidden}
 
 /* ═══ TOPBAR ═══ */
 .topbar{position:sticky;top:0;z-index:150;background:transparent;padding:6px 0;min-height:var(--topbar-height);display:flex;align-items:center;pointer-events:none}
-.topbar .wordmark,.topbar .btn,.topbar .breadcrumb-item,.topbar .view-pills{pointer-events:auto}
+.topbar .wordmark,.topbar .btn,.topbar .breadcrumb-item{pointer-events:auto}
 .topbar .wrap{display:flex;align-items:center;gap:12px;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto;width:100%;pointer-events:none}
 .wordmark{font-size:clamp(12px,3.5vw,20px);font-weight:700;letter-spacing:-.03em;display:flex;align-items:baseline;gap:6px;color:var(--ink);flex-shrink:0;cursor:pointer}
 .wordmark .count{font-family:var(--font-mono);font-size:8px;font-weight:400;color:var(--ink-light);letter-spacing:.04em}
 .topbar-right{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
 .topbar-right .btn{font-size:9px;min-height:32px;padding:4px 10px}
 .topbar-appearance-wrapper{position:relative;display:flex;align-items:center}
-
-.view-pills{display:inline-flex;align-items:center;gap:2px;padding:2px;background:var(--faint);border:1px solid var(--border);border-radius:var(--radius-sm);flex-shrink:0}
-.view-pills .pill{font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:transparent;border:none;color:var(--ink-light);padding:4px 10px;border-radius:calc(var(--radius-sm) - 2px);cursor:pointer;font-weight:500;min-height:26px;display:inline-flex;align-items:center;justify-content:center;transition:color .15s ease,background .15s ease}
-.view-pills .pill:hover{color:var(--ink)}
-.view-pills .pill.active{background:var(--ink);color:var(--bg)}
 
 .breadcrumb{display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-light);flex:1;min-width:0;overflow:hidden;padding:0 4px}
 .breadcrumb-item{background:none;border:none;padding:3px 6px;cursor:pointer;font:inherit;color:var(--ink-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;border-radius:4px;transition:color .15s ease,background .15s ease}
@@ -127,7 +122,35 @@ body.custom-cursor-active{cursor:none}
 .write-cursor-ellipse.visible{opacity:.32}
 body.custom-cursor-active.write-native-cursor{cursor:auto}
 .write-native-cursor .write-cursor-dot,.write-native-cursor .write-cursor-ellipse{opacity:0 !important}
-@media (hover:none){body.custom-cursor-active{cursor:auto}.write-cursor-dot,.write-cursor-ellipse{display:none}}
+
+/* Chevron cursor — engaged when hovering a prev/next reader hotspot.
+   Takes over from dot/ellipse; the circular hotspot markers are suppressed
+   in this state (see .letter-hotspot rules below). */
+.write-cursor-chevron{
+  position:fixed;top:0;left:0;z-index:501;pointer-events:none;
+  width:36px;height:36px;margin:-18px 0 0 -18px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink);
+  opacity:0;transform:translate(-9999px,-9999px);
+  transition:opacity .18s ease;
+  will-change:transform;
+}
+.write-cursor-chevron svg{width:22px;height:22px;display:block;transition:transform .22s cubic-bezier(.22,1,.36,1)}
+.write-cursor-chevron.visible{opacity:1}
+body.cursor-chevron-prev .write-cursor-chevron svg{transform:rotate(180deg)}
+
+/* Force-hide any native cursor when the chevron is engaged — some elements
+   (like .letter-hotspot) declare their own pointer cursor that would
+   otherwise override the body rule. */
+body.cursor-chevron-prev,
+body.cursor-chevron-next,
+body.cursor-chevron-prev *,
+body.cursor-chevron-next *{cursor:none !important}
+
+@media (hover:none){
+  body.custom-cursor-active{cursor:auto}
+  .write-cursor-dot,.write-cursor-ellipse,.write-cursor-chevron{display:none}
+}
 
 /* ═══ CANVAS ═══ */
 #canvasRoot{position:fixed;inset:0;z-index:50;overflow:hidden;background:var(--bg);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -250,6 +273,17 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 .cluster-browse-all{display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 12px;background:none;border:1px solid var(--border);color:var(--ink-mid);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .15s ease}
 .cluster-browse-all:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 
+/* Array layout overrides */
+body[data-layout="array"] .cluster-collapse-chip { display: none !important; }
+body[data-layout="array"] .cluster-peek,
+body[data-layout="array"] .cluster-peek-hit { display: none !important; }
+body[data-layout="array"] .cluster-stack { padding-bottom: 0; }
+body[data-layout="array"] .cluster-leaf { animation: none; }
+body[data-layout="array"] .cluster-browse-all { display: none; }
+body[data-layout="array"] .canvas-node { width: max-content; max-width: none; }
+body[data-layout="array"] .cluster-stack { width: max-content; max-width: none; }
+body[data-layout="array"] .cluster-leaves { max-width: calc(var(--card-w) * 3 + 16px * 2 + 4px); }
+
 /* ═══ GALLERY ═══ */
 #galleryRoot{position:fixed;inset:0;z-index:55;background:var(--bg);overflow:hidden;display:none;padding-top:var(--topbar-height);flex-direction:column}
 body[data-browse="gallery"] #galleryRoot{display:flex}
@@ -359,14 +393,30 @@ body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:1
 .letter-panel{flex:0 0 auto;width:min(92vw,1000px);max-width:1000px;scroll-snap-align:center;box-sizing:border-box;opacity:.35;transition:opacity .3s ease,transform .3s ease;cursor:pointer}
 .letter-panel.active{opacity:1;cursor:auto}
 
-.letter-hotspot{position:absolute;top:0;bottom:0;width:clamp(72px,11vw,220px);z-index:20;cursor:pointer;display:flex;align-items:center;opacity:.35;transition:opacity .25s ease;-webkit-tap-highlight-color:transparent}
+/* ── LETTER HOTSPOT ──
+   Invisible by default. The circular chevron markers are a fallback that
+   only appears on hover when the custom cursor system is unavailable.
+   When the chevron cursor is engaged (body.cursor-chevron-prev/next),
+   the circular markers stay hidden and the cursor itself becomes the
+   directional indicator. */
+.letter-hotspot{position:absolute;top:0;bottom:0;width:clamp(72px,11vw,220px);z-index:20;cursor:pointer;display:flex;align-items:center;-webkit-tap-highlight-color:transparent}
 .letter-hotspot-prev{left:0;justify-content:flex-start;padding-left:clamp(12px,2.5vw,36px)}
 .letter-hotspot-next{right:0;justify-content:flex-end;padding-right:clamp(12px,2.5vw,36px)}
-.letter-hotspot:hover{opacity:1}
-.hotspot-chevron{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);color:var(--ink);transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,background .2s ease}
+.hotspot-chevron{
+  display:flex;align-items:center;justify-content:center;
+  width:48px;height:48px;border-radius:50%;
+  background:var(--card);border:1px solid var(--border);
+  box-shadow:var(--shadow);color:var(--ink);
+  opacity:0;pointer-events:none;
+  transition:opacity .25s ease,transform .25s cubic-bezier(.22,1,.36,1),box-shadow .2s ease,background .2s ease;
+}
 .hotspot-chevron svg{width:18px;height:18px;display:block}
+.letter-hotspot:hover .hotspot-chevron{opacity:1}
 .letter-hotspot-prev:hover .hotspot-chevron{transform:translateX(-4px);box-shadow:var(--shadow-hover)}
 .letter-hotspot-next:hover .hotspot-chevron{transform:translateX(4px);box-shadow:var(--shadow-hover)}
+/* Chevron cursor takes over — suppress the fallback markers entirely. */
+body.cursor-chevron-prev .letter-hotspot .hotspot-chevron,
+body.cursor-chevron-next .letter-hotspot .hotspot-chevron{opacity:0 !important;transform:none !important}
 @media (max-width:640px){.letter-hotspot{display:none}}
 
 .letter-card-frame{border:1px solid var(--border);border-radius:var(--radius);padding:28px clamp(20px,3vw,36px) 40px;background:var(--card);box-shadow:var(--shadow);transition:box-shadow .3s ease,transform .3s ease;position:relative}
@@ -389,7 +439,7 @@ body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:1
 
 .statement-media{margin:0 0 24px;border-radius:var(--radius-sm);overflow:hidden;background:var(--card-mid)}
 .statement-media img,.statement-media video{width:100%;display:block;max-height:70vh;object-fit:contain;background:#0e0e10}
-.statement-relations{margin-top:32px;padding-top:20px;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--ink-light)}
+.statement-relations{margin-top:24px;padding-top:20px;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--ink-light)}
 .statement-relations h4{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-light);margin:0 0 10px}
 .statement-relations ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
 .statement-relations a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--rule);padding-bottom:1px;transition:border-color .15s ease;cursor:pointer;font-family:var(--font);font-size:13px}
@@ -412,6 +462,138 @@ body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:1
 .cluster-reader-tile-title{font-family:var(--font);font-size:14px;font-weight:700;letter-spacing:-.005em;line-height:1.25;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .cluster-reader-tile-deck{font-size:12px;line-height:1.45;color:var(--ink-mid);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .cluster-reader-tile-date{margin-top:auto;padding-top:6px;font-family:var(--font-mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-light)}
+
+/* ═══ LETTER BENTO GRID ═══ */
+.letter-bento{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:1px;
+  background:var(--border);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  overflow:hidden;
+  margin:8px 0 0;
+}
+.letter-bento-cell{
+  background:var(--card);
+  padding:20px 22px 18px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  min-height:112px;
+  min-width:0;
+}
+.letter-bento-kicker{
+  font-family:var(--font-mono);
+  font-size:9px;
+  font-weight:600;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--ink-light);
+}
+.letter-bento-value{
+  font-family:var(--font);
+  font-size:15px;
+  line-height:1.35;
+  color:var(--ink);
+  font-weight:500;
+  overflow-wrap:anywhere;
+}
+.letter-bento-value.is-sub{
+  font-weight:400;
+  color:var(--ink-mid);
+}
+.letter-bento-value.is-quote{
+  font-style:italic;
+  font-weight:400;
+  color:var(--ink);
+}
+.letter-bento-num{
+  font-family:var(--font);
+  font-size:34px;
+  font-weight:700;
+  letter-spacing:-.025em;
+  line-height:1;
+  color:var(--ink);
+  margin-top:auto;
+}
+.letter-bento-status{
+  display:inline-block;
+  align-self:flex-start;
+  margin-top:auto;
+  padding:3px 10px;
+  border-radius:999px;
+  border:1px solid currentColor;
+  font-family:var(--font-mono);
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--ink);
+}
+.letter-bento-status[data-status="published"]{color:var(--ink)}
+.letter-bento-status[data-status="verified"] {color:var(--impact-gain)}
+.letter-bento-status[data-status="revised"]  {color:var(--impact-accent)}
+.letter-bento-status[data-status="contested"]{color:var(--impact-loss)}
+.letter-bento-status[data-status="draft"]    {color:var(--ink-light);border-style:dashed}
+.letter-bento-status[data-status="archived"] {color:var(--ink-lighter)}
+
+.letter-bento-cell.letter-bento-media{
+  padding:0;
+  background:var(--card-mid);
+  aspect-ratio:4 / 3;
+  min-height:0;
+  overflow:hidden;
+  position:relative;
+}
+.letter-bento-cell.letter-bento-media img,
+.letter-bento-cell.letter-bento-media video{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+  background:#0e0e10;
+}
+.letter-bento-cell.letter-bento-media-empty{
+  background:repeating-linear-gradient(
+    -45deg,
+    var(--card-mid) 0 10px,
+    color-mix(in srgb, var(--card-mid) 75%, var(--bg)) 10px 20px
+  );
+}
+.letter-bento-cell.is-wide{grid-column:span 2;}
+
+.letter-bento-hint{
+  margin-top:24px;
+  padding-top:20px;
+  border-top:1px solid var(--border);
+  font-family:var(--font-mono);
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--ink-light);
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.letter-bento-hint::before{
+  content:'↳';
+  font-size:15px;
+  opacity:.55;
+  transform:translateY(-1px);
+}
+
+@media (max-width:720px){
+  .letter-bento{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .letter-bento-cell.is-wide{grid-column:span 2;}
+  .letter-bento-cell.letter-bento-media{aspect-ratio:16 / 9;}
+}
+@media (max-width:480px){
+  .letter-bento{grid-template-columns:minmax(0,1fr);}
+  .letter-bento-cell{padding:16px 18px 14px;min-height:88px;}
+  .letter-bento-cell.is-wide{grid-column:span 1;}
+}
 
 /* ═══ SWISS / LETTER CONTENT ═══ */
 .swiss-grid{display:grid;grid-template-columns:repeat(var(--swiss-columns),1fr);gap:var(--swiss-gap);width:100%;position:relative}
@@ -526,19 +708,21 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
 .letter-impact-colophon{text-align:center;font-style:italic;font-size:12px;color:var(--ink-light);padding:16px 0 20px}
 
 /* ═══ CONTEXT MENUS ═══ */
-.canvas-context-menu{position:fixed;z-index:300;min-width:208px;padding:6px 0;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-floating),0 0 0 1px rgba(0,0,0,.02);font-family:var(--font-mono);display:none;user-select:none;-webkit-user-select:none}
+.canvas-context-menu{position:fixed;z-index:300;min-width:208px;padding:6px 0;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-floating),0 0 0 1px rgba(0,0,0,.02);font-family:var(--font-mono);display:none;user-select:none;-webkit-user-select:none;max-height:calc(100vh - 24px);overflow-y:auto}
 .canvas-context-menu.open{display:block;animation:ctx-in .12s cubic-bezier(.25,.46,.45,.94)}
 @keyframes ctx-in{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 .ctx-section-label{padding:4px 14px 6px;font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-light)}
 .ctx-item{display:flex;align-items:center;gap:10px;width:100%;padding:7px 14px;background:none;border:none;text-align:left;font-family:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mid);cursor:pointer}
 .ctx-item:hover{background:var(--bg);color:var(--ink)}
+.ctx-item:disabled,.ctx-item[aria-disabled="true"]{opacity:.4;cursor:not-allowed}
+.ctx-item:disabled:hover,.ctx-item[aria-disabled="true"]:hover{background:none;color:var(--ink-mid)}
 .ctx-indicator{width:8px;height:8px;border-radius:50%;border:1px solid var(--ink-lighter);flex-shrink:0}
 .ctx-item.active .ctx-indicator{background:var(--ink);border-color:var(--ink)}
 .ctx-item.no-indicator .ctx-indicator{visibility:hidden}
 .ctx-divider{height:1px;background:var(--border);margin:5px 0}
 .ctx-hint{padding:4px 14px 6px;font-size:8px;letter-spacing:.06em;color:var(--ink-light);text-transform:none;opacity:.75;border-top:1px solid var(--border);margin-top:5px;padding-top:8px}
 
-/* ═══ WIDGET / MINIMAP / ZOOM HUD ═══ */
+/* ═══ WIDGETS (canvas / zoom / minimap / browse) ═══ */
 .canvas-widget{position:fixed;top:calc(var(--topbar-height) + 8px);right:var(--margin);z-index:95;display:flex;align-items:center;gap:2px;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(16px) saturate(1.1);-webkit-backdrop-filter:blur(16px) saturate(1.1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 6px 4px 4px;box-shadow:var(--shadow-floating);font-family:var(--font-mono);max-width:calc(100vw - 16px)}
 .widget-grip{display:flex;align-items:center;justify-content:center;width:20px;height:26px;background:none;border:none;color:var(--ink-light);cursor:grab;border-radius:4px;flex-shrink:0;padding:0;touch-action:none}
 .widget-grip:hover{background:var(--faint);color:var(--ink)}
@@ -549,6 +733,44 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
 .widget-divider{width:1px;height:16px;background:var(--border);margin:0 4px;flex-shrink:0}
 .widget-close{display:flex;align-items:center;justify-content:center;width:20px;height:26px;background:none;border:none;color:var(--ink-light);font-size:14px;line-height:1;cursor:pointer;border-radius:4px;flex-shrink:0;padding:0;margin-left:2px}
 .widget-close:hover{background:var(--faint);color:var(--ink)}
+
+.browse-widget{
+  position:fixed;
+  bottom:calc(12px + var(--scrollbar-height));
+  left:50%;
+  transform:translateX(-50%);
+  z-index:98;
+  display:flex;align-items:center;gap:10px;
+  background:color-mix(in srgb,var(--bg) 92%,transparent);
+  backdrop-filter:blur(16px) saturate(1.1);
+  -webkit-backdrop-filter:blur(16px) saturate(1.1);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:4px 6px 4px 4px;
+  box-shadow:var(--shadow-floating);
+  font-family:var(--font-mono);
+  max-width:calc(100vw - 16px);
+  user-select:none;-webkit-user-select:none;
+}
+.browse-widget.dragging{cursor:grabbing;box-shadow:0 16px 40px rgba(0,0,0,.18),0 4px 12px rgba(0,0,0,.06)}
+.browse-widget-scope{
+  font-family:var(--font-mono);
+  font-size:9px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-light);
+  white-space:nowrap;
+  padding:0 8px 0 6px;
+  max-width:44vw;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.browse-widget-scope::before{
+  content:'';display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--accent);margin-right:7px;vertical-align:middle;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 24%,transparent);
+}
+body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lighter);box-shadow:0 0 0 3px color-mix(in srgb,var(--ink-lighter) 24%,transparent)}
+#browseWidgetToggle{min-height:26px;font-size:8px;padding:4px 10px;border-color:var(--border)}
+@media (max-width:640px){.browse-widget{display:none !important}}
 
 .canvas-minimap{position:fixed;z-index:96;bottom:24px;right:var(--margin);width:220px;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(16px) saturate(1.1);-webkit-backdrop-filter:blur(16px) saturate(1.1);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-floating);font-family:var(--font-mono);user-select:none;-webkit-user-select:none;overflow:hidden}
 @media (max-width:640px){.canvas-minimap{width:180px}.minimap-viewport{height:110px}}
@@ -578,13 +800,15 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
 .zoomhud-close{display:flex;align-items:center;justify-content:center;width:20px;height:26px;background:none;border:none;color:var(--ink-light);font-size:14px;line-height:1;cursor:pointer;border-radius:4px;flex-shrink:0;padding:0;margin-left:2px}
 .zoomhud-close:hover{background:var(--faint);color:var(--ink)}
 
-/* ═══ HUD ═══ */
-.hud{position:fixed;left:50%;transform:translateX(-50%);z-index:100;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-floating);display:flex;align-items:center;justify-content:center;min-height:44px;font-family:var(--font-mono);max-width:min(560px,calc(100vw - var(--margin) * 2))}
+/* ═══ HUD (reader bottom + mobile) ═══ */
+.hud{position:fixed;left:50%;transform:translateX(-50%);z-index:100;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-floating);display:flex;align-items:center;justify-content:center;min-height:44px;font-family:var(--font-mono);max-width:min(640px,calc(100vw - var(--margin) * 2))}
 .hud-top{top:calc(var(--topbar-height) + 8px);padding:6px 12px 6px 6px;gap:4px;user-select:none;-webkit-user-select:none}
 .hud-top-grip{display:flex;align-items:center;justify-content:center;width:20px;height:26px;background:none;border:none;color:var(--ink-light);cursor:grab;border-radius:4px;flex-shrink:0;padding:0;touch-action:none;transition:background .15s ease,color .15s ease}
 .hud-top-grip:hover{background:var(--faint);color:var(--ink)}
 .hud-bottom{bottom:calc(12px + var(--scrollbar-height));padding:10px 18px;min-height:48px;gap:12px}
 .hud .btn{min-height:30px;padding:5px 10px;font-size:8px}
+.hud .btn.hud-top-icon{padding:0;width:30px;min-height:30px;display:inline-flex;align-items:center;justify-content:center}
+.hud .btn.hud-top-icon svg{width:14px;height:14px;display:block}
 .hud-nav-counter{display:inline-flex;align-items:baseline;gap:6px;padding:0 6px;margin:0 2px;background:none;color:inherit;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:"tnum";line-height:1;user-select:none;min-width:0}
 .hud-nav-counter .nav-current{font-size:20px;font-weight:700;color:var(--fg);letter-spacing:-.03em;line-height:1}
 .hud-nav-counter .nav-slash{font-size:13px;font-weight:400;color:var(--ink-lighter);letter-spacing:0;margin:0 1px;transform:translateY(-1px)}
@@ -692,6 +916,11 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
 <!-- ═══ CURSORS ═══ -->
 <div class="write-cursor-ellipse" id="writeCursorEllipse" aria-hidden="true"></div>
 <div class="write-cursor-dot" id="writeCursorDot" aria-hidden="true"></div>
+<div class="write-cursor-chevron" id="writeCursorChevron" aria-hidden="true">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
+  </svg>
+</div>
 
 <!-- ═══ SCROLL BORDER ═══ -->
 <div class="scroll-border-top" id="scrollBorderTop" role="progressbar"></div>
@@ -715,12 +944,6 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
     <nav class="breadcrumb" id="breadcrumb" aria-label="Breadcrumb"></nav>
     <button class="btn mobile-back" id="mobileBackBtn" hidden aria-label="Back">← Back</button>
     <div class="topbar-right">
-      <div class="view-pills" id="galleryViewPills" hidden role="tablist" aria-label="Gallery view">
-        <button type="button" class="pill" data-gallery-view="flow" role="tab">Flow</button>
-        <button type="button" class="pill" data-gallery-view="list" role="tab">List</button>
-        <button type="button" class="pill" data-gallery-view="grid" role="tab">Grid</button>
-      </div>
-      <button class="btn" id="galleryToggle" title="Toggle gallery">Gallery ↗</button>
       <button class="btn btn-grid" id="gridToggle" aria-label="Toggle layout overlay">
         <span class="dot-indicator"></span> Layout
       </button>
@@ -736,6 +959,14 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
 <div class="hud hud-top" id="hudTop" hidden>
   <button class="hud-top-grip" type="button" aria-label="Drag navigation" title="Drag">
     <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg>
+  </button>
+  <button class="btn hud-top-icon" id="hudHome" type="button" title="Title card" aria-label="Go to title card">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2.5"/>
+      <circle cx="8.5" cy="11.5" r="1.9"/>
+      <path d="M5.2 17c.6-1.7 1.8-2.6 3.3-2.6s2.7.9 3.3 2.6"/>
+      <path d="M14.5 10.2h4.2M14.5 13.2h4.2M14.5 16.2h2.6"/>
+    </svg>
   </button>
   <button class="btn" id="hudPrev" title="Previous">‹</button>
   <span class="hud-nav-counter"><span class="nav-current" id="navCurrent">1</span><span class="nav-slash">/</span><span class="nav-total" id="navTotal">1</span></span>
@@ -783,15 +1014,32 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
   </div>
 </div>
 
+<!-- ═══ BROWSE WIDGET ═══ -->
+<div class="browse-widget" id="browseWidget" hidden role="toolbar" aria-label="Browse controls">
+  <button class="widget-grip" type="button" aria-label="Drag browse widget" title="Drag">
+    <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg>
+  </button>
+  <span class="browse-widget-scope" id="browseWidgetScope">Canvas</span>
+  <button class="btn" id="browseWidgetToggle" title="Open the gallery">Gallery ↗</button>
+  <button class="widget-close" type="button" id="browseWidgetClose" aria-label="Hide browse widget" title="Hide">×</button>
+</div>
+
 <!-- ═══ CONTEXT MENUS ═══ -->
 <div class="canvas-context-menu" id="canvasContextMenu" role="menu" hidden>
-  <div class="ctx-section-label">Layout</div>
+  <div class="ctx-section-label">Browse</div>
+  <button class="ctx-item" data-action="toggle-gallery" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Gallery</button>
+  <button class="ctx-item" data-gallery-view="flow" role="menuitemradio" type="button"><span class="ctx-indicator"></span> Flow view</button>
+  <button class="ctx-item" data-gallery-view="list" role="menuitemradio" type="button"><span class="ctx-indicator"></span> List view</button>
+  <button class="ctx-item" data-gallery-view="grid" role="menuitemradio" type="button"><span class="ctx-indicator"></span> Grid view</button>
+  <div class="ctx-divider"></div>
+  <div class="ctx-section-label">Canvas</div>
   <button class="ctx-item" data-canvas-layout="grid" role="menuitemradio" type="button"><span class="ctx-indicator"></span> Grid</button>
   <button class="ctx-item" data-canvas-layout="array" role="menuitemradio" type="button"><span class="ctx-indicator"></span> Array</button>
-  <div class="ctx-divider"></div>
   <button class="ctx-item no-indicator" data-action="fit" role="menuitem" type="button"><span class="ctx-indicator"></span> Fit to view</button>
   <div class="ctx-divider"></div>
-  <button class="ctx-item" data-action="toggle-widget" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Toolbar widget</button>
+  <div class="ctx-section-label">Widgets</div>
+  <button class="ctx-item" data-action="toggle-browse-widget" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Browse widget</button>
+  <button class="ctx-item" data-action="toggle-widget" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Canvas widget</button>
   <button class="ctx-item" data-action="toggle-minimap" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Minimap</button>
   <button class="ctx-item" data-action="toggle-zoomhud" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Zoom HUD</button>
   <div class="ctx-hint">Drag to pan · Pinch to zoom · Esc collapses</div>
@@ -799,7 +1047,7 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
 
 <div class="canvas-context-menu" id="galleryContextMenu" role="menu" hidden></div>
 
-<!-- ═══ WIDGET / MINIMAP / ZOOM HUD ═══ -->
+<!-- ═══ OTHER WIDGETS ═══ -->
 <div class="canvas-widget" id="canvasWidget" hidden role="toolbar">
   <button class="widget-grip" type="button" aria-label="Drag widget">
     <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg>
@@ -841,7 +1089,7 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
   <button class="zoomhud-close" type="button" aria-label="Hide">×</button>
 </div>
 
-<!-- ═══ HUD ═══ -->
+<!-- ═══ READER BOTTOM HUD ═══ -->
 <div class="hud hud-bottom" id="hud" hidden>
   <span class="hud-count" id="hudStatusCount">0</span>
   <span class="hud-sep"></span>
@@ -903,16 +1151,10 @@ const ZOOM_STEP = 1.25;
    DATA
    ═══════════════════════════════════════════════════════════ */
 const PROFILE = {
-  id: 'identity',
-  type: 'identity',
-  format: 'cv',
-  title: 'Zack Gort',
-  monogram: 'ZG',
-  role: 'Product Designer',
-  org: 'intoview.pro',
-  location: 'Dallas, TX',
-  since: '2026',
-  availability: 'open',
+  id: 'identity', type: 'identity', format: 'cv',
+  title: 'Zack Gort', monogram: 'ZG',
+  role: 'Product Designer', org: 'intoview.pro',
+  location: 'Dallas, TX', since: '2026', availability: 'open',
   deck: 'Designing products that hold up to the public record. Independent, available for select engagements.',
   provenance: { status: 'published', source: 'intoview.pro', author: 'Zack Gort', date: '2026' },
   fullContent: `
@@ -932,21 +1174,11 @@ const PROFILE = {
 };
 
 const CLUSTER_SPECS = [
-  { id:'manifesto', num:'01', title:'Manifesto',
-    deck:'Statement of intent, governance, and how the record is kept.',
-    provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'record',    num:'02', title:'The Record',
-    deck:'The canonical feed — every statement that has cleared the edit window, in order, unchangeable.',
-    provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'otw',       num:'03', title:'Open to Work',
-    deck:'Availability, scope, and terms.',
-    provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'hiring',    num:'04', title:'Hiring',
-    deck:'Roles, briefs, and process.',
-    provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'draft' } },
-  { id:'archive',   num:'05', title:'Archive',
-    deck:'Everything prior, in reverse chronological order.',
-    provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'archived' } }
+  { id:'manifesto', num:'01', title:'Manifesto', deck:'Statement of intent, governance, and how the record is kept.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'record', num:'02', title:'The Record', deck:'The canonical feed — every statement that has cleared the edit window, in order, unchangeable.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'otw', num:'03', title:'Open to Work', deck:'Availability, scope, and terms.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'hiring', num:'04', title:'Hiring', deck:'Roles, briefs, and process.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'draft' } },
+  { id:'archive', num:'05', title:'Archive', deck:'Everything prior, in reverse chronological order.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'archived' } }
 ];
 
 const EDITORIAL_SPECS = [
@@ -1262,8 +1494,7 @@ function buildData() {
       cardIds: [],
       provenance: spec.provenance,
       relationships: { references: [], replies: [], updates: [] },
-      parentId: null, media: null,
-      fullContent: null
+      parentId: null, media: null, fullContent: null
     };
     CLUSTERS.set(c.id, c);
     CARDS.set(c.id, c);
@@ -1279,27 +1510,16 @@ function buildData() {
 
   GALLERY_CARD_SPECS.forEach(r => {
     const c = {
-      id: r.id,
-      type: r.type,
-      format: 'writing',
-      title: r.title,
-      deck: r.deck,
-      clusterId: r.clusterId,
-      section: r.section || null,
+      id: r.id, type: r.type, format: 'writing',
+      title: r.title, deck: r.deck,
+      clusterId: r.clusterId, section: r.section || null,
       provenance: {
-        author: 'Zack Gort',
-        date: r.date,
+        author: 'Zack Gort', date: r.date,
         source: 'intoview.pro / ' + (r.section || r.clusterId),
         status: r.status || 'published'
       },
-      relationships: {
-        references: r.refs || [],
-        replies: [],
-        updates: r.upd || []
-      },
-      parentId: r.parentId || null,
-      media: r.media || null,
-      fullContent: null
+      relationships: { references: r.refs || [], replies: [], updates: r.upd || [] },
+      parentId: r.parentId || null, media: r.media || null, fullContent: null
     };
     CARDS.set(c.id, c);
     const cl = CLUSTERS.get(c.clusterId);
@@ -1380,7 +1600,7 @@ const expandedClusters = new Set();
 const restPositions = new Map();
 let focusedNodeId = 'identity';
 
-const CANVAS_STORAGE_KEY = 'intoview.canvas.v13';
+const CANVAS_STORAGE_KEY = 'intoview.canvas.v15';
 const THEME_STORAGE_KEY = 'intoview.theme';
 const WIDGET_ON_KEY = 'intoview.widget.on';
 const WIDGET_POS_KEY = 'intoview.widget.pos';
@@ -1389,6 +1609,8 @@ const MINIMAP_POS_KEY = 'intoview.minimap.pos';
 const ZOOMHUD_ON_KEY = 'intoview.zoomhud.on';
 const ZOOMHUD_POS_KEY = 'intoview.zoomhud.pos';
 const HUDTOP_POS_KEY = 'intoview.hudtop.pos';
+const BROWSE_ON_KEY = 'intoview.browse.on';
+const BROWSE_POS_KEY = 'intoview.browse.pos';
 
 let widgetVisible = false, widgetPos = null;
 let minimapVisible = false, minimapPos = null, minimapBounds = null;
@@ -1396,6 +1618,7 @@ const minimapNodeEls = new Map();
 let minimapLayoutQueued = false, minimapFrameQueued = false;
 let zoomHudVisible = false, zoomHudPos = null;
 let hudTopPos = null;
+let browseWidgetVisible = false, browseWidgetPos = null;
 let resizeObserver = null;
 
 /* ═══════════════════════════════════════════════════════════
@@ -1496,19 +1719,47 @@ function syncView() {
   applyMinimapVisibility();
   applyZoomHudVisibility();
   applyHudTopPos();
-  updateTopbar();
+  applyBrowseWidgetVisibility();
+  updateBrowseChrome();
   updateStatusText();
 }
 
-function updateTopbar() {
-  const toggle = document.getElementById('galleryToggle');
-  toggle.textContent = browseMode === 'gallery' ? 'Canvas' : 'Gallery ↗';
-  const pills = document.getElementById('galleryViewPills');
-  pills.hidden = browseMode !== 'gallery';
-  pills.querySelectorAll('.pill').forEach(p => {
-    const on = p.dataset.galleryView === galleryView;
-    p.classList.toggle('active', on);
-    p.setAttribute('aria-selected', on ? 'true' : 'false');
+function updateBrowseChrome() {
+  const scope = document.getElementById('browseWidgetScope');
+  const toggle = document.getElementById('browseWidgetToggle');
+  if (scope) {
+    if (browseMode === 'canvas') scope.textContent = 'Canvas';
+    else {
+      const cl = currentRoute.scope ? CLUSTERS.get(currentRoute.scope) : null;
+      scope.textContent = cl ? cl.title : 'Gallery';
+    }
+  }
+  if (toggle) {
+    toggle.textContent = browseMode === 'gallery' ? 'Canvas' : 'Gallery ↗';
+    toggle.title = browseMode === 'gallery' ? 'Back to canvas' : 'Open the gallery';
+  }
+  updateContextMenuBrowseState();
+}
+
+function updateContextMenuBrowseState() {
+  const menu = document.getElementById('canvasContextMenu');
+  if (!menu) return;
+  const toggleGal = menu.querySelector('[data-action="toggle-gallery"]');
+  if (toggleGal) toggleGal.classList.toggle('active', browseMode === 'gallery');
+  menu.querySelectorAll('[data-gallery-view]').forEach(b => {
+    const isCurrent = browseMode === 'gallery' && b.dataset.galleryView === galleryView;
+    b.classList.toggle('active', isCurrent);
+  });
+  const bw = menu.querySelector('[data-action="toggle-browse-widget"]');
+  if (bw) bw.classList.toggle('active', browseWidgetVisible);
+  const w = menu.querySelector('[data-action="toggle-widget"]');
+  if (w) w.classList.toggle('active', widgetVisible);
+  const m = menu.querySelector('[data-action="toggle-minimap"]');
+  if (m) m.classList.toggle('active', minimapVisible);
+  const z = menu.querySelector('[data-action="toggle-zoomhud"]');
+  if (z) z.classList.toggle('active', zoomHudVisible);
+  menu.querySelectorAll('[data-canvas-layout]').forEach(b => {
+    b.classList.toggle('active', b.dataset.canvasLayout === canvasLayout);
   });
 }
 
@@ -1578,9 +1829,7 @@ function updateStatusText() {
       ? (CLUSTERS.get(currentRoute.scope)?.cardIds.length || 0)
       : getTotalCardCount();
     sc.textContent = String(n);
-    st.textContent = currentRoute.scope
-      ? CLUSTERS.get(currentRoute.scope).title
-      : 'Gallery';
+    st.textContent = currentRoute.scope ? CLUSTERS.get(currentRoute.scope).title : 'Gallery';
   } else {
     sc.textContent = String(CARDS.size);
     st.textContent = 'Canvas · ' + canvasLayout;
@@ -1639,7 +1888,11 @@ function renderCanvas() {
     node.style.zIndex = String(++topZ);
   });
 
-  if (isMobile()) {
+  if (canvasLayout === 'array') {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => packArray());
+    });
+  } else if (isMobile()) {
     requestAnimationFrame(() => {
       reflowMobileColumn();
       setTimeout(reflowMobileColumn, 100);
@@ -1652,10 +1905,11 @@ function renderCanvas() {
   document.body.dataset.layout = canvasLayout;
   applyFocus();
 
-  if (panOffset.x === 0 && panOffset.y === 0) requestAnimationFrame(fitCanvasToViewport);
-  else applyPanTransform();
+  if (canvasLayout !== 'array') {
+    if (panOffset.x === 0 && panOffset.y === 0) requestAnimationFrame(fitCanvasToViewport);
+    else applyPanTransform();
+  }
 
-  updateCanvasToolbarUI();
   attachCanvasHandlers();
   requestAnimationFrame(() => drawCanvasEdges());
   queueMinimapLayout();
@@ -1667,7 +1921,7 @@ function getCanvasNodeSpecsWithPositions() {
   const savedPositions = (saved && saved.positions) || {};
   const computed = getLayoutPositions(canvasLayout, specs);
   return specs.map(spec => {
-    if (isMobile()) {
+    if (isMobile() || canvasLayout === 'array') {
       const pos = computed[spec.id] || { x: 0, y: 0 };
       return Object.assign({}, spec, { x: pos.x, y: pos.y });
     }
@@ -1719,6 +1973,13 @@ function renderClusterStack(wrap, cluster) {
     leaf.dataset.cardId = card.id;
     leaf.dataset.clusterId = card.clusterId;
     leaf.appendChild(renderCompactCard(card));
+    // Native click handler — bypasses the drag pipeline so leaves are always
+    // clickable even inside an expanded cluster.
+    leaf.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      openReader(card.id);
+    });
     leaves.appendChild(leaf);
   });
 
@@ -1728,6 +1989,11 @@ function renderClusterStack(wrap, cluster) {
     more.className = 'cluster-browse-all';
     more.textContent = `Browse all ${cluster.cardIds.length} →`;
     more.dataset.clusterId = cluster.id;
+    more.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigate({ mode: 'gallery', scope: cluster.id });
+    });
     leaves.appendChild(more);
   }
 
@@ -1737,6 +2003,11 @@ function renderClusterStack(wrap, cluster) {
   chip.type = 'button';
   chip.className = 'cluster-collapse-chip';
   chip.textContent = 'Collapse';
+  chip.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleCluster(cluster.id);
+  });
   stack.appendChild(chip);
 
   wrap.appendChild(stack);
@@ -1848,6 +2119,7 @@ function getLayoutPositions(layout, nodes) {
 
 function reflowMobileColumn() {
   if (!isMobile()) return;
+  if (canvasLayout === 'array') return;
   const surface = document.getElementById('canvasSurface');
   if (!surface) return;
   const order = ['identity', 'index', ...CLUSTER_ORDER];
@@ -1865,6 +2137,70 @@ function reflowMobileColumn() {
   });
   void surface.offsetHeight;
   nodes.forEach(n => { n.style.transition = ''; });
+}
+
+function packArray() {
+  const surface = document.getElementById('canvasSurface');
+  if (!surface) return;
+  const nodes = [...surface.querySelectorAll('.canvas-node')];
+  if (!nodes.length) return;
+
+  const prevTransform = surface.style.transform;
+  const prevTransition = surface.style.transition;
+  surface.style.transition = 'none';
+  surface.style.transform = 'translate3d(0,0,0) scale(1)';
+  void surface.offsetHeight;
+
+  nodes.forEach(n => { n.style.transition = 'none'; });
+
+  const mobile = isMobile();
+  const vw = window.innerWidth;
+  const startX = 40;
+  const startY = 40;
+  const gapX = 40;
+  const gapY = 40;
+  const maxRight = vw - 40;
+
+  let rowY = startY;
+  let rowH = 0;
+  let cursorX = startX;
+
+  nodes.forEach(node => {
+    const w = node.offsetWidth;
+    const h = node.offsetHeight;
+
+    if (mobile) {
+      node.style.left = startX + 'px';
+      node.style.top = rowY + 'px';
+      restPositions.set(node.dataset.nodeId, { x: startX, y: rowY });
+      rowY += h + gapY;
+      return;
+    }
+
+    if (cursorX > startX && cursorX + w > maxRight) {
+      rowY += rowH + gapY;
+      rowH = 0;
+      cursorX = startX;
+    }
+
+    node.style.left = cursorX + 'px';
+    node.style.top = rowY + 'px';
+    restPositions.set(node.dataset.nodeId, { x: cursorX, y: rowY });
+
+    cursorX += w + gapX;
+    if (h > rowH) rowH = h;
+  });
+
+  void surface.offsetHeight;
+  nodes.forEach(n => { n.style.transition = ''; });
+
+  surface.style.transition = prevTransition;
+  surface.style.transform = prevTransform;
+
+  fitCanvasToViewport();
+  saveCanvasState();
+  drawCanvasEdges();
+  queueMinimapLayout();
 }
 
 function refineIdentityIndexStack() {
@@ -1889,7 +2225,10 @@ function refineIdentityIndexStack() {
 function setupResizeObserver() {
   if (resizeObserver) resizeObserver.disconnect();
   if (!isMobile()) return;
-  resizeObserver = new ResizeObserver(() => reflowMobileColumn());
+  resizeObserver = new ResizeObserver(() => {
+    if (canvasLayout === 'array') packArray();
+    else reflowMobileColumn();
+  });
   document.querySelectorAll('.canvas-node').forEach(n => resizeObserver.observe(n));
 }
 
@@ -1940,16 +2279,6 @@ function drawCanvasEdges() {
   });
 }
 
-function updateCanvasToolbarUI() {
-  document.querySelectorAll('[data-canvas-layout]').forEach(b => b.classList.toggle('active', b.dataset.canvasLayout === canvasLayout));
-  const w = document.querySelector('#canvasContextMenu [data-action="toggle-widget"]');
-  if (w) w.classList.toggle('active', widgetVisible);
-  const m = document.querySelector('#canvasContextMenu [data-action="toggle-minimap"]');
-  if (m) m.classList.toggle('active', minimapVisible);
-  const z = document.querySelector('#canvasContextMenu [data-action="toggle-zoomhud"]');
-  if (z) z.classList.toggle('active', zoomHudVisible);
-}
-
 function applyPanTransform() {
   const surface = document.getElementById('canvasSurface');
   if (surface) surface.style.transform = `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) scale(${scale})`;
@@ -1969,7 +2298,7 @@ function fitCanvasToViewport() {
   });
   const vw = window.innerWidth, vh = window.innerHeight;
   const topbarH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-height')) || 56;
-  const hudReserve = isMobile() ? 100 : 40;
+  const hudReserve = isMobile() ? 100 : 80;
   const padX = 40;
   const availW = vw - padX * 2;
   const availH = vh - topbarH - hudReserve;
@@ -2043,8 +2372,6 @@ function renderGalleryView() {
   updateBorderProgress();
 }
 
-/* The gallery cover card — first item in every browse view.
-   Rendered with accent styling to match the canvas cluster card. */
 function renderGalleryCoverCard() {
   const cl = currentRoute.scope ? CLUSTERS.get(currentRoute.scope) : null;
   const section = currentRoute.section;
@@ -2290,7 +2617,6 @@ function renderGalleryFlow(cards) {
   const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 240;
   const coverW = Math.round(cardW * 1.5);
 
-  // ── Cover card as the first item in the flow ──
   const coverCol = document.createElement('div');
   coverCol.className = 'flow-col-items';
   coverCol.style.left = COVER_X + 'px';
@@ -2309,7 +2635,6 @@ function renderGalleryFlow(cards) {
   coverCol.appendChild(coverItem);
   flowItemsLayer.appendChild(coverCol);
 
-  // Cover column line + label in the track layer
   const coverLine = document.createElement('div');
   coverLine.className = 'flow-col-line';
   coverLine.style.left = COVER_X + 'px';
@@ -2323,7 +2648,6 @@ function renderGalleryFlow(cards) {
   coverLbl.innerHTML = `<span class="num">${escapeHtml(coverLabelText)}</span>${cl ? 'SECTION' : 'GALLERY'}`;
   flowTrack.appendChild(coverLbl);
 
-  // ── Month columns start after the cover ──
   const monthKeys = [];
   const seen = {};
   cards.forEach(c => {
@@ -2387,10 +2711,6 @@ function renderGalleryFlow(cards) {
     flowItemsLayer.appendChild(colWrap);
   });
 
-  // ── Measure the actual rendered extent rather than trusting planColumn's
-  //    estimate. The estimate and the render can diverge (subCol shift, jitter,
-  //    padding rounding), and when they do, flowMaxScroll lands short and the
-  //    last column becomes unreachable. Two passes: once now, once after layout.
   const measure = () => {
     let maxRight = 0;
     flowItemsLayer.querySelectorAll('.flow-col-items').forEach(col => {
@@ -2424,8 +2744,6 @@ function setupFlowInteractions() {
     e.preventDefault();
     const useX = Math.abs(e.deltaX) > Math.abs(e.deltaY);
     const raw = useX ? e.deltaX : e.deltaY;
-    // Trackpad two-finger swipes come in at ~10–40px per event; mouse wheels at ~100.
-    // Scale the raw delta so neither feels like it's pushing through molasses.
     flowScrollTarget += raw * (useX ? 1.4 : 2.2);
     flowScrollTarget = Math.max(-120, Math.min(flowMaxScroll, flowScrollTarget));
   }, { passive: false });
@@ -2440,9 +2758,6 @@ function setupFlowInteractions() {
     if (!dragging) return;
     flowScrollTarget -= (e.clientX - lastX) * 1.0;
     flowScrollTarget = Math.max(-120, Math.min(flowMaxScroll, flowScrollTarget));
-    // Snap during drag so the content tracks the cursor 1:1. The lerp is for
-    // wheel/trackpad motion and post-drag settle only; applying it during drag
-    // makes the user fight the easing and reads as jitter.
     flowScrollX = flowScrollTarget;
     lastX = e.clientX;
   });
@@ -2614,20 +2929,33 @@ function closeReader() {
   navigate(lastBrowseRoute, true);
 }
 
-function buildReaderCover(card, index, total) {
+function isGeneralLetter(card) {
+  if (!card) return false;
+  if (card.fullContent) return false;
+  if (card.type === 'cluster') return false;
+  if (card.type === 'identity') return false;
+  if (card.type === 'index') return false;
+  return true;
+}
+
+function buildReaderCover(card, index, total, opts) {
+  opts = opts || {};
   const cover = document.createElement('div');
   cover.className = 'letter-cover';
   let label;
   if (card.type === 'cluster') label = 'SECTION';
   else if (card.type === 'identity') label = 'IDENTITY';
   else if (card.type === 'index') label = 'INDEX';
-  else label = 'CARD ' + String(index + 1).padStart(2, '0');
+  else label = 'LETTER ' + String(index + 1).padStart(2, '0');
   const p = card.provenance;
+  const deckHTML = opts.hideDeck
+    ? ''
+    : `<p class="swiss-col swiss-col-span-6 swiss-offset-3 letter-cover-deck">${escapeHtml(card.deck)}</p>`;
   cover.innerHTML = `
     <div class="swiss-grid" style="gap:8px var(--swiss-gap,24px)">
       <span class="swiss-col swiss-col-span-3 letter-cover-kicker">${label}</span>
       <h2 class="swiss-col swiss-col-span-9 letter-cover-name">${escapeHtml(card.title)}</h2>
-      <p class="swiss-col swiss-col-span-6 swiss-offset-3 letter-cover-deck">${escapeHtml(card.deck)}</p>
+      ${deckHTML}
       <div class="swiss-col swiss-col-span-9 swiss-offset-3 letter-provenance">
         <span class="letter-provenance-field"><strong>By</strong>${escapeHtml(p.author)}</span>
         <span class="letter-provenance-field"><strong>On</strong>${escapeHtml(p.date)}</span>
@@ -2637,6 +2965,81 @@ function buildReaderCover(card, index, total) {
     </div>
   `;
   return cover;
+}
+
+function renderLetterBentoBody(card) {
+  const p = card.provenance;
+  const rel = card.relationships || {};
+  const refCount = (rel.references?.length || 0)
+    + (rel.replies?.length || 0)
+    + (rel.updates?.length || 0);
+
+  const typeLabel = cardTypeLabel(card.type);
+
+  const mediaCellHTML = card.media
+    ? `<div class="letter-bento-cell letter-bento-media">
+         ${card.media.k === 'video'
+           ? `<video src="${escapeHtml(card.media.src)}" controls playsinline muted loop preload="metadata"></video>`
+           : `<img src="${escapeHtml(card.media.src)}" alt="">`}
+       </div>`
+    : '';
+
+  const taglineWideClass = card.media ? '' : ' is-wide';
+
+  const relItems = [];
+  if (card.parentId && CARDS.has(card.parentId)) {
+    relItems.push({ label: 'Replying to', id: card.parentId, title: CARDS.get(card.parentId).title });
+  }
+  (rel.references || []).forEach(id => {
+    const c = CARDS.get(id);
+    if (c) relItems.push({ label: 'References', id, title: c.title });
+  });
+  (rel.updates || []).forEach(id => {
+    const c = CARDS.get(id);
+    if (c) relItems.push({ label: 'Updates', id, title: c.title });
+  });
+
+  const relBlock = relItems.length
+    ? `<div class="statement-relations">
+         <h4>Related</h4>
+         <ul>${relItems.map(r => `<li>${escapeHtml(r.label)}: <a data-nav-card="${escapeHtml(r.id)}">${escapeHtml(r.title)}</a></li>`).join('')}</ul>
+       </div>`
+    : '';
+
+  const hintText = relItems.length
+    ? `Threads and responses follow beneath this ${escapeHtml(typeLabel.toLowerCase())}`
+    : `End of ${escapeHtml(typeLabel.toLowerCase())} · ${escapeHtml(p.source)}`;
+
+  return `
+    <div class="letter-bento">
+      <div class="letter-bento-cell">
+        <div class="letter-bento-kicker">Name / Role</div>
+        <div class="letter-bento-value">${escapeHtml(p.author)}</div>
+        <div class="letter-bento-value is-sub">${escapeHtml(typeLabel)} · ${escapeHtml(card.section || card.clusterId || 'record')}</div>
+      </div>
+      <div class="letter-bento-cell">
+        <div class="letter-bento-kicker">Discipline</div>
+        <div class="letter-bento-value">${escapeHtml(typeLabel.toUpperCase())}</div>
+      </div>
+      <div class="letter-bento-cell">
+        <div class="letter-bento-kicker">Status</div>
+        <div class="letter-bento-value is-sub">Provenance</div>
+        <div class="letter-bento-status" data-status="${escapeHtml(p.status)}">${escapeHtml(p.status)}</div>
+      </div>
+      <div class="letter-bento-cell">
+        <div class="letter-bento-kicker">Record</div>
+        <div class="letter-bento-num">${refCount}</div>
+        <div class="letter-bento-kicker">${refCount === 1 ? 'Reference' : 'References'}</div>
+      </div>
+      <div class="letter-bento-cell${taglineWideClass}">
+        <div class="letter-bento-kicker">Tagline</div>
+        <div class="letter-bento-value is-quote">"${escapeHtml(card.deck)}"</div>
+      </div>
+      ${mediaCellHTML}
+    </div>
+    <div class="letter-bento-hint">${hintText}</div>
+    ${relBlock}
+  `;
 }
 
 function renderStatementBody(card) {
@@ -2732,7 +3135,8 @@ function renderReaderCard(card, index, total) {
   else if (card.type === 'identity') frameClass += ' identity-card-frame';
   frame.className = frameClass;
 
-  frame.appendChild(buildReaderCover(card, index, total));
+  const useBento = isGeneralLetter(card);
+  frame.appendChild(buildReaderCover(card, index, total, { hideDeck: useBento }));
 
   const toolbar = document.createElement('div');
   toolbar.className = 'letter-toolbar';
@@ -2746,8 +3150,27 @@ function renderReaderCard(card, index, total) {
   content.className = 'letter-content';
   if (card.fullContent) content.innerHTML = card.fullContent;
   else if (card.type === 'cluster') content.innerHTML = renderClusterReaderBody(card);
+  else if (useBento) content.innerHTML = renderLetterBentoBody(card);
   else content.innerHTML = renderStatementBody(card);
   frame.appendChild(content);
+
+  content.querySelectorAll('.letter-bento-media video').forEach(v => {
+    v.muted = true;
+    const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    if (isTouch) {
+      const io = new IntersectionObserver(entries => {
+        entries.forEach(en => {
+          if (en.isIntersecting && en.intersectionRatio >= 0.5) v.play().catch(()=>{});
+          else v.pause();
+        });
+      }, { threshold: [0, 0.5, 1] });
+      io.observe(v);
+    } else {
+      const cell = v.closest('.letter-bento-media') || v;
+      cell.addEventListener('mouseenter', () => v.play().catch(()=>{}));
+      cell.addEventListener('mouseleave', () => { v.pause(); v.currentTime = 0; });
+    }
+  });
 
   content.querySelectorAll('[data-nav-card]').forEach(el => {
     el.addEventListener('click', e => {
@@ -2886,6 +3309,12 @@ function attachNodeHandlers(node) {
   let dragState = null;
   node.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
+    if (canvasLayout === 'array') return;
+    // Interactive elements inside expanded clusters (leaves, the browse-all
+    // button, the collapse chip) handle their own native clicks. Letting them
+    // fall through here means the drag pipeline never preventDefaults or
+    // captures the pointer, so their click events fire reliably.
+    if (closestSafe(e.target, '.cluster-leaf, .cluster-browse-all, .cluster-collapse-chip')) return;
     if (e.pointerType === 'touch') {
       const sx = e.clientX, sy = e.clientY, target = e.target;
       const onUp = ev => {
@@ -2912,6 +3341,7 @@ function attachNodeHandlers(node) {
   });
   node.addEventListener('pointermove', e => {
     if (!dragState || e.pointerId !== dragState.pointerId) return;
+    if (canvasLayout === 'array') return;
     if (node.classList.contains('is-expanded')) return;
     const dx = (e.clientX - dragState.startX) / scale;
     const dy = (e.clientY - dragState.startY) / scale;
@@ -2953,8 +3383,24 @@ function attachNodeHandlers(node) {
 
 function toggleCluster(id) {
   if (!id) return;
+  if (canvasLayout === 'array') return;
   const wasExpanded = expandedClusters.has(id);
-  if (wasExpanded) expandedClusters.delete(id); else expandedClusters.add(id);
+
+  if (!wasExpanded) {
+    const others = Array.from(expandedClusters).filter(other => other !== id);
+    others.forEach(otherId => {
+      expandedClusters.delete(otherId);
+      const otherNode = document.querySelector(`.canvas-node[data-cluster-id="${CSS.escape(otherId)}"]`);
+      if (!otherNode) return;
+      const otherStack = otherNode.querySelector('.cluster-stack');
+      if (otherStack) otherStack.dataset.expanded = 'false';
+      otherNode.classList.remove('is-expanded');
+    });
+    expandedClusters.add(id);
+  } else {
+    expandedClusters.delete(id);
+  }
+
   const node = document.querySelector(`.canvas-node[data-cluster-id="${CSS.escape(id)}"]`);
   if (node) {
     const stack = node.querySelector('.cluster-stack');
@@ -2993,7 +3439,7 @@ function attachCanvasHandlers() {
   if (!root || root.dataset.bound === '1') return;
   root.dataset.bound = '1';
   root.addEventListener('pointerdown', e => {
-    if (closestSafe(e.target, '.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud')) return;
+    if (closestSafe(e.target, '.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud, .browse-widget')) return;
     if (e.pointerType !== 'touch' && closestSafe(e.target, '.canvas-node')) return;
     if (e.button !== 0 && e.button !== 1) return;
     if (e.pointerType === 'touch' && closestSafe(e.target, '.canvas-node') && canvasPointers.size === 0) return;
@@ -3234,7 +3680,7 @@ function stepGalleryScope(delta) {
 function currentVpClass() { return isMobile() ? 'mobile' : 'desktop'; }
 function saveCanvasState() {
   const positions = {};
-  if (!isMobile()) restPositions.forEach((p, id) => { positions[id] = { x: p.x, y: p.y }; });
+  if (!isMobile() && canvasLayout !== 'array') restPositions.forEach((p, id) => { positions[id] = { x: p.x, y: p.y }; });
   const state = {
     layout: canvasLayout, positions,
     pan: { x: panOffset.x, y: panOffset.y },
@@ -3254,99 +3700,93 @@ function loadCanvasState() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   CONTEXT MENUS
+   BROWSE WIDGET
    ═══════════════════════════════════════════════════════════ */
-function closeContextMenu() {
-  const m = document.getElementById('canvasContextMenu');
-  if (m) { m.classList.remove('open'); m.hidden = true; }
+function applyBrowseWidgetVisibility() {
+  const w = document.getElementById('browseWidget');
+  if (!w) return;
+  const readerOpen = currentRoute.mode === 'reader';
+  const shouldShow = browseWidgetVisible && !readerOpen && !isMobile();
+  w.hidden = !shouldShow;
 }
-function openContextMenu(x, y) {
-  const m = document.getElementById('canvasContextMenu');
-  if (!m) return;
-  updateCanvasToolbarUI();
-  m.hidden = false;
-  m.style.left = '0px'; m.style.top = '0px';
-  m.classList.add('open');
-  const r = m.getBoundingClientRect();
-  if (x + r.width > window.innerWidth - 8) x = window.innerWidth - r.width - 8;
-  if (y + r.height > window.innerHeight - 8) y = window.innerHeight - r.height - 8;
-  if (x < 8) x = 8;
-  if (y < 8) y = 8;
-  m.style.left = x + 'px'; m.style.top = y + 'px';
+function setBrowseWidgetVisible(on) {
+  browseWidgetVisible = !!on;
+  try { localStorage.setItem(BROWSE_ON_KEY, browseWidgetVisible ? '1' : '0'); } catch(e){}
+  applyBrowseWidgetVisibility();
+  updateContextMenuBrowseState();
 }
-function setupContextMenu() {
-  const canvas = document.getElementById('canvasRoot');
-  const m = document.getElementById('canvasContextMenu');
-  if (!canvas || !m) return;
-  canvas.addEventListener('contextmenu', e => {
-    if (closestSafe(e.target, '.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud')) return;
-    e.preventDefault();
-    openContextMenu(e.clientX, e.clientY);
-  });
-  document.addEventListener('pointerdown', e => {
-    if (!m.classList.contains('open')) return;
-    if (m.contains(e.target)) return;
-    closeContextMenu();
-  }, true);
-  m.querySelectorAll('[data-canvas-layout]').forEach(b => b.addEventListener('click', () => { setCanvasLayout(b.dataset.canvasLayout); closeContextMenu(); }));
-  m.querySelector('[data-action="fit"]').addEventListener('click', () => { fitCanvas(); closeContextMenu(); });
-  m.querySelector('[data-action="toggle-widget"]').addEventListener('click', () => setWidgetVisible(!widgetVisible));
-  m.querySelector('[data-action="toggle-minimap"]').addEventListener('click', () => setMinimapVisible(!minimapVisible));
-  m.querySelector('[data-action="toggle-zoomhud"]').addEventListener('click', () => setZoomHudVisible(!zoomHudVisible));
-}
-
-function closeGalleryContextMenu() {
-  const m = document.getElementById('galleryContextMenu');
-  if (m) { m.classList.remove('open'); m.hidden = true; }
-}
-function showGalleryContextMenu(x, y, card) {
-  const m = document.getElementById('galleryContextMenu');
-  if (!m) return;
-  m.innerHTML = '';
-  const label = document.createElement('div');
-  label.className = 'ctx-section-label';
-  label.textContent = cardTypeLabel(card.type);
-  m.appendChild(label);
-  const open = document.createElement('button');
-  open.type = 'button';
-  open.className = 'ctx-item no-indicator';
-  open.innerHTML = '<span class="ctx-indicator"></span> Open in reader';
-  open.addEventListener('click', () => { openReader(card.id); closeGalleryContextMenu(); });
-  m.appendChild(open);
-  if (card.clusterId && CLUSTERS.has(card.clusterId)) {
-    const cl = CLUSTERS.get(card.clusterId);
-    const goSec = document.createElement('button');
-    goSec.type = 'button';
-    goSec.className = 'ctx-item no-indicator';
-    goSec.innerHTML = `<span class="ctx-indicator"></span> All of ${escapeHtml(cl.title)}`;
-    goSec.addEventListener('click', () => { navigate({ mode: 'gallery', scope: cl.id }); closeGalleryContextMenu(); });
-    m.appendChild(goSec);
-    if (card.section) {
-      const goSub = document.createElement('button');
-      goSub.type = 'button';
-      goSub.className = 'ctx-item no-indicator';
-      goSub.innerHTML = `<span class="ctx-indicator"></span> Section: ${escapeHtml(card.section)}`;
-      goSub.addEventListener('click', () => { navigate({ mode: 'gallery', scope: cl.id, section: card.section }); closeGalleryContextMenu(); });
-      m.appendChild(goSub);
-    }
+function applyBrowseWidgetPos() {
+  const w = document.getElementById('browseWidget');
+  if (!w) return;
+  if (browseWidgetPos && typeof browseWidgetPos.x === 'number') {
+    w.style.left = browseWidgetPos.x + 'px';
+    w.style.top  = browseWidgetPos.y + 'px';
+    w.style.right = 'auto'; w.style.bottom = 'auto';
+    w.style.transform = 'none';
+  } else {
+    w.style.left = ''; w.style.top = '';
+    w.style.right = ''; w.style.bottom = '';
+    w.style.transform = '';
   }
-  m.hidden = false;
-  m.style.left = '0px'; m.style.top = '0px';
-  m.classList.add('open');
-  const r = m.getBoundingClientRect();
-  const cx = Math.min(x, window.innerWidth - r.width - 8);
-  const cy = Math.min(y, window.innerHeight - r.height - 8);
-  m.style.left = Math.max(8, cx) + 'px';
-  m.style.top = Math.max(8, cy) + 'px';
 }
-function setupGalleryContextMenu() {
-  const m = document.getElementById('galleryContextMenu');
-  if (!m) return;
-  document.addEventListener('pointerdown', e => {
-    if (!m.classList.contains('open')) return;
-    if (m.contains(e.target)) return;
-    closeGalleryContextMenu();
-  }, true);
+function clampBrowseWidgetPos(x, y) {
+  const w = document.getElementById('browseWidget');
+  if (!w) return { x, y };
+  x = Math.max(4, Math.min(window.innerWidth - w.offsetWidth - 4, x));
+  y = Math.max(4, Math.min(window.innerHeight - w.offsetHeight - 4, y));
+  return { x, y };
+}
+function setupBrowseWidget() {
+  const w = document.getElementById('browseWidget');
+  if (!w) return;
+  try {
+    const stored = localStorage.getItem(BROWSE_ON_KEY);
+    browseWidgetVisible = stored === null ? true : stored === '1';
+  } catch(e){ browseWidgetVisible = true; }
+  try {
+    const pos = JSON.parse(localStorage.getItem(BROWSE_POS_KEY) || 'null');
+    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') browseWidgetPos = pos;
+  } catch(e){}
+  applyBrowseWidgetPos();
+
+  const toggle = w.querySelector('#browseWidgetToggle');
+  toggle.addEventListener('click', () => {
+    if (browseMode === 'gallery') navigate({ mode: 'canvas' });
+    else navigate({ mode: 'gallery', scope: null, view: galleryView });
+  });
+
+  w.querySelector('#browseWidgetClose').addEventListener('click', () => setBrowseWidgetVisible(false));
+
+  const grip = w.querySelector('.widget-grip');
+  grip.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const rect = w.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY, sl = rect.left, st = rect.top;
+    w.style.right = 'auto'; w.style.bottom = 'auto';
+    w.style.left = sl + 'px'; w.style.top = st + 'px'; w.style.transform = 'none';
+    w.classList.add('dragging');
+    try { grip.setPointerCapture(e.pointerId); } catch(err){}
+    const onMove = ev => {
+      if (ev.pointerId !== e.pointerId) return;
+      const x = sl + (ev.clientX - sx), y = st + (ev.clientY - sy);
+      const c = clampBrowseWidgetPos(x, y);
+      w.style.left = c.x + 'px'; w.style.top = c.y + 'px';
+      browseWidgetPos = c;
+    };
+    const onUp = ev => {
+      if (ev.pointerId !== e.pointerId) return;
+      w.classList.remove('dragging');
+      grip.removeEventListener('pointermove', onMove);
+      grip.removeEventListener('pointerup', onUp);
+      grip.removeEventListener('pointercancel', onUp);
+      try { grip.releasePointerCapture(e.pointerId); } catch(err){}
+      try { if (browseWidgetPos) localStorage.setItem(BROWSE_POS_KEY, JSON.stringify(browseWidgetPos)); } catch(e){}
+    };
+    grip.addEventListener('pointermove', onMove);
+    grip.addEventListener('pointerup', onUp);
+    grip.addEventListener('pointercancel', onUp);
+    e.preventDefault();
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -3362,7 +3802,7 @@ function setWidgetVisible(on) {
   widgetVisible = !!on;
   try { localStorage.setItem(WIDGET_ON_KEY, widgetVisible ? '1' : '0'); } catch(e){}
   applyWidgetVisibility();
-  updateCanvasToolbarUI();
+  updateContextMenuBrowseState();
 }
 function applyMinimapVisibility() {
   const mm = document.getElementById('canvasMinimap');
@@ -3377,7 +3817,7 @@ function setMinimapVisible(on) {
   minimapVisible = !!on;
   try { localStorage.setItem(MINIMAP_ON_KEY, minimapVisible ? '1' : '0'); } catch(e){}
   applyMinimapVisibility();
-  updateCanvasToolbarUI();
+  updateContextMenuBrowseState();
 }
 function applyZoomHudVisibility() {
   const zh = document.getElementById('canvasZoomHud');
@@ -3396,7 +3836,7 @@ function setZoomHudVisible(on) {
   zoomHudVisible = !!on;
   try { localStorage.setItem(ZOOMHUD_ON_KEY, zoomHudVisible ? '1' : '0'); } catch(e){}
   applyZoomHudVisibility();
-  updateCanvasToolbarUI();
+  updateContextMenuBrowseState();
 }
 function applyMinimapPos() {
   const mm = document.getElementById('canvasMinimap');
@@ -3735,8 +4175,12 @@ function setCanvasLayout(layout) {
     CLUSTER_ORDER.forEach(id => expandedClusters.add(id));
     document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'true');
     document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => n.classList.add('is-expanded'));
-    applyFocus(); updateCanvasToolbarUI(); updateStatusText();
-    requestAnimationFrame(() => setTimeout(() => { fitCanvasToViewport(); drawCanvasEdges(); queueMinimapLayout(); }, 400));
+    applyFocus();
+    updateContextMenuBrowseState();
+    updateStatusText();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => packArray());
+    });
     return;
   }
   expandedClusters.clear();
@@ -3756,7 +4200,7 @@ function setCanvasLayout(layout) {
     });
     if (isMobile()) reflowMobileColumn();
     else refineIdentityIndexStack();
-    applyFocus(); updateCanvasToolbarUI(); updateStatusText();
+    applyFocus(); updateContextMenuBrowseState(); updateStatusText();
     setTimeout(() => { fitCanvasToViewport(); saveCanvasState(); drawCanvasEdges(); queueMinimapLayout(); }, 400);
   }, 20);
 }
@@ -3834,23 +4278,128 @@ function setupGridToggle() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   VIEW PILLS / GALLERY TOGGLE
+   CONTEXT MENU HANDLERS
    ═══════════════════════════════════════════════════════════ */
-function setupGalleryToggle() {
-  document.getElementById('galleryToggle').addEventListener('click', () => {
-    if (browseMode === 'gallery') navigate({ mode: 'canvas' });
-    else navigate({ mode: 'gallery', scope: null, view: galleryView });
-  });
-  document.querySelectorAll('#galleryViewPills .pill').forEach(p => {
-    p.addEventListener('click', () => {
-      galleryView = p.dataset.galleryView;
-      if (!currentRoute.scope) navigate({ mode: 'gallery', scope: null, view: galleryView }, true);
-      else {
-        updateTopbar();
-        renderGalleryView();
-      }
-    });
-  });
+function goGalleryView(viewId) {
+  if (browseMode !== 'gallery') {
+    navigate({ mode: 'gallery', scope: currentRoute.scope || null, view: viewId });
+  } else {
+    galleryView = viewId;
+    if (!currentRoute.scope) navigate({ mode: 'gallery', scope: null, view: galleryView }, true);
+    else { renderGalleryView(); updateContextMenuBrowseState(); }
+  }
+}
+function toggleGalleryFromMenu() {
+  if (browseMode === 'gallery') navigate({ mode: 'canvas' });
+  else navigate({ mode: 'gallery', scope: null, view: galleryView });
+}
+
+function closeContextMenu() {
+  const m = document.getElementById('canvasContextMenu');
+  if (m) { m.classList.remove('open'); m.hidden = true; }
+}
+function openContextMenu(x, y) {
+  const m = document.getElementById('canvasContextMenu');
+  if (!m) return;
+  updateContextMenuBrowseState();
+  m.hidden = false;
+  m.style.left = '0px'; m.style.top = '0px';
+  m.classList.add('open');
+  const r = m.getBoundingClientRect();
+  if (x + r.width > window.innerWidth - 8) x = window.innerWidth - r.width - 8;
+  if (y + r.height > window.innerHeight - 8) y = window.innerHeight - r.height - 8;
+  if (x < 8) x = 8;
+  if (y < 8) y = 8;
+  m.style.left = x + 'px'; m.style.top = y + 'px';
+}
+function setupContextMenu() {
+  const canvas = document.getElementById('canvasRoot');
+  const m = document.getElementById('canvasContextMenu');
+  const gallery = document.getElementById('galleryRoot');
+  if (!m) return;
+
+  const openHandler = e => {
+    if (closestSafe(e.target, '.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud, .browse-widget, .letter-card-frame')) return;
+    e.preventDefault();
+    openContextMenu(e.clientX, e.clientY);
+  };
+  if (canvas) canvas.addEventListener('contextmenu', openHandler);
+  if (gallery) gallery.addEventListener('contextmenu', openHandler);
+
+  document.addEventListener('pointerdown', e => {
+    if (!m.classList.contains('open')) return;
+    if (m.contains(e.target)) return;
+    closeContextMenu();
+  }, true);
+
+  m.querySelectorAll('[data-canvas-layout]').forEach(b => b.addEventListener('click', () => {
+    setCanvasLayout(b.dataset.canvasLayout);
+    closeContextMenu();
+  }));
+  m.querySelector('[data-action="fit"]').addEventListener('click', () => { fitCanvas(); closeContextMenu(); });
+  m.querySelector('[data-action="toggle-widget"]').addEventListener('click', () => setWidgetVisible(!widgetVisible));
+  m.querySelector('[data-action="toggle-minimap"]').addEventListener('click', () => setMinimapVisible(!minimapVisible));
+  m.querySelector('[data-action="toggle-zoomhud"]').addEventListener('click', () => setZoomHudVisible(!zoomHudVisible));
+  m.querySelector('[data-action="toggle-browse-widget"]').addEventListener('click', () => setBrowseWidgetVisible(!browseWidgetVisible));
+  m.querySelector('[data-action="toggle-gallery"]').addEventListener('click', () => { toggleGalleryFromMenu(); closeContextMenu(); });
+  m.querySelectorAll('[data-gallery-view]').forEach(b => b.addEventListener('click', () => {
+    goGalleryView(b.dataset.galleryView);
+    closeContextMenu();
+  }));
+}
+
+function closeGalleryContextMenu() {
+  const m = document.getElementById('galleryContextMenu');
+  if (m) { m.classList.remove('open'); m.hidden = true; }
+}
+function showGalleryContextMenu(x, y, card) {
+  const m = document.getElementById('galleryContextMenu');
+  if (!m) return;
+  m.innerHTML = '';
+  const label = document.createElement('div');
+  label.className = 'ctx-section-label';
+  label.textContent = cardTypeLabel(card.type);
+  m.appendChild(label);
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'ctx-item no-indicator';
+  open.innerHTML = '<span class="ctx-indicator"></span> Open in reader';
+  open.addEventListener('click', () => { openReader(card.id); closeGalleryContextMenu(); });
+  m.appendChild(open);
+  if (card.clusterId && CLUSTERS.has(card.clusterId)) {
+    const cl = CLUSTERS.get(card.clusterId);
+    const goSec = document.createElement('button');
+    goSec.type = 'button';
+    goSec.className = 'ctx-item no-indicator';
+    goSec.innerHTML = `<span class="ctx-indicator"></span> All of ${escapeHtml(cl.title)}`;
+    goSec.addEventListener('click', () => { navigate({ mode: 'gallery', scope: cl.id }); closeGalleryContextMenu(); });
+    m.appendChild(goSec);
+    if (card.section) {
+      const goSub = document.createElement('button');
+      goSub.type = 'button';
+      goSub.className = 'ctx-item no-indicator';
+      goSub.innerHTML = `<span class="ctx-indicator"></span> Section: ${escapeHtml(card.section)}`;
+      goSub.addEventListener('click', () => { navigate({ mode: 'gallery', scope: cl.id, section: card.section }); closeGalleryContextMenu(); });
+      m.appendChild(goSub);
+    }
+  }
+  m.hidden = false;
+  m.style.left = '0px'; m.style.top = '0px';
+  m.classList.add('open');
+  const r = m.getBoundingClientRect();
+  const cx = Math.min(x, window.innerWidth - r.width - 8);
+  const cy = Math.min(y, window.innerHeight - r.height - 8);
+  m.style.left = Math.max(8, cx) + 'px';
+  m.style.top = Math.max(8, cy) + 'px';
+}
+function setupGalleryContextMenu() {
+  const m = document.getElementById('galleryContextMenu');
+  if (!m) return;
+  document.addEventListener('pointerdown', e => {
+    if (!m.classList.contains('open')) return;
+    if (m.contains(e.target)) return;
+    closeGalleryContextMenu();
+  }, true);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -3893,6 +4442,15 @@ function buildMobileSheet() {
       <span class="mobile-index-label">Index</span>
       <span class="mobile-index-count">${CLUSTER_ORDER.length} sections</span>
     </button>
+    <div class="mobile-section-label">Browse</div>
+    <div class="mobile-canvas-controls">
+      <button class="btn" type="button" data-action="toggle-gallery" id="mobileGalleryToggle">Gallery ↗</button>
+    </div>
+    <div class="mobile-canvas-controls">
+      <button class="btn" type="button" data-gallery-view="flow">Flow</button>
+      <button class="btn" type="button" data-gallery-view="list">List</button>
+      <button class="btn" type="button" data-gallery-view="grid">Grid</button>
+    </div>
     <div class="mobile-section-label">Sections</div>
     <ul class="mobile-sections">${sectionsHtml}</ul>
     <div class="mobile-section-label">Canvas</div>
@@ -3912,6 +4470,11 @@ function updateMobileSheetActiveStates() {
   body.querySelectorAll('[data-action="toggle-grid"]').forEach(b => b.classList.toggle('active', document.body.classList.contains('show-grid')));
   body.querySelectorAll('[data-theme-toggle]').forEach(b => {
     b.textContent = document.body.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light';
+  });
+  const gt = document.getElementById('mobileGalleryToggle');
+  if (gt) gt.textContent = browseMode === 'gallery' ? 'Canvas' : 'Gallery ↗';
+  body.querySelectorAll('[data-gallery-view]').forEach(b => {
+    b.classList.toggle('active', b.dataset.galleryView === galleryView && browseMode === 'gallery');
   });
 }
 function setupMobileSheet() {
@@ -3971,6 +4534,15 @@ function setupMobileSheet() {
     applyTheme(cur === 'light' ? 'dark' : 'light');
     updateMobileSheetActiveStates();
   }));
+  body.querySelectorAll('[data-action="toggle-gallery"]').forEach(b => b.addEventListener('click', () => {
+    toggleGalleryFromMenu();
+    closeSheet();
+  }));
+  body.querySelectorAll('[data-gallery-view]').forEach(b => b.addEventListener('click', () => {
+    goGalleryView(b.dataset.galleryView);
+    updateMobileSheetActiveStates();
+    closeSheet();
+  }));
   sheet._openSheet = openSheet;
   sheet._closeSheet = closeSheet;
   sheet._isOpen = () => sheet.classList.contains('open');
@@ -4006,9 +4578,10 @@ function setupViewportBlur() {
 function initWriteCursor() {
   const dot = document.getElementById('writeCursorDot');
   const ellipse = document.getElementById('writeCursorEllipse');
-  if (!dot || !ellipse) return;
+  const chevron = document.getElementById('writeCursorChevron');
+  if (!dot || !ellipse || !chevron) return;
   if (window.matchMedia('(hover: none)').matches) return;
-  const NATIVE = 'button, a, input, textarea, select, [role="button"], .letter-hotspot, .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .view-pills, .pill, .flow-item, .list-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .cluster-reader-tile';
+  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .list-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .cluster-reader-tile, .browse-widget';
   const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .cluster-collapse-chip, .cluster-peek';
   const LIGHT_SURFACE = '.prov-card[data-type="identity"]';
   let px = 0, py = 0, prevX = 0, prevY = 0, init = false;
@@ -4032,22 +4605,42 @@ function initWriteCursor() {
   }
   window.addEventListener('mousemove', e => {
     const el = (e.target && e.target.nodeType === 1) ? e.target : null;
-    const overNative = !!(el && el.closest && el.closest(NATIVE));
-    const overAccent = !!(el && el.closest && el.closest(ACCENT_SURFACE));
-    const overLight = !overAccent && !!(el && el.closest && el.closest(LIGHT_SURFACE));
+    /* Detect whether the cursor is inside a reader prev/next hotspot. When it
+       is, the cursor becomes the chevron and the fallback circle markers go
+       away (see CSS). This is the primary indicator path. */
+    const overPrev = !!(el && el.closest && el.closest('.letter-hotspot-prev'));
+    const overNext = !!(el && el.closest && el.closest('.letter-hotspot-next'));
+    const chevronMode = overPrev || overNext;
+
+    const overNative = !chevronMode && !!(el && el.closest && el.closest(NATIVE));
+    const overAccent = !chevronMode && !!(el && el.closest && el.closest(ACCENT_SURFACE));
+    const overLight = !chevronMode && !overAccent && !!(el && el.closest && el.closest(LIGHT_SURFACE));
+
     document.body.classList.add('custom-cursor-active');
     document.body.classList.toggle('write-native-cursor', overNative);
     document.body.classList.toggle('cursor-on-accent', overAccent);
     document.body.classList.toggle('cursor-on-light', overLight);
+    document.body.classList.toggle('cursor-chevron-prev', overPrev);
+    document.body.classList.toggle('cursor-chevron-next', overNext);
+
     px = e.clientX; py = e.clientY;
     dot.style.transform = 'translate(' + px + 'px,' + py + 'px)';
-    dot.classList.add('visible');
-    ellipse.classList.add('visible');
+    chevron.style.transform = 'translate(' + px + 'px,' + py + 'px)';
+
+    dot.classList.toggle('visible', !chevronMode);
+    ellipse.classList.toggle('visible', !chevronMode);
+    chevron.classList.toggle('visible', chevronMode);
+
     if (!raf) raf = requestAnimationFrame(step);
   });
   document.addEventListener('mouseleave', () => {
-    dot.classList.remove('visible'); ellipse.classList.remove('visible');
-    document.body.classList.remove('write-native-cursor','custom-cursor-active','cursor-on-accent','cursor-on-light');
+    dot.classList.remove('visible');
+    ellipse.classList.remove('visible');
+    chevron.classList.remove('visible');
+    document.body.classList.remove(
+      'write-native-cursor','custom-cursor-active','cursor-on-accent','cursor-on-light',
+      'cursor-chevron-prev','cursor-chevron-next'
+    );
     if (raf) { cancelAnimationFrame(raf); raf = null; }
   });
 }
@@ -4116,6 +4709,10 @@ function setupKeyboard() {
 function setupCarousel() {
   document.getElementById('hudPrev').addEventListener('click', () => activatePanel(activeIndex - 1));
   document.getElementById('hudNext').addEventListener('click', () => activatePanel(activeIndex + 1));
+  // Home button: jump to panel 0 of the current carousel — the provenance
+  // card that leads it (cluster card for a section, identity/index card when
+  // those are what's being read). Not a separate reader, just a slide back.
+  document.getElementById('hudHome').addEventListener('click', () => activatePanel(0));
   document.getElementById('letterHotspotPrev').addEventListener('click', () => activatePanel(activeIndex - 1));
   document.getElementById('letterHotspotNext').addEventListener('click', () => activatePanel(activeIndex + 1));
 
@@ -4185,11 +4782,11 @@ function init() {
   setupMinimap();
   setupZoomHud();
   setupHudTop();
+  setupBrowseWidget();
 
   setupViewportBlur();
   setupAppearanceDropdown();
   setupGridToggle();
-  setupGalleryToggle();
   setupContextMenu();
   setupGalleryContextMenu();
   setupCarousel();
@@ -4250,7 +4847,10 @@ function init() {
       const crossed = nowMobile !== lastMobile;
       lastMobile = nowMobile;
       if (browseMode === 'canvas' && currentRoute.mode !== 'reader') {
-        if (crossed && nowMobile) {
+        if (canvasLayout === 'array') {
+          if (crossed) restPositions.clear();
+          packArray();
+        } else if (crossed && nowMobile) {
           restPositions.clear();
           reflowMobileColumn();
           fitToFocus({ force: true });
@@ -4277,6 +4877,13 @@ function init() {
       } else if (browseMode === 'gallery') {
         renderGalleryView();
       }
+      if (browseWidgetPos) {
+        const c = clampBrowseWidgetPos(browseWidgetPos.x, browseWidgetPos.y);
+        browseWidgetPos = c;
+        applyBrowseWidgetPos();
+        try { localStorage.setItem(BROWSE_POS_KEY, JSON.stringify(browseWidgetPos)); } catch(e){}
+      }
+      applyBrowseWidgetVisibility();
       updateMobileHud();
     }, 220);
   });
