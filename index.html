@@ -2372,8 +2372,8 @@ function renderGalleryView() {
   updateBorderProgress();
 }
 
-function renderGalleryCoverCard() {
-  const cl = currentRoute.scope ? CLUSTERS.get(currentRoute.scope) : null;
+function renderGalleryCoverCard(clusterOverride) {
+  const cl = clusterOverride || (currentRoute.scope ? CLUSTERS.get(currentRoute.scope) : null);
   const section = currentRoute.section;
   const p = cl ? cl.provenance : { author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' };
   const kicker = cl ? 'SECTION' : 'GALLERY';
@@ -2617,98 +2617,145 @@ function renderGalleryFlow(cards) {
   const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 240;
   const coverW = Math.round(cardW * 1.5);
 
-  const coverCol = document.createElement('div');
-  coverCol.className = 'flow-col-items';
-  coverCol.style.left = COVER_X + 'px';
-  coverCol.style.width = coverW + 'px';
-  coverCol.setAttribute('data-col-seed', hashStr('col-cover'));
-  flowColBobEls.push(coverCol);
+  let cursorX = COVER_X;
 
-  const coverItem = document.createElement('div');
-  coverItem.className = 'flow-item flow-cover-item';
-  coverItem.style.left = '0';
-  coverItem.style.width = '100%';
-  coverItem.style.top = '50%';
-  coverItem.style.transform = 'translateY(-50%)';
-  coverItem.style.cursor = 'default';
-  coverItem.appendChild(renderGalleryCoverCard());
-  coverCol.appendChild(coverItem);
-  flowItemsLayer.appendChild(coverCol);
+  /* 1 ── Global cover (only when browsing the whole gallery) */
+  if (!currentRoute.scope) {
+    const globalCoverCol = document.createElement('div');
+    globalCoverCol.className = 'flow-col-items';
+    globalCoverCol.style.left = cursorX + 'px';
+    globalCoverCol.style.width = coverW + 'px';
+    globalCoverCol.setAttribute('data-col-seed', hashStr('col-cover-global'));
+    flowColBobEls.push(globalCoverCol);
 
-  const coverLine = document.createElement('div');
-  coverLine.className = 'flow-col-line';
-  coverLine.style.left = COVER_X + 'px';
-  flowTrack.appendChild(coverLine);
+    const globalCoverItem = document.createElement('div');
+    globalCoverItem.className = 'flow-item flow-cover-item';
+    globalCoverItem.style.left = '0';
+    globalCoverItem.style.width = '100%';
+    globalCoverItem.style.top = '50%';
+    globalCoverItem.style.transform = 'translateY(-50%)';
+    globalCoverItem.style.cursor = 'default';
+    globalCoverItem.appendChild(renderGalleryCoverCard());
+    globalCoverCol.appendChild(globalCoverItem);
+    flowItemsLayer.appendChild(globalCoverCol);
 
-  const coverLbl = document.createElement('div');
-  coverLbl.className = 'flow-col-label is-cover';
-  coverLbl.style.left = (COVER_X - 12) + 'px';
-  const cl = currentRoute.scope ? CLUSTERS.get(currentRoute.scope) : null;
-  const coverLabelText = cl ? (cl.num || '—') : '◈';
-  coverLbl.innerHTML = `<span class="num">${escapeHtml(coverLabelText)}</span>${cl ? 'SECTION' : 'GALLERY'}`;
-  flowTrack.appendChild(coverLbl);
+    const globalLine = document.createElement('div');
+    globalLine.className = 'flow-col-line';
+    globalLine.style.left = cursorX + 'px';
+    flowTrack.appendChild(globalLine);
+    const globalLbl = document.createElement('div');
+    globalLbl.className = 'flow-col-label is-cover';
+    globalLbl.style.left = (cursorX - 12) + 'px';
+    globalLbl.innerHTML = `<span class="num">◈</span>GALLERY`;
+    flowTrack.appendChild(globalLbl);
 
-  const monthKeys = [];
-  const seen = {};
-  cards.forEach(c => {
-    const m = /^(\d{4})-(\d{2})/.exec(c.provenance.date || '');
-    const k = m ? `${m[1]}-${m[2]}` : '0000-00';
-    if (!seen[k]) { seen[k] = true; monthKeys.push(k); }
-  });
-  monthKeys.sort();
-  const byMonth = monthKeys.map(k => cards.filter(c => (c.provenance.date || '').startsWith(k)));
-  const plans = byMonth.map(cs => planColumn(cs, vh));
+    cursorX += coverW + COL_GUTTER;
+  }
 
-  let cursorX = COVER_X + coverW + COL_GUTTER;
-  flowColX = plans.map(p => { const x = cursorX; cursorX += p.width + COL_GUTTER; return x; });
+  /* 2 ── Group cards by cluster and render each cluster as
+         [cover column] + [month columns].  When scoped to a single
+         cluster, only that cluster's cover is drawn. */
+  const groups = currentRoute.scope
+    ? [{ cluster: CLUSTERS.get(currentRoute.scope), cards }]
+    : CLUSTER_ORDER.map(id => ({
+        cluster: CLUSTERS.get(id),
+        cards: CLUSTERS.get(id).cardIds.map(cid => CARDS.get(cid)).filter(Boolean)
+      }));
 
-  monthKeys.forEach((k, m) => {
-    const line = document.createElement('div');
-    line.className = 'flow-col-line';
-    line.style.left = flowColX[m] + 'px';
-    flowTrack.appendChild(line);
-    const lbl = document.createElement('div');
-    lbl.className = 'flow-col-label';
-    lbl.style.left = (flowColX[m] - 12) + 'px';
-    const mn = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-    const mm = /-(\d{2})$/.exec(k);
-    const yy = /^(\d{4})/.exec(k);
-    lbl.innerHTML = `<span class="num">${mm ? mn[parseInt(mm[1],10)-1] : '—'}</span>${yy ? yy[1] : ''}`;
-    flowTrack.appendChild(lbl);
-  });
+  groups.forEach((group, gIdx) => {
+    if (!group.cluster || !group.cards.length) return;
 
-  plans.forEach((plan, m) => {
-    const colWrap = document.createElement('div');
-    colWrap.className = 'flow-col-items';
-    colWrap.style.left = flowColX[m] + 'px';
-    colWrap.style.width = plan.width + 'px';
-    colWrap.setAttribute('data-col-seed', hashStr('col' + m));
-    flowColBobEls.push(colWrap);
+    /* Cluster cover column */
+    const clusterCoverCol = document.createElement('div');
+    clusterCoverCol.className = 'flow-col-items';
+    clusterCoverCol.style.left = cursorX + 'px';
+    clusterCoverCol.style.width = coverW + 'px';
+    clusterCoverCol.setAttribute('data-col-seed', hashStr('col-cover-' + gIdx));
+    flowColBobEls.push(clusterCoverCol);
 
-    plan.placed.forEach(p => {
-      const card = p.card;
-      const subX = COL_PAD + p.sub * (plan.cardW + SUBCOL_GAP);
-      const jitter = Math.round(srand(p.seed + 1) * 14) - 7;
-      const left = subX + jitter;
-      const halfVp = vh / 2;
-      let top = p.topOffset;
-      if (top < -halfVp) top = -halfVp;
-      if (top + p.h > halfVp) top = halfVp - p.h;
+    const clusterCoverItem = document.createElement('div');
+    clusterCoverItem.className = 'flow-item flow-cover-item';
+    clusterCoverItem.style.left = '0';
+    clusterCoverItem.style.width = '100%';
+    clusterCoverItem.style.top = '50%';
+    clusterCoverItem.style.transform = 'translateY(-50%)';
+    clusterCoverItem.style.cursor = 'default';
+    clusterCoverItem.appendChild(renderGalleryCoverCard(group.cluster));
+    clusterCoverCol.appendChild(clusterCoverItem);
+    flowItemsLayer.appendChild(clusterCoverCol);
 
-      const el = document.createElement('div');
-      el.className = 'flow-item';
-      el.style.left = left + 'px';
-      el.style.width = plan.cardW + 'px';
-      el.style.top = `calc(50% + ${Math.round(top)}px)`;
-      el.dataset.cardId = card.id;
+    const clLine = document.createElement('div');
+    clLine.className = 'flow-col-line';
+    clLine.style.left = cursorX + 'px';
+    flowTrack.appendChild(clLine);
+    const clLbl = document.createElement('div');
+    clLbl.className = 'flow-col-label is-cover';
+    clLbl.style.left = (cursorX - 12) + 'px';
+    clLbl.innerHTML = `<span class="num">${escapeHtml(group.cluster.num || '—')}</span>${escapeHtml(group.cluster.title || '')}`;
+    flowTrack.appendChild(clLbl);
 
-      const cardEl = renderGalleryCard(card);
-      el.appendChild(cardEl);
-      wireVideo(cardEl);
-      wireGalleryCard(el, card);
-      colWrap.appendChild(el);
+    cursorX += coverW + COL_GUTTER;
+
+    /* Month columns for this cluster */
+    const monthKeys = [];
+    const seen = {};
+    group.cards.forEach(c => {
+      const m = /^(\d{4})-(\d{2})/.exec(c.provenance.date || '');
+      const k = m ? `${m[1]}-${m[2]}` : '0000-00';
+      if (!seen[k]) { seen[k] = true; monthKeys.push(k); }
     });
-    flowItemsLayer.appendChild(colWrap);
+    monthKeys.sort();
+    const byMonth = monthKeys.map(k => group.cards.filter(c => (c.provenance.date || '').startsWith(k)));
+    const plans = byMonth.map(cs => planColumn(cs, vh));
+
+    monthKeys.forEach((k, m) => {
+      const line = document.createElement('div');
+      line.className = 'flow-col-line';
+      line.style.left = cursorX + 'px';
+      flowTrack.appendChild(line);
+      const lbl = document.createElement('div');
+      lbl.className = 'flow-col-label';
+      lbl.style.left = (cursorX - 12) + 'px';
+      const mn = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+      const mm = /-(\d{2})$/.exec(k);
+      const yy = /^(\d{4})/.exec(k);
+      lbl.innerHTML = `<span class="num">${mm ? mn[parseInt(mm[1],10)-1] : '—'}</span>${yy ? yy[1] : ''}`;
+      flowTrack.appendChild(lbl);
+
+      const plan = plans[m];
+      const colWrap = document.createElement('div');
+      colWrap.className = 'flow-col-items';
+      colWrap.style.left = cursorX + 'px';
+      colWrap.style.width = plan.width + 'px';
+      colWrap.setAttribute('data-col-seed', hashStr('col' + gIdx + '_' + m));
+      flowColBobEls.push(colWrap);
+
+      plan.placed.forEach(p => {
+        const card = p.card;
+        const subX = COL_PAD + p.sub * (plan.cardW + SUBCOL_GAP);
+        const jitter = Math.round(srand(p.seed + 1) * 14) - 7;
+        const left = subX + jitter;
+        const halfVp = vh / 2;
+        let top = p.topOffset;
+        if (top < -halfVp) top = -halfVp;
+        if (top + p.h > halfVp) top = halfVp - p.h;
+
+        const el = document.createElement('div');
+        el.className = 'flow-item';
+        el.style.left = left + 'px';
+        el.style.width = plan.cardW + 'px';
+        el.style.top = `calc(50% + ${Math.round(top)}px)`;
+        el.dataset.cardId = card.id;
+
+        const cardEl = renderGalleryCard(card);
+        el.appendChild(cardEl);
+        wireVideo(cardEl);
+        wireGalleryCard(el, card);
+        colWrap.appendChild(el);
+      });
+      flowItemsLayer.appendChild(colWrap);
+      cursorX += plan.width + COL_GUTTER;
+    });
   });
 
   const measure = () => {
@@ -2792,56 +2839,77 @@ function renderGalleryList(cards) {
   const wrap = document.getElementById('list-wrap');
   wrap.innerHTML = '';
 
-  const coverSection = document.createElement('div');
-  coverSection.className = 'list-cover-section';
-  coverSection.appendChild(renderGalleryCoverCard());
-  wrap.appendChild(coverSection);
+  /* Global cover only when browsing the whole gallery */
+  if (!currentRoute.scope) {
+    const coverSection = document.createElement('div');
+    coverSection.className = 'list-cover-section';
+    coverSection.appendChild(renderGalleryCoverCard());
+    wrap.appendChild(coverSection);
+  }
 
-  const monthKeys = [];
-  const seen = {};
-  cards.forEach(c => {
-    const m = /^(\d{4})-(\d{2})/.exec(c.provenance.date || '');
-    const k = m ? `${m[1]}-${m[2]}` : '0000-00';
-    if (!seen[k]) { seen[k] = true; monthKeys.push(k); }
-  });
-  monthKeys.sort().reverse();
+  const groups = currentRoute.scope
+    ? [{ cluster: CLUSTERS.get(currentRoute.scope), cards }]
+    : CLUSTER_ORDER.map(id => ({
+        cluster: CLUSTERS.get(id),
+        cards: CLUSTERS.get(id).cardIds.map(cid => CARDS.get(cid)).filter(Boolean)
+      }));
 
-  const MN = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-  monthKeys.forEach((k, idx) => {
-    const items = cards.filter(c => (c.provenance.date || '').startsWith(k)).reverse();
-    const row = document.createElement('div');
-    row.className = 'list-row' + (idx === 0 ? ' expanded' : '');
+  groups.forEach(group => {
+    if (!group.cluster || !group.cards.length) return;
 
-    const head = document.createElement('div');
-    head.className = 'list-row-head';
-    const mm = /-(\d{2})$/.exec(k);
-    const yy = /^(\d{4})/.exec(k);
-    head.innerHTML =
-      `<div class="list-num">${mm ? MN[parseInt(mm[1],10)-1] : '—'}</div>
-       <div class="list-name">${yy ? yy[1] : ''}</div>
-       <div class="list-row-head-right"><div class="list-count">${items.length} card${items.length === 1 ? '' : 's'}</div></div>`;
-    head.addEventListener('click', () => row.classList.toggle('expanded'));
-    row.appendChild(head);
+    /* Cluster cover as section header */
+    const sectionHeader = document.createElement('div');
+    sectionHeader.className = 'list-cover-section';
+    sectionHeader.appendChild(renderGalleryCoverCard(group.cluster));
+    wrap.appendChild(sectionHeader);
 
-    const body = document.createElement('div');
-    body.className = 'list-row-body';
-    const inner = document.createElement('div');
-    inner.className = 'list-row-body-inner';
-    const strip = document.createElement('div');
-    strip.className = 'list-strip';
-    items.forEach(card => {
-      const wrapEl = document.createElement('div');
-      wrapEl.className = 'list-card';
-      const cardEl = renderGalleryCard(card);
-      wrapEl.appendChild(cardEl);
-      wireVideo(cardEl);
-      wireGalleryCard(wrapEl, card);
-      strip.appendChild(wrapEl);
+    /* Month rows within the cluster */
+    const monthKeys = [];
+    const seen = {};
+    group.cards.forEach(c => {
+      const m = /^(\d{4})-(\d{2})/.exec(c.provenance.date || '');
+      const k = m ? `${m[1]}-${m[2]}` : '0000-00';
+      if (!seen[k]) { seen[k] = true; monthKeys.push(k); }
     });
-    inner.appendChild(strip);
-    body.appendChild(inner);
-    row.appendChild(body);
-    wrap.appendChild(row);
+    monthKeys.sort().reverse();
+
+    const MN = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    monthKeys.forEach((k, idx) => {
+      const items = group.cards.filter(c => (c.provenance.date || '').startsWith(k)).reverse();
+      const row = document.createElement('div');
+      row.className = 'list-row' + (idx === 0 ? ' expanded' : '');
+
+      const head = document.createElement('div');
+      head.className = 'list-row-head';
+      const mm = /-(\d{2})$/.exec(k);
+      const yy = /^(\d{4})/.exec(k);
+      head.innerHTML =
+        `<div class="list-num">${mm ? MN[parseInt(mm[1],10)-1] : '—'}</div>
+         <div class="list-name">${yy ? yy[1] : ''}</div>
+         <div class="list-row-head-right"><div class="list-count">${items.length} card${items.length === 1 ? '' : 's'}</div></div>`;
+      head.addEventListener('click', () => row.classList.toggle('expanded'));
+      row.appendChild(head);
+
+      const body = document.createElement('div');
+      body.className = 'list-row-body';
+      const inner = document.createElement('div');
+      inner.className = 'list-row-body-inner';
+      const strip = document.createElement('div');
+      strip.className = 'list-strip';
+      items.forEach(card => {
+        const wrapEl = document.createElement('div');
+        wrapEl.className = 'list-card';
+        const cardEl = renderGalleryCard(card);
+        wrapEl.appendChild(cardEl);
+        wireVideo(cardEl);
+        wireGalleryCard(wrapEl, card);
+        strip.appendChild(wrapEl);
+      });
+      inner.appendChild(strip);
+      body.appendChild(inner);
+      row.appendChild(body);
+      wrap.appendChild(row);
+    });
   });
 }
 
@@ -2850,19 +2918,40 @@ function renderGalleryGrid(cards) {
   const wrap = document.getElementById('grid-items');
   wrap.innerHTML = '';
 
-  const coverItem = document.createElement('div');
-  coverItem.className = 'g-item g-cover-item';
-  coverItem.appendChild(renderGalleryCoverCard());
-  wrap.appendChild(coverItem);
+  /* Global cover only when browsing the whole gallery */
+  if (!currentRoute.scope) {
+    const coverItem = document.createElement('div');
+    coverItem.className = 'g-item g-cover-item';
+    coverItem.appendChild(renderGalleryCoverCard());
+    wrap.appendChild(coverItem);
+  }
 
-  cards.slice().reverse().forEach(card => {
-    const el = document.createElement('div');
-    el.className = 'g-item';
-    const cardEl = renderGalleryCard(card);
-    el.appendChild(cardEl);
-    wireVideo(cardEl);
-    wireGalleryCard(el, card);
-    wrap.appendChild(el);
+  const groups = currentRoute.scope
+    ? [{ cluster: CLUSTERS.get(currentRoute.scope), cards }]
+    : CLUSTER_ORDER.map(id => ({
+        cluster: CLUSTERS.get(id),
+        cards: CLUSTERS.get(id).cardIds.map(cid => CARDS.get(cid)).filter(Boolean)
+      }));
+
+  groups.forEach(group => {
+    if (!group.cluster || !group.cards.length) return;
+
+    /* Cluster cover header */
+    const sectionHeader = document.createElement('div');
+    sectionHeader.className = 'g-item g-cover-item';
+    sectionHeader.appendChild(renderGalleryCoverCard(group.cluster));
+    wrap.appendChild(sectionHeader);
+
+    /* Cards within the cluster, newest first */
+    group.cards.slice().reverse().forEach(card => {
+      const el = document.createElement('div');
+      el.className = 'g-item';
+      const cardEl = renderGalleryCard(card);
+      el.appendChild(cardEl);
+      wireVideo(cardEl);
+      wireGalleryCard(el, card);
+      wrap.appendChild(el);
+    });
   });
 }
 
