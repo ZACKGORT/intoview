@@ -147,11 +147,13 @@ body.cursor-chevron-next *{cursor:none !important}
 }
 
 /* ═══ CANVAS ═══ */
-#canvasRoot{position:fixed;inset:0;z-index:50;overflow:hidden;background:var(--bg);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+#canvasRoot{position:fixed;inset:0;z-index:50;overflow:hidden;background:var(--bg);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;transition:filter .32s cubic-bezier(.22,1,.36,1)}
 #canvasRoot.panning{cursor:grabbing}
 #canvasRoot.panning .canvas-node{pointer-events:none}
-body[data-browse="gallery"] #canvasRoot,
-body[data-reader="open"] #canvasRoot{display:none}
+body[data-browse="gallery"] #canvasRoot{display:none}
+/* Reader open (from canvas): blur/dim in place rather than a hard cut, matching
+   the gallery treatment below and the carousel's own fade-in. */
+body[data-reader="open"] #canvasRoot{filter:blur(3px) saturate(.8);pointer-events:none}
 
 .canvas-surface{position:absolute;top:0;left:0;width:0;height:0;transform-origin:0 0;will-change:transform}
 .canvas-surface::before{content:'';position:absolute;top:-10000px;left:-10000px;width:20000px;height:20000px;background-image:repeating-linear-gradient(to right,var(--grid-col-line) 0 1px,transparent 1px var(--col-pitch)),repeating-linear-gradient(to bottom,var(--grid-row-line) 0 1px,transparent 1px var(--row-pitch));background-position:10000px 0,0 10000px;background-repeat:repeat;pointer-events:none;z-index:0;opacity:var(--grid-overlay-opacity);transition:opacity .2s ease}
@@ -279,7 +281,7 @@ body[data-layout="array"] .cluster-stack { width: max-content; max-width: none; 
 body[data-layout="array"] .cluster-leaves { max-width: calc(var(--card-w) * 3 + 16px * 2 + 4px); }
 
 /* ═══ GALLERY ═══ */
-#galleryRoot{position:fixed;inset:0;z-index:55;background:var(--bg);overflow:hidden;display:none;padding-top:var(--topbar-height);flex-direction:column}
+#galleryRoot{position:fixed;inset:0;z-index:55;background:var(--bg);overflow:hidden;display:none;padding-top:var(--topbar-height);flex-direction:column;transition:filter .32s cubic-bezier(.22,1,.36,1)}
 body[data-browse="gallery"] #galleryRoot{display:flex}
 body[data-reader="open"] #galleryRoot{filter:blur(3px) saturate(.8);pointer-events:none}
 
@@ -1164,6 +1166,10 @@ const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.5;
 const getMaxScale = () => isMobile() ? 1 : MAX_SCALE;
 const getMinScale = () => isMobile() ? 0.5 : MIN_SCALE;
+/* Floor for AUTOMATIC (organic, per-selection) zoom only — never for manual pinch/zoom.
+   Derived from the type ramp: prov-card-title is 17px; this keeps it from rendering
+   below ~13px, which is where card titles stop being comfortably legible on mobile. */
+const LEGIBLE_SCALE = 0.76;
 const ZOOM_STEP = 1.25;
 
 /* ═══════════════════════════════════════════════════════════
@@ -1171,41 +1177,41 @@ const ZOOM_STEP = 1.25;
    ═══════════════════════════════════════════════════════════ */
 const PROFILE = {
   id: 'identity', type: 'identity', format: 'cv',
-  title: 'Zack Gort', monogram: 'ZG',
-  role: 'Product Designer', org: 'intoview.pro',
-  location: 'Dallas, TX', since: '2026', availability: 'open',
-  deck: 'Designing products that hold up to the public record. Independent, available for select engagements.',
-  provenance: { status: 'published', source: 'intoview.pro', author: 'Zack Gort', date: '2026' },
+  title: 'Priya Anand', monogram: 'PA',
+  role: 'Director of Special Projects', org: 'intoview.pro',
+  location: 'Chicago, IL', since: '2026', availability: 'open',
+  deck: "Eleven years of very specific expertise nobody asked me to have. Currently independent. Open to conversations that don't require a follow-up meeting to schedule one.",
+  provenance: { status: 'published', source: 'intoview.pro', author: 'Priya Anand', date: '2026' },
   fullContent: `
     <div class="swiss-grid">
-      <h2 class="swiss-col swiss-col-span-9 letter-heading" style="font-weight:800">Zack Gort</h2>
-      <p class="swiss-col swiss-col-span-7 letter-tagline">Product Designer · intoview.pro · Dallas, TX</p>
+      <h2 class="swiss-col swiss-col-span-9 letter-heading" style="font-weight:800">Priya Anand</h2>
+      <p class="swiss-col swiss-col-span-7 letter-tagline">Director of Special Projects · intoview.pro · Chicago, IL</p>
       <div class="swiss-col swiss-col-span-9">
         <div class="letter-body">
-          <p>I design products that hold up to the public record. Twenty years working with teams that ship — enterprise retail, precision manufacturing, water treatment, building materials.</p>
-          <p>Currently independent. Available for select engagements.</p>
+          <p>I've had six job titles that all meant "figure it out." Before that, more school than was strictly necessary — the kind that teaches you to build a rigorous argument and then hands you a calendar full of status meetings instead.</p>
+          <p>Currently independent. Open to work that uses more of the above than the average status meeting does.</p>
           <p><strong>Contact</strong> · hello@intoview.pro</p>
         </div>
       </div>
-      <p class="swiss-col swiss-col-span-9 letter-card-caption">This is a title card, formatted as a <strong>CV</strong> — one of three formats a card can take. It's a branch, not a statement: I can reshape it any time, and the version before this one isn't kept anywhere. Only what gets posted below, into the record, stays fixed.</p>
+      <p class="swiss-col swiss-col-span-9 letter-card-caption">This is a title card, formatted as a <strong>CV</strong> — one of three formats a card can take. It's a branch, not a statement: I can reshape it any time, and the version before this one isn't kept anywhere. Only what gets posted below, into the record, stays fixed. No "endorse this skill." No follow button. Just the record.</p>
     </div>
   `
 };
 
 const CLUSTER_SPECS = [
-  { id:'manifesto', num:'01', title:'Manifesto', deck:'Statement of intent, governance, and how the record is kept.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'record', num:'02', title:'The Record', deck:'The canonical feed — every statement that has cleared the edit window, in order, unchangeable.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'otw', num:'03', title:'Open to Work', deck:'Availability, scope, and terms.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'hiring', num:'04', title:'Hiring', deck:'Roles, briefs, and process.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'draft' } },
-  { id:'archive', num:'05', title:'Archive', deck:'Everything prior, in reverse chronological order.', provenance:{ author:'Zack Gort', date:'2026', source:'intoview.pro', status:'archived' } }
+  { id:'manifesto', num:'01', title:'Manifesto', deck:"Why this exists, how the record works, and the long list of features we skipped so you wouldn't have to perform anything.", provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'record', num:'02', title:'The Record', deck:'The canonical feed — every statement that has cleared the edit window, in order, unchangeable.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'otw', num:'03', title:'Open to Work', deck:'Availability, scope, and terms. No green banner required.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'hiring', num:'04', title:'Hiring', deck:'Roles, briefs, and a process that fits on one screen.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'draft' } },
+  { id:'archive', num:'05', title:'Archive', deck:'Everything prior, in reverse chronological order. Nothing curated after the fact.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'archived' } }
 ];
 
 const EDITORIAL_SPECS = [
   {
     id:'manifesto/governance', clusterId:'manifesto', type:'statement', format:'editorial',
-    title:'Design System Governance',
-    deck:'Statements are the log, title cards are the surface — how the platform keeps the two apart.',
-    provenance:{ author:'Zack Gort', date:'2026-01-08', source:'intoview.pro / manifesto', status:'published' },
+    title:'How This Actually Works',
+    deck:"Statements are the log, title cards are the surface — and why that one line does the work of forty features we didn't build.",
+    provenance:{ author:'Priya Anand', date:'2026-01-08', source:'intoview.pro / manifesto', status:'published' },
     relationships:{ references:['manifesto/news'], replies:[], updates:[] },
     fullContent: `
       <div class="swiss-grid">
@@ -1218,7 +1224,7 @@ const EDITORIAL_SPECS = [
                 <span class="letter-accordion-num">01</span><span class="letter-accordion-title">What is a statement?</span><span class="letter-accordion-icon">+</span>
               </button>
               <div class="letter-accordion-panel"><div class="letter-accordion-panel-inner">
-                <p>A single, defensible piece of information, entered into the permanent record. No fluff, no filler — a commitment to a fact, an opinion, or a piece of news. Once the edit window closes, it doesn't change. It's the twig that broke off the branch: fixed, dated, canonical.</p>
+                <p>A single, defensible piece of information, entered into the permanent record. No thought-leadership preamble, no "excited to announce" — a commitment to a fact, an opinion, or a piece of news. Once the edit window closes, it doesn't change. It's the twig that broke off the branch: fixed, dated, canonical.</p>
               </div></div>
             </div>
             <div class="letter-accordion-item">
@@ -1227,7 +1233,7 @@ const EDITORIAL_SPECS = [
               </button>
               <div class="letter-accordion-panel"><div class="letter-accordion-panel-inner">
                 <p>A title card is a living branch, not a statement. It can be reshaped, re-written, even replaced with something else entirely — and when it is, the version that came before isn't kept anywhere as a fork or a history. It simply isn't the card anymore.</p>
-                <p>That's the whole distinction the platform is built on: <strong>statements are the log, title cards are the surface.</strong> The record only holds what's actually been posted — never a draft, never a prior shape of a card that's since moved on.</p>
+                <p>That's the whole distinction the platform is built on: <strong>statements are the log, title cards are the surface.</strong> The record only holds what's actually been posted — never a draft, never a prior shape of a card that's since moved on. Your job title can change on a Tuesday. It doesn't need a version history.</p>
               </div></div>
             </div>
             <div class="letter-accordion-item">
@@ -1247,15 +1253,15 @@ const EDITORIAL_SPECS = [
                 <span class="letter-accordion-num">04</span><span class="letter-accordion-title">What is a group or interest card?</span><span class="letter-accordion-icon">+</span>
               </button>
               <div class="letter-accordion-panel"><div class="letter-accordion-panel-inner">
-                <p>Not everything on the canvas is authored the same way. A group or interest card doesn't hold its own prose — it's a rollup, a filtered view of the record scoped to a category instead of a person. Its number isn't a total statement count, it's <em>your contributions to that category</em>: the same shape a person's Record uses, pointed at a slice of it.</p>
+                <p>Not everything on the canvas is authored the same way. A group or interest card doesn't hold its own prose — it's a rollup, a filtered view of the record scoped to a category instead of a person. Its number isn't a follower count, it's <em>your contributions to that category</em>: the same shape a person's Record uses, pointed at a slice of it. No trending badge. No "top voice." Just a count.</p>
               </div></div>
             </div>
             <div class="letter-accordion-item">
               <button class="letter-accordion-trigger" type="button" aria-expanded="false">
-                <span class="letter-accordion-num">05</span><span class="letter-accordion-title">What is governance?</span><span class="letter-accordion-icon">+</span>
+                <span class="letter-accordion-num">05</span><span class="letter-accordion-title">What is governance, here?</span><span class="letter-accordion-icon">+</span>
               </button>
               <div class="letter-accordion-panel"><div class="letter-accordion-panel-inner">
-                <p>The mechanisms, processes, and relations by which the platform is controlled and directed — in practice, mostly the enforcement of one boundary: keeping what's still growing separate from what's already been said.</p>
+                <p>The mechanisms by which the platform is controlled and directed — in practice, mostly the enforcement of one boundary: keeping what's still growing separate from what's already been said. There is no engagement algorithm to govern, because there isn't one. There is no "reach" to optimize, because reach was never the point. Governance here is small on purpose.</p>
               </div></div>
             </div>
             <div class="letter-accordion-item">
@@ -1272,11 +1278,11 @@ const EDITORIAL_SPECS = [
                   <div class="timer-bar"><span class="bar-label">2:34</span><div class="bar-bg"><div class="bar-fill" style="width:85%;"></div></div><span class="bar-label">3:00</span></div>
                   <div class="step"><span class="step-indicator">STEP 3</span><span class="step-desc">Time's up. Your statement joins the <strong>permanent record</strong>.</span></div>
                   <div class="mock-post">
-                    <div class="avatar">ZG</div>
+                    <div class="avatar">PA</div>
                     <div class="post-content">
                       <div class="hold-up">Hold up — author is editing this statement</div>
-                      <div style="font-weight:500;color:var(--fg);">This is the revised version.</div>
-                      <div class="meta"><span>Zack Gort · just now</span></div>
+                      <div style="font-weight:500;color:var(--fg);">This is the revised version. No "edited 4h ago, see history" theater — just the version that shipped.</div>
+                      <div class="meta"><span>Priya Anand · just now</span></div>
                     </div>
                   </div>
                 </div>
@@ -1284,30 +1290,33 @@ const EDITORIAL_SPECS = [
             </div>
           </div>
         </div>
-        <div class="swiss-col swiss-col-span-9"><div class="letter-body"><p>Governance at intoview.pro is designed to be light‑touch but meaningful: it draws one line, between the branch and the twig, and holds it.</p></div></div>
+        <div class="swiss-col swiss-col-span-9"><div class="letter-body"><p>Governance at intoview.pro is designed to be light‑touch but meaningful: it draws one line, between the branch and the twig, and holds it. That's the whole platform. We spent the rest of the budget on not building a notifications tab.</p></div></div>
       </div>
     `
   },
   {
     id:'manifesto/news', clusterId:'manifesto', type:'statement', format:'editorial',
     title:'News & Storytelling',
-    deck:'The public mostly meets this platform through its feeds, not its dashboards — so the writing has to carry itself.',
-    provenance:{ author:'Zack Gort', date:'2026-01-19', source:'intoview.pro / manifesto', status:'published' },
+    deck:"The public mostly meets this platform through its feeds, not its dashboards — so the writing has to carry itself, without a growth team helping it along.",
+    provenance:{ author:'Priya Anand', date:'2026-01-19', source:'intoview.pro / manifesto', status:'published' },
     relationships:{ references:['manifesto/governance'], replies:[], updates:[] },
     fullContent: `
       <div class="swiss-grid">
         <h2 class="swiss-col swiss-col-span-10 letter-heading" style="font-weight:900">News &amp; Storytelling</h2>
-        <p class="swiss-col swiss-col-span-6 letter-tagline">Conveying information with clarity and purpose.</p>
-        <div class="swiss-col swiss-col-span-6"><div class="letter-body"><p>News is the conveyance of information. At intoview.pro, we prioritize accessible storytelling and content relevance — whether it's told at Writing weight or built out into a full Editorial card, because most people will encounter it in the Record, not on a profile.</p></div></div>
+        <p class="swiss-col swiss-col-span-6 letter-tagline">Conveying information with clarity and purpose. Not "unlocking" it.</p>
+        <div class="swiss-col swiss-col-span-6"><div class="letter-body"><p>News is the conveyance of information. At intoview.pro, we prioritize accessible storytelling and content relevance — whether it's told at Writing weight or built out into a full Editorial card, because most people will encounter it in the Record, not on a profile they were already trying to leave.</p></div></div>
         <div class="swiss-col swiss-col-span-9">
           <div class="letter-never-toggle">
             <button type="button" class="active" data-never-mode="numbered">Numbered</button>
             <button type="button" data-never-mode="bulleted">Bulleted</button>
           </div>
           <ul class="letter-never-list is-numbered">
-            <li class="letter-never-item"><span class="letter-never-marker"></span><div class="letter-never-body"><h3 class="letter-never-statement">Never have I ever published a correction without owning the mistake.</h3><p class="letter-never-context">Transparency is the foundation of trust.</p></div></li>
-            <li class="letter-never-item"><span class="letter-never-marker"></span><div class="letter-never-body"><h3 class="letter-never-statement">Never have I ever prioritized speed over accuracy.</h3><p class="letter-never-context">Accuracy is the price of admission for news.</p></div></li>
-            <li class="letter-never-item"><span class="letter-never-marker"></span><div class="letter-never-body"><h3 class="letter-never-statement">Never have I ever buried the lede.</h3><p class="letter-never-context">Get to the point. Respect the reader's time.</p></div></li>
+            <li class="letter-never-item"><span class="letter-never-marker"></span><div class="letter-never-body"><h3 class="letter-never-statement">Never have I ever called a layoff a "restructuring opportunity."</h3><p class="letter-never-context">Say the thing. The reader can tell either way.</p></div></li>
+            <li class="letter-never-item"><span class="letter-never-marker"></span><div class="letter-never-body"><h3 class="letter-never-statement">Never have I ever turned a Tuesday into a thread.</h3><p class="letter-never-context">Not every observation needs nine numbered tweets and a hook.</p></div></li>
+            <li class="letter-never-item"><span class="letter-never-marker"></span><div class="letter-never-body"><h3 class="letter-never-statement">Never have I ever announced my own promotion in the third person.</h3><p class="letter-never-context">"Thrilled to share that Priya has been promoted" is a sentence no one asked a robot to write.</p></div></li>
+            <li class="letter-never-item"><span class="letter-never-marker"></span><div class="letter-never-body"><h3 class="letter-never-statement">Never have I ever used "grateful" to soften a brag.</h3><p class="letter-never-context">Just brag. It's faster for everyone.</p></div></li>
+            <li class="letter-never-item"><span class="letter-never-marker"></span><div class="letter-never-body"><h3 class="letter-never-statement">Never have I ever posted a whiteboard photo captioned "big things coming."</h3><p class="letter-never-context">Accuracy is the price of admission for news. So is finishing the sentence.</p></div></li>
+            <li class="letter-never-item"><span class="letter-never-marker"></span><div class="letter-never-body"><h3 class="letter-never-statement">Never have I ever published a correction without owning the mistake.</h3><p class="letter-never-context">Transparency is the foundation of trust, even at Writing weight.</p></div></li>
           </ul>
         </div>
       </div>
@@ -1316,48 +1325,48 @@ const EDITORIAL_SPECS = [
   {
     id:'manifesto/impact', clusterId:'manifesto', type:'evidence', format:'editorial',
     title:'Impact',
-    deck:'Four engagements, six balance sheets, one UX practice — audited against the public record.',
-    provenance:{ author:'Zack Gort', date:'2026-02-14', source:'SEC filings + earnings releases', status:'verified' },
+    deck:'Four engagements, six balance sheets, one ops practice — audited against the public record instead of a highlight reel.',
+    provenance:{ author:'Priya Anand', date:'2026-02-14', source:'public filings + earnings releases', status:'verified' },
     relationships:{ references:[], replies:[], updates:[] },
     fullContent: `
       <div class="swiss-grid">
         <h2 class="swiss-col swiss-col-span-9 letter-heading" style="font-weight:700">The Impact Report</h2>
         <div class="swiss-col swiss-col-span-12">
           <div class="letter-impact-ticker-wrap"><div class="letter-impact-ticker-track letter-impact-mono">
-            <span class="letter-impact-tick">HDNG <span class="dn">▼ LIQUIDATED '24</span></span>
-            <span class="letter-impact-tick">SSD <span class="up">▲ +42% since '21</span></span>
-            <span class="letter-impact-tick">AOS <span class="up">▲ still buying water cos.</span></span>
-            <span class="letter-impact-tick">BDNCE <span class="up">▲ ~$186B rev. '25e</span></span>
-            <span class="letter-impact-tick">BK <span class="up">▲ $20.08B FY'25 rev.</span></span>
+            <span class="letter-impact-tick">CDL <span class="dn">▼ SUNSET '24</span></span>
+            <span class="letter-impact-tick">NTLE <span class="up">▲ +38% since '21</span></span>
+            <span class="letter-impact-tick">VSPR <span class="up">▲ still shipping hardware</span></span>
+            <span class="letter-impact-tick">BRAM <span class="up">▲ ~$94M rev. '25e</span></span>
+            <span class="letter-impact-tick">FLNT <span class="up">▲ $12.4M ARR FY'25</span></span>
           </div></div>
         </div>
         <div class="swiss-col swiss-col-span-9">
           <div class="letter-impact-doc"><div class="letter-impact-body">
-            <div class="letter-impact-eyebrow">FORM UX-10 · GENERAL DISTRIBUTION · NDA-SAFE CONTENT ONLY</div>
+            <div class="letter-impact-eyebrow">FORM OPS-10 · GENERAL DISTRIBUTION · NDA-SAFE CONTENT ONLY</div>
             <p class="letter-impact-title">The <em>Impact</em> Report</p>
-            <p class="letter-impact-subtitle">Four engagements, six balance sheets, one UX practice — audited against the public record.</p>
+            <p class="letter-impact-subtitle">Four engagements, six balance sheets, one ops practice — audited against the public record instead of a highlight reel.</p>
             <div class="letter-impact-filing-meta letter-impact-mono">
-              <div><strong>Subject</strong>Zack Gort</div>
+              <div><strong>Subject</strong>Priya Anand</div>
               <div><strong>Period covered</strong>2020 – 2023</div>
               <div><strong>Filed</strong>July 18, 2026</div>
               <div><strong>Status</strong>Compiled from public filings</div>
             </div>
-            <p class="letter-impact-method"><strong>A note on the numbers.</strong> Every figure below traces back to a 10-K, an earnings release, a court filing, or a named industry estimate. This report is written in the Editorial format — filed as a statement, which means the version below is the only version there is.</p>
+            <p class="letter-impact-method"><strong>A note on the numbers.</strong> Every figure below traces back to a 10-K, an earnings release, or a named industry estimate. This report is written in the Editorial format — filed as a statement, which means the version below is the only version there is. No "results may vary" fine print, because none of it does.</p>
           </div></div>
         </div>
         <div class="swiss-col swiss-col-span-10">
           <div class="letter-accordion">
             <div class="letter-accordion-item is-open">
               <button class="letter-accordion-trigger" type="button" aria-expanded="true">
-                <span class="letter-accordion-num">01</span><span class="letter-accordion-title">Exhibit A — Enterprise Retail Portfolio</span><span class="letter-accordion-icon">+</span>
+                <span class="letter-accordion-num">01</span><span class="letter-accordion-title">Exhibit A — Operations Portfolio, Series B–D</span><span class="letter-accordion-icon">+</span>
               </button>
               <div class="letter-accordion-panel"><div class="letter-accordion-panel-inner">
                 <div class="letter-impact-doc"><div class="letter-impact-exhibit">
                   <div class="letter-impact-exhibit-head"><span>Exhibit A</span><span class="letter-impact-exhibit-filed">Filed 2020 – 2021</span></div>
-                  <h4 class="letter-impact-exhibit-title">Enterprise Retail Portfolio</h4>
-                  <div class="letter-impact-exhibit-role">UX Manager · PFSweb / LiveArea</div>
-                  <div class="letter-impact-cert"><div class="letter-impact-cert-top"><span class="letter-impact-ticker-badge">HDNG · Hardinge Inc.</span><span class="letter-impact-status-pill is-loss">▼ Liquidated 2024</span></div><div class="letter-impact-cert-body"><h4>"Hardly / broke a sweat."</h4><p>A zero-to-one Salesforce Commerce Cloud build for a 130-year-old precision machine tool maker.</p></div></div>
-                  <div class="letter-impact-cert"><div class="letter-impact-cert-top"><span class="letter-impact-ticker-badge">SSD · Simpson Strong-Tie</span><span class="letter-impact-status-pill is-gain">▲ +42% net sales since '21</span></div><div class="letter-impact-cert-body"><p>Net sales climbed from ~$1.6B in 2021 to $2.2B+ every year since.</p></div></div>
+                  <h4 class="letter-impact-exhibit-title">Operations Portfolio, Series B–D</h4>
+                  <div class="letter-impact-exhibit-role">Director of Special Projects · Cordell Logistics / Nettle &amp; Co.</div>
+                  <div class="letter-impact-cert"><div class="letter-impact-cert-top"><span class="letter-impact-ticker-badge">CDL · Cordell Logistics</span><span class="letter-impact-status-pill is-loss">▼ Wound down 2024</span></div><div class="letter-impact-cert-body"><h4>"Hardly / broke a sweat."</h4><p>A zero-to-one intake and routing system for a mid-size regional carrier, stood up in eleven weeks.</p></div></div>
+                  <div class="letter-impact-cert"><div class="letter-impact-cert-top"><span class="letter-impact-ticker-badge">NTLE · Nettle &amp; Co.</span><span class="letter-impact-status-pill is-gain">▲ +38% net revenue since '21</span></div><div class="letter-impact-cert-body"><p>Net revenue climbed from ~$61M in 2021 to $84M+ every year since.</p></div></div>
                 </div></div>
               </div></div>
             </div>
@@ -1368,9 +1377,9 @@ const EDITORIAL_SPECS = [
               <div class="letter-accordion-panel"><div class="letter-accordion-panel-inner">
                 <div class="letter-impact-doc"><div class="letter-impact-refs">
                   <ol>
-                    <li>Simpson Manufacturing Co., Inc. — Q4 &amp; FY2025 earnings release</li>
-                    <li>A. O. Smith Corp. — FY2025 Form 10-K &amp; 10-Q (sec.gov)</li>
-                    <li>Hardinge Inc. — Chapter 11 filing summary, 2024</li>
+                    <li>Nettle &amp; Co. — Q4 &amp; FY2025 earnings release (illustrative)</li>
+                    <li>Vesper Robotics — FY2025 shareholder letter (illustrative)</li>
+                    <li>Cordell Logistics — wind-down summary, 2024 (illustrative)</li>
                   </ol>
                 </div><div class="letter-impact-colophon">— compiled against the public record —</div></div>
               </div></div>
@@ -1384,116 +1393,116 @@ const EDITORIAL_SPECS = [
 
 const GALLERY_CARD_SPECS = [
   { id:'dispatch/first-snow', clusterId:'record', section:'dispatch', type:'evidence', status:'verified',
-    title:'First Snow, First Walk', deck:"A field report on the season's opening storm — filed from the sidewalk, timestamped at 7:14 AM.",
+    title:'First Monday of Q1, Live From the Field', deck:'A field report on the quarter\'s opening all-hands — filed from the parking lot, timestamped at 8:58 AM, coffee still too hot to drink.',
     date:'2026-01-12', refs:['dispatch/bridge'],
     media:{ k:'photo', src:'https://raw.githubusercontent.com/ZACKGORT/never/main/images/avif/firstsnow.avif' } },
   { id:'dispatch/bridge', clusterId:'record', section:'dispatch', type:'statement', status:'published',
-    title:'The Bridge Crosser', deck:'On confidence, and the particular bravery of a small animal crossing a large span without a leash.',
+    title:'Walking It Out on the Limb', deck:'On conviction, and the particular bravery of presenting a roadmap slide with no fallback plan and no one holding the leash.',
     date:'2026-01-15', refs:['dispatch/first-snow'],
     media:{ k:'video', src:'https://raw.githubusercontent.com/ZACKGORT/ifimaybefrank/main/mp4/wolfgangfearlessbridgecrosser.mp4' } },
   { id:'dispatch/greenway', clusterId:'record', section:'dispatch', type:'update', status:'revised',
-    title:'Greenway Opens to the Public', deck:'An update on the new trail. Revised 2/14 to correct the opening date and add a photo from the trailhead.',
+    title:'The New Intake Process Is Live', deck:'An update on the new process. Revised 2/14 to correct the go-live date and add a screenshot nobody asked for.',
     date:'2026-02-14', upd:['dispatch/first-snow'],
     media:{ k:'video', src:'https://raw.githubusercontent.com/ZACKGORT/mp4/main/grassypaths_v1%20(720p).mp4' } },
   { id:'dispatch/longway', clusterId:'record', section:'dispatch', type:'evidence', status:'verified',
-    title:'The Long Way Home', deck:'A 4.2 mile detour, logged and verified. The route was longer than necessary, and that was the point.',
+    title:'The Scenic Route to a Simple Answer', deck:'A four-paragraph reply to a two-word question, logged and verified. The detour was longer than necessary, and that was the point.',
     date:'2026-02-03',
     media:{ k:'video', src:'https://raw.githubusercontent.com/ZACKGORT/ifimaybefrank/main/mp4/longislandwalks.mp4' } },
   { id:'dispatch/7train', clusterId:'record', section:'dispatch', type:'statement', status:'published',
-    title:'Notes from the 7 Train', deck:'A short report on the borough, filed from a bench in Queens with the skyline in the middle distance.',
+    title:'Notes From the Back of the Room', deck:'A short report on the all-hands, filed from a folding chair in the back with the leadership deck in the middle distance.',
     date:'2026-02-21',
     media:{ k:'photo', src:'https://raw.githubusercontent.com/ZACKGORT/never/main/images/avif/lostinqueens.avif' } },
   { id:'dispatch/morning', clusterId:'record', section:'dispatch', type:'statement', status:'published',
-    title:'Morning Report, Interrupted', deck:'A dispatch about routine, and the small daily insurrection of refusing to stick to it.',
+    title:'Standup, Interrupted', deck:'A dispatch about routine, and the small daily insurrection of a nine-minute standup running nineteen.',
     date:'2026-03-04',
     media:{ k:'photo', src:'https://raw.githubusercontent.com/ZACKGORT/never/main/images/avif/happyboy.avif' } },
   { id:'fieldnotes/donut', clusterId:'record', section:'fieldnotes', type:'evidence', status:'verified',
-    title:'The Donut Files', deck:'One (1) small donut. Documented, verified, and filed against the public record without further comment.',
+    title:'The Break Room Donut, an Audit', deck:'One (1) donut, remaining, at 2:47 PM. Documented, verified, and filed against the public record without further comment.',
     date:'2026-02-08',
     media:{ k:'photo', src:'https://raw.githubusercontent.com/ZACKGORT/never/main/images/avif/mylittledonut.avif' } },
   { id:'homedesk/window', clusterId:'record', section:'homedesk', type:'statement', status:'published',
-    title:'Window Office, Freelance Massage', deck:'A domestic report on the ergonomics of working from home when the home has other plans.',
+    title:'Window Office, No Standing Desk Required', deck:'A domestic report on the ergonomics of working from home, when the home has scenic value the office never offered.',
     date:'2026-01-29',
     media:{ k:'photo', src:'https://raw.githubusercontent.com/ZACKGORT/never/main/images/avif/whendadworksfromhomesoyougettheenviablewindowofficewithfreemassuese.avif' } },
   { id:'homedesk/meals', clusterId:'record', section:'homedesk', type:'evidence', status:'published',
-    title:'Home Made Meals, Reviewed', deck:'A review of what gets made when nobody is watching and everyone is very interested in the process.',
+    title:'Lunch, Reviewed', deck:'A review of what gets made between two back-to-backs, and how much of it survives the second meeting.',
     date:'2026-02-05',
     media:{ k:'photo', src:'https://raw.githubusercontent.com/ZACKGORT/never/main/images/avif/homemademeals.avif' } },
-  { id:'character/confidence', clusterId:'record', section:'character', type:'evidence', status:'verified',
-    title:'On the Confidence of Small Dogs', deck:'A profile. The subject exuded a degree of self-possession that the photographer found difficult to argue with.',
+  { id:'culture/confidence', clusterId:'record', section:'culture', type:'evidence', status:'verified',
+    title:'On the Confidence of the New Hire', deck:'A profile. The subject exuded a degree of self-possession the org chart found difficult to argue with.',
     date:'2026-01-25',
     media:{ k:'photo', src:'https://raw.githubusercontent.com/ZACKGORT/never/main/images/avif/thislittledudeexudedsomuchconfidence.avif' } },
-  { id:'character/mohawk', clusterId:'record', section:'character', type:'statement', status:'published',
-    title:'Portrait, With Mohawk', deck:'A character study. The haircut was not planned. The haircut was, in fact, a decision made by someone else.',
+  { id:'culture/mohawk', clusterId:'record', section:'culture', type:'statement', status:'published',
+    title:'Portrait, Post-Reorg', deck:'A character study. The new title was not requested. The new title was, in fact, a decision made by someone else.',
     date:'2026-02-01',
     media:{ k:'photo', src:'https://raw.githubusercontent.com/ZACKGORT/never/main/images/avif/mohawk.avif' } },
   { id:'signals/boardwalks', clusterId:'record', section:'signals', type:'statement', status:'published',
-    title:'Watching: Boardwalks', deck:'A short film. Long shots of a wooden walkway, ocean-adjacent, shot at golden hour.',
+    title:'Watching: The Company Culture Video', deck:'A short film. Long shots of a hallway, aspiration-adjacent, shot at golden hour by someone in brand marketing.',
     date:'2026-02-04',
     media:{ k:'video', src:'https://raw.githubusercontent.com/ZACKGORT/mp4/main/boardwalks_v1%20(720p).mp4' } },
   { id:'retrospective/first', clusterId:'archive', section:'retrospective', type:'statement', status:'archived',
-    title:'The Very First, Classic', deck:'The first photograph. Filed without comment because the original caption said everything.',
+    title:'The Very First Performance Review', deck:'Filed without comment because the original manager\'s note already said everything.',
     date:'2024-08-12',
     media:{ k:'photo', src:'https://raw.githubusercontent.com/ZACKGORT/never/main/images/avif/theveryfirstofclassicwolfgang.avif' } },
   { id:'fieldnotes/rain', clusterId:'record', section:'fieldnotes', type:'statement', status:'published',
-    title:'On the Particular Sadness of Rain', deck:'A short note on weather, mood, and the argument that some feelings are best expressed by refusing to move.',
+    title:'On the Particular Sadness of a Meeting That Could Have Been an Email', deck:'A short note on Tuesdays, mood, and the argument that some feelings are best expressed by declining the invite.',
     date:'2026-01-22' },
   { id:'fieldnotes/socks1', clusterId:'record', section:'fieldnotes', type:'statement', status:'published',
-    title:'Socks, Considered', deck:'A note to the household on the matter of small garments, and who actually owns them.',
+    title:'The Stapler, Considered', deck:'A note to the floor on the matter of shared office supplies, and who actually owns them.',
     date:'2026-01-23', upd:['fieldnotes/socks2'] },
   { id:'fieldnotes/socks2', clusterId:'record', section:'fieldnotes', type:'reply', status:'published',
-    title:'The Sock Problem, Continued', deck:'Further evidence. The pile grows. Ownership remains contested but the physical facts are not.',
+    title:'The Stapler Problem, Continued', deck:'Further evidence. The drawer empties. Ownership remains contested but the physical facts are not.',
     date:'2026-01-26', refs:['fieldnotes/socks1'], parentId:'fieldnotes/socks1' },
   { id:'fieldnotes/laps', clusterId:'record', section:'fieldnotes', type:'statement', status:'published',
-    title:'A Theory of Lap Economics', deck:'An observation on supply, demand, and the spontaneous creation of a lap where none existed a moment before.',
+    title:'A Theory of Calendar Economics', deck:'An observation on supply, demand, and the spontaneous creation of a thirty-minute hold where none existed a moment before.',
     date:'2026-02-02' },
   { id:'fieldnotes/strangers', clusterId:'record', section:'fieldnotes', type:'statement', status:'published',
-    title:'On Sitting with Strangers', deck:'A note about hospitality, and the surprising speed with which a stranger becomes a regular.',
+    title:'On Sitting With Strangers in a Breakout Room', deck:'A note about small talk, and the surprising speed with which a stranger becomes a recurring invite.',
     date:'2026-02-16' },
   { id:'homedesk/comfort1', clusterId:'record', section:'homedesk', type:'statement', status:'published',
-    title:'Comfort, Levels 1 & 2', deck:'An ongoing series. Level 1: the chair. Level 2: the lap. Both are being documented for the record.',
+    title:'Comfort, Levels 1 & 2', deck:'An ongoing series. Level 1: the chair. Level 2: the good headphones. Both are being documented for the record.',
     date:'2026-02-11', upd:['homedesk/comfort2'] },
   { id:'homedesk/comfort2', clusterId:'record', section:'homedesk', type:'reply', status:'published',
-    title:'Comfort, Continued', deck:'A reply to the previous entry. The lap remains undefeated as a category of furniture.',
+    title:'Comfort, Continued', deck:'A reply to the previous entry. The good headphones remain undefeated as a category of equipment.',
     date:'2026-02-13', refs:['homedesk/comfort1'], parentId:'homedesk/comfort1' },
   { id:'homedesk/sleepies', clusterId:'record', section:'homedesk', type:'statement', status:'published',
-    title:'Last Sleepies', deck:'A note on the sacred hours between dinner and bed, and the small rituals that fill them.',
+    title:'The Last Hour, Before Logging Off', deck:'A note on the sacred window between the final meeting and closing the laptop, and the small rituals that fill it.',
     date:'2026-02-19' },
-  { id:'character/black', clusterId:'record', section:'character', type:'evidence', status:'published',
-    title:'A Study in Black', deck:'Notes on contrast, negative space, and the photographic problem of a very dark subject in a very bright room.',
+  { id:'culture/black', clusterId:'record', section:'culture', type:'evidence', status:'published',
+    title:'A Study in Away Status', deck:'Notes on contrast, negative space, and the photographic problem of a very quiet Slack channel in a very loud org.',
     date:'2026-02-13' },
-  { id:'character/repose', clusterId:'record', section:'character', type:'statement', status:'published',
-    title:'The Wolf in Repose', deck:'A portrait. The subject declined to be photographed, and was photographed anyway, and this is the compromise.',
+  { id:'culture/repose', clusterId:'record', section:'culture', type:'statement', status:'published',
+    title:'The Team, In Repose', deck:'A portrait. The subject declined to be surveyed, and was surveyed anyway, and this is the compromise.',
     date:'2026-02-19' },
-  { id:'character/good', clusterId:'record', section:'character', type:'evidence', status:'published',
-    title:'On Being Called Good', deck:'A profile. The subject responds to the phrase "who\'s a good boy" with an enthusiasm that borders on the theological.',
+  { id:'culture/good', clusterId:'record', section:'culture', type:'evidence', status:'published',
+    title:'On Being Called "A Great Culture Fit"', deck:'A profile. The subject responds to the phrase with an enthusiasm that borders on the theological.',
     date:'2026-02-25' },
   { id:'signals/greenway-report', clusterId:'record', section:'signals', type:'statement', status:'published',
-    title:'Reading: The Greenway Report', deck:'A reference. The full text of the 2026 report on urban trail expansion, flagged for later.',
+    title:'Reading: The State of Remote Work Report', deck:'A reference. The full text of the 2026 report on hybrid schedules, flagged for later and never opened again.',
     date:'2026-01-30' },
   { id:'signals/citysounds', clusterId:'record', section:'signals', type:'statement', status:'published',
-    title:'Listening: City Sounds', deck:'An audio fragment. Traffic, footsteps, and one (1) very confident animal refusing to be hurried.',
+    title:'Listening: Open Office, Unfiltered', deck:'An audio fragment. Keyboard clatter, a ringing phone, and one (1) very confident coworker refusing to use headphones.',
     date:'2026-02-09' },
   { id:'signals/elephant', clusterId:'record', section:'signals', type:'statement', status:'published',
-    title:'Reference: The Elephant', deck:"An image. Filed here because sometimes the reference is not a document, it's a shape.",
+    title:'Reference: The Org Chart', deck:"An image. Filed here because sometimes the reference is not a document, it's a shape nobody can fully see at once.",
     date:'2026-02-17' },
   { id:'signals/fearlessness', clusterId:'record', section:'signals', type:'statement', status:'published',
-    title:'Fragment: On Fearlessness', deck:'A clip. Short. The kind of gesture that is not a lesson, but is adjacent to one.',
+    title:'Fragment: On Asking for the Raise', deck:"A clip. Short. The kind of gesture that is not a lesson, but is adjacent to one.",
     date:'2026-02-27' },
   { id:'retrospective/moment', clusterId:'archive', section:'retrospective', type:'statement', status:'archived',
-    title:'At This Moment', deck:'A retrospective note. The moment of deciding something is, in retrospect, visible in the record.',
+    title:'At This Moment, I Decided to Apply', deck:'A retrospective note. The moment of deciding something is, in hindsight, visible in the record.',
     date:'2024-08-19' },
   { id:'retrospective/new', clusterId:'archive', section:'retrospective', type:'statement', status:'archived',
-    title:'New to This', deck:'A retrospective note. Everything is new once. The record keeps the version that did not yet know.',
+    title:'New to This', deck:'A retrospective note. Everyone is new once. The record keeps the version that hadn\'t figured it out yet.',
     date:'2024-08-25' },
   { id:'archive/superhero', clusterId:'archive', section:'archive', type:'statement', status:'archived',
-    title:'Superman, Before the Cape', deck:'An archive image. The costume was not yet complete. The attitude was.',
+    title:'Title, Before the Promotion', deck:'An archive entry. The scope was not yet official. The confidence was.',
     date:'2024-10-01' },
   { id:'archive/owl', clusterId:'archive', section:'archive', type:'statement', status:'archived',
-    title:'Owl', deck:'An archive image. The subject has been described, more than once, as owl-like. This is the evidence.',
+    title:'The "Big Picture Thinker"', deck:'An archive entry. The subject has been described, more than once, as a big-picture thinker. This is the evidence.',
     date:'2024-10-08' },
   { id:'archive/hoodies', clusterId:'archive', section:'archive', type:'statement', status:'archived',
-    title:'Owns All of My Hoodies', deck:'An archive image. Filed under: claims that are, on inspection, factually correct.',
+    title:'Owns Every Company Hoodie', deck:'An archive entry. Filed under: claims that are, on inspection, factually correct.',
     date:'2024-11-02' }
 ];
 
@@ -1533,7 +1542,7 @@ function buildData() {
       title: r.title, deck: r.deck,
       clusterId: r.clusterId, section: r.section || null,
       provenance: {
-        author: 'Zack Gort', date: r.date,
+        author: 'Priya Anand', date: r.date,
         source: 'intoview.pro / ' + (r.section || r.clusterId),
         status: r.status || 'published'
       },
@@ -1561,7 +1570,7 @@ function buildData() {
   const indexMeta = {
     id: 'index', type: 'index', num: '—',
     title: 'Index', deck: 'Every section, with card counts and provenance status.',
-    provenance: { status: 'published', source: 'intoview.pro', author: 'Zack Gort', date: '2026' },
+    provenance: { status: 'published', source: 'intoview.pro', author: 'Priya Anand', date: '2026' },
     relationships: { references: [], replies: [], updates: [] },
     clusterId: null, section: null, parentId: null, media: null,
     fullContent: buildIndexContent()
@@ -1618,6 +1627,11 @@ let topZ = 10;
 const expandedClusters = new Set();
 const restPositions = new Map();
 let focusedNodeId = 'identity';
+/* Whether a deliberate focus-pull is currently active on mobile (tapped a card,
+   stepped via the HUD). Blur/dim only while this is true — otherwise `has-focus`
+   would be permanently true from the 'identity' default above and dim the whole
+   column before the user has done anything. Manual panning clears it again. */
+let mobileFocusActive = false;
 
 const CANVAS_STORAGE_KEY = 'intoview.canvas.v15';
 const THEME_STORAGE_KEY = 'intoview.theme';
@@ -1722,8 +1736,13 @@ function syncView() {
   document.body.dataset.browse = browseMode;
   document.body.dataset.reader = readerOpen ? 'open' : 'closed';
 
-  document.getElementById('canvasRoot').hidden = readerOpen || browseMode !== 'canvas';
-  document.getElementById('galleryRoot').hidden = readerOpen || browseMode !== 'gallery';
+  /* Note: intentionally NOT hidden while readerOpen — the [hidden] rule is
+     display:none !important, which would pre-empt the filter transition above
+     before it could ever play. Reader sits above both (z-index 120) with an
+     opaque background and pointer-events:none is applied via CSS, so leaving
+     the underlying surface in place and blurred is safe. */
+  document.getElementById('canvasRoot').hidden = browseMode !== 'canvas';
+  document.getElementById('galleryRoot').hidden = browseMode !== 'gallery';
   document.getElementById('carouselWrap').style.display = readerOpen ? '' : 'none';
 
   document.getElementById('hudTop').hidden = !readerOpen;
@@ -1867,6 +1886,17 @@ function getCanvasNodes() {
 function getNodeOrder() { return ['identity', 'index', ...CLUSTER_ORDER]; }
 
 function applyFocus() {
+  if (isMobile()) {
+    /* On mobile, "focus" is whichever node fitToFocus just framed — dim every
+       other card in the column so the organic zoom reads as a real focus pull,
+       not just a camera move. */
+    const hasFocus = mobileFocusActive && !!focusedNodeId && canvasLayout !== 'array';
+    document.body.classList.toggle('has-focus', hasFocus);
+    document.querySelectorAll('.canvas-node').forEach(node => {
+      node.classList.toggle('is-focused', hasFocus && node.dataset.nodeId === focusedNodeId);
+    });
+    return;
+  }
   const hasFocus = expandedClusters.size > 0 && canvasLayout !== 'array';
   document.body.classList.toggle('has-focus', hasFocus);
   document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(node => {
@@ -2394,7 +2424,7 @@ function renderGalleryView() {
 function renderGalleryCoverCard(clusterOverride) {
   const cl = clusterOverride || (currentRoute.scope ? CLUSTERS.get(currentRoute.scope) : null);
   const section = currentRoute.section;
-  const p = cl ? cl.provenance : { author:'Zack Gort', date:'2026', source:'intoview.pro', status:'published' };
+  const p = cl ? cl.provenance : { author:'Priya Anand', date:'2026', source:'intoview.pro', status:'published' };
   const kicker = cl ? 'SECTION' : 'GALLERY';
   const title = cl ? cl.title : 'The Gallery';
   const deck = cl ? cl.deck : 'Every card, in chronological order — the canonical browse view of the whole record.';
@@ -3400,15 +3430,16 @@ function handleNodeTap(node, target) {
   if (closestSafe(target, '.cluster-collapse-chip')) { toggleCluster(node.dataset.clusterId); return; }
   if (closestSafe(target, '.cluster-peek-hit')) { toggleCluster(node.dataset.clusterId); return; }
   const leaf = closestSafe(target, '.cluster-leaf');
-  if (leaf) { openReader(leaf.dataset.cardId); return; }
+  if (leaf) { focusNode(node.dataset.clusterId); openReader(leaf.dataset.cardId); return; }
   if (closestSafe(target, '.index-row')) {
     const cid = closestSafe(target, '.index-row').dataset.clusterId;
-    if (cid) openReader(cid);
+    if (cid) { focusNode(cid); openReader(cid); }
     return;
   }
-  if (node.dataset.kind === 'identity') { openReader('identity'); return; }
-  if (node.dataset.kind === 'index') { openReader('index'); return; }
+  if (node.dataset.kind === 'identity') { focusNode('identity'); openReader('identity'); return; }
+  if (node.dataset.kind === 'index') { focusNode('index'); openReader('index'); return; }
   if (node.dataset.kind === 'cluster') {
+    focusNode(node.dataset.clusterId);
     openReader(node.dataset.clusterId);
   }
 }
@@ -3515,10 +3546,13 @@ function toggleCluster(id) {
     if (stack) stack.dataset.expanded = wasExpanded ? 'false' : 'true';
     node.classList.toggle('is-expanded', !wasExpanded);
   }
+  if (isMobile()) {
+    focusedNodeId = id;
+    mobileFocusActive = true;
+  }
   applyFocus();
   saveCanvasState();
   if (isMobile()) {
-    if (focusedNodeId !== id) focusedNodeId = id;
     requestAnimationFrame(() => { reflowMobileColumn(); fitToFocus(); drawCanvasEdges(); queueMinimapLayout(); });
   } else {
     setTimeout(() => { drawCanvasEdges(); queueMinimapLayout(); }, 360);
@@ -3530,6 +3564,7 @@ function collapseAllClusters() {
   expandedClusters.clear();
   document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
   document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => n.classList.remove('is-expanded'));
+  if (isMobile()) mobileFocusActive = false;
   applyFocus();
   saveCanvasState();
   setTimeout(() => { drawCanvasEdges(); queueMinimapLayout(); }, 360);
@@ -3618,6 +3653,10 @@ function attachCanvasHandlers() {
       if (!didMove && canvasPanState.button === 0 && expandedClusters.size > 0 && canvasLayout !== 'array') {
         collapseAllClusters();
       }
+      /* A manual drag means the user is free-browsing again, not looking at
+         whatever was last focused — release the pull so blur doesn't lie
+         about what's actually centered. */
+      if (didMove && isMobile() && mobileFocusActive) { mobileFocusActive = false; applyFocus(); }
       if (didMove) saveCanvasState();
       canvasPanState = null;
     }
@@ -3669,7 +3708,11 @@ function focusNode(id, opts = {}) {
   const changed = focusedNodeId !== id;
   focusedNodeId = id;
   if (changed || opts.force) { updateMobileHud(); saveCanvasState(); }
-  if (isMobile() && opts.autoFit !== false) requestAnimationFrame(() => fitToFocus());
+  if (isMobile()) {
+    mobileFocusActive = true;
+    applyFocus();
+    if (opts.autoFit !== false) requestAnimationFrame(() => fitToFocus());
+  }
 }
 
 function fitToFocus(opts = {}) {
@@ -3691,10 +3734,17 @@ function fitToFocus(opts = {}) {
   const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 172;
   const twoColW = cardW * 2 + 8;
   const targetW = isMobile() ? Math.max(rect.w, twoColW) : rect.w;
-  let ns = Math.min(availW / targetW, availH / rect.h);
-  ns = Math.max(getMinScale(), Math.min(getMaxScale(), ns));
+  const containScale = Math.min(availW / targetW, availH / rect.h);
+  /* Legibility wins over fit: never let the organic zoom shrink a focused card
+     past the readable floor just to force it entirely inside the viewport. */
+  const floor = LEGIBLE_SCALE;
+  const legibilityLimited = containScale < floor;
+  const ns = Math.max(floor, Math.min(getMaxScale(), containScale));
   const cx = rect.x + rect.w / 2;
-  const cy = rect.y + rect.h / 2;
+  /* When legibility overflows the frame, anchor the window to the top of the
+     card (kicker/title) instead of centering — a center-crop would cut the
+     title off before the reader ever sees it. */
+  const cy = legibilityLimited ? (rect.y + (availH / ns) / 2) : (rect.y + rect.h / 2);
   tweenCamera(ns, vw / 2 - cx * ns, (topbarH + vh - hudReserve) / 2 - cy * ns, 360);
 }
 
