@@ -104,12 +104,7 @@ body[data-reader="open"]{overflow:hidden}
 .mobile-back{display:none;font-size:9px;min-height:32px;padding:4px 10px;flex-shrink:0}
 @media (max-width:640px){.breadcrumb{display:none}.mobile-back:not([hidden]){display:inline-flex}}
 
-/* ═══ VIEWPORT BLUR ═══
-   Raised to z-index 130 so the veil actually paints over the canvas (50),
-   gallery (55), and reader carousel (120) — but stays under the topbar
-   (150) and the reader HUDs (140), so chrome isn't softened. The gradient
-   is deeper than a plain linear fade so text passing under the wordmark
-   is properly occluded, matching the nevereverland treatment. */
+/* ═══ VIEWPORT BLUR ═══ */
 .viewport-blur{position:fixed;left:0;right:0;z-index:130;pointer-events:none;backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);transition:backdrop-filter .3s ease,background .4s ease}
 .viewport-blur.scrolling{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(10px)}
 .viewport-blur-top{
@@ -182,10 +177,6 @@ body[data-layout="list"] #canvasRoot{cursor:default;touch-action:pan-y}
 body[data-layout="list"] .canvas-surface{display:none}
 body[data-layout="list"] #canvasListWrap{display:block}
 
-/* Top padding clears the topbar so the first list item doesn't sit under
-   the wordmark. Bottom padding gives the HUD breathing room. The scroll
-   container keeps its own scrollTop so content slides under the fixed
-   topbar/chrome as you scroll — matching the nevereverland pattern. */
 #canvasListWrap{
   display:none;
   position:absolute;inset:0;
@@ -988,6 +979,32 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   .cluster-peek-hit{height:32px;right:-8px}
   .cluster-collapse-chip{font-size:7px;padding:3px 10px;top:-26px}
   .cluster-reader-grid{grid-template-columns:1fr}
+
+  /* ── Array mode on mobile: stack the cluster title above its leaves,
+        cap the leaves at two columns so nothing overflows the viewport,
+        and tighten gaps. ── */
+  body[data-layout="array"] .cluster-stack {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    width: max-content;
+    max-width: none;
+  }
+  body[data-layout="array"] .cluster-stack-inner {
+    width: var(--card-w);
+  }
+  body[data-layout="array"] .cluster-leaves {
+    max-width: calc(var(--card-w) * 2 + 8px + 4px);
+    gap: 8px;
+  }
+  body[data-layout="array"] .canvas-node {
+    width: max-content;
+    max-width: calc(var(--card-w) * 2 + 8px + 4px);
+  }
+  body[data-layout="array"] .cluster-leaf > .prov-card {
+    width: var(--card-w);
+    min-height: 176px;
+  }
 }
 </style>
 </head>
@@ -1266,6 +1283,12 @@ const getMaxScale = () => isMobile() ? 1 : MAX_SCALE;
 const getMinScale = () => isMobile() ? 0.5 : MIN_SCALE;
 const LEGIBLE_SCALE = 0.76;
 const ZOOM_STEP = 1.25;
+
+/* Array layout target starting zoom — deliberately above the fit-everything
+   scale so the user lands on readable cards instead of a tiny overview.
+   They can pan/zoom from there. */
+const ARRAY_START_SCALE_DESKTOP = 1.15;
+const ARRAY_START_SCALE_MOBILE = 0.9;
 
 /* ═══════════════════════════════════════════════════════════
    DATA
@@ -1815,7 +1838,7 @@ const restPositions = new Map();
 let focusedNodeId = 'identity';
 let mobileFocusActive = false;
 
-const CANVAS_STORAGE_KEY = 'intoview.canvas.v18';
+const CANVAS_STORAGE_KEY = 'intoview.canvas.v19';
 const THEME_STORAGE_KEY = 'intoview.theme';
 const WIDGET_ON_KEY = 'intoview.widget.on';
 const WIDGET_POS_KEY = 'intoview.widget.pos';
@@ -2410,6 +2433,7 @@ function reflowMobileColumn() {
   nodes.forEach(n => { n.style.transition = ''; });
 }
 
+/* ── Array (expanded, flat-wrap) packing ── */
 function packArray() {
   const surface = document.getElementById('canvasSurface');
   if (!surface) return;
@@ -2426,11 +2450,11 @@ function packArray() {
 
   const mobile = isMobile();
   const vw = window.innerWidth;
-  const startX = 40;
-  const startY = 40;
-  const gapX = 40;
-  const gapY = 40;
-  const maxRight = vw - 40;
+  const startX = mobile ? 16 : 40;
+  const startY = mobile ? 16 : 40;
+  const gapX = mobile ? 16 : 40;
+  const gapY = mobile ? 24 : 40;
+  const maxRight = vw - (mobile ? 16 : 40);
 
   let rowY = startY;
   let rowH = 0;
@@ -2468,10 +2492,56 @@ function packArray() {
   surface.style.transition = prevTransition;
   surface.style.transform = prevTransform;
 
-  fitCanvasToViewport();
+  fitArrayTopLeft();
   saveCanvasState();
   drawCanvasEdges();
   queueMinimapLayout();
+}
+
+/* ── Array initial framing ──
+   Instead of fitting the whole (often enormous) strip into the viewport —
+   which produces an illegible overview — start at a fixed readable scale
+   anchored to the top-left node. Users can then pan/zoom from there. */
+function fitArrayTopLeft() {
+  const surface = document.getElementById('canvasSurface');
+  if (!surface) return;
+  const nodes = [...surface.querySelectorAll('.canvas-node')];
+  if (!nodes.length) return;
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const topbarH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-height')) || 56;
+  const hudReserve = isMobile() ? 100 : 80;
+  const padX = isMobile() ? 16 : 40;
+  const padY = isMobile() ? 16 : 40;
+
+  // Bounding box of everything in the array.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  nodes.forEach(n => {
+    const x = parseFloat(n.style.left) || 0;
+    const y = parseFloat(n.style.top) || 0;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + n.offsetWidth);
+    maxY = Math.max(maxY, y + n.offsetHeight);
+  });
+  if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 1; maxY = 1; }
+
+  const availW = Math.max(1, vw - padX * 2);
+  const availH = Math.max(1, vh - topbarH - hudReserve - padY);
+  const fitAll = Math.min(availW / Math.max(1, maxX - minX), availH / Math.max(1, maxY - minY));
+
+  // Target starting zoom — never shrink below this unless the array
+  // already fits more compactly, which it never does.
+  const target = isMobile() ? ARRAY_START_SCALE_MOBILE : ARRAY_START_SCALE_DESKTOP;
+  let s = Math.max(fitAll, target);
+  s = Math.max(getMinScale(), Math.min(getMaxScale(), s));
+  scale = s;
+
+  // Anchor top-left node at (padX, topbarH + padY) on screen.
+  panOffset.x = padX - minX * scale;
+  panOffset.y = (topbarH + padY) - minY * scale;
+  applyPanTransform();
 }
 
 function refineIdentityIndexStack() {
@@ -3978,7 +4048,7 @@ function focusNode(id, opts = {}) {
 
 function fitToFocus(opts = {}) {
   if (!isMobile()) return;
-  if (canvasLayout === 'list') return;
+  if (canvasLayout === 'list' || canvasLayout === 'array') return;
   const rect = getFocusRect(focusedNodeId);
   if (!rect) return;
   const vw = window.innerWidth, vh = window.innerHeight;
@@ -4508,7 +4578,7 @@ function setupZoomHud() {
   zh.querySelector('[data-action="zoom-out"]').addEventListener('click', () => zoomStep(-1));
   zh.querySelector('[data-action="zoom-in"]').addEventListener('click', () => zoomStep(1));
   zh.querySelector('[data-action="zoom-reset-100"]').addEventListener('click', zoomReset100);
-  zh.querySelector('[data-action="zoom-fit"]').addEventListener('click', () => { fitCanvasToViewport(); saveCanvasState(); });
+  zh.querySelector('[data-action="zoom-fit"]').addEventListener('click', () => { fitCanvas(); });
   const grip = zh.querySelector('.zoomhud-grip');
   grip.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
@@ -4621,7 +4691,8 @@ function setCanvasLayout(layout) {
 
   if (layout !== 'list') {
     setTimeout(() => {
-      fitCanvasToViewport();
+      if (layout === 'array') fitArrayTopLeft();
+      else fitCanvasToViewport();
       saveCanvasState();
       drawCanvasEdges();
       queueMinimapLayout();
@@ -4634,8 +4705,13 @@ function setCanvasLayout(layout) {
 }
 
 function fitCanvas() {
-  if (isMobile()) fitToFocus({ force: true });
-  else fitCanvasToViewport();
+  if (canvasLayout === 'array') {
+    fitArrayTopLeft();
+  } else if (isMobile()) {
+    fitToFocus({ force: true });
+  } else {
+    fitCanvasToViewport();
+  }
   saveCanvasState();
 }
 
@@ -5102,21 +5178,16 @@ function setupMobileSheet() {
 
 /* ═══════════════════════════════════════════════════════════
    VIEWPORT BLUR
-   The blur elements sit above the canvas/gallery/carousel and below
-   the topbar, so content passing underneath the header is softened
-   while chrome stays crisp. We watch the *active* scroll container
-   per mode (canvas-list, gallery-list, gallery-grid, reader carousel)
-   so the state tracks inner scroll surfaces, not just window.scroll.
    ═══════════════════════════════════════════════════════════ */
 function getActiveViewportScroller() {
   if (currentRoute.mode === 'reader') return document.getElementById('carouselWrap');
   if (browseMode === 'gallery') {
-    if (galleryView === 'flow') return null; // transform-driven, no scrollTop
+    if (galleryView === 'flow') return null;
     if (galleryView === 'list') return document.getElementById('list-wrap');
     return document.getElementById('grid-scroll');
   }
   if (canvasLayout === 'list') return document.getElementById('canvasListWrap');
-  return null; // grid / array canvas don't scroll the same way
+  return null;
 }
 
 function setupViewportBlur() {
