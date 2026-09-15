@@ -212,15 +212,15 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 /* ═══ PROV CARD ═══ */
 .prov-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:16px 18px 14px;display:flex;flex-direction:column;gap:10px;width:var(--card-w);min-height:260px;cursor:pointer;position:relative;overflow:hidden;transition:box-shadow .2s ease,transform .2s ease,border-color .2s ease;color:var(--ink)}
 @media (hover:hover) and (pointer:fine){.prov-card:hover{box-shadow:var(--shadow-hover)}.canvas-node:not(.dragging):hover .prov-card{transform:translateY(-2px)}} 
-.prov-card-kicker{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--font-mono);font-size:8px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-light)}
-.prov-card-type{display:flex;align-items:center;gap:6px}
-.prov-card-type::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--ink-lighter)}
+.prov-card-kicker{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:8px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-light)}
+.prov-card-type{display:flex;align-items:center;gap:6px;margin-right:auto;min-width:0}
+.prov-card-type::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--ink-lighter);flex-shrink:0}
 .prov-card[data-type="cluster"] .prov-card-type::before,.prov-card[data-type="statement"] .prov-card-type::before{background:var(--ink)}
 .prov-card[data-type="evidence"] .prov-card-type::before{background:var(--impact-gain)}
 .prov-card[data-type="reply"] .prov-card-type::before{background:var(--impact-accent)}
 .prov-card[data-type="update"] .prov-card-type::before{background:var(--impact-loss)}
 .prov-card[data-type="identity"] .prov-card-type::before{background:var(--accent)}
-.prov-card-status{padding:1px 7px;border-radius:999px;font-size:7px;border:1px solid currentColor;color:var(--ink-light);letter-spacing:.08em;white-space:nowrap}
+.prov-card-status{padding:1px 7px;border-radius:999px;font-size:7px;border:1px solid currentColor;color:var(--ink-light);letter-spacing:.08em;white-space:nowrap;flex-shrink:0}
 .prov-card-status[data-status="published"]{color:var(--ink)}
 .prov-card-status[data-status="verified"]{color:var(--impact-gain)}
 .prov-card-status[data-status="contested"]{color:var(--impact-loss)}
@@ -1625,6 +1625,134 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   .info-overlay .bookend-index a{font-size:clamp(.7rem,2vw,.9rem);padding:.15rem 0}
   .info-overlay .bookend-index a .idx-num{min-width:2em;font-size:.55em}
 }
+
+/* ═══ ATTENTION (social layer · ephemeral memory) ═══ */
+.btn-attention{display:inline-flex;align-items:center;gap:7px;font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.btn-attention .attend-icon{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  border:1.5px solid currentColor;
+  transition:background .15s ease,border-color .15s ease;
+  flex-shrink:0;
+}
+.btn-attention.has-attention .attend-icon{background:var(--accent);border-color:var(--accent)}
+.btn-attention.has-attention{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));color:var(--ink)}
+.btn-attention.has-attention:hover .attend-icon{background:var(--bg);border-color:var(--bg)}
+
+.attend-btn{
+  flex-shrink:0;
+  width:16px;height:16px;
+  border-radius:50%;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--ink-lighter);
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  padding:0;
+  transition:border-color .15s ease,color .15s ease,background .15s ease;
+  margin-left:2px;
+  -webkit-tap-highlight-color:transparent;
+}
+.attend-btn::before{
+  content:'';
+  width:6px;height:6px;border-radius:50%;
+  border:1.5px solid currentColor;
+  transition:background .15s ease;
+}
+.attend-btn:hover{color:var(--ink);border-color:var(--ink)}
+.prov-card.is-attended .attend-btn{
+  border-color:var(--accent);
+  color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 20%,transparent);
+}
+.prov-card.is-attended .attend-btn::before{background:currentColor}
+.prov-card.is-attended{
+  border-color:color-mix(in srgb,var(--accent) 45%,var(--border));
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent),var(--shadow);
+}
+
+.reader-attend-btn{font-size:8px;letter-spacing:.08em}
+.reader-attend-btn.active{
+  background:var(--accent);
+  color:#1c1c1e;
+  border-color:var(--accent);
+}
+.reader-attend-btn.active:hover{background:color-mix(in srgb,var(--accent) 80%,#000);color:#1c1c1e;border-color:color-mix(in srgb,var(--accent) 80%,#000)}
+
+#attentionOverlay{
+  position:fixed;inset:0;z-index:580;
+  background:var(--bg);
+  opacity:0;pointer-events:none;
+  transition:opacity .3s cubic-bezier(.25,.46,.45,.94);
+  overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:none;-ms-overflow-style:none;
+}
+#attentionOverlay::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+#attentionOverlay.open{opacity:1;pointer-events:auto}
+.attention-inner{
+  max-width:var(--max-width);
+  margin:0 auto;
+  padding:calc(var(--topbar-height) + 40px) var(--margin) 100px;
+}
+.attention-header{
+  display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
+  padding-bottom:20px;margin-bottom:28px;
+  border-bottom:1px solid var(--border);
+}
+.attention-title{
+  font-family:var(--font);
+  font-size:clamp(28px,4vw,48px);
+  font-weight:700;letter-spacing:-.025em;
+  color:var(--ink);margin:0;line-height:1;
+}
+.attention-sub{
+  font-family:var(--font-mono);
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-light);
+}
+.attention-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.attention-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:1.2rem 1rem;
+  align-items:start;
+}
+.attention-empty{
+  grid-column:1 / -1;
+  padding:80px 20px;
+  text-align:center;
+  color:var(--ink-light);
+  font-size:15px;
+  font-style:italic;
+}
+.attention-empty p{margin:0 0 10px}
+.attention-empty-hint{
+  font-family:var(--font-mono);
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-lighter);
+  font-style:normal;
+}
+.attention-close{
+  position:fixed;
+  top:clamp(16px,3vh,32px);right:clamp(16px,3vw,32px);
+  z-index:585;
+  background:var(--card);border:1px solid var(--border);border-radius:50%;
+  width:44px;height:44px;
+  font-size:20px;line-height:1;
+  color:var(--ink);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--shadow-floating);
+  transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease;
+  padding:0;
+}
+.attention-close:hover{background:var(--ink);color:var(--bg);transform:scale(1.05);box-shadow:var(--shadow-hover)}
+
+@media (max-width:640px){
+  .attend-btn{width:14px;height:14px}
+  .attend-btn::before{width:5px;height:5px;border-width:1.2px}
+  .attention-inner{padding:calc(var(--topbar-height) + 24px) var(--margin) 80px}
+  .attention-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem .75rem}
+  .attention-header{gap:10px}
+}
 </style>
 </head>
 <body data-theme="dark" data-layout="grid" data-browse="canvas" data-reader="closed">
@@ -1660,7 +1788,12 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
     <nav class="breadcrumb" id="breadcrumb" aria-label="Breadcrumb"></nav>
     <button class="btn mobile-back" id="mobileBackBtn" hidden aria-label="Back">← Back</button>
     <div class="topbar-right">
-
+      <button class="btn btn-grid" id="gridToggle" aria-label="Toggle layout overlay">
+        <span class="dot-indicator"></span> Layout
+      </button>
+      <button class="btn btn-attention" id="attentionTrigger" title="Attention span" aria-label="Attention span">
+        <span class="attend-icon"></span><span id="attentionCount">0</span>
+      </button>
       <button class="btn" id="infoToggleBtn" title="About intoview.pro" aria-label="About intoview.pro">ⓘ</button>
       <div class="topbar-appearance-wrapper">
         <button class="btn" id="appearanceTrigger" aria-haspopup="true" aria-expanded="false">Aa</button>
@@ -1879,6 +2012,21 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
     <button class="mobile-sheet-close" id="mobileSheetClose" aria-label="Close">×</button>
   </div>
   <div class="mobile-sheet-body" id="mobileSheetBody"></div>
+</div>
+
+<!-- ═══ ATTENTION OVERLAY (social layer · ephemeral memory) ═══ -->
+<div id="attentionOverlay" role="dialog" aria-modal="true" aria-label="Attention span" hidden>
+  <button class="attention-close" id="attentionCloseBtn" aria-label="Close attention">✕</button>
+  <div class="attention-inner">
+    <div class="attention-header">
+      <h2 class="attention-title">Attention</h2>
+      <span class="attention-sub">Held in mind · ephemeral memory</span>
+      <div class="attention-actions">
+        <button class="btn" id="attentionClearBtn" type="button">Clear all</button>
+      </div>
+    </div>
+    <div class="attention-grid" id="attentionGrid"></div>
+  </div>
 </div>
 
 <!-- ═══ SPIRAL INFO OVERLAY ═══ -->
@@ -3090,6 +3238,7 @@ const ZOOMHUD_POS_KEY = 'intoview.zoomhud.pos';
 const HUDTOP_POS_KEY = 'intoview.hudtop.pos';
 const BROWSE_ON_KEY = 'intoview.browse.on';
 const BROWSE_POS_KEY = 'intoview.browse.pos';
+const ATTENTION_KEY = 'intoview.attention';
 
 let widgetVisible = false, widgetPos = null;
 let minimapVisible = false, minimapPos = null, minimapBounds = null;
@@ -3101,6 +3250,8 @@ let browseWidgetVisible = false, browseWidgetPos = null;
 let resizeObserver = null;
 
 let viewportBlurUpdate = null;
+
+let attendedCards = new Set();
 
 /* ═══════════════════════════════════════════════════════════
    ROUTER
@@ -3575,6 +3726,7 @@ function renderCompactCard(card) {
       '<span class="prov-card-source">' + escapeHtml(card.provenance.source) + '</span>' +
       '<span class="prov-card-relations">' + (relCount > 0 ? '<span class="prov-card-relation"><strong>' + relCount + '</strong> ref</span>' : '') + '</span>' +
     '</div>';
+  attachAttendButton(el, card);
   return el;
 }
 
@@ -4050,6 +4202,12 @@ function voiceBadge(card) {
 }
 
 function renderGalleryCard(card) {
+  const el = renderGalleryCardBase(card);
+  attachAttendButton(el, card);
+  return el;
+}
+
+function renderGalleryCardBase(card) {
   const el = document.createElement('article');
   el.className = 'prov-card';
   el.dataset.type = card.type;
@@ -4580,10 +4738,148 @@ function updateBorderProgress() {
 })();
 
 /* ═══════════════════════════════════════════════════════════
+   ATTENTION · social layer · ephemeral memory
+   ═══════════════════════════════════════════════════════════ */
+function isAttendable(card) {
+  if (!card) return false;
+  return card.type !== 'cluster' && card.type !== 'index' && card.type !== 'cluster-index' && card.type !== 'identity';
+}
+function isAttended(id) { return attendedCards.has(id); }
+
+function loadAttention() {
+  try {
+    const raw = localStorage.getItem(ATTENTION_KEY);
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) {
+      attendedCards = new Set(arr.filter(id => {
+        const c = CARDS.get(id);
+        return isAttendable(c);
+      }));
+    }
+  } catch(e){}
+}
+function saveAttention() {
+  try { localStorage.setItem(ATTENTION_KEY, JSON.stringify(Array.from(attendedCards))); } catch(e){}
+}
+function clearAttention() {
+  attendedCards.clear();
+  saveAttention();
+  refreshAttendVisuals();
+}
+function toggleAttend(id) {
+  const card = CARDS.get(id);
+  if (!isAttendable(card)) return;
+  if (attendedCards.has(id)) attendedCards.delete(id);
+  else attendedCards.add(id);
+  saveAttention();
+  refreshAttendVisuals();
+  const ov = document.getElementById('attentionOverlay');
+  if (ov && ov.classList.contains('open')) renderAttentionView();
+}
+function attachAttendButton(el, card) {
+  if (!isAttendable(card)) return el;
+  const kicker = el.querySelector('.prov-card-kicker');
+  if (!kicker) return el;
+  const attended = isAttended(card.id);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'attend-btn';
+  btn.setAttribute('aria-label', attended ? 'Release from attention' : 'Hold in mind');
+  btn.title = attended ? 'Held in mind — click to release' : 'Hold in mind';
+  btn.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleAttend(card.id);
+  });
+  kicker.appendChild(btn);
+  el.classList.toggle('is-attended', attended);
+  return el;
+}
+function refreshAttendVisuals() {
+  document.querySelectorAll('.prov-card[data-card-id]').forEach(el => {
+    const id = el.dataset.cardId;
+    if (!id) return;
+    const attended = attendedCards.has(id);
+    el.classList.toggle('is-attended', attended);
+    const btn = el.querySelector('.attend-btn');
+    if (btn) {
+      btn.setAttribute('aria-label', attended ? 'Release from attention' : 'Hold in mind');
+      btn.title = attended ? 'Held in mind — click to release' : 'Hold in mind';
+    }
+  });
+  updateAttentionCount();
+}
+function updateAttentionCount() {
+  const el = document.getElementById('attentionCount');
+  if (el) el.textContent = String(attendedCards.size);
+  const btn = document.getElementById('attentionTrigger');
+  if (btn) btn.classList.toggle('has-attention', attendedCards.size > 0);
+}
+function renderAttentionView() {
+  const grid = document.getElementById('attentionGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const cards = Array.from(attendedCards)
+    .map(id => CARDS.get(id))
+    .filter(Boolean)
+    .sort((a, b) => (b.provenance.date || '') < (a.provenance.date || '') ? -1 : 1);
+
+  if (!cards.length) {
+    const empty = document.createElement('div');
+    empty.className = 'attention-empty';
+    empty.innerHTML = '<p>Your attention span is empty.</p><p class="attention-empty-hint">Tap the circle on any statement to hold it in mind.</p>';
+    grid.appendChild(empty);
+    return;
+  }
+
+  cards.forEach(card => {
+    const wrap = document.createElement('div');
+    wrap.className = 'g-item';
+    const cardEl = renderGalleryCard(card);
+    wrap.appendChild(cardEl);
+    wireVideo(cardEl);
+    wireGalleryCard(wrap, card);
+    grid.appendChild(wrap);
+  });
+}
+function openAttention() {
+  const ov = document.getElementById('attentionOverlay');
+  if (!ov) return;
+  renderAttentionView();
+  ov.hidden = false;
+  requestAnimationFrame(() => ov.classList.add('open'));
+  document.body.style.overflow = 'hidden';
+}
+function closeAttention() {
+  const ov = document.getElementById('attentionOverlay');
+  if (!ov) return;
+  ov.classList.remove('open');
+  document.body.style.overflow = '';
+  setTimeout(() => { if (!ov.classList.contains('open')) ov.hidden = true; }, 320);
+}
+function setupAttention() {
+  loadAttention();
+  updateAttentionCount();
+  const trigger = document.getElementById('attentionTrigger');
+  const closeBtn = document.getElementById('attentionCloseBtn');
+  const clearBtn = document.getElementById('attentionClearBtn');
+  if (trigger) trigger.addEventListener('click', openAttention);
+  if (closeBtn) closeBtn.addEventListener('click', closeAttention);
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    if (!attendedCards.size) return;
+    if (!confirm('Clear everything held in mind?')) return;
+    clearAttention();
+    renderAttentionView();
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
    READER OVERLAY
    ═══════════════════════════════════════════════════════════ */
 function openReader(cardId) {
   if (!CARDS.has(cardId)) return;
+  closeAttention();
   navigate({ mode: 'reader', cardId });
 }
 
@@ -5149,6 +5445,26 @@ function renderReaderCard(card, index, total) {
 
   const toolbar = document.createElement('div');
   toolbar.className = 'letter-toolbar';
+
+  if (isGeneralLetter(card)) {
+    const attended = isAttended(card.id);
+    const attendBtn = document.createElement('button');
+    attendBtn.type = 'button';
+    attendBtn.className = 'btn reader-attend-btn' + (attended ? ' active' : '');
+    attendBtn.textContent = attended ? '● Held in mind' : '○ Hold in mind';
+    attendBtn.setAttribute('aria-label', attended ? 'Release from attention' : 'Hold in mind');
+    attendBtn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleAttend(card.id);
+      const now = isAttended(card.id);
+      attendBtn.classList.toggle('active', now);
+      attendBtn.textContent = now ? '● Held in mind' : '○ Hold in mind';
+      attendBtn.setAttribute('aria-label', now ? 'Release from attention' : 'Hold in mind');
+    });
+    toolbar.appendChild(attendBtn);
+  }
+
   const count = document.createElement('span');
   count.className = 'letter-count';
   count.textContent = (index + 1) + ' / ' + total;
@@ -5354,7 +5670,7 @@ function attachNodeHandlers(node) {
   node.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
     if (canvasLayout === 'array' || canvasLayout === 'list') return;
-    if (closestSafe(e.target, '.cluster-leaf, .cluster-browse-all, .cluster-collapse-chip')) return;
+    if (closestSafe(e.target, '.cluster-leaf, .cluster-browse-all, .cluster-collapse-chip, .attend-btn')) return;
     if (e.pointerType === 'touch') {
       const sx = e.clientX, sy = e.clientY, target = e.target;
       const onUp = ev => {
@@ -5502,7 +5818,7 @@ function attachCanvasHandlers() {
   root.dataset.bound = '1';
   root.addEventListener('pointerdown', e => {
     if (canvasLayout === 'list') return;
-    if (closestSafe(e.target, '.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud, .browse-widget')) return;
+    if (closestSafe(e.target, '.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud, .browse-widget, .attend-btn')) return;
     if (e.pointerType !== 'touch' && closestSafe(e.target, '.canvas-node')) return;
     if (e.button !== 0 && e.button !== 1) return;
     if (e.pointerType === 'touch' && closestSafe(e.target, '.canvas-node') && canvasPointers.size === 0) return;
@@ -6481,6 +6797,15 @@ function showGalleryContextMenu(x, y, card) {
   open.innerHTML = '<span class="ctx-indicator"></span> Open in reader';
   open.addEventListener('click', () => { openReader(card.id); closeGalleryContextMenu(); });
   m.appendChild(open);
+  if (isAttendable(card)) {
+    const attended = isAttended(card.id);
+    const att = document.createElement('button');
+    att.type = 'button';
+    att.className = 'ctx-item' + (attended ? ' active' : '');
+    att.innerHTML = '<span class="ctx-indicator"></span> ' + (attended ? 'Release from attention' : 'Hold in mind');
+    att.addEventListener('click', () => { toggleAttend(card.id); closeGalleryContextMenu(); });
+    m.appendChild(att);
+  }
   if (card.clusterId && CLUSTERS.has(card.clusterId)) {
     const cl = CLUSTERS.get(card.clusterId);
     const goSec = document.createElement('button');
@@ -6556,6 +6881,16 @@ function showReaderContextMenu(x, y, card) {
   addItem('‹', 'Previous statement', { disabled: isFirst, noIndicator: true }, () => activatePanel(activeIndex - 1));
   addItem('›', 'Next statement',     { disabled: isLast,  noIndicator: true }, () => activatePanel(activeIndex + 1));
   addItem('⌂', 'Title card',      { disabled: activeIndex === 0, noIndicator: true }, () => activatePanel(0));
+
+  if (isAttendable(card)) {
+    addDivider();
+    addLabel('Attention');
+    const attended = isAttended(card.id);
+    addItem(attended ? '●' : '○', attended ? 'Release from attention' : 'Hold in mind', { noIndicator: true }, () => {
+      toggleAttend(card.id);
+      renderTrack();
+    });
+  }
 
   addDivider();
 
@@ -6659,6 +6994,11 @@ function buildMobileSheet() {
       '<span class="mobile-index-label">Index</span>' +
       '<span class="mobile-index-count">' + CLUSTER_ORDER.length + ' sections</span>' +
     '</button>' +
+    '<button class="mobile-index-row" type="button" data-nav="attention" style="margin-top:8px">' +
+      '<span class="index-num" id="mobileAttentionCount">0</span>' +
+      '<span class="mobile-index-label">Attention</span>' +
+      '<span class="mobile-index-count">held in mind</span>' +
+    '</button>' +
     '<div class="mobile-section-label">Browse</div>' +
     '<div class="mobile-canvas-controls">' +
       '<button class="btn" type="button" data-action="toggle-gallery" id="mobileGalleryToggle">Gallery ↗</button>' +
@@ -6690,6 +7030,8 @@ function updateMobileSheetActiveStates() {
   });
   const gt = document.getElementById('mobileGalleryToggle');
   if (gt) gt.textContent = browseMode === 'gallery' ? 'Canvas' : 'Gallery ↗';
+  const mac = document.getElementById('mobileAttentionCount');
+  if (mac) mac.textContent = String(attendedCards.size);
   body.querySelectorAll('[data-gallery-view]').forEach(b => {
     b.classList.toggle('active', b.dataset.galleryView === galleryView && browseMode === 'gallery');
   });
@@ -6718,6 +7060,7 @@ function setupMobileSheet() {
       const nav = el.dataset.nav;
       if (nav === 'identity') { focusedNodeId = 'identity'; openReader('identity'); }
       else if (nav === 'index') { focusedNodeId = 'index'; openReader('index'); }
+      else if (nav === 'attention') { closeSheet(); openAttention(); return; }
       closeSheet();
     });
   });
@@ -6810,7 +7153,7 @@ function setupViewportBlur() {
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
 
-  ['canvasListWrap', 'list-wrap', 'grid-scroll', 'carouselWrap'].forEach(id => {
+  ['canvasListWrap', 'list-wrap', 'grid-scroll', 'carouselWrap', 'attentionOverlay'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('scroll', onScroll, { passive: true });
   });
@@ -6831,7 +7174,7 @@ function initWriteCursor() {
   const chevron = document.getElementById('writeCursorChevron');
   if (!dot || !ellipse || !chevron) return;
   if (window.matchMedia('(hover: none)').matches) return;
-  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .timeline-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .cluster-reader-tile, .browse-widget, .idx-row, .info-overlay-close, .js-section';
+  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .timeline-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .cluster-reader-tile, .browse-widget, .idx-row, .info-overlay-close, .js-section, .attention-close, .attend-btn';
   const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .letter-card-frame.identity-card-frame, .cluster-collapse-chip, .cluster-peek, .js-section.yellow-card';
   const LIGHT_SURFACE = '.prov-card[data-type="identity"], .letter-card-frame.index-card-frame';
   let px = 0, py = 0, prevX = 0, prevY = 0, init = false;
@@ -6902,6 +7245,8 @@ function closeAnyChrome() {
     document.getElementById('appearanceTrigger').setAttribute('aria-expanded', 'false');
     return true;
   }
+  const att = document.getElementById('attentionOverlay');
+  if (att && att.classList.contains('open')) { closeAttention(); return true; }
   const m = document.getElementById('canvasContextMenu');
   if (m && m.classList.contains('open')) { closeContextMenu(); return true; }
   const gm = document.getElementById('galleryContextMenu');
@@ -6949,6 +7294,10 @@ function setupKeyboard() {
       if (gt) gt.click();
       e.preventDefault();
     }
+    if (e.key === 'a' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      openAttention();
+      e.preventDefault();
+    }
   });
 }
 
@@ -6966,7 +7315,7 @@ function setupCarousel() {
   let isDragging = false, dragStartX = 0, dragStartScroll = 0;
   track.addEventListener('pointerdown', e => {
     if (e.pointerType === 'touch') return;
-    if (closestSafe(e.target, 'button, a, input, video, .letter-accordion-trigger, [data-nav-card], .index-row-link, .idx-row, .post-gallery-track, .letter-mechanism, .letter-details')) return;
+    if (closestSafe(e.target, 'button, a, input, video, .letter-accordion-trigger, [data-nav-card], .index-row-link, .idx-row, .post-gallery-track, .letter-mechanism, .letter-details, .reader-attend-btn')) return;
     isDragging = true;
     dragStartX = e.clientX;
     dragStartScroll = track.scrollLeft;
@@ -7028,10 +7377,12 @@ function initSpiral() {
     { num:'09', title:'Candidates read the record', density:'medium', lines:['Three years of a company\'s filings, all visible.','Do they close listings? Do they cancel cleanly?','The record answers before the first call.'] },
     { num:'10', title:'The six sections', density:'dense', lines:['Manifesto · why this exists','The Record · every filed statement','Open to Work · people looking','Hiring · roles with honest briefs','Archive · kept for the record','Network · intersecting records'] },
     { num:'11', title:'Views', density:'medium', lines:['Canvas. Gallery. Flow.','List. Grid. Bento.','Same statements, different density.'] },
-    { num:'12', title:'Intended use', density:'medium', lines:['Job seekers — a filed looking statement, not a green banner.','Companies — a listing that stays honest when it closes.','Recruiters — search that reads the record, not the resume.'] },
+    { num:'12', title:'Intended use', density:'medium', lines:['Job seekers — a filed looking statement, not a green banner.','Companies — a listing that stays honest when it closes.','Recruiters — search that reads the record, not the resume.','Readers & writers — statements, letters, replies. No posts, no likes.'] },
     { num:'13', title:'Design principles', density:'medium', lines:['Minimal. Calm. No doomscroll.','No feed to game. No likes. No algorithmic ranking.','Finite loads. Keyboard-first. Mobile-native.'] },
     { num:'14', title:'What this is not', density:'medium', lines:['Not a social network.','Not a resume template.','Not a place to post and forget.'] },
-    { num:'IN.', title:'Brand Mark · Identity', density:'brand', lines:['IN. = a filed statement, signed and finished.','The period terminates the identity into an utterance.','intoview.pro is the surface where the record lives.','NE. is the social layer. Same record, different room.'], yellow:true },
+    { num:'15', title:'Attention & memory', density:'medium', lines:['Statements stay in the record.','Attention is separate — a working set, not a filing.','Tap ○ on any statement to hold it in mind.','Your attention is your ephemeral memory. Clear it whenever.'] },
+    { num:'16', title:'One platform, two surfaces', density:'medium', lines:['The professional record — identity, filed statements, hiring, open-to-work, verified companies, archive.','The social surface — statements, letters, replies, attention.','Same moniker. Same data layer. Different rooms within one platform.','Attention on the social surface becomes ephemeral memory on your canvas.'] },
+    { num:'IN.', title:'Brand Mark · Identity', density:'brand', lines:['IN. = a filed statement, signed and finished.','The period terminates the identity into an utterance.','One moniker. One record. Two surfaces:','the professional record, and the social face that reads from it.'], yellow:true },
     { type:'bookend-end', num:'∞', title:'Contents', density:'bookend', lines:[] }
   ];
 
@@ -7332,6 +7683,7 @@ function init() {
   buildMobileSheet();
   setupMobileSheet();
   setupInfoOverlay();
+  setupAttention();
   initWriteCursor();
 
   document.getElementById('hudCanvasPrev').addEventListener('click', () => stepMobileHud(-1));
@@ -7355,13 +7707,16 @@ function init() {
   document.getElementById('topResetBtn').addEventListener('click', () => {
     if (!confirm('Reset everything?')) return;
     try { localStorage.removeItem(CANVAS_STORAGE_KEY); } catch(e){}
+    try { localStorage.removeItem(ATTENTION_KEY); } catch(e){}
     canvasLayout = 'grid';
     expandedClusters.clear();
     restPositions.clear();
     focusedNodeId = 'identity';
     panOffset.x = 0; panOffset.y = 0; scale = 1;
+    attendedCards.clear();
     document.body.dataset.layout = 'grid';
     navigate({ mode: 'canvas' });
+    refreshAttendVisuals();
   });
 
   const saved = loadCanvasState();
