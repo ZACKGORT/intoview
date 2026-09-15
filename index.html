@@ -24,7 +24,7 @@
   --font:'Satoshi',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --fs-body:15px; --max-width:1600px; --margin:16px;
-  --topbar-height:56px; --hud-height:64px; --scrollbar-height:3px;
+  --topbar-height:56px; --hud-height:64px; --scrollbar-height:0px;
   --swiss-columns:12; --swiss-gap:24px;
   --grid-outline:rgba(0,160,255,.45); --grid-fill:rgba(0,160,255,.06);
   --card-w:240px; --col-pitch:280px; --row-pitch:320px;
@@ -49,19 +49,25 @@ body[data-theme='dark']{
 
 *{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none !important}
-html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;scrollbar-width:thin;scrollbar-color:var(--ink-lighter) transparent}
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;scrollbar-width:none;-ms-overflow-style:none}
+html::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
 body{
   background:var(--bg);color:var(--fg);font-family:var(--font);font-size:var(--fs-body);line-height:1.6;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
   min-height:100vh;min-height:100dvh;
   overflow-x:hidden;transition:background .2s ease,color .2s ease;
+  scrollbar-width:none;-ms-overflow-style:none;
 }
-body[data-browse="canvas"]{padding-bottom:calc(var(--hud-height)+20px + var(--scrollbar-height))}
+body::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+body[data-browse="canvas"]{padding-bottom:calc(var(--hud-height)+20px)}
 body[data-reader="open"]{overflow:hidden}
 ::selection{background:var(--accent);color:#1c1c1e}
-::-webkit-scrollbar{width:0;height:0;display:none}
-html{scrollbar-width:none}
-body{scrollbar-width:none;-ms-overflow-style:none}border-radius:var(--radius-sm)}
+
+*{scrollbar-width:none;-ms-overflow-style:none}
+*::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+*::-webkit-scrollbar-thumb{background:transparent;border:none}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-corner{background:transparent}
 
 /* ═══ BUTTONS ═══ */
 .btn{
@@ -98,10 +104,28 @@ body{scrollbar-width:none;-ms-overflow-style:none}border-radius:var(--radius-sm)
 .mobile-back{display:none;font-size:9px;min-height:32px;padding:4px 10px;flex-shrink:0}
 @media (max-width:640px){.breadcrumb{display:none}.mobile-back:not([hidden]){display:inline-flex}}
 
-.viewport-blur{position:fixed;left:0;right:0;z-index:40;pointer-events:none;backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);transition:backdrop-filter .3s ease,background .4s ease}
-.viewport-blur.scrolling{backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(8px)}
-.viewport-blur-top{top:0;height:calc(var(--topbar-height) + 36px);background:linear-gradient(to bottom,rgba(var(--nav-bg-rgb),.7),rgba(var(--nav-bg-rgb),0));mask-image:linear-gradient(to bottom,black 0%,black 60%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,black 0%,black 60%,transparent 100%)}
-.viewport-blur-bottom{bottom:0;height:calc(var(--hud-height) + 60px);background:linear-gradient(to top,rgba(var(--nav-bg-rgb),.7),rgba(var(--nav-bg-rgb),0));mask-image:linear-gradient(to top,black 0%,black 45%,transparent 100%);-webkit-mask-image:linear-gradient(to top,black 0%,black 45%,transparent 100%)}
+/* ═══ VIEWPORT BLUR ═══
+   Raised to z-index 130 so the veil actually paints over the canvas (50),
+   gallery (55), and reader carousel (120) — but stays under the topbar
+   (150) and the reader HUDs (140), so chrome isn't softened. The gradient
+   is deeper than a plain linear fade so text passing under the wordmark
+   is properly occluded, matching the nevereverland treatment. */
+.viewport-blur{position:fixed;left:0;right:0;z-index:130;pointer-events:none;backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);transition:backdrop-filter .3s ease,background .4s ease}
+.viewport-blur.scrolling{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(10px)}
+.viewport-blur-top{
+  top:0;
+  height:calc(var(--topbar-height) + 44px);
+  background:linear-gradient(to bottom,rgba(var(--nav-bg-rgb),.72),rgba(var(--nav-bg-rgb),.28) 55%,rgba(var(--nav-bg-rgb),0));
+  mask-image:linear-gradient(to bottom,black 0%,black 55%,transparent 100%);
+  -webkit-mask-image:linear-gradient(to bottom,black 0%,black 55%,transparent 100%);
+}
+.viewport-blur-bottom{
+  bottom:0;
+  height:calc(var(--hud-height) + 72px);
+  background:linear-gradient(to top,rgba(var(--nav-bg-rgb),.72),rgba(var(--nav-bg-rgb),.28) 50%,rgba(var(--nav-bg-rgb),0));
+  mask-image:linear-gradient(to top,black 0%,black 45%,transparent 100%);
+  -webkit-mask-image:linear-gradient(to top,black 0%,black 45%,transparent 100%);
+}
 
 /* ═══ SCROLL BORDER ═══ */
 .scroll-border-top,.scroll-border-bottom{position:fixed;height:3px;background:var(--accent);z-index:160;width:0;pointer-events:none;box-shadow:0 0 10px rgba(229,229,103,.35);transition:width .12s cubic-bezier(.25,.46,.45,.94)}
@@ -154,14 +178,27 @@ body.cursor-chevron-next *{cursor:none !important}
 body[data-browse="gallery"] #canvasRoot{display:none}
 body[data-reader="open"] #canvasRoot{filter:blur(3px) saturate(.8);pointer-events:none}
 
-/* When in List mode, the canvas becomes a scrollable timeline surface rather
-   than a pan/zoom plane — disable grabbing & let native scroll work. */
 body[data-layout="list"] #canvasRoot{cursor:default;touch-action:pan-y}
 body[data-layout="list"] .canvas-surface{display:none}
 body[data-layout="list"] #canvasListWrap{display:block}
-#canvasListWrap{display:none;position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto;background:var(--bg)}
-#canvasListWrap::-webkit-scrollbar{width:0}
 
+/* Top padding clears the topbar so the first list item doesn't sit under
+   the wordmark. Bottom padding gives the HUD breathing room. The scroll
+   container keeps its own scrollTop so content slides under the fixed
+   topbar/chrome as you scroll — matching the nevereverland pattern. */
+#canvasListWrap{
+  display:none;
+  position:absolute;inset:0;
+  overflow-y:auto;overflow-x:hidden;
+  padding:calc(var(--topbar-height) + 32px) var(--margin) 100px;
+  max-width:var(--max-width);
+  margin:0 auto;
+  background:var(--bg);
+  scrollbar-width:none;-ms-overflow-style:none;
+}
+#canvasListWrap::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+#canvasListWrap::-webkit-scrollbar-thumb{background:transparent;border:none}
+#canvasListWrap::-webkit-scrollbar-track{background:transparent}
 
 .canvas-surface{position:absolute;top:0;left:0;width:0;height:0;transform-origin:0 0;will-change:transform}
 .canvas-surface::before{content:'';position:absolute;top:-10000px;left:-10000px;width:20000px;height:20000px;background-image:repeating-linear-gradient(to right,var(--grid-col-line) 0 1px,transparent 1px var(--col-pitch)),repeating-linear-gradient(to bottom,var(--grid-row-line) 0 1px,transparent 1px var(--row-pitch));background-position:10000px 0,0 10000px;background-repeat:repeat;pointer-events:none;z-index:0;opacity:var(--grid-overlay-opacity);transition:opacity .2s ease}
@@ -279,7 +316,6 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 .cluster-browse-all{display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 12px;background:none;border:1px solid var(--border);color:var(--ink-mid);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .15s ease}
 .cluster-browse-all:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 
-/* Array layout overrides (flat-wrap expanded cluster canvas) */
 body[data-layout="array"] .cluster-collapse-chip { display: none !important; }
 body[data-layout="array"] .cluster-peek,
 body[data-layout="array"] .cluster-peek-hit { display: none !important; }
@@ -290,7 +326,7 @@ body[data-layout="array"] .canvas-node { width: max-content; max-width: none; }
 body[data-layout="array"] .cluster-stack { width: max-content; max-width: none; }
 body[data-layout="array"] .cluster-leaves { max-width: calc(var(--card-w) * 3 + 16px * 2 + 4px); }
 
-/* ═══ TIMELINE LIST (shared between gallery list view & canvas list mode) ═══ */
+/* ═══ TIMELINE LIST ═══ */
 .timeline{width:100%}
 .timeline-cover-section{padding:1rem 0.2rem 1.6rem;border-bottom:1px solid var(--border)}
 .timeline-cover-section .prov-card.gallery-cover-card{max-width:640px}
@@ -351,11 +387,11 @@ body[data-reader="open"] #galleryRoot{filter:blur(3px) saturate(.8);pointer-even
   .prov-card.gallery-cover-card .prov-card-deck{-webkit-line-clamp:2;font-size:11px}
 }
 
-#list-wrap{overflow-y:auto;height:100%;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto}
-#list-wrap::-webkit-scrollbar{width:0}
+#list-wrap{overflow-y:auto;height:100%;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto;scrollbar-width:none;-ms-overflow-style:none}
+#list-wrap::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
 
-#grid-scroll{overflow-y:auto;height:100%;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto}
-#grid-scroll::-webkit-scrollbar{width:0}
+#grid-scroll{overflow-y:auto;height:100%;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto;scrollbar-width:none;-ms-overflow-style:none}
+#grid-scroll::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
 #grid-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.2rem 1rem;align-items:start;padding-bottom:24px}
 .g-item{cursor:pointer;position:relative;z-index:1}
 .g-item:hover{z-index:30}
@@ -404,15 +440,15 @@ body[data-reader="open"] #galleryRoot{filter:blur(3px) saturate(.8);pointer-even
 .prov-card.face-letter:hover .prov-card-letter-cta .arrow{transform:translateX(3px);color:var(--ink)}
 
 /* ═══ READER OVERLAY ═══ */
-#carouselWrap{position:fixed;inset:0;z-index:120;background:var(--bg);overflow-y:auto;overflow-x:hidden;opacity:0;pointer-events:none;transition:opacity .28s cubic-bezier(.25,.46,.45,.94);padding-top:var(--topbar-height);padding-bottom:calc(var(--hud-height) + 40px)}
+#carouselWrap{position:fixed;inset:0;z-index:120;background:var(--bg);overflow-y:auto;overflow-x:hidden;opacity:0;pointer-events:none;transition:opacity .28s cubic-bezier(.25,.46,.45,.94);padding-top:var(--topbar-height);padding-bottom:calc(var(--hud-height) + 40px);scrollbar-width:none;-ms-overflow-style:none}
+#carouselWrap::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
 body[data-reader="open"] #carouselWrap{opacity:1;pointer-events:auto}
 body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:140}
 
 .letters-viewport{position:relative;overflow:hidden;width:100vw;left:50%;margin-left:-50vw}
-.letters-track{display:flex;align-items:flex-start;gap:22px;padding-top:clamp(20px,4vh,60px);padding-bottom:60px;padding-left:max(4vw,calc(50% - 520px));padding-right:max(4vw,calc(50% - 520px));overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none;box-sizing:border-box}
+.letters-track{display:flex;align-items:flex-start;gap:22px;padding-top:clamp(20px,4vh,60px);padding-bottom:60px;padding-left:max(4vw,calc(50% - 520px));padding-right:max(4vw,calc(50% - 520px));overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
 .letters-track.dragging{cursor:grabbing;scroll-snap-type:none;scroll-behavior:auto}
-.letters-track::-webkit-scrollbar{display:none}
-.letters-track{scrollbar-width:none;-ms-overflow-style:none}
+.letters-track::-webkit-scrollbar{display:none;width:0;height:0}
 .letter-panel{flex:0 0 auto;width:min(92vw,1000px);max-width:1000px;scroll-snap-align:center;box-sizing:border-box;opacity:.35;transition:opacity .3s ease,transform .3s ease;cursor:pointer}
 .letter-panel.active{opacity:1;cursor:auto}
 
@@ -750,7 +786,8 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
 .letter-impact-colophon{text-align:center;font-style:italic;font-size:12px;color:var(--ink-light);padding:16px 0 20px}
 
 /* ═══ CONTEXT MENUS ═══ */
-.canvas-context-menu{position:fixed;z-index:300;min-width:208px;padding:6px 0;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-floating),0 0 0 1px rgba(0,0,0,.02);font-family:var(--font-mono);display:none;user-select:none;-webkit-user-select:none;max-height:calc(100vh - 24px);overflow-y:auto}
+.canvas-context-menu{position:fixed;z-index:300;min-width:208px;padding:6px 0;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-floating),0 0 0 1px rgba(0,0,0,.02);font-family:var(--font-mono);display:none;user-select:none;-webkit-user-select:none;max-height:calc(100vh - 24px);overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
+.canvas-context-menu::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
 .canvas-context-menu.open{display:block;animation:ctx-in .12s cubic-bezier(.25,.46,.45,.94)}
 @keyframes ctx-in{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 .ctx-section-label{padding:4px 14px 6px;font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-light)}
@@ -778,7 +815,7 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
 
 .browse-widget{
   position:fixed;
-  bottom:calc(12px + var(--scrollbar-height));
+  bottom:12px;
   left:50%;
   transform:translateX(-50%);
   z-index:98;
@@ -847,7 +884,7 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 .hud-top{top:calc(var(--topbar-height) + 8px);padding:6px 12px 6px 6px;gap:4px;user-select:none;-webkit-user-select:none}
 .hud-top-grip{display:flex;align-items:center;justify-content:center;width:20px;height:26px;background:none;border:none;color:var(--ink-light);cursor:grab;border-radius:4px;flex-shrink:0;padding:0;touch-action:none;transition:background .15s ease,color .15s ease}
 .hud-top-grip:hover{background:var(--faint);color:var(--ink)}
-.hud-bottom{bottom:calc(12px + var(--scrollbar-height));padding:10px 18px;min-height:48px;gap:12px}
+.hud-bottom{bottom:12px;padding:10px 18px;min-height:48px;gap:12px}
 .hud .btn{min-height:30px;padding:5px 10px;font-size:8px}
 .hud .btn.hud-top-icon{padding:0;width:30px;min-height:30px;display:inline-flex;align-items:center;justify-content:center}
 .hud .btn.hud-top-icon svg{width:14px;height:14px;display:block}
@@ -865,7 +902,7 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   .hud .btn{font-size:7px;padding:4px 8px;min-height:26px}
 }
 
-#hudCanvas,#hudGallery{bottom:calc(14px + var(--scrollbar-height) + env(safe-area-inset-bottom,0px));padding:0;gap:8px;min-height:0;background:transparent;border:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;max-width:calc(100vw - 24px);pointer-events:none}
+#hudCanvas,#hudGallery{bottom:calc(14px + env(safe-area-inset-bottom,0px));padding:0;gap:8px;min-height:0;background:transparent;border:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;max-width:calc(100vw - 24px);pointer-events:none}
 #hudCanvas > *,#hudGallery > *{pointer-events:auto}
 .hud-canvas-nav{display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);border:1px solid var(--border);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.10),0 2px 6px rgba(0,0,0,.04);color:var(--ink);font-size:18px;line-height:1;padding:0;cursor:pointer;flex-shrink:0;transition:transform .15s ease,background .15s ease;-webkit-tap-highlight-color:transparent}
 .hud-canvas-nav:active{transform:scale(.94)}
@@ -894,7 +931,8 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 .mobile-sheet-grip{width:40px;height:4px;border-radius:2px;background:var(--ink-lighter)}
 .mobile-sheet-close{position:absolute;right:8px;top:4px;width:40px;height:40px;background:none;border:none;color:var(--ink-light);font-size:24px;line-height:1;cursor:pointer;border-radius:8px}
 .mobile-sheet-close:hover{background:var(--faint);color:var(--ink)}
-.mobile-sheet-body{overflow-y:auto;padding:4px 14px calc(32px + env(safe-area-inset-bottom,0px));flex:1;-webkit-overflow-scrolling:touch}
+.mobile-sheet-body{overflow-y:auto;padding:4px 14px calc(32px + env(safe-area-inset-bottom,0px));flex:1;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+.mobile-sheet-body::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
 .mobile-identity-block{width:100%;display:flex;align-items:center;gap:12px;padding:14px 12px;background:#fff;border:1px solid rgba(0,0,0,.10);border-radius:var(--radius-sm);text-align:left;cursor:pointer;margin-bottom:8px;font-family:inherit;color:#1c1c1e;transition:transform .1s ease}
 .mobile-identity-block:active{transform:scale(.99)}
 .mobile-identity-block .identity-monogram{width:40px;height:40px;font-size:16px;border-radius:8px}
@@ -1768,10 +1806,6 @@ let galleryView = 'flow';
 let readerCards = [];
 let activeIndex = 0;
 
-/* canvasLayout can be 'grid' | 'array' | 'list'
-   - grid  = collapsed cluster canvas
-   - array = expanded cluster canvas, flat-wrap
-   - list  = timeline list (shared renderer with gallery list view) */
 let canvasLayout = 'grid';
 let panOffset = { x: 0, y: 0 };
 let scale = 1;
@@ -1781,7 +1815,7 @@ const restPositions = new Map();
 let focusedNodeId = 'identity';
 let mobileFocusActive = false;
 
-const CANVAS_STORAGE_KEY = 'intoview.canvas.v17';
+const CANVAS_STORAGE_KEY = 'intoview.canvas.v18';
 const THEME_STORAGE_KEY = 'intoview.theme';
 const WIDGET_ON_KEY = 'intoview.widget.on';
 const WIDGET_POS_KEY = 'intoview.widget.pos';
@@ -1801,6 +1835,8 @@ let zoomHudVisible = false, zoomHudPos = null;
 let hudTopPos = null;
 let browseWidgetVisible = false, browseWidgetPos = null;
 let resizeObserver = null;
+
+let viewportBlurUpdate = null;
 
 /* ═══════════════════════════════════════════════════════════
    ROUTER
@@ -1879,6 +1915,7 @@ function handleRoute() {
   updateBreadcrumb();
   updateMobileBack();
   updateMobileHud();
+  refreshViewportBlur();
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -2073,7 +2110,6 @@ function applyFocus() {
 }
 
 function renderCanvas() {
-  /* List is a full-screen overlay inside #canvasRoot, not a node plane. */
   if (canvasLayout === 'list') {
     const surface = document.getElementById('canvasSurface');
     const edges = document.getElementById('canvasEdges');
@@ -2084,6 +2120,7 @@ function renderCanvas() {
     applyFocus();
     renderCanvasListInto(document.getElementById('canvasListWrap'));
     updateBorderProgress();
+    requestAnimationFrame(refreshViewportBlur);
     return;
   }
 
@@ -2373,7 +2410,6 @@ function reflowMobileColumn() {
   nodes.forEach(n => { n.style.transition = ''; });
 }
 
-/* Flat-wrap expanded cluster canvas — the "Array" layout. */
 function packArray() {
   const surface = document.getElementById('canvasSurface');
   if (!surface) return;
@@ -2584,7 +2620,6 @@ function tweenCamera(tScale, tPanX, tPanY, dur) {
 
 /* ═══════════════════════════════════════════════════════════
    SHARED TIMELINE LIST BUILDER
-   Used by both gallery's list view and canvas's list mode.
    ═══════════════════════════════════════════════════════════ */
 function buildTimelineList(cards, opts) {
   opts = opts || {};
@@ -2663,7 +2698,6 @@ function buildTimelineList(cards, opts) {
   return frag;
 }
 
-/* Canvas list mode: full timeline over the entire record. */
 function renderCanvasListInto(wrap) {
   if (!wrap) return;
   wrap.innerHTML = '';
@@ -2695,6 +2729,7 @@ function renderGalleryView() {
   else renderGalleryGrid(cards);
   requestAnimationFrame(() => {
     if (galleryView === 'flow') setupFlowInteractions();
+    refreshViewportBlur();
   });
   updateBorderProgress();
 }
@@ -3155,7 +3190,6 @@ function flowTick() {
   requestAnimationFrame(flowTick);
 }
 
-/* ── Gallery list view (reuses shared timeline builder) ── */
 function renderGalleryList(cards) {
   const wrap = document.getElementById('list-wrap');
   wrap.innerHTML = '';
@@ -3165,7 +3199,6 @@ function renderGalleryList(cards) {
   }));
 }
 
-/* ── Grid view ── */
 function renderGalleryGrid(cards) {
   const wrap = document.getElementById('grid-items');
   wrap.innerHTML = '';
@@ -3236,7 +3269,6 @@ function updateBorderProgress() {
   corners.forEach(c => c && c.classList.toggle('show', percent > 0 && percent < 100));
 }
 
-/* Wire canvas list scroll to progress bar */
 (function wireCanvasListScroll(){
   const cw = document.getElementById('canvasListWrap');
   if (cw) cw.addEventListener('scroll', () => {
@@ -4179,8 +4211,7 @@ function applyWidgetVisibility() {
   const w = document.getElementById('canvasWidget');
   if (!w) return;
   const inSection = browseMode !== 'canvas' || currentRoute.mode === 'reader';
-  const inList = canvasLayout === 'list';
-  w.hidden = !widgetVisible || inSection || inList || isMobile();
+  w.hidden = !widgetVisible || inSection || isMobile();
 }
 function setWidgetVisible(on) {
   widgetVisible = !!on;
@@ -4192,7 +4223,7 @@ function applyMinimapVisibility() {
   const mm = document.getElementById('canvasMinimap');
   if (!mm) return;
   const inSection = browseMode !== 'canvas' || currentRoute.mode === 'reader';
-  const show = minimapVisible && !inSection && canvasLayout !== 'list' && !isMobile();
+  const show = minimapVisible && !inSection && !isMobile();
   const wasHidden = mm.hidden;
   mm.hidden = !show;
   if (show && wasHidden) requestAnimationFrame(() => updateMinimapLayout());
@@ -4207,7 +4238,7 @@ function applyZoomHudVisibility() {
   const zh = document.getElementById('canvasZoomHud');
   if (!zh) return;
   const inSection = browseMode !== 'canvas' || currentRoute.mode === 'reader';
-  const show = zoomHudVisible && !inSection && canvasLayout !== 'list' && !isMobile();
+  const show = zoomHudVisible && !inSection && !isMobile();
   const wasHidden = zh.hidden;
   zh.hidden = !show;
   if (show) {
@@ -4554,30 +4585,25 @@ function setCanvasLayout(layout) {
   if (!layout) return;
   if (layout === canvasLayout) return;
 
-  // Reset any inline peek-hiding left over from a prior grid session.
   document.querySelectorAll('.cluster-peek, .cluster-peek-hit').forEach(el => {
     el.style.display = '';
   });
 
-  const prevLayout = canvasLayout;
   canvasLayout = layout;
   document.body.dataset.layout = layout;
 
-  // Manage expanded-cluster bookkeeping.
   if (layout === 'array') {
     expandedClusters.clear();
     CLUSTER_ORDER.forEach(id => expandedClusters.add(id));
   } else if (layout === 'grid') {
     expandedClusters.clear();
   } else {
-    // list — nothing cluster-related; but clear for consistency
     expandedClusters.clear();
   }
 
   updateContextMenuBrowseState();
   updateStatusText();
 
-  // Adjust which canvas sub-surface is active.
   const surface = document.getElementById('canvasSurface');
   const listWrap = document.getElementById('canvasListWrap');
   if (layout === 'list') {
@@ -4591,8 +4617,6 @@ function setCanvasLayout(layout) {
   applyMinimapVisibility();
   applyZoomHudVisibility();
 
-  // If we're leaving list mode, canvas surface needs a re-render. If we're
-  // entering list mode, renderCanvas() will route to the timeline.
   renderCanvas();
 
   if (layout !== 'list') {
@@ -4603,7 +4627,6 @@ function setCanvasLayout(layout) {
       queueMinimapLayout();
     }, 420);
   } else {
-    // Bring the timeline scroll back to top whenever we enter list mode.
     const lw = document.getElementById('canvasListWrap');
     if (lw) lw.scrollTop = 0;
     saveCanvasState();
@@ -4828,7 +4851,6 @@ function setupGalleryContextMenu() {
   }, true);
 }
 
-/* ── Reader context menu ── */
 function closeReaderContextMenu() {
   const m = document.getElementById('readerContextMenu');
   if (m) { m.classList.remove('open'); m.hidden = true; }
@@ -5080,26 +5102,64 @@ function setupMobileSheet() {
 
 /* ═══════════════════════════════════════════════════════════
    VIEWPORT BLUR
+   The blur elements sit above the canvas/gallery/carousel and below
+   the topbar, so content passing underneath the header is softened
+   while chrome stays crisp. We watch the *active* scroll container
+   per mode (canvas-list, gallery-list, gallery-grid, reader carousel)
+   so the state tracks inner scroll surfaces, not just window.scroll.
    ═══════════════════════════════════════════════════════════ */
+function getActiveViewportScroller() {
+  if (currentRoute.mode === 'reader') return document.getElementById('carouselWrap');
+  if (browseMode === 'gallery') {
+    if (galleryView === 'flow') return null; // transform-driven, no scrollTop
+    if (galleryView === 'list') return document.getElementById('list-wrap');
+    return document.getElementById('grid-scroll');
+  }
+  if (canvasLayout === 'list') return document.getElementById('canvasListWrap');
+  return null; // grid / array canvas don't scroll the same way
+}
+
 function setupViewportBlur() {
   const top = document.getElementById('viewportBlurTop');
   const bot = document.getElementById('viewportBlurBottom');
   if (!top || !bot) return;
+
   function update() {
-    const scrollY = window.scrollY || 0;
-    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-    top.classList.toggle('scrolling', scrollY > 4);
-    bot.classList.toggle('scrolling', scrollY < maxScroll - 4);
+    const el = getActiveViewportScroller();
+    let scrollTop = 0, maxScroll = 0;
+    if (el) {
+      scrollTop = el.scrollTop || 0;
+      maxScroll = Math.max(0, (el.scrollHeight || 0) - (el.clientHeight || 0));
+    } else {
+      scrollTop = window.scrollY || 0;
+      maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    }
+    top.classList.toggle('scrolling', scrollTop > 4);
+    bot.classList.toggle('scrolling', maxScroll > 4 && scrollTop < maxScroll - 4);
   }
+
+  viewportBlurUpdate = update;
+
   let ticking = false;
   function onScroll() {
     if (ticking) return;
     ticking = true;
     requestAnimationFrame(() => { update(); ticking = false; });
   }
+
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
+
+  ['canvasListWrap', 'list-wrap', 'grid-scroll', 'carouselWrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('scroll', onScroll, { passive: true });
+  });
+
   update();
+}
+
+function refreshViewportBlur() {
+  if (viewportBlurUpdate) viewportBlurUpdate();
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -5375,7 +5435,7 @@ function init() {
       lastMobile = nowMobile;
       if (browseMode === 'canvas' && currentRoute.mode !== 'reader') {
         if (canvasLayout === 'list') {
-          // Timeline handles its own layout — no resizing work needed.
+          // Timeline handles its own layout.
         } else if (canvasLayout === 'array') {
           if (crossed) restPositions.clear();
           packArray();
@@ -5420,6 +5480,7 @@ function init() {
       }
       applyBrowseWidgetVisibility();
       updateMobileHud();
+      refreshViewportBlur();
     }, 220);
   });
 
