@@ -59,8 +59,9 @@ body{
 body[data-browse="canvas"]{padding-bottom:calc(var(--hud-height)+20px + var(--scrollbar-height))}
 body[data-reader="open"]{overflow:hidden}
 ::selection{background:var(--accent);color:#1c1c1e}
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-thumb{background:var(--ink-lighter);border-radius:var(--radius-sm)}
+::-webkit-scrollbar{width:0;height:0;display:none}
+html{scrollbar-width:none}
+body{scrollbar-width:none;-ms-overflow-style:none}border-radius:var(--radius-sm)}
 
 /* ═══ BUTTONS ═══ */
 .btn{
@@ -151,9 +152,16 @@ body.cursor-chevron-next *{cursor:none !important}
 #canvasRoot.panning{cursor:grabbing}
 #canvasRoot.panning .canvas-node{pointer-events:none}
 body[data-browse="gallery"] #canvasRoot{display:none}
-/* Reader open (from canvas): blur/dim in place rather than a hard cut, matching
-   the gallery treatment below and the carousel's own fade-in. */
 body[data-reader="open"] #canvasRoot{filter:blur(3px) saturate(.8);pointer-events:none}
+
+/* When in List mode, the canvas becomes a scrollable timeline surface rather
+   than a pan/zoom plane — disable grabbing & let native scroll work. */
+body[data-layout="list"] #canvasRoot{cursor:default;touch-action:pan-y}
+body[data-layout="list"] .canvas-surface{display:none}
+body[data-layout="list"] #canvasListWrap{display:block}
+#canvasListWrap{display:none;position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto;background:var(--bg)}
+#canvasListWrap::-webkit-scrollbar{width:0}
+
 
 .canvas-surface{position:absolute;top:0;left:0;width:0;height:0;transform-origin:0 0;will-change:transform}
 .canvas-surface::before{content:'';position:absolute;top:-10000px;left:-10000px;width:20000px;height:20000px;background-image:repeating-linear-gradient(to right,var(--grid-col-line) 0 1px,transparent 1px var(--col-pitch)),repeating-linear-gradient(to bottom,var(--grid-row-line) 0 1px,transparent 1px var(--row-pitch));background-position:10000px 0,0 10000px;background-repeat:repeat;pointer-events:none;z-index:0;opacity:var(--grid-overlay-opacity);transition:opacity .2s ease}
@@ -173,7 +181,7 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 
 /* ═══ PROV CARD ═══ */
 .prov-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:16px 18px 14px;display:flex;flex-direction:column;gap:10px;width:var(--card-w);min-height:260px;cursor:pointer;position:relative;overflow:hidden;transition:box-shadow .2s ease,transform .2s ease,border-color .2s ease;color:var(--ink)}
-@media (hover:hover) and (pointer:fine){.prov-card:hover{box-shadow:var(--shadow-hover)}.canvas-node:not(.dragging):hover .prov-card{transform:translateY(-2px)}}
+@media (hover:hover) and (pointer:fine){.prov-card:hover{box-shadow:var(--shadow-hover)}.canvas-node:not(.dragging):hover .prov-card{transform:translateY(-2px)}} 
 .prov-card-kicker{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--font-mono);font-size:8px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-light)}
 .prov-card-type{display:flex;align-items:center;gap:6px}
 .prov-card-type::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--ink-lighter)}
@@ -250,6 +258,8 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 @media (hover:none){.cluster-peek{display:none !important}}
 .cluster-stack[data-expanded="true"] .cluster-peek,
 .cluster-stack[data-expanded="true"] .cluster-peek-hit{display:none !important}
+.canvas-node.is-expanded .cluster-peek,
+.canvas-node.is-expanded .cluster-peek-hit{display:none !important}
 .cluster-leaves{position:relative;display:none;flex-wrap:wrap;align-content:flex-start;gap:16px;max-width:var(--card-w);flex-shrink:0}
 .cluster-stack[data-expanded="true"] .cluster-leaves{display:flex}
 @media (min-width:720px){.cluster-leaves{max-width:calc(var(--card-w) * 2 + 16px * 2 + 4px)}}
@@ -269,7 +279,7 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 .cluster-browse-all{display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 12px;background:none;border:1px solid var(--border);color:var(--ink-mid);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .15s ease}
 .cluster-browse-all:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 
-/* Array layout overrides */
+/* Array layout overrides (flat-wrap expanded cluster canvas) */
 body[data-layout="array"] .cluster-collapse-chip { display: none !important; }
 body[data-layout="array"] .cluster-peek,
 body[data-layout="array"] .cluster-peek-hit { display: none !important; }
@@ -279,6 +289,26 @@ body[data-layout="array"] .cluster-browse-all { display: none; }
 body[data-layout="array"] .canvas-node { width: max-content; max-width: none; }
 body[data-layout="array"] .cluster-stack { width: max-content; max-width: none; }
 body[data-layout="array"] .cluster-leaves { max-width: calc(var(--card-w) * 3 + 16px * 2 + 4px); }
+
+/* ═══ TIMELINE LIST (shared between gallery list view & canvas list mode) ═══ */
+.timeline{width:100%}
+.timeline-cover-section{padding:1rem 0.2rem 1.6rem;border-bottom:1px solid var(--border)}
+.timeline-cover-section .prov-card.gallery-cover-card{max-width:640px}
+.timeline-section-header{padding:1.6rem 0.2rem 0.4rem}
+.timeline-section-header .prov-card.gallery-cover-card{max-width:640px}
+.timeline-row{border-bottom:1px solid var(--border)}
+.timeline-row-head{display:flex;align-items:center;gap:.9rem;padding:1rem .2rem;cursor:pointer;user-select:none}
+.timeline-num{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-light);white-space:nowrap;min-width:1.6rem}
+.timeline-name{font-family:var(--font);font-weight:300;flex:1;min-width:0;font-size:clamp(1.6rem,4.2vw,2.7rem);color:var(--ink-lighter);transition:color .3s,font-weight .3s}
+.timeline-row.expanded .timeline-name{color:var(--ink);font-weight:600}
+.timeline-row-head-right{display:flex;align-items:center;gap:.7rem;flex-shrink:0}
+.timeline-count{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-light);white-space:nowrap}
+.timeline-row-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .55s cubic-bezier(.65,0,.35,1)}
+.timeline-row-body-inner{overflow:hidden}
+.timeline-row.expanded .timeline-row-body{grid-template-rows:1fr}
+.timeline-strip{display:flex;flex-wrap:wrap;gap:.9rem;padding:.2rem .2rem 1.6rem;align-items:flex-start}
+.timeline-card{flex:0 0 auto;width:260px;cursor:pointer;position:relative;z-index:1}
+.timeline-card:hover{z-index:30}
 
 /* ═══ GALLERY ═══ */
 #galleryRoot{position:fixed;inset:0;z-index:55;background:var(--bg);overflow:hidden;display:none;padding-top:var(--topbar-height);flex-direction:column;transition:filter .32s cubic-bezier(.22,1,.36,1)}
@@ -323,21 +353,6 @@ body[data-reader="open"] #galleryRoot{filter:blur(3px) saturate(.8);pointer-even
 
 #list-wrap{overflow-y:auto;height:100%;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto}
 #list-wrap::-webkit-scrollbar{width:0}
-.list-cover-section{padding:1rem 0.2rem 1.6rem;border-bottom:1px solid var(--border)}
-.list-cover-section .prov-card.gallery-cover-card{max-width:640px}
-.list-row{border-bottom:1px solid var(--border)}
-.list-row-head{display:flex;align-items:center;gap:.9rem;padding:1rem .2rem;cursor:pointer;user-select:none}
-.list-num{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-light);white-space:nowrap;min-width:1.6rem}
-.list-name{font-family:var(--font);font-weight:300;flex:1;min-width:0;font-size:clamp(1.6rem,4.2vw,2.7rem);color:var(--ink-lighter);transition:color .3s,font-weight .3s}
-.list-row.expanded .list-name{color:var(--ink);font-weight:600}
-.list-row-head-right{display:flex;align-items:center;gap:.7rem;flex-shrink:0}
-.list-count{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-light);white-space:nowrap}
-.list-row-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .55s cubic-bezier(.65,0,.35,1)}
-.list-row-body-inner{overflow:hidden}
-.list-row.expanded .list-row-body{grid-template-rows:1fr}
-.list-strip{display:flex;flex-wrap:wrap;gap:.9rem;padding:.2rem .2rem 1.6rem;align-items:flex-start}
-.list-card{flex:0 0 auto;width:260px;cursor:pointer;position:relative;z-index:1}
-.list-card:hover{z-index:30}
 
 #grid-scroll{overflow-y:auto;height:100%;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto}
 #grid-scroll::-webkit-scrollbar{width:0}
@@ -357,6 +372,18 @@ body[data-reader="open"] #galleryRoot{filter:blur(3px) saturate(.8);pointer-even
 #galleryRoot .prov-card.face-compact .prov-card-deck{-webkit-line-clamp:4;font-size:12.5px;line-height:1.45}
 #galleryRoot .prov-card.face-compact .prov-card-meta{padding-top:8px;font-size:7.5px}
 #galleryRoot .prov-card.gallery-cover-card{padding:20px 22px 18px}
+
+#canvasListWrap .prov-card{width:100%;min-height:0;padding:0;gap:10px}
+#canvasListWrap .prov-card.face-media{padding:16px 18px 14px;min-height:260px}
+#canvasListWrap .prov-card.face-letter{padding:16px 18px 14px;min-height:260px}
+#canvasListWrap .prov-card.face-compact{padding:12px 16px 12px;gap:8px;min-height:0}
+#canvasListWrap .prov-card.face-media .prov-card-title{font-size:17px}
+#canvasListWrap .prov-card.face-letter .prov-card-title{font-size:18px;margin-top:4px}
+#canvasListWrap .prov-card.face-compact .prov-card-title{font-size:15px;line-height:1.25}
+#canvasListWrap .prov-card.face-compact .prov-card-deck{-webkit-line-clamp:4;font-size:12.5px;line-height:1.45}
+#canvasListWrap .prov-card.face-compact .prov-card-meta{padding-top:8px;font-size:7.5px}
+#canvasListWrap .prov-card.gallery-cover-card{padding:20px 22px 18px}
+
 .prov-card-media{width:100%;aspect-ratio:1/1;border-radius:6px;overflow:hidden;position:relative;flex-shrink:0;background:repeating-linear-gradient(-45deg,var(--card-mid) 0 6px,#1a1a1c 6px 12px)}
 .prov-card-media img,.prov-card-media video{width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(.55) contrast(1.05);transition:filter .35s ease}
 .prov-card:hover .prov-card-media img,.prov-card:hover .prov-card-media video{filter:grayscale(0) contrast(1.02)}
@@ -411,12 +438,6 @@ body.cursor-chevron-next .letter-hotspot .hotspot-chevron{opacity:0 !important;t
 .letter-card-frame{border:1px solid var(--border);border-radius:var(--radius);padding:28px clamp(20px,3vw,36px) 40px;background:var(--card);box-shadow:var(--shadow);transition:box-shadow .3s ease,transform .3s ease;position:relative}
 .letter-panel.active .letter-card-frame{box-shadow:var(--shadow-hover)}
 
-/* ── TITLE CARD FRAME ──
-   The reader chrome for cluster/section cover cards. Uses the flat yellow
-   accent surface (matching the canvas cluster cards) and rebinds the local
-   ink/border/surface tokens so all descendants — provenance strips, inner
-   tile grid, buttons, status pills — render dark-on-yellow without any
-   further per-element overrides. */
 .letter-card-frame.title-card-frame{
   background:var(--accent);
   border-color:var(--accent);
@@ -743,7 +764,7 @@ body.show-grid .swiss-col,body.show-grid [class*="swiss-col-span-"]{outline:1px 
 .ctx-divider{height:1px;background:var(--border);margin:5px 0}
 .ctx-hint{padding:4px 14px 6px;font-size:8px;letter-spacing:.06em;color:var(--ink-light);text-transform:none;opacity:.75;border-top:1px solid var(--border);margin-top:5px;padding-top:8px}
 
-/* ═══ WIDGETS (canvas / zoom / minimap / browse) ═══ */
+/* ═══ WIDGETS ═══ */
 .canvas-widget{position:fixed;top:calc(var(--topbar-height) + 8px);right:var(--margin);z-index:95;display:flex;align-items:center;gap:2px;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(16px) saturate(1.1);-webkit-backdrop-filter:blur(16px) saturate(1.1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 6px 4px 4px;box-shadow:var(--shadow-floating);font-family:var(--font-mono);max-width:calc(100vw - 16px)}
 .widget-grip{display:flex;align-items:center;justify-content:center;width:20px;height:26px;background:none;border:none;color:var(--ink-light);cursor:grab;border-radius:4px;flex-shrink:0;padding:0;touch-action:none}
 .widget-grip:hover{background:var(--faint);color:var(--ink)}
@@ -821,7 +842,7 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 .zoomhud-close{display:flex;align-items:center;justify-content:center;width:20px;height:26px;background:none;border:none;color:var(--ink-light);font-size:14px;line-height:1;cursor:pointer;border-radius:4px;flex-shrink:0;padding:0;margin-left:2px}
 .zoomhud-close:hover{background:var(--faint);color:var(--ink)}
 
-/* ═══ HUD (reader bottom + mobile) ═══ */
+/* ═══ HUD ═══ */
 .hud{position:fixed;left:50%;transform:translateX(-50%);z-index:100;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-floating);display:flex;align-items:center;justify-content:center;min-height:44px;font-family:var(--font-mono);max-width:min(640px,calc(100vw - var(--margin) * 2))}
 .hud-top{top:calc(var(--topbar-height) + 8px);padding:6px 12px 6px 6px;gap:4px;user-select:none;-webkit-user-select:none}
 .hud-top-grip{display:flex;align-items:center;justify-content:center;width:20px;height:26px;background:none;border:none;color:var(--ink-light);cursor:grab;border-radius:4px;flex-shrink:0;padding:0;touch-action:none;transition:background .15s ease,color .15s ease}
@@ -999,6 +1020,7 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   <div class="canvas-surface" id="canvasSurface">
     <svg class="canvas-edges" id="canvasEdges" aria-hidden="true"></svg>
   </div>
+  <div id="canvasListWrap"></div>
 </div>
 
 <!-- ═══ GALLERY ═══ -->
@@ -1048,25 +1070,62 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 <!-- ═══ CONTEXT MENUS ═══ -->
 <div class="canvas-context-menu" id="canvasContextMenu" role="menu" hidden>
   <div class="ctx-section-label">Browse</div>
-  <button class="ctx-item" data-action="toggle-gallery" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Gallery</button>
-  <button class="ctx-item" data-gallery-view="flow" role="menuitemradio" type="button"><span class="ctx-indicator"></span> Flow view</button>
-  <button class="ctx-item" data-gallery-view="list" role="menuitemradio" type="button"><span class="ctx-indicator"></span> List view</button>
-  <button class="ctx-item" data-gallery-view="grid" role="menuitemradio" type="button"><span class="ctx-indicator"></span> Grid view</button>
-  <div class="ctx-divider"></div>
-  <div class="ctx-section-label">Canvas</div>
-  <button class="ctx-item" data-canvas-layout="grid" role="menuitemradio" type="button"><span class="ctx-indicator"></span> Grid</button>
-  <button class="ctx-item" data-canvas-layout="array" role="menuitemradio" type="button"><span class="ctx-indicator"></span> Array</button>
-  <button class="ctx-item no-indicator" data-action="fit" role="menuitem" type="button"><span class="ctx-indicator"></span> Fit to view</button>
+  <button class="ctx-item" data-action="goto-canvas" role="menuitemradio" type="button">
+    <span class="ctx-indicator"></span> Canvas
+  </button>
+  <button class="ctx-item" data-action="goto-gallery" role="menuitemradio" type="button">
+    <span class="ctx-indicator"></span> Gallery
+  </button>
+
+  <div class="ctx-divider ctx-for-canvas" hidden></div>
+  <div class="ctx-section-label ctx-for-canvas" hidden>Node view</div>
+  <button class="ctx-item ctx-for-canvas" data-canvas-layout="grid" role="menuitemradio" type="button" hidden>
+    <span class="ctx-indicator"></span> Grid (collapsed)
+  </button>
+  <button class="ctx-item ctx-for-canvas" data-canvas-layout="array" role="menuitemradio" type="button" hidden>
+    <span class="ctx-indicator"></span> Array (expanded)
+  </button>
+  <button class="ctx-item ctx-for-canvas" data-canvas-layout="list" role="menuitemradio" type="button" hidden>
+    <span class="ctx-indicator"></span> List (timeline)
+  </button>
+
+  <div class="ctx-divider ctx-for-gallery" hidden></div>
+  <div class="ctx-section-label ctx-for-gallery" hidden>Gallery view</div>
+  <button class="ctx-item ctx-for-gallery" data-gallery-view="flow" role="menuitemradio" type="button" hidden>
+    <span class="ctx-indicator"></span> Flow
+  </button>
+  <button class="ctx-item ctx-for-gallery" data-gallery-view="list" role="menuitemradio" type="button" hidden>
+    <span class="ctx-indicator"></span> List
+  </button>
+  <button class="ctx-item ctx-for-gallery" data-gallery-view="grid" role="menuitemradio" type="button" hidden>
+    <span class="ctx-indicator"></span> Grid
+  </button>
+
+  <div class="ctx-divider ctx-for-node" hidden></div>
+  <button class="ctx-item no-indicator ctx-for-node" data-action="fit" role="menuitem" type="button" hidden>
+    <span class="ctx-indicator"></span> Fit to view
+  </button>
+
   <div class="ctx-divider"></div>
   <div class="ctx-section-label">Widgets</div>
-  <button class="ctx-item" data-action="toggle-browse-widget" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Browse widget</button>
-  <button class="ctx-item" data-action="toggle-widget" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Canvas widget</button>
-  <button class="ctx-item" data-action="toggle-minimap" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Minimap</button>
-  <button class="ctx-item" data-action="toggle-zoomhud" role="menuitemcheckbox" type="button"><span class="ctx-indicator"></span> Zoom HUD</button>
+  <button class="ctx-item" data-action="toggle-browse-widget" role="menuitemcheckbox" type="button">
+    <span class="ctx-indicator"></span> Browse widget
+  </button>
+  <button class="ctx-item" data-action="toggle-widget" role="menuitemcheckbox" type="button">
+    <span class="ctx-indicator"></span> Canvas widget
+  </button>
+  <button class="ctx-item" data-action="toggle-minimap" role="menuitemcheckbox" type="button">
+    <span class="ctx-indicator"></span> Minimap
+  </button>
+  <button class="ctx-item" data-action="toggle-zoomhud" role="menuitemcheckbox" type="button">
+    <span class="ctx-indicator"></span> Zoom HUD
+  </button>
+
   <div class="ctx-hint">Drag to pan · Pinch to zoom · Esc collapses</div>
 </div>
 
 <div class="canvas-context-menu" id="galleryContextMenu" role="menu" hidden></div>
+<div class="canvas-context-menu" id="readerContextMenu" role="menu" hidden></div>
 
 <!-- ═══ OTHER WIDGETS ═══ -->
 <div class="canvas-widget" id="canvasWidget" hidden role="toolbar">
@@ -1076,6 +1135,7 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   <div class="widget-controls">
     <button class="btn" data-canvas-layout="grid" type="button">Grid</button>
     <button class="btn" data-canvas-layout="array" type="button">Array</button>
+    <button class="btn" data-canvas-layout="list" type="button">List</button>
     <span class="widget-divider"></span>
     <button class="btn" data-action="fit" type="button" title="Fit">Fit</button>
   </div>
@@ -1166,9 +1226,6 @@ const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.5;
 const getMaxScale = () => isMobile() ? 1 : MAX_SCALE;
 const getMinScale = () => isMobile() ? 0.5 : MIN_SCALE;
-/* Floor for AUTOMATIC (organic, per-selection) zoom only — never for manual pinch/zoom.
-   Derived from the type ramp: prov-card-title is 17px; this keeps it from rendering
-   below ~13px, which is where card titles stop being comfortably legible on mobile. */
 const LEGIBLE_SCALE = 0.76;
 const ZOOM_STEP = 1.25;
 
@@ -1202,8 +1259,9 @@ const CLUSTER_SPECS = [
   { id:'manifesto', num:'01', title:'Manifesto', deck:"Why this exists, how the record works, and the long list of features we skipped so you wouldn't have to perform anything.", provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'published' } },
   { id:'record', num:'02', title:'The Record', deck:'The canonical feed — every statement that has cleared the edit window, in order, unchangeable.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'published' } },
   { id:'otw', num:'03', title:'Open to Work', deck:'Availability, scope, and terms. No green banner required.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'hiring', num:'04', title:'Hiring', deck:'Roles, briefs, and a process that fits on one screen.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'draft' } },
-  { id:'archive', num:'05', title:'Archive', deck:'Everything prior, in reverse chronological order. Nothing curated after the fact.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'archived' } }
+  { id:'hiring', num:'04', title:'Hiring', deck:'Roles, briefs, and a process that fits on one screen.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'archive', num:'05', title:'Archive', deck:'Everything prior, in reverse chronological order. Nothing curated after the fact.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'archived' } },
+  { id:'network', num:'06', title:'Network', deck:'Other people and companies whose records intersect with mine — replies, references, and a few things I did not write.', provenance:{ author:'Priya Anand', date:'2026', source:'intoview.pro', status:'published' } }
 ];
 
 const EDITORIAL_SPECS = [
@@ -1553,7 +1611,47 @@ const GALLERY_CARD_SPECS = [
     date:'2024-10-08' },
   { id:'archive/hoodies', clusterId:'archive', section:'archive', type:'statement', status:'archived',
     title:'Owns Every Company Hoodie', deck:'An archive entry. Filed under: claims that are, on inspection, factually correct.',
-    date:'2024-11-02' }
+    date:'2024-11-02' },
+
+  { id:'network/almanac-systems', clusterId:'network', section:'directory', type:'statement', status:'verified',
+    title:'Almanac Systems — Logistics Software, Series C', deck:'Forty-one people. No growth team. Currently hiring one Director of Special Projects.',
+    date:'2026-01-05', author:'Almanac Systems', source:'intoview.pro / network · company' },
+  { id:'network/field-fathom', clusterId:'network', section:'directory', type:'statement', status:'published',
+    title:'Field & Fathom — Independent Consultancy', deck:'Three partners, one shared inbox, and a strong opinion about quarterly offsites.',
+    date:'2026-01-06', author:'Field & Fathom', source:'intoview.pro / network · company' },
+  { id:'network/theo-okafor', clusterId:'network', section:'directory', type:'statement', status:'published',
+    title:'Theo Okafor — Senior Analyst, Almanac Systems', deck:'Runs the numbers nobody wants to run. Replies more than he posts.',
+    date:'2026-01-10', author:'Theo Okafor', source:'intoview.pro / network · person' },
+  { id:'network/marguerite-voss', clusterId:'network', section:'directory', type:'statement', status:'published',
+    title:'Marguerite Voss — Talent, Freelance', deck:'Independent recruiter. Reads every Impact Report before the first call.',
+    date:'2026-01-11', author:'Marguerite Voss', source:'intoview.pro / network · person' },
+
+  { id:'hiring/almanac-ops', clusterId:'hiring', section:'briefs', type:'statement', status:'published',
+    title:'Director of Special Projects — Almanac Systems', deck:'One role, three months of backlog, and a mandate to disagree with the roadmap when it is wrong.',
+    date:'2026-02-20', author:'Almanac Systems', source:'intoview.pro / hiring · almanac-systems', refs:['manifesto/impact'] },
+  { id:'hiring/fieldfathom-brief', clusterId:'hiring', section:'briefs', type:'statement', status:'draft',
+    title:'Ops Generalist, Part-Time — Field & Fathom', deck:'Four days a week. The fifth day is yours, and we mean that, unlike the last place that said it.',
+    date:'2026-02-22', author:'Field & Fathom', source:'intoview.pro / hiring · field-fathom' },
+
+  { id:'otw/terms', clusterId:'otw', section:'terms', type:'statement', status:'published',
+    title:'Availability, Scope, and Terms', deck:'Open to fractional and full-time ops work. Not open to a "quick call" that turns out to be a four-round process.',
+    date:'2026-02-23', refs:['hiring/almanac-ops'] },
+  { id:'otw/marguerite-reply', clusterId:'otw', section:'terms', type:'reply', status:'published',
+    title:'Re: Availability, Scope, and Terms', deck:'Forwarded this to two people already. One of them is going to be annoying about the fractional part.',
+    date:'2026-02-24', author:'Marguerite Voss', source:'intoview.pro / otw · marguerite-voss', refs:['otw/terms'], parentId:'otw/terms' },
+
+  { id:'dispatch/theo-reply', clusterId:'record', section:'dispatch', type:'reply', status:'published',
+    title:'Re: Notes From the Back of the Room', deck:'Can confirm the leadership deck. Slide 14 has been "final" since October.',
+    date:'2026-02-22', author:'Theo Okafor', source:'intoview.pro / dispatch · theo-okafor', refs:['dispatch/7train'], parentId:'dispatch/7train' },
+  { id:'fieldnotes/marguerite-reply', clusterId:'record', section:'fieldnotes', type:'reply', status:'published',
+    title:'Re: A Theory of Calendar Economics', deck:'Can also confirm. The thirty-minute hold has never once been thirty minutes.',
+    date:'2026-02-05', author:'Marguerite Voss', source:'intoview.pro / fieldnotes · marguerite-voss', refs:['fieldnotes/laps'], parentId:'fieldnotes/laps' },
+  { id:'fieldnotes/theo-donut-reply', clusterId:'record', section:'fieldnotes', type:'reply', status:'published',
+    title:'Re: The Break Room Donut, an Audit', deck:'For the record, it was two remaining at 2:47. I have a photo. I am not filing it.',
+    date:'2026-02-09', author:'Theo Okafor', source:'intoview.pro / fieldnotes · theo-okafor', refs:['fieldnotes/donut'], parentId:'fieldnotes/donut' },
+  { id:'signals/almanac-note', clusterId:'record', section:'signals', type:'statement', status:'published',
+    title:'Reading: Same Report, Different Department', deck:'The state-of-remote-work report again. This time flagged by an entire company instead of one person.',
+    date:'2026-02-01', author:'Almanac Systems', source:'intoview.pro / signals · almanac-systems', refs:['signals/greenway-report'] }
 ];
 
 /* ═══════════════════════════════════════════════════════════
@@ -1592,8 +1690,8 @@ function buildData() {
       title: r.title, deck: r.deck,
       clusterId: r.clusterId, section: r.section || null,
       provenance: {
-        author: 'Priya Anand', date: r.date,
-        source: 'intoview.pro / ' + (r.section || r.clusterId),
+        author: r.author || 'Priya Anand', date: r.date,
+        source: r.source || ('intoview.pro / ' + (r.section || r.clusterId)),
         status: r.status || 'published'
       },
       relationships: { references: r.refs || [], replies: [], updates: r.upd || [] },
@@ -1670,6 +1768,10 @@ let galleryView = 'flow';
 let readerCards = [];
 let activeIndex = 0;
 
+/* canvasLayout can be 'grid' | 'array' | 'list'
+   - grid  = collapsed cluster canvas
+   - array = expanded cluster canvas, flat-wrap
+   - list  = timeline list (shared renderer with gallery list view) */
 let canvasLayout = 'grid';
 let panOffset = { x: 0, y: 0 };
 let scale = 1;
@@ -1677,13 +1779,9 @@ let topZ = 10;
 const expandedClusters = new Set();
 const restPositions = new Map();
 let focusedNodeId = 'identity';
-/* Whether a deliberate focus-pull is currently active on mobile (tapped a card,
-   stepped via the HUD). Blur/dim only while this is true — otherwise `has-focus`
-   would be permanently true from the 'identity' default above and dim the whole
-   column before the user has done anything. Manual panning clears it again. */
 let mobileFocusActive = false;
 
-const CANVAS_STORAGE_KEY = 'intoview.canvas.v15';
+const CANVAS_STORAGE_KEY = 'intoview.canvas.v17';
 const THEME_STORAGE_KEY = 'intoview.theme';
 const WIDGET_ON_KEY = 'intoview.widget.on';
 const WIDGET_POS_KEY = 'intoview.widget.pos';
@@ -1749,8 +1847,12 @@ function navigate(route, replace) {
     handleRoute();
     return;
   }
-  if (replace) history.replaceState(null, '', hash);
-  else location.hash = hash;
+  if (replace) {
+    try { history.replaceState(null, '', hash); }
+    catch (e) { }
+  } else {
+    location.hash = hash;
+  }
   if (replace) handleRoute();
 }
 
@@ -1759,6 +1861,7 @@ function handleRoute() {
   currentRoute = route;
   closeContextMenu();
   closeGalleryContextMenu();
+  closeReaderContextMenu();
 
   if (route.mode === 'reader') {
     openReaderRoute(route.cardId);
@@ -1785,12 +1888,8 @@ function syncView() {
   const readerOpen = currentRoute.mode === 'reader';
   document.body.dataset.browse = browseMode;
   document.body.dataset.reader = readerOpen ? 'open' : 'closed';
+  document.body.dataset.layout = canvasLayout;
 
-  /* Note: intentionally NOT hidden while readerOpen — the [hidden] rule is
-     display:none !important, which would pre-empt the filter transition above
-     before it could ever play. Reader sits above both (z-index 120) with an
-     opaque background and pointer-events:none is applied via CSS, so leaving
-     the underlying surface in place and blurred is safe. */
   document.getElementById('canvasRoot').hidden = browseMode !== 'canvas';
   document.getElementById('galleryRoot').hidden = browseMode !== 'gallery';
   document.getElementById('carouselWrap').style.display = readerOpen ? '' : 'none';
@@ -1832,12 +1931,33 @@ function updateBrowseChrome() {
 function updateContextMenuBrowseState() {
   const menu = document.getElementById('canvasContextMenu');
   if (!menu) return;
-  const toggleGal = menu.querySelector('[data-action="toggle-gallery"]');
-  if (toggleGal) toggleGal.classList.toggle('active', browseMode === 'gallery');
-  menu.querySelectorAll('[data-gallery-view]').forEach(b => {
-    const isCurrent = browseMode === 'gallery' && b.dataset.galleryView === galleryView;
-    b.classList.toggle('active', isCurrent);
+
+  const inGallery = browseMode === 'gallery';
+  const inNode = !inGallery && canvasLayout !== 'list';
+
+  menu.querySelectorAll('.ctx-for-canvas').forEach(el => {
+    el.hidden = inGallery;
   });
+  menu.querySelectorAll('.ctx-for-gallery').forEach(el => {
+    el.hidden = !inGallery;
+  });
+  menu.querySelectorAll('.ctx-for-node').forEach(el => {
+    el.hidden = !inNode;
+  });
+
+  const gc = menu.querySelector('[data-action="goto-canvas"]');
+  const gg = menu.querySelector('[data-action="goto-gallery"]');
+  if (gc) gc.classList.toggle('active', !inGallery);
+  if (gg) gg.classList.toggle('active', inGallery);
+
+  menu.querySelectorAll('[data-canvas-layout]').forEach(b => {
+    b.classList.toggle('active', b.dataset.canvasLayout === canvasLayout);
+  });
+
+  menu.querySelectorAll('[data-gallery-view]').forEach(b => {
+    b.classList.toggle('active', b.dataset.galleryView === galleryView);
+  });
+
   const bw = menu.querySelector('[data-action="toggle-browse-widget"]');
   if (bw) bw.classList.toggle('active', browseWidgetVisible);
   const w = menu.querySelector('[data-action="toggle-widget"]');
@@ -1846,9 +1966,6 @@ function updateContextMenuBrowseState() {
   if (m) m.classList.toggle('active', minimapVisible);
   const z = menu.querySelector('[data-action="toggle-zoomhud"]');
   if (z) z.classList.toggle('active', zoomHudVisible);
-  menu.querySelectorAll('[data-canvas-layout]').forEach(b => {
-    b.classList.toggle('active', b.dataset.canvasLayout === canvasLayout);
-  });
 }
 
 function updateBreadcrumb() {
@@ -1936,10 +2053,11 @@ function getCanvasNodes() {
 function getNodeOrder() { return ['identity', 'index', ...CLUSTER_ORDER]; }
 
 function applyFocus() {
+  if (canvasLayout === 'list') {
+    document.body.classList.remove('has-focus');
+    return;
+  }
   if (isMobile()) {
-    /* On mobile, "focus" is whichever node fitToFocus just framed — dim every
-       other card in the column so the organic zoom reads as a real focus pull,
-       not just a camera move. */
     const hasFocus = mobileFocusActive && !!focusedNodeId && canvasLayout !== 'array';
     document.body.classList.toggle('has-focus', hasFocus);
     document.querySelectorAll('.canvas-node').forEach(node => {
@@ -1955,6 +2073,22 @@ function applyFocus() {
 }
 
 function renderCanvas() {
+  /* List is a full-screen overlay inside #canvasRoot, not a node plane. */
+  if (canvasLayout === 'list') {
+    const surface = document.getElementById('canvasSurface');
+    const edges = document.getElementById('canvasEdges');
+    Array.from(surface.children).forEach(ch => { if (ch !== edges) ch.remove(); });
+    edges.innerHTML = '';
+    minimapNodeEls.clear();
+    document.body.dataset.layout = 'list';
+    applyFocus();
+    renderCanvasListInto(document.getElementById('canvasListWrap'));
+    updateBorderProgress();
+    return;
+  }
+
+  document.body.dataset.layout = canvasLayout;
+
   const surface = document.getElementById('canvasSurface');
   const edges = document.getElementById('canvasEdges');
   Array.from(surface.children).forEach(ch => { if (ch !== edges) ch.remove(); });
@@ -2001,7 +2135,6 @@ function renderCanvas() {
     refineIdentityIndexStack();
   }
 
-  document.body.dataset.layout = canvasLayout;
   applyFocus();
 
   if (canvasLayout !== 'array') {
@@ -2031,9 +2164,11 @@ function getCanvasNodeSpecsWithPositions() {
 }
 
 function renderClusterStack(wrap, cluster) {
+  const isExpanded = expandedClusters.has(cluster.id);
+
   const stack = document.createElement('div');
   stack.className = 'cluster-stack';
-  stack.dataset.expanded = expandedClusters.has(cluster.id) ? 'true' : 'false';
+  stack.dataset.expanded = isExpanded ? 'true' : 'false';
 
   const stackInner = document.createElement('div');
   stackInner.className = 'cluster-stack-inner';
@@ -2044,6 +2179,7 @@ function renderClusterStack(wrap, cluster) {
   const hit = document.createElement('div');
   hit.className = 'cluster-peek-hit';
   hit.dataset.action = 'expand';
+  if (isExpanded) hit.style.display = 'none';
   title.appendChild(hit);
 
   const peekCount = Math.min(cluster.cardIds.length, 4);
@@ -2051,6 +2187,7 @@ function renderClusterStack(wrap, cluster) {
     const peek = document.createElement('div');
     peek.className = 'cluster-peek';
     peek.dataset.depth = String(d);
+    if (isExpanded) peek.style.display = 'none';
     title.appendChild(peek);
   }
   title.appendChild(renderCompactCard(cluster));
@@ -2072,8 +2209,6 @@ function renderClusterStack(wrap, cluster) {
     leaf.dataset.cardId = card.id;
     leaf.dataset.clusterId = card.clusterId;
     leaf.appendChild(renderCompactCard(card));
-    // Native click handler — bypasses the drag pipeline so leaves are always
-    // clickable even inside an expanded cluster.
     leaf.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
@@ -2110,7 +2245,7 @@ function renderClusterStack(wrap, cluster) {
   stack.appendChild(chip);
 
   wrap.appendChild(stack);
-  if (expandedClusters.has(cluster.id)) wrap.classList.add('is-expanded');
+  if (isExpanded) wrap.classList.add('is-expanded');
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -2218,7 +2353,7 @@ function getLayoutPositions(layout, nodes) {
 
 function reflowMobileColumn() {
   if (!isMobile()) return;
-  if (canvasLayout === 'array') return;
+  if (canvasLayout === 'array' || canvasLayout === 'list') return;
   const surface = document.getElementById('canvasSurface');
   if (!surface) return;
   const order = ['identity', 'index', ...CLUSTER_ORDER];
@@ -2238,6 +2373,7 @@ function reflowMobileColumn() {
   nodes.forEach(n => { n.style.transition = ''; });
 }
 
+/* Flat-wrap expanded cluster canvas — the "Array" layout. */
 function packArray() {
   const surface = document.getElementById('canvasSurface');
   if (!surface) return;
@@ -2326,7 +2462,7 @@ function setupResizeObserver() {
   if (!isMobile()) return;
   resizeObserver = new ResizeObserver(() => {
     if (canvasLayout === 'array') packArray();
-    else reflowMobileColumn();
+    else if (canvasLayout === 'grid') reflowMobileColumn();
   });
   document.querySelectorAll('.canvas-node').forEach(n => resizeObserver.observe(n));
 }
@@ -2348,6 +2484,7 @@ function relCenter(el) {
 function drawCanvasEdges() {
   const svg = document.getElementById('canvasEdges');
   svg.innerHTML = '';
+  if (canvasLayout === 'array' || canvasLayout === 'list') return;
   const identityNode = document.querySelector('.canvas-node[data-node-id="identity"]');
   const indexNode = document.querySelector('.canvas-node[data-node-id="index"]');
   if (!identityNode || !indexNode) return;
@@ -2443,6 +2580,97 @@ function tweenCamera(tScale, tPanX, tPanY, dur) {
     else { cameraTweenRaf = null; saveCanvasState(); }
   }
   cameraTweenRaf = requestAnimationFrame(tick);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SHARED TIMELINE LIST BUILDER
+   Used by both gallery's list view and canvas's list mode.
+   ═══════════════════════════════════════════════════════════ */
+function buildTimelineList(cards, opts) {
+  opts = opts || {};
+  const frag = document.createDocumentFragment();
+
+  if (opts.showGlobalCover) {
+    const coverSection = document.createElement('div');
+    coverSection.className = 'timeline-cover-section';
+    coverSection.appendChild(renderGalleryCoverCard(opts.coverCluster || null));
+    frag.appendChild(coverSection);
+  }
+
+  const groups = opts.scope
+    ? [{ cluster: CLUSTERS.get(opts.scope), cards }]
+    : CLUSTER_ORDER.map(id => ({
+        cluster: CLUSTERS.get(id),
+        cards: CLUSTERS.get(id).cardIds.map(cid => CARDS.get(cid)).filter(Boolean)
+      }));
+
+  groups.forEach(group => {
+    if (!group.cluster || !group.cards.length) return;
+
+    const sectionHeader = document.createElement('div');
+    sectionHeader.className = 'timeline-section-header';
+    sectionHeader.appendChild(renderGalleryCoverCard(group.cluster));
+    frag.appendChild(sectionHeader);
+
+    const monthKeys = [];
+    const seen = {};
+    group.cards.forEach(c => {
+      const m = /^(\d{4})-(\d{2})/.exec(c.provenance.date || '');
+      const k = m ? `${m[1]}-${m[2]}` : '0000-00';
+      if (!seen[k]) { seen[k] = true; monthKeys.push(k); }
+    });
+    monthKeys.sort().reverse();
+
+    const MN = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    monthKeys.forEach((k, idx) => {
+      const items = group.cards.filter(c => (c.provenance.date || '').startsWith(k)).reverse();
+      const row = document.createElement('div');
+      row.className = 'timeline-row' + (idx === 0 ? ' expanded' : '');
+
+      const head = document.createElement('div');
+      head.className = 'timeline-row-head';
+      const mm = /-(\d{2})$/.exec(k);
+      const yy = /^(\d{4})/.exec(k);
+      head.innerHTML =
+        `<div class="timeline-num">${mm ? MN[parseInt(mm[1],10)-1] : '—'}</div>
+         <div class="timeline-name">${yy ? yy[1] : ''}</div>
+         <div class="timeline-row-head-right"><div class="timeline-count">${items.length} card${items.length === 1 ? '' : 's'}</div></div>`;
+      head.addEventListener('click', () => row.classList.toggle('expanded'));
+      row.appendChild(head);
+
+      const body = document.createElement('div');
+      body.className = 'timeline-row-body';
+      const inner = document.createElement('div');
+      inner.className = 'timeline-row-body-inner';
+      const strip = document.createElement('div');
+      strip.className = 'timeline-strip';
+      items.forEach(card => {
+        const wrapEl = document.createElement('div');
+        wrapEl.className = 'timeline-card';
+        const cardEl = renderGalleryCard(card);
+        wrapEl.appendChild(cardEl);
+        wireVideo(cardEl);
+        wireGalleryCard(wrapEl, card);
+        strip.appendChild(wrapEl);
+      });
+      inner.appendChild(strip);
+      body.appendChild(inner);
+      row.appendChild(body);
+      frag.appendChild(row);
+    });
+  });
+
+  return frag;
+}
+
+/* Canvas list mode: full timeline over the entire record. */
+function renderCanvasListInto(wrap) {
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  wrap.appendChild(buildTimelineList(CARD_ORDER.map(id => CARDS.get(id)), {
+    showGlobalCover: true,
+    coverCluster: null
+  }));
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -2718,7 +2946,6 @@ function renderGalleryFlow(cards) {
 
   let cursorX = COVER_X;
 
-  /* 1 ── Global cover (only when browsing the whole gallery) */
   if (!currentRoute.scope) {
     const globalCoverCol = document.createElement('div');
     globalCoverCol.className = 'flow-col-items';
@@ -2751,9 +2978,6 @@ function renderGalleryFlow(cards) {
     cursorX += coverW + COL_GUTTER;
   }
 
-  /* 2 ── Group cards by cluster and render each cluster as
-         [cover column] + [month columns].  When scoped to a single
-         cluster, only that cluster's cover is drawn. */
   const groups = currentRoute.scope
     ? [{ cluster: CLUSTERS.get(currentRoute.scope), cards }]
     : CLUSTER_ORDER.map(id => ({
@@ -2764,7 +2988,6 @@ function renderGalleryFlow(cards) {
   groups.forEach((group, gIdx) => {
     if (!group.cluster || !group.cards.length) return;
 
-    /* Cluster cover column */
     const clusterCoverCol = document.createElement('div');
     clusterCoverCol.className = 'flow-col-items';
     clusterCoverCol.style.left = cursorX + 'px';
@@ -2795,7 +3018,6 @@ function renderGalleryFlow(cards) {
 
     cursorX += coverW + COL_GUTTER;
 
-    /* Month columns for this cluster */
     const monthKeys = [];
     const seen = {};
     group.cards.forEach(c => {
@@ -2933,83 +3155,14 @@ function flowTick() {
   requestAnimationFrame(flowTick);
 }
 
-/* ── List view ── */
+/* ── Gallery list view (reuses shared timeline builder) ── */
 function renderGalleryList(cards) {
   const wrap = document.getElementById('list-wrap');
   wrap.innerHTML = '';
-
-  /* Global cover only when browsing the whole gallery */
-  if (!currentRoute.scope) {
-    const coverSection = document.createElement('div');
-    coverSection.className = 'list-cover-section';
-    coverSection.appendChild(renderGalleryCoverCard());
-    wrap.appendChild(coverSection);
-  }
-
-  const groups = currentRoute.scope
-    ? [{ cluster: CLUSTERS.get(currentRoute.scope), cards }]
-    : CLUSTER_ORDER.map(id => ({
-        cluster: CLUSTERS.get(id),
-        cards: CLUSTERS.get(id).cardIds.map(cid => CARDS.get(cid)).filter(Boolean)
-      }));
-
-  groups.forEach(group => {
-    if (!group.cluster || !group.cards.length) return;
-
-    /* Cluster cover as section header */
-    const sectionHeader = document.createElement('div');
-    sectionHeader.className = 'list-cover-section';
-    sectionHeader.appendChild(renderGalleryCoverCard(group.cluster));
-    wrap.appendChild(sectionHeader);
-
-    /* Month rows within the cluster */
-    const monthKeys = [];
-    const seen = {};
-    group.cards.forEach(c => {
-      const m = /^(\d{4})-(\d{2})/.exec(c.provenance.date || '');
-      const k = m ? `${m[1]}-${m[2]}` : '0000-00';
-      if (!seen[k]) { seen[k] = true; monthKeys.push(k); }
-    });
-    monthKeys.sort().reverse();
-
-    const MN = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-    monthKeys.forEach((k, idx) => {
-      const items = group.cards.filter(c => (c.provenance.date || '').startsWith(k)).reverse();
-      const row = document.createElement('div');
-      row.className = 'list-row' + (idx === 0 ? ' expanded' : '');
-
-      const head = document.createElement('div');
-      head.className = 'list-row-head';
-      const mm = /-(\d{2})$/.exec(k);
-      const yy = /^(\d{4})/.exec(k);
-      head.innerHTML =
-        `<div class="list-num">${mm ? MN[parseInt(mm[1],10)-1] : '—'}</div>
-         <div class="list-name">${yy ? yy[1] : ''}</div>
-         <div class="list-row-head-right"><div class="list-count">${items.length} card${items.length === 1 ? '' : 's'}</div></div>`;
-      head.addEventListener('click', () => row.classList.toggle('expanded'));
-      row.appendChild(head);
-
-      const body = document.createElement('div');
-      body.className = 'list-row-body';
-      const inner = document.createElement('div');
-      inner.className = 'list-row-body-inner';
-      const strip = document.createElement('div');
-      strip.className = 'list-strip';
-      items.forEach(card => {
-        const wrapEl = document.createElement('div');
-        wrapEl.className = 'list-card';
-        const cardEl = renderGalleryCard(card);
-        wrapEl.appendChild(cardEl);
-        wireVideo(cardEl);
-        wireGalleryCard(wrapEl, card);
-        strip.appendChild(wrapEl);
-      });
-      inner.appendChild(strip);
-      body.appendChild(inner);
-      row.appendChild(body);
-      wrap.appendChild(row);
-    });
-  });
+  wrap.appendChild(buildTimelineList(cards, {
+    showGlobalCover: !currentRoute.scope,
+    coverCluster: null
+  }));
 }
 
 /* ── Grid view ── */
@@ -3017,7 +3170,6 @@ function renderGalleryGrid(cards) {
   const wrap = document.getElementById('grid-items');
   wrap.innerHTML = '';
 
-  /* Global cover only when browsing the whole gallery */
   if (!currentRoute.scope) {
     const coverItem = document.createElement('div');
     coverItem.className = 'g-item g-cover-item';
@@ -3035,13 +3187,11 @@ function renderGalleryGrid(cards) {
   groups.forEach(group => {
     if (!group.cluster || !group.cards.length) return;
 
-    /* Cluster cover header */
     const sectionHeader = document.createElement('div');
     sectionHeader.className = 'g-item g-cover-item';
     sectionHeader.appendChild(renderGalleryCoverCard(group.cluster));
     wrap.appendChild(sectionHeader);
 
-    /* Cards within the cluster, newest first */
     group.cards.slice().reverse().forEach(card => {
       const el = document.createElement('div');
       el.className = 'g-item';
@@ -3072,14 +3222,27 @@ function updateBorderProgress() {
       if (gs && gs.scrollHeight > gs.clientHeight) progress = gs.scrollTop / (gs.scrollHeight - gs.clientHeight);
     }
   } else if (browseMode === 'canvas') {
-    const maxY = document.documentElement.scrollHeight - window.innerHeight;
-    progress = maxY > 0 ? (window.scrollY || 0) / maxY : 0;
+    if (canvasLayout === 'list') {
+      const cw = document.getElementById('canvasListWrap');
+      if (cw && cw.scrollHeight > cw.clientHeight) progress = cw.scrollTop / (cw.scrollHeight - cw.clientHeight);
+    } else {
+      const maxY = document.documentElement.scrollHeight - window.innerHeight;
+      progress = maxY > 0 ? (window.scrollY || 0) / maxY : 0;
+    }
   }
   const percent = Math.round(Math.min(1, Math.max(0, progress)) * 100);
   topBar.style.width = percent + '%';
   botBar.style.width = percent + '%';
   corners.forEach(c => c && c.classList.toggle('show', percent > 0 && percent < 100));
 }
+
+/* Wire canvas list scroll to progress bar */
+(function wireCanvasListScroll(){
+  const cw = document.getElementById('canvasListWrap');
+  if (cw) cw.addEventListener('scroll', () => {
+    if (canvasLayout === 'list') updateBorderProgress();
+  }, { passive: true });
+})();
 
 /* ═══════════════════════════════════════════════════════════
    READER OVERLAY
@@ -3498,11 +3661,7 @@ function attachNodeHandlers(node) {
   let dragState = null;
   node.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
-    if (canvasLayout === 'array') return;
-    // Interactive elements inside expanded clusters (leaves, the browse-all
-    // button, the collapse chip) handle their own native clicks. Letting them
-    // fall through here means the drag pipeline never preventDefaults or
-    // captures the pointer, so their click events fire reliably.
+    if (canvasLayout === 'array' || canvasLayout === 'list') return;
     if (closestSafe(e.target, '.cluster-leaf, .cluster-browse-all, .cluster-collapse-chip')) return;
     if (e.pointerType === 'touch') {
       const sx = e.clientX, sy = e.clientY, target = e.target;
@@ -3530,7 +3689,7 @@ function attachNodeHandlers(node) {
   });
   node.addEventListener('pointermove', e => {
     if (!dragState || e.pointerId !== dragState.pointerId) return;
-    if (canvasLayout === 'array') return;
+    if (canvasLayout !== 'grid') return;
     if (node.classList.contains('is-expanded')) return;
     const dx = (e.clientX - dragState.startX) / scale;
     const dy = (e.clientY - dragState.startY) / scale;
@@ -3572,18 +3731,20 @@ function attachNodeHandlers(node) {
 
 function toggleCluster(id) {
   if (!id) return;
-  if (canvasLayout === 'array') return;
+  if (canvasLayout !== 'grid') return;
   const wasExpanded = expandedClusters.has(id);
 
   if (!wasExpanded) {
-    const others = Array.from(expandedClusters).filter(other => other !== id);
-    others.forEach(otherId => {
+    Array.from(expandedClusters).filter(other => other !== id).forEach(otherId => {
       expandedClusters.delete(otherId);
       const otherNode = document.querySelector(`.canvas-node[data-cluster-id="${CSS.escape(otherId)}"]`);
       if (!otherNode) return;
       const otherStack = otherNode.querySelector('.cluster-stack');
       if (otherStack) otherStack.dataset.expanded = 'false';
       otherNode.classList.remove('is-expanded');
+      otherNode.querySelectorAll('.cluster-peek, .cluster-peek-hit').forEach(el => {
+        el.style.display = '';
+      });
     });
     expandedClusters.add(id);
   } else {
@@ -3595,15 +3756,26 @@ function toggleCluster(id) {
     const stack = node.querySelector('.cluster-stack');
     if (stack) stack.dataset.expanded = wasExpanded ? 'false' : 'true';
     node.classList.toggle('is-expanded', !wasExpanded);
+
+    node.querySelectorAll('.cluster-peek, .cluster-peek-hit').forEach(el => {
+      el.style.display = wasExpanded ? '' : 'none';
+    });
   }
+
   if (isMobile()) {
     focusedNodeId = id;
     mobileFocusActive = true;
   }
   applyFocus();
   saveCanvasState();
+
   if (isMobile()) {
-    requestAnimationFrame(() => { reflowMobileColumn(); fitToFocus(); drawCanvasEdges(); queueMinimapLayout(); });
+    requestAnimationFrame(() => {
+      reflowMobileColumn();
+      fitToFocus();
+      drawCanvasEdges();
+      queueMinimapLayout();
+    });
   } else {
     setTimeout(() => { drawCanvasEdges(); queueMinimapLayout(); }, 360);
   }
@@ -3613,7 +3785,12 @@ function collapseAllClusters() {
   if (expandedClusters.size === 0) return false;
   expandedClusters.clear();
   document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
-  document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => n.classList.remove('is-expanded'));
+  document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => {
+    n.classList.remove('is-expanded');
+    n.querySelectorAll('.cluster-peek, .cluster-peek-hit').forEach(el => {
+      el.style.display = '';
+    });
+  });
   if (isMobile()) mobileFocusActive = false;
   applyFocus();
   saveCanvasState();
@@ -3632,10 +3809,12 @@ function attachCanvasHandlers() {
   if (!root || root.dataset.bound === '1') return;
   root.dataset.bound = '1';
   root.addEventListener('pointerdown', e => {
+    if (canvasLayout === 'list') return;
     if (closestSafe(e.target, '.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud, .browse-widget')) return;
     if (e.pointerType !== 'touch' && closestSafe(e.target, '.canvas-node')) return;
     if (e.button !== 0 && e.button !== 1) return;
     if (e.pointerType === 'touch' && closestSafe(e.target, '.canvas-node') && canvasPointers.size === 0) return;
+    if (e.target && e.target.closest && e.target.closest('#canvasListWrap')) return;
     canvasPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { root.setPointerCapture(e.pointerId); } catch(err){}
     if (canvasPointers.size === 1) {
@@ -3700,12 +3879,9 @@ function attachCanvasHandlers() {
     } else if (canvasPanState && e.pointerId === canvasPanState.pointerId) {
       root.classList.remove('panning');
       const didMove = canvasPanState.moved;
-      if (!didMove && canvasPanState.button === 0 && expandedClusters.size > 0 && canvasLayout !== 'array') {
+      if (!didMove && canvasPanState.button === 0 && expandedClusters.size > 0 && canvasLayout === 'grid') {
         collapseAllClusters();
       }
-      /* A manual drag means the user is free-browsing again, not looking at
-         whatever was last focused — release the pull so blur doesn't lie
-         about what's actually centered. */
       if (didMove && isMobile() && mobileFocusActive) { mobileFocusActive = false; applyFocus(); }
       if (didMove) saveCanvasState();
       canvasPanState = null;
@@ -3715,6 +3891,8 @@ function attachCanvasHandlers() {
   root.addEventListener('pointerup', endP);
   root.addEventListener('pointercancel', endP);
   root.addEventListener('wheel', e => {
+    if (canvasLayout === 'list') return;
+    if (e.target && e.target.closest && e.target.closest('#canvasListWrap')) return;
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       const factor = Math.exp(-e.deltaY * 0.0025);
@@ -3729,6 +3907,7 @@ function attachCanvasHandlers() {
   let lastTap = 0;
   root.addEventListener('pointerup', e => {
     if (e.pointerType !== 'touch') return;
+    if (canvasLayout === 'list') return;
     if (closestSafe(e.target, '.canvas-node')) return;
     const now = Date.now();
     if (now - lastTap < 300) {
@@ -3767,6 +3946,7 @@ function focusNode(id, opts = {}) {
 
 function fitToFocus(opts = {}) {
   if (!isMobile()) return;
+  if (canvasLayout === 'list') return;
   const rect = getFocusRect(focusedNodeId);
   if (!rect) return;
   const vw = window.innerWidth, vh = window.innerHeight;
@@ -3785,15 +3965,10 @@ function fitToFocus(opts = {}) {
   const twoColW = cardW * 2 + 8;
   const targetW = isMobile() ? Math.max(rect.w, twoColW) : rect.w;
   const containScale = Math.min(availW / targetW, availH / rect.h);
-  /* Legibility wins over fit: never let the organic zoom shrink a focused card
-     past the readable floor just to force it entirely inside the viewport. */
   const floor = LEGIBLE_SCALE;
   const legibilityLimited = containScale < floor;
   const ns = Math.max(floor, Math.min(getMaxScale(), containScale));
   const cx = rect.x + rect.w / 2;
-  /* When legibility overflows the frame, anchor the window to the top of the
-     card (kicker/title) instead of centering — a center-crop would cut the
-     title off before the reader ever sees it. */
   const cy = legibilityLimited ? (rect.y + (availH / ns) / 2) : (rect.y + rect.h / 2);
   tweenCamera(ns, vw / 2 - cx * ns, (topbarH + vh - hudReserve) / 2 - cy * ns, 360);
 }
@@ -3888,7 +4063,7 @@ function stepGalleryScope(delta) {
 function currentVpClass() { return isMobile() ? 'mobile' : 'desktop'; }
 function saveCanvasState() {
   const positions = {};
-  if (!isMobile() && canvasLayout !== 'array') restPositions.forEach((p, id) => { positions[id] = { x: p.x, y: p.y }; });
+  if (!isMobile() && canvasLayout === 'grid') restPositions.forEach((p, id) => { positions[id] = { x: p.x, y: p.y }; });
   const state = {
     layout: canvasLayout, positions,
     pan: { x: panOffset.x, y: panOffset.y },
@@ -3960,7 +4135,7 @@ function setupBrowseWidget() {
   const toggle = w.querySelector('#browseWidgetToggle');
   toggle.addEventListener('click', () => {
     if (browseMode === 'gallery') navigate({ mode: 'canvas' });
-    else navigate({ mode: 'gallery', scope: null, view: galleryView });
+    else navigate({ mode: 'gallery', scope: null, view: 'flow' });
   });
 
   w.querySelector('#browseWidgetClose').addEventListener('click', () => setBrowseWidgetVisible(false));
@@ -4004,7 +4179,8 @@ function applyWidgetVisibility() {
   const w = document.getElementById('canvasWidget');
   if (!w) return;
   const inSection = browseMode !== 'canvas' || currentRoute.mode === 'reader';
-  w.hidden = !widgetVisible || inSection || isMobile();
+  const inList = canvasLayout === 'list';
+  w.hidden = !widgetVisible || inSection || inList || isMobile();
 }
 function setWidgetVisible(on) {
   widgetVisible = !!on;
@@ -4016,7 +4192,7 @@ function applyMinimapVisibility() {
   const mm = document.getElementById('canvasMinimap');
   if (!mm) return;
   const inSection = browseMode !== 'canvas' || currentRoute.mode === 'reader';
-  const show = minimapVisible && !inSection && !isMobile();
+  const show = minimapVisible && !inSection && canvasLayout !== 'list' && !isMobile();
   const wasHidden = mm.hidden;
   mm.hidden = !show;
   if (show && wasHidden) requestAnimationFrame(() => updateMinimapLayout());
@@ -4031,7 +4207,7 @@ function applyZoomHudVisibility() {
   const zh = document.getElementById('canvasZoomHud');
   if (!zh) return;
   const inSection = browseMode !== 'canvas' || currentRoute.mode === 'reader';
-  const show = zoomHudVisible && !inSection && !isMobile();
+  const show = zoomHudVisible && !inSection && canvasLayout !== 'list' && !isMobile();
   const wasHidden = zh.hidden;
   zh.hidden = !show;
   if (show) {
@@ -4376,41 +4552,62 @@ function setupHudTop() {
    ═══════════════════════════════════════════════════════════ */
 function setCanvasLayout(layout) {
   if (!layout) return;
-  if (layout === canvasLayout && layout !== 'array') return;
+  if (layout === canvasLayout) return;
+
+  // Reset any inline peek-hiding left over from a prior grid session.
+  document.querySelectorAll('.cluster-peek, .cluster-peek-hit').forEach(el => {
+    el.style.display = '';
+  });
+
+  const prevLayout = canvasLayout;
+  canvasLayout = layout;
+  document.body.dataset.layout = layout;
+
+  // Manage expanded-cluster bookkeeping.
   if (layout === 'array') {
-    canvasLayout = 'array';
-    document.body.dataset.layout = 'array';
+    expandedClusters.clear();
     CLUSTER_ORDER.forEach(id => expandedClusters.add(id));
-    document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'true');
-    document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => n.classList.add('is-expanded'));
-    applyFocus();
-    updateContextMenuBrowseState();
-    updateStatusText();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => packArray());
-    });
-    return;
+  } else if (layout === 'grid') {
+    expandedClusters.clear();
+  } else {
+    // list — nothing cluster-related; but clear for consistency
+    expandedClusters.clear();
   }
-  expandedClusters.clear();
-  document.querySelectorAll('.cluster-stack').forEach(s => s.dataset.expanded = 'false');
-  document.querySelectorAll('.canvas-node[data-kind="cluster"]').forEach(n => n.classList.remove('is-expanded'));
-  canvasLayout = 'grid';
-  document.body.dataset.layout = 'grid';
-  restPositions.clear();
-  const specs = getCanvasNodes();
-  const computed = getLayoutPositions('grid', specs);
-  setTimeout(() => {
-    specs.forEach(s => {
-      const pos = computed[s.id] || { x: 0, y: 0 };
-      restPositions.set(s.id, { x: pos.x, y: pos.y });
-      const n = document.querySelector(`.canvas-node[data-node-id="${CSS.escape(s.id)}"]`);
-      if (n) { n.style.left = pos.x + 'px'; n.style.top = pos.y + 'px'; }
-    });
-    if (isMobile()) reflowMobileColumn();
-    else refineIdentityIndexStack();
-    applyFocus(); updateContextMenuBrowseState(); updateStatusText();
-    setTimeout(() => { fitCanvasToViewport(); saveCanvasState(); drawCanvasEdges(); queueMinimapLayout(); }, 400);
-  }, 20);
+
+  updateContextMenuBrowseState();
+  updateStatusText();
+
+  // Adjust which canvas sub-surface is active.
+  const surface = document.getElementById('canvasSurface');
+  const listWrap = document.getElementById('canvasListWrap');
+  if (layout === 'list') {
+    if (listWrap) listWrap.hidden = false;
+  } else {
+    if (listWrap) listWrap.hidden = true;
+  }
+  if (surface) surface.style.display = (layout === 'list') ? 'none' : '';
+
+  applyWidgetVisibility();
+  applyMinimapVisibility();
+  applyZoomHudVisibility();
+
+  // If we're leaving list mode, canvas surface needs a re-render. If we're
+  // entering list mode, renderCanvas() will route to the timeline.
+  renderCanvas();
+
+  if (layout !== 'list') {
+    setTimeout(() => {
+      fitCanvasToViewport();
+      saveCanvasState();
+      drawCanvasEdges();
+      queueMinimapLayout();
+    }, 420);
+  } else {
+    // Bring the timeline scroll back to top whenever we enter list mode.
+    const lw = document.getElementById('canvasListWrap');
+    if (lw) lw.scrollTop = 0;
+    saveCanvasState();
+  }
 }
 
 function fitCanvas() {
@@ -4491,15 +4688,19 @@ function setupGridToggle() {
 function goGalleryView(viewId) {
   if (browseMode !== 'gallery') {
     navigate({ mode: 'gallery', scope: currentRoute.scope || null, view: viewId });
+    return;
+  }
+  galleryView = viewId;
+  if (!currentRoute.scope) {
+    navigate({ mode: 'gallery', scope: null, view: galleryView }, true);
   } else {
-    galleryView = viewId;
-    if (!currentRoute.scope) navigate({ mode: 'gallery', scope: null, view: galleryView }, true);
-    else { renderGalleryView(); updateContextMenuBrowseState(); }
+    renderGalleryView();
+    updateContextMenuBrowseState();
   }
 }
 function toggleGalleryFromMenu() {
   if (browseMode === 'gallery') navigate({ mode: 'canvas' });
-  else navigate({ mode: 'gallery', scope: null, view: galleryView });
+  else navigate({ mode: 'gallery', scope: null, view: 'flow' });
 }
 
 function closeContextMenu() {
@@ -4540,20 +4741,37 @@ function setupContextMenu() {
     closeContextMenu();
   }, true);
 
+  const gcBtn = m.querySelector('[data-action="goto-canvas"]');
+  const ggBtn = m.querySelector('[data-action="goto-gallery"]');
+  if (gcBtn) gcBtn.addEventListener('click', () => {
+    navigate({ mode: 'canvas' });
+    closeContextMenu();
+  });
+  if (ggBtn) ggBtn.addEventListener('click', () => {
+    navigate({ mode: 'gallery', scope: currentRoute.scope || null, view: 'flow' }, true);
+    closeContextMenu();
+  });
+
   m.querySelectorAll('[data-canvas-layout]').forEach(b => b.addEventListener('click', () => {
     setCanvasLayout(b.dataset.canvasLayout);
     closeContextMenu();
   }));
-  m.querySelector('[data-action="fit"]').addEventListener('click', () => { fitCanvas(); closeContextMenu(); });
-  m.querySelector('[data-action="toggle-widget"]').addEventListener('click', () => setWidgetVisible(!widgetVisible));
-  m.querySelector('[data-action="toggle-minimap"]').addEventListener('click', () => setMinimapVisible(!minimapVisible));
-  m.querySelector('[data-action="toggle-zoomhud"]').addEventListener('click', () => setZoomHudVisible(!zoomHudVisible));
-  m.querySelector('[data-action="toggle-browse-widget"]').addEventListener('click', () => setBrowseWidgetVisible(!browseWidgetVisible));
-  m.querySelector('[data-action="toggle-gallery"]').addEventListener('click', () => { toggleGalleryFromMenu(); closeContextMenu(); });
+
   m.querySelectorAll('[data-gallery-view]').forEach(b => b.addEventListener('click', () => {
     goGalleryView(b.dataset.galleryView);
     closeContextMenu();
   }));
+
+  const fitBtn = m.querySelector('[data-action="fit"]');
+  if (fitBtn) fitBtn.addEventListener('click', () => { fitCanvas(); closeContextMenu(); });
+  const wBtn = m.querySelector('[data-action="toggle-widget"]');
+  if (wBtn) wBtn.addEventListener('click', () => setWidgetVisible(!widgetVisible));
+  const mBtn = m.querySelector('[data-action="toggle-minimap"]');
+  if (mBtn) mBtn.addEventListener('click', () => setMinimapVisible(!minimapVisible));
+  const zBtn = m.querySelector('[data-action="toggle-zoomhud"]');
+  if (zBtn) zBtn.addEventListener('click', () => setZoomHudVisible(!zoomHudVisible));
+  const bBtn = m.querySelector('[data-action="toggle-browse-widget"]');
+  if (bBtn) bBtn.addEventListener('click', () => setBrowseWidgetVisible(!browseWidgetVisible));
 }
 
 function closeGalleryContextMenu() {
@@ -4607,6 +4825,109 @@ function setupGalleryContextMenu() {
     if (!m.classList.contains('open')) return;
     if (m.contains(e.target)) return;
     closeGalleryContextMenu();
+  }, true);
+}
+
+/* ── Reader context menu ── */
+function closeReaderContextMenu() {
+  const m = document.getElementById('readerContextMenu');
+  if (m) { m.classList.remove('open'); m.hidden = true; }
+}
+
+function showReaderContextMenu(x, y, card) {
+  const m = document.getElementById('readerContextMenu');
+  if (!m) return;
+  m.innerHTML = '';
+
+  const idx = readerCards.findIndex(c => c.id === card.id);
+  const isFirst = idx <= 0;
+  const isLast = idx >= readerCards.length - 1;
+  const cl = card.clusterId && CLUSTERS.has(card.clusterId) ? CLUSTERS.get(card.clusterId) : null;
+
+  const addDivider = () => m.appendChild(Object.assign(document.createElement('div'), { className: 'ctx-divider' }));
+  const addLabel = (text) => {
+    const d = document.createElement('div');
+    d.className = 'ctx-section-label';
+    d.textContent = text;
+    m.appendChild(d);
+  };
+  const addItem = (glyph, text, opts, fn) => {
+    opts = opts || {};
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ctx-item' + (opts.noIndicator ? ' no-indicator' : '');
+    if (opts.active) b.classList.add('active');
+    if (opts.disabled) b.setAttribute('aria-disabled', 'true');
+    b.innerHTML = `<span class="ctx-indicator"></span>${glyph ? escapeHtml(glyph) + ' ' : ''}${escapeHtml(text)}`;
+    if (!opts.disabled) b.addEventListener('click', () => { fn(); closeReaderContextMenu(); });
+    m.appendChild(b);
+    return b;
+  };
+
+  addLabel(cl ? (cl.num + ' · ' + cl.title) : 'Reader');
+  addItem('‹', 'Previous letter', { disabled: isFirst, noIndicator: true }, () => activatePanel(activeIndex - 1));
+  addItem('›', 'Next letter',     { disabled: isLast,  noIndicator: true }, () => activatePanel(activeIndex + 1));
+  addItem('⌂', 'Title card',      { disabled: activeIndex === 0, noIndicator: true }, () => activatePanel(0));
+
+  addDivider();
+
+  addLabel('Gallery');
+  if (cl) {
+    addItem('↗', `Open ${cl.title} as gallery`, { noIndicator: true }, () => {
+      navigate({ mode: 'gallery', scope: cl.id, view: 'flow' });
+    });
+    ['flow', 'list', 'grid'].forEach(v => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ctx-item' + (galleryView === v ? ' active' : '');
+      b.innerHTML = `<span class="ctx-indicator"></span>${v[0].toUpperCase() + v.slice(1)} view`;
+      b.addEventListener('click', () => {
+        navigate({ mode: 'gallery', scope: cl.id, view: v });
+        closeReaderContextMenu();
+      });
+      m.appendChild(b);
+    });
+  } else {
+    addItem('↗', 'Open gallery', { noIndicator: true }, () => {
+      navigate({ mode: 'gallery', scope: null, view: 'flow' });
+    });
+  }
+
+  addDivider();
+  addItem('✕', 'Close reader', { noIndicator: true }, () => closeReader());
+
+  m.hidden = false;
+  m.style.left = '0px'; m.style.top = '0px';
+  m.classList.add('open');
+  const r = m.getBoundingClientRect();
+  const cx = Math.min(x, window.innerWidth - r.width - 8);
+  const cy = Math.min(y, window.innerHeight - r.height - 8);
+  m.style.left = Math.max(8, cx) + 'px';
+  m.style.top  = Math.max(8, cy) + 'px';
+}
+
+function setupReaderContextMenu() {
+  const wrap = document.getElementById('carouselWrap');
+  const m = document.getElementById('readerContextMenu');
+  if (!wrap || !m) return;
+
+  wrap.addEventListener('contextmenu', e => {
+    if (closestSafe(e.target, 'video, input, textarea')) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const panel = closestSafe(e.target, '.letter-panel');
+    let card = panel ? CARDS.get(panel.dataset.cardId) : null;
+    if (!card) card = readerCards[activeIndex];
+    if (!card) return;
+
+    showReaderContextMenu(e.clientX, e.clientY, card);
+  });
+
+  document.addEventListener('pointerdown', e => {
+    if (!m.classList.contains('open')) return;
+    if (m.contains(e.target)) return;
+    closeReaderContextMenu();
   }, true);
 }
 
@@ -4665,6 +4986,7 @@ function buildMobileSheet() {
     <div class="mobile-canvas-controls">
       <button class="btn" type="button" data-canvas-layout="grid">Grid</button>
       <button class="btn" type="button" data-canvas-layout="array">Array</button>
+      <button class="btn" type="button" data-canvas-layout="list">List</button>
       <button class="btn" type="button" data-action="fit">Fit view</button>
       <button class="btn" type="button" data-action="toggle-grid">Layout</button>
       <button class="btn" type="button" data-theme-toggle>Theme</button>
@@ -4789,7 +5111,7 @@ function initWriteCursor() {
   const chevron = document.getElementById('writeCursorChevron');
   if (!dot || !ellipse || !chevron) return;
   if (window.matchMedia('(hover: none)').matches) return;
-  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .list-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .cluster-reader-tile, .browse-widget';
+  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .timeline-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .cluster-reader-tile, .browse-widget';
   const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .cluster-collapse-chip, .cluster-peek';
   const LIGHT_SURFACE = '.prov-card[data-type="identity"]';
   let px = 0, py = 0, prevX = 0, prevY = 0, init = false;
@@ -4813,9 +5135,6 @@ function initWriteCursor() {
   }
   window.addEventListener('mousemove', e => {
     const el = (e.target && e.target.nodeType === 1) ? e.target : null;
-    /* Detect whether the cursor is inside a reader prev/next hotspot. When it
-       is, the cursor becomes the chevron and the fallback circle markers go
-       away (see CSS). This is the primary indicator path. */
     const overPrev = !!(el && el.closest && el.closest('.letter-hotspot-prev'));
     const overNext = !!(el && el.closest && el.closest('.letter-hotspot-next'));
     const chevronMode = overPrev || overNext;
@@ -4867,6 +5186,8 @@ function closeAnyChrome() {
   if (m && m.classList.contains('open')) { closeContextMenu(); return true; }
   const gm = document.getElementById('galleryContextMenu');
   if (gm && gm.classList.contains('open')) { closeGalleryContextMenu(); return true; }
+  const rm = document.getElementById('readerContextMenu');
+  if (rm && rm.classList.contains('open')) { closeReaderContextMenu(); return true; }
   const sheet = document.getElementById('mobileSheet');
   if (sheet && sheet._isOpen && sheet._isOpen()) { sheet._closeSheet(); return true; }
   return false;
@@ -4880,7 +5201,7 @@ function escCascade() {
     return;
   }
   if (browseMode === 'gallery') { navigate({ mode: 'canvas' }); return; }
-  if (browseMode === 'canvas' && expandedClusters.size > 0 && canvasLayout !== 'array') {
+  if (browseMode === 'canvas' && canvasLayout === 'grid' && expandedClusters.size > 0) {
     collapseAllClusters();
   }
 }
@@ -4895,7 +5216,7 @@ function setupKeyboard() {
       if (e.key === 'ArrowRight') { activatePanel(activeIndex + 1); e.preventDefault(); }
       return;
     }
-    if (browseMode === 'canvas') {
+    if (browseMode === 'canvas' && canvasLayout !== 'list') {
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { stepMobileHud(1); e.preventDefault(); }
       if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { stepMobileHud(-1); e.preventDefault(); }
       if (e.key === '=' || e.key === '+') { zoomStep(1); e.preventDefault(); }
@@ -4917,9 +5238,6 @@ function setupKeyboard() {
 function setupCarousel() {
   document.getElementById('hudPrev').addEventListener('click', () => activatePanel(activeIndex - 1));
   document.getElementById('hudNext').addEventListener('click', () => activatePanel(activeIndex + 1));
-  // Home button: jump to panel 0 of the current carousel — the provenance
-  // card that leads it (cluster card for a section, identity/index card when
-  // those are what's being read). Not a separate reader, just a slide back.
   document.getElementById('hudHome').addEventListener('click', () => activatePanel(0));
   document.getElementById('letterHotspotPrev').addEventListener('click', () => activatePanel(activeIndex - 1));
   document.getElementById('letterHotspotNext').addEventListener('click', () => activatePanel(activeIndex + 1));
@@ -4997,6 +5315,7 @@ function init() {
   setupGridToggle();
   setupContextMenu();
   setupGalleryContextMenu();
+  setupReaderContextMenu();
   setupCarousel();
   setupKeyboard();
   buildMobileSheet();
@@ -5035,7 +5354,7 @@ function init() {
 
   const saved = loadCanvasState();
   if (saved) {
-    if (saved.layout === 'grid' || saved.layout === 'array') canvasLayout = saved.layout;
+    if (saved.layout === 'grid' || saved.layout === 'array' || saved.layout === 'list') canvasLayout = saved.layout;
     document.body.dataset.layout = canvasLayout;
     if (Array.isArray(saved.expanded)) saved.expanded.forEach(id => expandedClusters.add(id));
     if (saved.focus && (saved.focus === 'identity' || saved.focus === 'index' || CLUSTER_ORDER.includes(saved.focus))) focusedNodeId = saved.focus;
@@ -5055,13 +5374,17 @@ function init() {
       const crossed = nowMobile !== lastMobile;
       lastMobile = nowMobile;
       if (browseMode === 'canvas' && currentRoute.mode !== 'reader') {
-        if (canvasLayout === 'array') {
+        if (canvasLayout === 'list') {
+          // Timeline handles its own layout — no resizing work needed.
+        } else if (canvasLayout === 'array') {
           if (crossed) restPositions.clear();
           packArray();
         } else if (crossed && nowMobile) {
           restPositions.clear();
           reflowMobileColumn();
           fitToFocus({ force: true });
+          drawCanvasEdges();
+          queueMinimapLayout();
         } else if (crossed && !nowMobile) {
           restPositions.clear();
           const specs = getCanvasNodes();
@@ -5074,14 +5397,18 @@ function init() {
           });
           refineIdentityIndexStack();
           fitCanvasToViewport();
+          drawCanvasEdges();
+          queueMinimapLayout();
         } else if (nowMobile) {
           reflowMobileColumn();
           fitToFocus();
+          drawCanvasEdges();
+          queueMinimapLayout();
         } else {
           fitCanvasToViewport();
+          drawCanvasEdges();
+          queueMinimapLayout();
         }
-        drawCanvasEdges();
-        queueMinimapLayout();
       } else if (browseMode === 'gallery') {
         renderGalleryView();
       }
