@@ -14,7 +14,7 @@
 :root {
   --bg:#f0f0f2; --fg:#1c1c1e; --fg-rgb:28,28,30; --nav-bg-rgb:240,240,242;
   --rule:rgba(0,0,0,.08); --faint:rgba(0,0,0,.04); --muted:rgba(0,0,0,.55);
-  --accent:#E5E567; --card:#ffffff; --card-mid:#3a3a3c;
+  --accent:#E5E567; --accent-2:#F5F557; --card:#ffffff; --card-mid:#3a3a3c;
   --ink:#1c1c1e; --ink-mid:#3a3a3c; --ink-light:#8e8e93; --ink-lighter:#b0b0b6;
   --border:#e6e6e8; --peek-bg:#d0d0d5; --peek-border:rgba(28,28,30,.16);
   --shadow:0 4px 12px rgba(0,0,0,0.04);
@@ -90,21 +90,236 @@ body[data-reader="open"]{overflow:hidden}
 
 /* ═══ TOPBAR ═══ */
 .topbar{position:sticky;top:0;z-index:150;background:transparent;padding:6px 0;min-height:var(--topbar-height);display:flex;align-items:center;pointer-events:none}
-.topbar .wordmark,.topbar .btn,.topbar .breadcrumb-item{pointer-events:auto}
+.topbar .wordmark,.topbar .btn,.topbar .breadcrumb-badge,.topbar .logo-tile,.topbar .attention-wrapper{pointer-events:auto}
 .topbar .wrap{display:flex;align-items:center;gap:12px;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto;width:100%;pointer-events:none}
-.wordmark{font-size:clamp(12px,3.5vw,20px);font-weight:700;letter-spacing:-.03em;display:flex;align-items:baseline;gap:6px;color:var(--ink);flex-shrink:0;cursor:pointer}
+
+/* ═══ WORDMARK / LOGO TILE ═══ */
+.logo-tile{position:relative;cursor:pointer;flex-shrink:0;pointer-events:auto}
+.wordmark{font-size:clamp(12px,3.5vw,20px);font-weight:700;letter-spacing:-.03em;display:flex;align-items:baseline;gap:6px;color:var(--ink);flex-shrink:0}
 .wordmark .count{font-family:var(--font-mono);font-size:8px;font-weight:400;color:var(--ink-light);letter-spacing:.04em}
+.logo-tile .wordmark{cursor:pointer}
+.logo-tile .wordmark::after{
+  content:'▾';font-size:9px;color:var(--ink-lighter);margin-left:1px;
+  transform:translateY(-1px);transition:transform .2s ease,color .2s ease;display:inline-block;
+}
+.logo-tile:hover .wordmark::after,
+.logo-tile.open .wordmark::after{transform:translateY(-1px) rotate(180deg);color:var(--ink-light)}
+
+.logo-card{
+  position:absolute;top:calc(100% + 10px);left:0;width:min(300px,calc(100vw - 2 * var(--margin)));
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--shadow-floating);padding:18px 18px 16px;
+  opacity:0;visibility:hidden;transform:translateY(-6px) scale(.98);transform-origin:top left;
+  transition:opacity .22s ease,transform .22s cubic-bezier(.25,.46,.45,.94),visibility .22s;
+  z-index:60;pointer-events:none;cursor:default;
+}
+.logo-tile:hover .logo-card,
+.logo-tile:focus-within .logo-card,
+.logo-tile.open .logo-card{opacity:1;visibility:visible;transform:translateY(0) scale(1);pointer-events:auto}
+@media (max-width:640px){
+  .logo-tile:hover .logo-card,
+  .logo-tile:focus-within .logo-card{pointer-events:none;opacity:0;visibility:hidden;transform:translateY(-6px) scale(.98)}
+  .logo-tile.open .logo-card{pointer-events:auto;opacity:1;visibility:visible;transform:translateY(0) scale(1)}
+}
+.logo-card-eyebrow{margin-bottom:8px;font-family:var(--font-mono);font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-light)}
+.logo-card-text{font-size:12px;line-height:1.6;color:var(--ink-mid);margin-bottom:14px}
+.logo-card-actions{display:flex;gap:8px}
+.logo-card-actions .btn{width:auto;flex:1;font-size:7px;min-height:26px;padding:4px 10px}
+.logo-card-info{background:var(--accent);border-color:var(--accent);color:#1C1C1E;border-radius:999px}
+.logo-card-info:hover{background:var(--accent-2);border-color:var(--accent-2);color:#1C1C1E}
+.logo-card-home{border-radius:999px}
+
+/* ═══ BREADCRUMB (badge-based) ═══ */
+.breadcrumb-wrap{
+  flex:1;min-width:0;display:flex;align-items:center;gap:4px;position:relative;overflow:hidden;
+  mask-image:linear-gradient(to right,black 68%,transparent 98%);
+  -webkit-mask-image:linear-gradient(to right,black 68%,transparent 98%);
+  mask-composite:add;-webkit-mask-composite:add;
+  height:32px;
+}
+.breadcrumb-scroll{
+  display:flex;align-items:center;gap:4px;
+  overflow-x:auto;overflow-y:hidden;scroll-behavior:smooth;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;-ms-overflow-style:none;
+  padding:2px 20px 2px 0;flex:1;min-width:0;
+  scroll-snap-type:x mandatory;
+}
+.breadcrumb-scroll::-webkit-scrollbar{display:none;width:0;height:0}
+.breadcrumb-scroll.dragging{scroll-snap-type:none;scroll-behavior:auto;cursor:grabbing}
+.breadcrumb-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 6px 2px 4px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--card);
+  font-size:9px;white-space:nowrap;cursor:pointer;
+  transition:all .15s ease;flex-shrink:0;scroll-snap-align:start;
+  box-shadow:var(--shadow);min-height:26px;
+  font-family:var(--font);font-weight:500;color:var(--ink-mid);
+}
+.breadcrumb-badge .bb-avatar{
+  width:18px;height:18px;font-size:7px;border-radius:var(--radius-sm);
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--bg);border:1px solid var(--border);flex-shrink:0;
+  font-weight:600;text-transform:uppercase;color:var(--ink);
+  transition:border-color .15s;
+}
+.breadcrumb-badge .bb-avatar.v0{background:var(--accent);color:var(--ink);border-color:rgba(28,28,30,.18)}
+.breadcrumb-badge .bb-avatar.v1{background:var(--bg);color:var(--ink)}
+.breadcrumb-badge .bb-avatar.v2{background:var(--accent-2);color:var(--ink);border-color:rgba(28,28,30,.18)}
+.breadcrumb-badge .bb-avatar.v3{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.breadcrumb-badge .bb-name{
+  max-width:120px;overflow:hidden;text-overflow:ellipsis;
+  font-weight:500;color:var(--ink);font-size:9px;
+}
+.breadcrumb-badge .bb-remove{
+  background:none;border:none;color:var(--ink-light);font-size:10px;cursor:pointer;
+  padding:0 2px;line-height:1;border-radius:50%;width:16px;height:16px;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:all .15s ease;flex-shrink:0;
+}
+.breadcrumb-badge .bb-remove:hover{color:var(--ink);background:var(--bg)}
+.breadcrumb-badge.active{border-color:var(--ink);background:var(--ink);color:var(--card);box-shadow:var(--shadow-hover)}
+.breadcrumb-badge.active .bb-name{color:var(--card)}
+.breadcrumb-badge.active .bb-avatar{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.15);color:var(--card)}
+.breadcrumb-badge.active .bb-avatar.v0,
+.breadcrumb-badge.active .bb-avatar.v2{background:var(--accent);color:var(--ink)}
+.breadcrumb-badge.active .bb-remove{color:rgba(255,255,255,.5)}
+.breadcrumb-badge.active .bb-remove:hover{color:#fff;background:rgba(255,255,255,.15)}
+.breadcrumb-badge:hover:not(.active){border-color:var(--ink-light);transform:translateY(-1px);box-shadow:var(--shadow-hover)}
+.breadcrumb-fade{
+  position:absolute;right:0;top:0;bottom:0;width:40px;pointer-events:none;
+  background:linear-gradient(to right,transparent,var(--bg));z-index:2;
+  border-radius:0 4px 4px 0;
+}
+@media (max-width:640px){.breadcrumb-wrap{display:none}}
+
 .topbar-right{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
 .topbar-right .btn{font-size:9px;min-height:32px;padding:4px 10px}
 .topbar-appearance-wrapper{position:relative;display:flex;align-items:center}
 
-.breadcrumb{display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-light);flex:1;min-width:0;overflow:hidden;padding:0 4px}
-.breadcrumb-item{background:none;border:none;padding:3px 6px;cursor:pointer;font:inherit;color:var(--ink-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;border-radius:4px;transition:color .15s ease,background .15s ease}
-.breadcrumb-item:hover{color:var(--ink);background:var(--faint)}
-.breadcrumb-item.is-current{color:var(--ink);font-weight:600;cursor:default}
-.breadcrumb-sep{color:var(--ink-lighter);opacity:.55;flex-shrink:0}
-.mobile-back{display:none;font-size:9px;min-height:32px;padding:4px 10px;flex-shrink:0}
-@media (max-width:640px){.breadcrumb{display:none}.mobile-back:not([hidden]){display:inline-flex}}
+/* ═══ ATTENTION (eye + dropdown) ═══ */
+.attention-wrapper{position:relative;display:flex;align-items:center;pointer-events:auto}
+.attention-btn{
+  background:transparent;border:1px solid var(--border);border-radius:50%;
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  font-size:17px;color:var(--ink-mid);
+  transition:background .15s ease,border-color .15s ease;
+  cursor:pointer;position:relative;padding:0;
+}
+.attention-btn:hover{background:var(--bg);border-color:var(--ink-light)}
+.attention-btn .attention-eye{display:block;width:22px;height:22px;color:var(--ink-mid);transition:color .15s ease}
+.attention-btn:hover .attention-eye{color:var(--ink)}
+.attention-badge{
+  position:absolute;top:-4px;right:-4px;
+  background:var(--ink);color:var(--card);
+  font-family:var(--font-mono);font-size:7px;font-weight:600;
+  min-width:16px;height:16px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 4px;border:1px solid var(--card);
+  transition:opacity .2s ease,transform .2s ease;
+  pointer-events:none;
+}
+.attention-badge.hidden{opacity:0;transform:scale(.8)}
+.attention-dropdown{
+  position:fixed;width:300px;max-height:340px;overflow-y:auto;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--shadow-floating);padding:6px 0;z-index:250;
+  display:none;flex-direction:column;overflow-x:hidden;
+  scrollbar-width:thin;scrollbar-color:var(--ink-lighter) transparent;
+}
+.attention-dropdown::-webkit-scrollbar{width:3px}
+.attention-dropdown::-webkit-scrollbar-thumb{background:var(--ink-lighter);border-radius:4px}
+.attention-dropdown.open{display:flex}
+.attention-dropdown .dropdown-header{
+  padding:6px 14px 4px;font-family:var(--font-mono);
+  font-size:7px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-light);border-bottom:1px solid var(--border);
+  margin-bottom:4px;flex-shrink:0;
+}
+.attention-dropdown .dropdown-empty{
+  padding:20px 14px;font-family:var(--font-mono);font-size:8px;
+  color:var(--ink-light);text-align:center;
+}
+.attention-dropdown .dropdown-foot{
+  border-top:1px solid var(--border);padding:8px 14px 4px;
+  display:flex;justify-content:space-between;align-items:center;
+  font-family:var(--font-mono);font-size:7px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-light);flex-shrink:0;
+}
+.attention-dropdown .dropdown-foot button{
+  background:none;border:none;color:var(--ink-light);font:inherit;
+  cursor:pointer;letter-spacing:inherit;text-transform:inherit;padding:0;
+}
+.attention-dropdown .dropdown-foot button:hover{color:var(--ink)}
+.attention-item{
+  display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;
+  transition:background .12s ease;border-bottom:1px solid var(--border);
+}
+.attention-item:last-child{border-bottom:none}
+.attention-item:hover{background:var(--bg)}
+.attention-item .item-avatar{
+  position:relative;width:24px;height:24px;border-radius:var(--radius-sm);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font);font-size:8px;font-weight:600;text-transform:uppercase;
+  background:var(--bg);color:var(--ink);border:1px solid var(--border);flex-shrink:0;
+}
+.attention-item .item-avatar.v0{background:var(--accent);color:var(--ink);border-color:rgba(28,28,30,.18)}
+.attention-item .item-avatar.v2{background:var(--accent-2);color:var(--ink);border-color:rgba(28,28,30,.18)}
+.attention-item .item-avatar.v3{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.attention-item .item-info{flex:1;min-width:0}
+.attention-item .item-name{
+  font-family:var(--font);font-size:calc(var(--fs-body) * .75);font-weight:600;
+  letter-spacing:-.01em;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.attention-item .item-snippet{
+  font-family:var(--font);font-size:calc(var(--fs-body) * .65);
+  color:var(--ink-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;
+}
+.attention-item .item-type{
+  font-family:var(--font-mono);font-size:6px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-light);margin-left:4px;
+}
+.attention-item .item-dismiss{
+  background:none;border:none;color:var(--ink-light);font-size:12px;cursor:pointer;
+  padding:0 4px;border-radius:50%;line-height:1;
+  transition:color .15s ease,background .15s ease;
+  width:20px;height:20px;display:flex;align-items:center;justify-content:center;
+}
+.attention-item .item-dismiss:hover{color:var(--ink);background:var(--bg)}
+
+@media (max-width:480px){
+  .attention-dropdown{width:260px;right:-12px;max-height:280px}
+  .attention-btn{width:30px;height:30px;font-size:14px}
+  .attention-btn .attention-eye{width:18px;height:18px}
+  .breadcrumb-badge .bb-name{max-width:48px;font-size:7px}
+  .breadcrumb-badge{font-size:7px;padding:1px 4px 1px 3px;min-height:20px}
+  .breadcrumb-badge .bb-avatar{width:14px;height:14px;font-size:6px}
+  .breadcrumb-badge .bb-remove{width:12px;height:12px;font-size:8px}
+  .breadcrumb-wrap{height:24px;mask-image:linear-gradient(to right,black 60%,transparent 98%);-webkit-mask-image:linear-gradient(to right,black 60%,transparent 98%)}
+  .breadcrumb-fade{width:24px}
+}
+
+/* Eye wink animation */
+.attention-eye{display:block;width:22px;height:22px;color:inherit;transition:color .15s ease}
+.attention-eye .eye-shape{
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1),opacity .15s ease;
+  transform-origin:center;
+}
+.attention-eye .eye-pupil{
+  transition:opacity .15s ease,transform .2s cubic-bezier(.34,1.56,.64,1);
+  transform-origin:center;
+}
+.attention-eye .wink-line{
+  transition:opacity .15s ease,transform .2s cubic-bezier(.34,1.56,.64,1);
+  transform-origin:center;opacity:0;
+}
+.attention-eye.wink .eye-shape{transform:scaleY(0.08) translateY(0px)}
+.attention-eye.wink .eye-pupil{opacity:0;transform:scale(0.3)}
+.attention-eye.wink .wink-line{opacity:1}
+.attention-btn .attention-eye{transition:transform .15s ease}
+.attention-btn .attention-eye.wink{transform:scale(1.02) rotate(1deg)}
+@media (max-width:480px){.attention-eye{width:18px;height:18px}}
 
 /* ═══ VIEWPORT BLUR ═══ */
 .viewport-blur{position:fixed;left:0;right:0;z-index:130;pointer-events:none;backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);transition:backdrop-filter .3s ease,background .4s ease}
@@ -515,7 +730,6 @@ body.cursor-chevron-next .letter-hotspot .hotspot-chevron{opacity:0 !important;t
 .letter-card-frame.title-card-frame .letter-provenance-voice{color:#1c1c1e}
 .letter-card-frame.title-card-frame .letter-toolbar .letter-count{color:rgba(28,28,30,.5)}
 
-/* ═══ IDENTITY (title card) reader frame ═══ */
 .letter-card-frame.identity-card-frame{
   background:var(--accent);
   border-color:var(--accent);
@@ -613,7 +827,6 @@ body.cursor-chevron-next .letter-hotspot .hotspot-chevron{opacity:0 !important;t
   align-items:center;
 }
 
-/* ═══ INDEX reader frame ═══ */
 .letter-card-frame.index-card-frame{
   background:#1c1c1e;
   border-color:#1c1c1e;
@@ -1626,133 +1839,23 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   .info-overlay .bookend-index a .idx-num{min-width:2em;font-size:.55em}
 }
 
-/* ═══ ATTENTION (social layer · ephemeral memory) ═══ */
-.btn-attention{display:inline-flex;align-items:center;gap:7px;font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
-.btn-attention .attend-icon{
-  display:inline-block;width:8px;height:8px;border-radius:50%;
-  border:1.5px solid currentColor;
-  transition:background .15s ease,border-color .15s ease;
-  flex-shrink:0;
-}
-.btn-attention.has-attention .attend-icon{background:var(--accent);border-color:var(--accent)}
-.btn-attention.has-attention{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));color:var(--ink)}
-.btn-attention.has-attention:hover .attend-icon{background:var(--bg);border-color:var(--bg)}
-
+/* ═══ ATTEND BUTTON on cards ═══ */
 .attend-btn{
-  flex-shrink:0;
-  width:16px;height:16px;
-  border-radius:50%;
-  border:1px solid var(--border);
-  background:transparent;
-  color:var(--ink-lighter);
-  cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  padding:0;
+  flex-shrink:0;width:16px;height:16px;border-radius:50%;
+  border:1px solid var(--border);background:transparent;color:var(--ink-lighter);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;
   transition:border-color .15s ease,color .15s ease,background .15s ease;
-  margin-left:2px;
-  -webkit-tap-highlight-color:transparent;
+  margin-left:2px;-webkit-tap-highlight-color:transparent;
 }
-.attend-btn::before{
-  content:'';
-  width:6px;height:6px;border-radius:50%;
-  border:1.5px solid currentColor;
-  transition:background .15s ease;
-}
+.attend-btn::before{content:'';width:6px;height:6px;border-radius:50%;border:1.5px solid currentColor;transition:background .15s ease}
 .attend-btn:hover{color:var(--ink);border-color:var(--ink)}
-.prov-card.is-attended .attend-btn{
-  border-color:var(--accent);
-  color:var(--accent);
-  background:color-mix(in srgb,var(--accent) 20%,transparent);
-}
+.prov-card.is-attended .attend-btn{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 20%,transparent)}
 .prov-card.is-attended .attend-btn::before{background:currentColor}
-.prov-card.is-attended{
-  border-color:color-mix(in srgb,var(--accent) 45%,var(--border));
-  box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent),var(--shadow);
-}
-
+.prov-card.is-attended{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent),var(--shadow)}
 .reader-attend-btn{font-size:8px;letter-spacing:.08em}
-.reader-attend-btn.active{
-  background:var(--accent);
-  color:#1c1c1e;
-  border-color:var(--accent);
-}
+.reader-attend-btn.active{background:var(--accent);color:#1c1c1e;border-color:var(--accent)}
 .reader-attend-btn.active:hover{background:color-mix(in srgb,var(--accent) 80%,#000);color:#1c1c1e;border-color:color-mix(in srgb,var(--accent) 80%,#000)}
-
-#attentionOverlay{
-  position:fixed;inset:0;z-index:580;
-  background:var(--bg);
-  opacity:0;pointer-events:none;
-  transition:opacity .3s cubic-bezier(.25,.46,.45,.94);
-  overflow-y:auto;overflow-x:hidden;
-  scrollbar-width:none;-ms-overflow-style:none;
-}
-#attentionOverlay::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
-#attentionOverlay.open{opacity:1;pointer-events:auto}
-.attention-inner{
-  max-width:var(--max-width);
-  margin:0 auto;
-  padding:calc(var(--topbar-height) + 40px) var(--margin) 100px;
-}
-.attention-header{
-  display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
-  padding-bottom:20px;margin-bottom:28px;
-  border-bottom:1px solid var(--border);
-}
-.attention-title{
-  font-family:var(--font);
-  font-size:clamp(28px,4vw,48px);
-  font-weight:700;letter-spacing:-.025em;
-  color:var(--ink);margin:0;line-height:1;
-}
-.attention-sub{
-  font-family:var(--font-mono);
-  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--ink-light);
-}
-.attention-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
-.attention-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
-  gap:1.2rem 1rem;
-  align-items:start;
-}
-.attention-empty{
-  grid-column:1 / -1;
-  padding:80px 20px;
-  text-align:center;
-  color:var(--ink-light);
-  font-size:15px;
-  font-style:italic;
-}
-.attention-empty p{margin:0 0 10px}
-.attention-empty-hint{
-  font-family:var(--font-mono);
-  font-size:10px;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--ink-lighter);
-  font-style:normal;
-}
-.attention-close{
-  position:fixed;
-  top:clamp(16px,3vh,32px);right:clamp(16px,3vw,32px);
-  z-index:585;
-  background:var(--card);border:1px solid var(--border);border-radius:50%;
-  width:44px;height:44px;
-  font-size:20px;line-height:1;
-  color:var(--ink);cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:var(--shadow-floating);
-  transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease;
-  padding:0;
-}
-.attention-close:hover{background:var(--ink);color:var(--bg);transform:scale(1.05);box-shadow:var(--shadow-hover)}
-
-@media (max-width:640px){
-  .attend-btn{width:14px;height:14px}
-  .attend-btn::before{width:5px;height:5px;border-width:1.2px}
-  .attention-inner{padding:calc(var(--topbar-height) + 24px) var(--margin) 80px}
-  .attention-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem .75rem}
-  .attention-header{gap:10px}
-}
+@media (max-width:640px){.attend-btn{width:14px;height:14px}.attend-btn::before{width:5px;height:5px;border-width:1.2px}}
 </style>
 </head>
 <body data-theme="dark" data-layout="grid" data-browse="canvas" data-reader="closed">
@@ -1781,24 +1884,50 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 <!-- ═══ TOPBAR ═══ -->
 <div class="topbar">
   <div class="wrap">
-    <div class="wordmark" id="wordmark" title="Back to canvas">
-      <span>intoview.pro</span>
-      <span class="count" id="topCount">◈</span>
+    <div class="logo-tile" id="logoTile" tabindex="0" aria-haspopup="true" aria-expanded="false">
+      <div class="wordmark" id="wordmark" title="Back to canvas">
+        <span>intoview.pro</span>
+        <span class="count" id="topCount">◈</span>
+      </div>
+      <div class="logo-card" id="logoCard">
+        <p class="logo-card-eyebrow">Statements, not posts</p>
+        <p class="logo-card-text">A permanent professional record. Every line is a filed statement, signed and dated. No feed to game, no likes to chase — just what is true, on the record.</p>
+        <div class="logo-card-actions">
+          <button class="btn small logo-card-info" id="infoToggleBtn" type="button" title="About intoview.pro">ⓘ Info</button>
+          <button class="btn small logo-card-home" id="logoReset" type="button">↺ Reset</button>
+        </div>
+      </div>
     </div>
-    <nav class="breadcrumb" id="breadcrumb" aria-label="Breadcrumb"></nav>
+    <div class="breadcrumb-wrap" id="breadcrumbWrap">
+      <div class="breadcrumb-scroll" id="breadcrumbScroll"></div>
+      <div class="breadcrumb-fade"></div>
+    </div>
     <button class="btn mobile-back" id="mobileBackBtn" hidden aria-label="Back">← Back</button>
     <div class="topbar-right">
       <button class="btn btn-grid" id="gridToggle" aria-label="Toggle layout overlay">
         <span class="dot-indicator"></span> Layout
       </button>
-      <button class="btn btn-attention" id="attentionTrigger" title="Attention span" aria-label="Attention span">
-        <span class="attend-icon"></span><span id="attentionCount">0</span>
-      </button>
-      <button class="btn" id="infoToggleBtn" title="About intoview.pro" aria-label="About intoview.pro">ⓘ</button>
       <div class="topbar-appearance-wrapper">
         <button class="btn" id="appearanceTrigger" aria-haspopup="true" aria-expanded="false">Aa</button>
       </div>
-      <button class="btn" id="topResetBtn">↺</button>
+      <div class="attention-wrapper" id="attentionWrapper">
+        <button class="attention-btn" id="attentionBtn" aria-label="Attention">
+          <svg class="attention-eye" id="attentionEye" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse class="eye-shape" cx="20" cy="20" rx="14" ry="10" />
+            <circle class="eye-pupil" cx="20" cy="20" r="4.5" fill="currentColor" stroke="none" />
+            <path class="wink-line" d="M6 20 Q20 16.5 34 20" stroke="currentColor" stroke-width="2.5" fill="none" />
+          </svg>
+          <span class="attention-badge hidden" id="attentionBadge">0</span>
+        </button>
+        <div class="attention-dropdown" id="attentionDropdown">
+          <div class="dropdown-header">Attention</div>
+          <div id="attentionList"></div>
+          <div class="dropdown-foot" id="attentionFoot" hidden>
+            <span id="attentionFootLabel">0 held</span>
+            <button type="button" id="attentionClear">Clear all</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -2014,21 +2143,6 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   <div class="mobile-sheet-body" id="mobileSheetBody"></div>
 </div>
 
-<!-- ═══ ATTENTION OVERLAY (social layer · ephemeral memory) ═══ -->
-<div id="attentionOverlay" role="dialog" aria-modal="true" aria-label="Attention span" hidden>
-  <button class="attention-close" id="attentionCloseBtn" aria-label="Close attention">✕</button>
-  <div class="attention-inner">
-    <div class="attention-header">
-      <h2 class="attention-title">Attention</h2>
-      <span class="attention-sub">Held in mind · ephemeral memory</span>
-      <div class="attention-actions">
-        <button class="btn" id="attentionClearBtn" type="button">Clear all</button>
-      </div>
-    </div>
-    <div class="attention-grid" id="attentionGrid"></div>
-  </div>
-</div>
-
 <!-- ═══ SPIRAL INFO OVERLAY ═══ -->
 <div class="info-overlay" id="infoOverlay" role="dialog" aria-modal="true" aria-label="About intoview.pro">
   <button class="info-overlay-close" id="infoCloseBtn" aria-label="Close info">✕</button>
@@ -2084,8 +2198,7 @@ const CLUSTER_SPECS = [
 ];
 
 const EDITORIAL_SPECS = [
-  {
-    id:'manifesto/permanence', clusterId:'manifesto', type:'statement', format:'editorial',
+  { id:'manifesto/permanence', clusterId:'manifesto', type:'statement', format:'editorial',
     title:'The Case for a Permanent Record',
     deck:'LinkedIn lets you delete the post where you said you would never work in tech. Twitter lets you delete the tweet that aged badly. We do not.',
     provenance:{ author:'Maya Okonkwo', date:'2026-01-04', source:'intoview.pro / manifesto', status:'published' },
@@ -2094,10 +2207,8 @@ const EDITORIAL_SPECS = [
       'LinkedIn lets you delete the post where you said you would never work in tech. Twitter lets you delete the tweet that aged badly. We do not.',
       'The professional record should work like a publication, not a conversation. When you file something here, it is filed. You can correct it - a new statement, dated and linked, saying plainly what changed and why. You cannot rewrite it.',
       'This is not a feature. It is the whole product.'
-    ]
-  },
-  {
-    id:'manifesto/say-the-thing', clusterId:'manifesto', type:'statement', format:'editorial',
+    ] },
+  { id:'manifesto/say-the-thing', clusterId:'manifesto', type:'statement', format:'editorial',
     title:'Say the Thing',
     deck:'On layoffs, restructuring, and the slow death of plain language in professional communication.',
     provenance:{ author:'Maya Okonkwo', date:'2026-01-11', source:'intoview.pro / manifesto', status:'published' },
@@ -2106,10 +2217,8 @@ const EDITORIAL_SPECS = [
       'We have built a platform where "excited to announce" is a firing offense.',
       'Not literally. But the culture we are trying to build is one where you say what you mean. Where a layoff is a layoff, not a restructuring opportunity. Where a product launch is "we shipped this" and not "we are thrilled to share."',
       'The professional world has a language problem. We are trying to fix it, one statement at a time.'
-    ]
-  },
-  {
-    id:'manifesto/thirty-seconds', clusterId:'manifesto', type:'statement', format:'editorial',
+    ] },
+  { id:'manifesto/thirty-seconds', clusterId:'manifesto', type:'statement', format:'editorial',
     title:'Thirty Seconds Is Enough',
     deck:'Why we give you half a minute to fix a typo, three minutes to fix a thought, and no delete button.',
     provenance:{ author:'Maya Okonkwo', date:'2026-01-18', source:'intoview.pro / manifesto', status:'published' },
@@ -2118,50 +2227,37 @@ const EDITORIAL_SPECS = [
       'The edit window is thirty seconds for a typo, three minutes for a thought. After that, it is permanent.',
       'We picked thirty seconds because that is how long it takes to notice you typed "teh" instead of "the." We picked three minutes because that is how long it takes to realize you said something you do not actually believe.',
       'We did not pick a delete button because we do not think you should have one.'
-    ]
-  },
-  {
-    id:'manifesto/permanence-r1', clusterId:'manifesto', type:'reply', format:'editorial',
+    ] },
+  { id:'manifesto/permanence-r1', clusterId:'manifesto', type:'reply', format:'editorial',
     title:'Re: The Case for a Permanent Record',
     deck:'This is going to make a lot of people uncomfortable. That is probably the point.',
     provenance:{ author:'Dana Chen', date:'2026-01-04', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/permanence'], replies:[], updates:[] }, parentId:'manifesto/permanence'
-  },
-  {
-    id:'manifesto/permanence-r2', clusterId:'manifesto', type:'reply', format:'editorial',
+    relationships:{ references:['manifesto/permanence'], replies:[], updates:[] }, parentId:'manifesto/permanence' },
+  { id:'manifesto/permanence-r2', clusterId:'manifesto', type:'reply', format:'editorial',
     title:'Re: The Case for a Permanent Record',
     deck:'The edit window is the smart part. 30 seconds is enough to catch a typo, not enough to catch yourself.',
     provenance:{ author:'Marcus Williams', date:'2026-01-05', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/permanence'], replies:[], updates:[] }, parentId:'manifesto/permanence'
-  },
-  {
-    id:'manifesto/permanence-r3', clusterId:'manifesto', type:'reply', format:'editorial',
+    relationships:{ references:['manifesto/permanence'], replies:[], updates:[] }, parentId:'manifesto/permanence' },
+  { id:'manifesto/permanence-r3', clusterId:'manifesto', type:'reply', format:'editorial',
     title:'Re: The Case for a Permanent Record',
     deck:'As a recruiter, I would love this. As a person who has posted things I regret, I am terrified.',
     provenance:{ author:'Aisha Bello', date:'2026-01-06', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/permanence'], replies:[], updates:[] }, parentId:'manifesto/permanence'
-  },
-  {
-    id:'manifesto/say-the-thing-r1', clusterId:'manifesto', type:'reply', format:'editorial',
+    relationships:{ references:['manifesto/permanence'], replies:[], updates:[] }, parentId:'manifesto/permanence' },
+  { id:'manifesto/say-the-thing-r1', clusterId:'manifesto', type:'reply', format:'editorial',
     title:'Re: Say the Thing',
     deck:'The number of times I have had to translate "we are thrilled" into what actually happened.',
     provenance:{ author:'Sam Rivers', date:'2026-01-11', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/say-the-thing'], replies:[], updates:[] }, parentId:'manifesto/say-the-thing'
-  },
-  {
-    id:'manifesto/say-the-thing-r2', clusterId:'manifesto', type:'reply', format:'editorial',
+    relationships:{ references:['manifesto/say-the-thing'], replies:[], updates:[] }, parentId:'manifesto/say-the-thing' },
+  { id:'manifesto/say-the-thing-r2', clusterId:'manifesto', type:'reply', format:'editorial',
     title:'Re: Say the Thing',
     deck:'We changed our launch template last quarter. First line is now "Here is what we shipped." Open rate went up 18 percent.',
     provenance:{ author:'Rachel Kim', date:'2026-01-12', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/say-the-thing'], replies:[], updates:[] }, parentId:'manifesto/say-the-thing'
-  },
-  {
-    id:'manifesto/thirty-seconds-r1', clusterId:'manifesto', type:'reply', format:'editorial',
+    relationships:{ references:['manifesto/say-the-thing'], replies:[], updates:[] }, parentId:'manifesto/say-the-thing' },
+  { id:'manifesto/thirty-seconds-r1', clusterId:'manifesto', type:'reply', format:'editorial',
     title:'Re: Thirty Seconds Is Enough',
     deck:'The three-minute window has saved me exactly twice. Both times from myself.',
     provenance:{ author:'Tom Lindqvist', date:'2026-01-18', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/thirty-seconds'], replies:[], updates:[] }, parentId:'manifesto/thirty-seconds'
-  }
+    relationships:{ references:['manifesto/thirty-seconds'], replies:[], updates:[] }, parentId:'manifesto/thirty-seconds' }
 ];
 
 const GALLERY_CARD_SPECS = [
@@ -2169,11 +2265,7 @@ const GALLERY_CARD_SPECS = [
     title:'We shipped a feature nobody asked for',
     deck:'Six months ago we built something no customer requested. It is now our most-used feature. Here is what that taught me about roadmap discipline.',
     date:'2026-01-15', author:'Dana Chen', source:'intoview.pro / record / almanac-systems',
-    images:[
-      'https://picsum.photos/seed/intoview-feature-01/1400/900',
-      'https://picsum.photos/seed/intoview-feature-02/1400/900',
-      'https://picsum.photos/seed/intoview-feature-03/1400/900'
-    ] },
+    images:['https://picsum.photos/seed/intoview-feature-01/1400/900','https://picsum.photos/seed/intoview-feature-02/1400/900','https://picsum.photos/seed/intoview-feature-03/1400/900'] },
 
   { id:'record/oncall-design', clusterId:'record', section:'engineering', type:'statement', status:'published',
     title:'On-call is a design problem',
@@ -2189,9 +2281,7 @@ const GALLERY_CARD_SPECS = [
     title:'We raised a Series A. Here is the honest version.',
     deck:'We raised $14M. It took 47 meetings, 12 rejections, and one very awkward dinner. The blog post version would be shorter. This is the real one.',
     date:'2026-01-25', author:'Jake Torres', source:'intoview.pro / record / meridian-labs',
-    images:[
-      'https://picsum.photos/seed/intoview-series-a-01/1400/900'
-    ] },
+    images:['https://picsum.photos/seed/intoview-series-a-01/1400/900'] },
 
   { id:'record/candidates-want-know', clusterId:'record', section:'hiring', type:'statement', status:'published',
     title:'What candidates actually want to know',
@@ -2237,10 +2327,7 @@ const GALLERY_CARD_SPECS = [
     title:'Our launch flopped. Here is the post-mortem.',
     deck:'We spent four months and $80k on a campaign that generated 12 signups. This is what we got wrong, in order.',
     date:'2026-02-22', author:'Rachel Kim', source:'intoview.pro / record / flintlock-analytics',
-    images:[
-      'https://picsum.photos/seed/intoview-launch-01/1400/900',
-      'https://picsum.photos/seed/intoview-launch-02/1400/900'
-    ] },
+    images:['https://picsum.photos/seed/intoview-launch-01/1400/900','https://picsum.photos/seed/intoview-launch-02/1400/900'] },
 
   { id:'record/deleted-40k-lines', clusterId:'record', section:'engineering', type:'statement', status:'published',
     title:'We deleted 40,000 lines of code',
@@ -2256,12 +2343,7 @@ const GALLERY_CARD_SPECS = [
     title:'The CSS I wrote in 2019 is still in production',
     deck:'I have changed jobs twice. The div is still there. It will outlive me.',
     date:'2026-03-02', author:'James Park', source:'intoview.pro / record / bluepoint-studio',
-    images:[
-      'https://picsum.photos/seed/intoview-css-01/1400/900',
-      'https://picsum.photos/seed/intoview-css-02/1400/900',
-      'https://picsum.photos/seed/intoview-css-03/1400/900',
-      'https://picsum.photos/seed/intoview-css-04/1400/900'
-    ] },
+    images:['https://picsum.photos/seed/intoview-css-01/1400/900','https://picsum.photos/seed/intoview-css-02/1400/900','https://picsum.photos/seed/intoview-css-03/1400/900','https://picsum.photos/seed/intoview-css-04/1400/900'] },
 
   { id:'record/no-annual-reviews', clusterId:'record', section:'management', type:'statement', status:'published',
     title:'We stopped doing annual reviews',
@@ -2309,8 +2391,7 @@ const GALLERY_CARD_SPECS = [
       'The second came on a Tuesday. The company cut half its staff, including our whole design team. But they let us work through Friday - finish what we could, hand off cleanly, say the things you say when you have spent a year building something together. There were 1-on-1s scheduled with directors and VPs. Everyone personally thanked me for what I had contributed. It was still a layoff. It still hurt. But it felt like a farewell, not a trespass.',
       'The decision was the same both times. What differed was whether the company treated me as a liability they had to contain, or a person they had to let go of.',
       'I am not saying there is a good way to do a layoff. I am saying there is a difference between a cold goodbye and a warm one, and the second one is free.'
-    ]
-  },
+    ] },
 
   { id:'record/slop-button', clusterId:'record', section:'craft', type:'statement', status:'published',
     title:'The button I want on every feed',
@@ -2321,8 +2402,7 @@ const GALLERY_CARD_SPECS = [
       'Just know that I do not care what your post is about. If it contains an AI generated image or illustration, I am done reading it.',
       'Not because the images are always bad. Because the whole point of posting a picture is to show me something. Something that happened, something someone made, something with a story attached. A generated image is a claim with no event behind it. It is the visual equivalent of "excited to announce."',
       'Not sure what a "seems like AI slop" button would do algorithmically. But I would click it every time, and at least I would not have to look at your crap in my timeline anymore.'
-    ]
-  },
+    ] },
 
   { id:'record/brand-ai-box', clusterId:'record', section:'brand', type:'statement', status:'published',
     title:'They commissioned the machine',
@@ -2334,8 +2414,7 @@ const GALLERY_CARD_SPECS = [
       'You could have commissioned an illustrator. You could have paid a human being to make something warm and specific and full of small mistakes that are actually the point. You chose not to.',
       'Instead you shipped cold, mechanical output that alienates the exact people you are asking to buy a collector box. That is not a design mistake. That is a decision about who you think your audience is, and what you think they are worth.',
       'I despair.'
-    ]
-  },
+    ] },
 
   { id:'record/claude-cant-replace', clusterId:'record', section:'craft', type:'statement', status:'published',
     title:'Claude cannot replace a good designer',
@@ -2345,8 +2424,7 @@ const GALLERY_CARD_SPECS = [
     bodyParas:[
       'I do not know who needs to hear this, but if you think Claude can one hundred percent replace a good designer, then you have never worked with a good designer.',
       'A good designer is not the person who produces the artifact. They are the person who decides what the artifact should do, what it should refuse to do, and when the current version is finished. The model gives you forty options. Picking is the whole job.'
-    ]
-  },
+    ] },
 
   { id:'record/forty-options-taste', clusterId:'record', section:'craft', type:'statement', status:'published',
     title:'AI gave me forty options. Picking was the job.',
@@ -2359,8 +2437,7 @@ const GALLERY_CARD_SPECS = [
       'AI is trained on everything, so it produces the statistical middle of everything: competent, familiar, slightly generic. It generates the options. It cannot tell you which one is right for this user, this brand, this moment, or explain why. That judgment has a name. Taste.',
       'And taste is not a gift you are born with. It is trained. It is the residue of paying close attention to a lot of work and a lot of outcomes. Opinions are untested. Taste is calibrated against what actually shipped and what users actually did.',
       'Which means the designers worried about being replaced have it backwards. AI took the tedious part and handed back the part that was always the point.'
-    ]
-  },
+    ] },
 
   { id:'record/one-sku', clusterId:'record', section:'ecommerce', type:'evidence', status:'verified',
     title:'One SKU, four thousand hours',
@@ -2375,8 +2452,7 @@ const GALLERY_CARD_SPECS = [
       'His subscribe rate at checkout is 44 percent. How? Subscribe is the pre-selected default, priced eight dollars under one-time. Opting out feels like paying more for less.',
       'Refund rate is two percent. Reinvests almost everything. Does not care if anyone knows his name.',
       'One product, understood deeper than the customer understands themselves. That is the entire business.'
-    ]
-  },
+    ] },
 
   { id:'record/handwritten-offer', clusterId:'record', section:'hiring', type:'statement', format:'mechanism', status:'published',
     title:'The handwritten offer',
@@ -2403,8 +2479,7 @@ const GALLERY_CARD_SPECS = [
       'Someone told me recently: early in your creative career, find the place with the highest density of ambitious, talented, and creative people you can get into.',
       'I did not fully understand it when I heard it. I understand it now. You learn more from overhearing good decisions being argued about than from any masterclass. You learn what to tolerate, what to walk away from, what finished work smells like when it is real.',
       'The pay is not the point. The title is not the point. The density is the point. Everything else is downstream of who you are in the room with.'
-    ]
-  },
+    ] },
 
   { id:'record/buttons-age-ai', clusterId:'record', section:'design', type:'statement', status:'published',
     title:'Buttons. In the age of AI.',
@@ -2416,8 +2491,7 @@ const GALLERY_CARD_SPECS = [
       'Our kid new car. I was irrationally delighted by the number of buttons. Finally, I do not need to fiddle through fourteen screens to change the temperature, or turn off the volume, or do a hundred small things that should take half a second.',
       'Buttons. In the age of AI.',
       'The coolest thing.'
-    ]
-  },
+    ] },
 
   { id:'record/artificial-harmony', clusterId:'record', section:'culture', type:'statement', status:'published',
     title:'Artificial harmony is a warning sign',
@@ -2430,8 +2504,7 @@ const GALLERY_CARD_SPECS = [
       'A healthy team is not where everyone agrees. It is where everyone feels safe enough to disagree. Hard questions are welcomed, not punished. Differing viewpoints are treated as stress tests, not personal attacks. People challenge assumptions vigorously because they know their belonging is never on the line.',
       'When you silence dissent to preserve peace, you guarantee blind spots. When you create a culture where people can speak candidly, you tap the collective intelligence of the organization.',
       'True unity is not the absence of conflict. It is the ability to navigate difficult, honest disagreement together and walk out of the room completely committed to the mission.'
-    ]
-  },
+    ] },
 
   { id:'record/solo-event-rig', clusterId:'record', section:'video', type:'statement', status:'published',
     title:'One operator, three deliverables',
@@ -2444,8 +2517,7 @@ const GALLERY_CARD_SPECS = [
       'Three finished formats at once.',
       'If you are bringing someone in to cover your event, ask how many deliverables they are leaving with. One operator can carry three if the rig is built that way.',
       'Five years and 500 plus videos in, the camera is the part I think about least. The fun is figuring out new ways to get what you need out of what you are already carrying.'
-    ]
-  },
+    ] },
 
   { id:'record/vanna-position', clusterId:'record', section:'markets', type:'evidence', status:'verified',
     title:'Market maker positioning into the Fed',
@@ -2461,8 +2533,7 @@ const GALLERY_CARD_SPECS = [
       'In July, SPX fell 1.5 percent on the decision day, closed 117 points under the gamma flip, and VIX went from 18.3 to 20.4. Vol up with long vanna means market makers had futures to sell, and the market moved lower alongside that hedging flow. Over the next four sessions, vol came in, the same position had MMs buying delta on the way back up, and SPX gained 5.9 percent.',
       'High vanna often acts like shadow gamma. Every number here is built from every SPX option print with the participant on each side, netted by strike and expiry every session.',
       'Not financial advice.'
-    ]
-  },
+    ] },
 
   { id:'record/feature-nobody-asked-r1', clusterId:'record', section:'product', type:'reply', status:'published',
     title:'Re: We shipped a feature nobody asked for',
@@ -2577,8 +2648,7 @@ const GALLERY_CARD_SPECS = [
       'Are you looking to build or improve a platform? Have you done the research to determine if your product actually solves problems for your customers? Is your design system scalable and easy to use? Have you tried building it with AI and realized you are in over your head?',
       'I am a product and UX designer with six plus years of experience, usually the first in-house design hire on a team. Research through delivery, embedded with engineering, not handed off to. I push for user research even when the room wants to skip it, and I have built an AI-native workflow that has changed how fast I can move without changing what I design for.',
       'Looking for a senior or lead role in fintech, enterprise SaaS, internal tooling, or DTC eCommerce. Baltimore-based or remote.'
-    ]
-  },
+    ] },
 
   { id:'otw/kevin-laid-off-r1', clusterId:'otw', section:'growth', type:'reply', status:'published',
     title:'Re: Laid off last Tuesday',
@@ -3087,9 +3157,7 @@ function deriveVoice(spec, fallbackType) {
   return 'field';
 }
 
-function clusterIndexId(clusterId) {
-  return 'cluster-index/' + clusterId;
-}
+function clusterIndexId(clusterId) { return 'cluster-index/' + clusterId; }
 
 function buildData() {
   CLUSTER_SPECS.forEach(spec => {
@@ -3227,7 +3295,7 @@ const restPositions = new Map();
 let focusedNodeId = 'identity';
 let mobileFocusActive = false;
 
-const CANVAS_STORAGE_KEY = 'intoview.canvas.v25';
+const CANVAS_STORAGE_KEY = 'intoview.canvas.v26';
 const THEME_STORAGE_KEY = 'intoview.theme';
 const WIDGET_ON_KEY = 'intoview.widget.on';
 const WIDGET_POS_KEY = 'intoview.widget.pos';
@@ -3313,6 +3381,8 @@ function handleRoute() {
   closeContextMenu();
   closeGalleryContextMenu();
   closeReaderContextMenu();
+  closeAttentionDropdown();
+  closeLogoCard();
 
   if (route.mode === 'reader') {
     openReaderRoute(route.cardId);
@@ -3361,6 +3431,7 @@ function syncView() {
   applyBrowseWidgetVisibility();
   updateBrowseChrome();
   updateStatusText();
+  updateAttentionBadge();
 }
 
 function updateBrowseChrome() {
@@ -3420,50 +3491,130 @@ function updateContextMenuBrowseState() {
   if (z) z.classList.toggle('active', zoomHudVisible);
 }
 
+/* ═══ BREADCRUMB — badge-based ═══ */
 function updateBreadcrumb() {
-  const bc = document.getElementById('breadcrumb');
-  bc.innerHTML = '';
+  const wrap = document.getElementById('breadcrumbWrap');
+  const scroll = document.getElementById('breadcrumbScroll');
+  if (!wrap || !scroll) return;
+
   const items = [];
   if (browseMode === 'canvas' && currentRoute.mode === 'canvas') {
-    items.push({ label: 'Canvas', current: true, route: { mode: 'canvas' } });
+    items.push({ label:'Canvas', badge:'◈', variant:'v1', current:true, route:{ mode:'canvas' } });
   } else if (browseMode === 'gallery') {
-    items.push({ label: 'Canvas', route: { mode: 'canvas' } });
-    items.push({ label: 'Gallery', current: !currentRoute.scope, route: { mode: 'gallery', scope: null, view: galleryView } });
+    items.push({ label:'Canvas', badge:'◈', variant:'v1', route:{ mode:'canvas' } });
+    items.push({ label:'Gallery', badge:'G', variant:'v1', current:!currentRoute.scope, route:{ mode:'gallery', scope:null, view:galleryView } });
     if (currentRoute.scope) {
       const cl = CLUSTERS.get(currentRoute.scope);
-      if (cl) items.push({ label: cl.title, current: !currentRoute.section, route: { mode: 'gallery', scope: currentRoute.scope } });
-      if (currentRoute.section) items.push({ label: currentRoute.section, current: true, route: null });
+      if (cl) items.push({ label:cl.title, badge:cl.num, variant:'v0', current:!currentRoute.section, route:{ mode:'gallery', scope:currentRoute.scope } });
+      if (currentRoute.section) items.push({ label:currentRoute.section, badge:'·', variant:'v1', current:true, route:null });
     }
   } else if (currentRoute.mode === 'reader') {
-    items.push({ label: 'Canvas', route: { mode: 'canvas' } });
+    items.push({ label:'Canvas', badge:'◈', variant:'v1', route:{ mode:'canvas' } });
     const card = CARDS.get(currentRoute.cardId);
     if (card) {
       const cid = card.clusterId;
       if (cid && CLUSTERS.has(cid)) {
         const cl = CLUSTERS.get(cid);
-        items.push({ label: cl.title, route: { mode: 'reader', cardId: cl.id } });
+        items.push({ label:cl.title, badge:cl.num, variant:'v0', route:{ mode:'reader', cardId:cl.id } });
       } else {
-        items.push({ label: 'Gallery', route: { mode: 'gallery', scope: null } });
+        items.push({ label:'Gallery', badge:'G', variant:'v1', route:{ mode:'gallery', scope:null } });
       }
       let label = card.title;
-      if (card.type === 'cluster-index') label = 'Index';
-      if (card.type === 'index') label = 'Index';
-      items.push({ label, current: true, route: null });
+      if (card.type === 'cluster-index' || card.type === 'index') label = 'Index';
+      items.push({ label, badge:'·', variant:'v1', current:true, route:null });
     }
   }
-  items.forEach((item, i) => {
-    if (i > 0) {
-      const sep = document.createElement('span');
-      sep.className = 'breadcrumb-sep';
-      sep.textContent = '/';
-      bc.appendChild(sep);
+
+  if (items.length <= 1 && !isMobile()) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'flex';
+
+  scroll.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  items.forEach(item => {
+    const badge = document.createElement('span');
+    badge.className = 'breadcrumb-badge' + (item.current ? ' active' : '');
+    const avatar = document.createElement('span');
+    avatar.className = 'bb-avatar ' + (item.variant || 'v1');
+    avatar.textContent = item.badge || '·';
+    badge.appendChild(avatar);
+    const name = document.createElement('span');
+    name.className = 'bb-name';
+    name.textContent = item.label;
+    badge.appendChild(name);
+    if (!item.current && item.route) {
+      badge.addEventListener('click', () => navigate(item.route));
     }
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'breadcrumb-item' + (item.current ? ' is-current' : '');
-    btn.textContent = item.label;
-    if (!item.current && item.route) btn.addEventListener('click', () => navigate(item.route));
-    bc.appendChild(btn);
+    frag.appendChild(badge);
+  });
+  scroll.appendChild(frag);
+  requestAnimationFrame(() => { scroll.scrollLeft = scroll.scrollWidth; });
+}
+
+function setupBreadcrumbDrag() {
+  const scroll = document.getElementById('breadcrumbScroll');
+  if (!scroll) return;
+  let isDragging = false, startX = 0, startScroll = 0;
+  scroll.addEventListener('pointerdown', e => {
+    isDragging = true;
+    startX = e.clientX;
+    startScroll = scroll.scrollLeft;
+    scroll.classList.add('dragging');
+    try { scroll.setPointerCapture(e.pointerId); } catch(err) {}
+  });
+  scroll.addEventListener('pointermove', e => {
+    if (!isDragging) return;
+    scroll.scrollLeft = startScroll + (startX - e.clientX);
+  });
+  scroll.addEventListener('pointerup', () => { isDragging = false; scroll.classList.remove('dragging'); });
+  scroll.addEventListener('pointercancel', () => { isDragging = false; scroll.classList.remove('dragging'); });
+}
+
+/* ═══ LOGO CARD ═══ */
+function setLogoCardOpen(open) {
+  const tile = document.getElementById('logoTile');
+  if (!tile) return;
+  tile.classList.toggle('open', open);
+  tile.setAttribute('aria-expanded', String(open));
+}
+function closeLogoCard() { setLogoCardOpen(false); }
+function setupLogoCard() {
+  const tile = document.getElementById('logoTile');
+  const reset = document.getElementById('logoReset');
+  if (!tile || !reset) return;
+  tile.addEventListener('click', e => {
+    if (closestSafe(e.target, '#logoReset') || closestSafe(e.target, '#infoToggleBtn')) return;
+    setLogoCardOpen(!tile.classList.contains('open'));
+  });
+  tile.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (closestSafe(e.target, 'button, a')) return;
+    e.preventDefault();
+    setLogoCardOpen(!tile.classList.contains('open'));
+  });
+  tile.addEventListener('focusout', e => {
+    if (!tile.contains(e.relatedTarget)) closeLogoCard();
+  });
+  document.addEventListener('click', e => {
+    if (!tile.contains(e.target)) closeLogoCard();
+  });
+  reset.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!confirm('Reset everything?')) return;
+    try { localStorage.removeItem(CANVAS_STORAGE_KEY); } catch(e){}
+    try { localStorage.removeItem(ATTENTION_KEY); } catch(e){}
+    canvasLayout = 'grid';
+    expandedClusters.clear();
+    restPositions.clear();
+    focusedNodeId = 'identity';
+    panOffset.x = 0; panOffset.y = 0; scale = 1;
+    attendedCards.clear();
+    document.body.dataset.layout = 'grid';
+    navigate({ mode:'canvas' });
+    refreshAttendVisuals();
+    closeLogoCard();
   });
 }
 
@@ -4738,7 +4889,7 @@ function updateBorderProgress() {
 })();
 
 /* ═══════════════════════════════════════════════════════════
-   ATTENTION · social layer · ephemeral memory
+   ATTENTION — eye + dropdown
    ═══════════════════════════════════════════════════════════ */
 function isAttendable(card) {
   if (!card) return false;
@@ -4762,11 +4913,6 @@ function loadAttention() {
 function saveAttention() {
   try { localStorage.setItem(ATTENTION_KEY, JSON.stringify(Array.from(attendedCards))); } catch(e){}
 }
-function clearAttention() {
-  attendedCards.clear();
-  saveAttention();
-  refreshAttendVisuals();
-}
 function toggleAttend(id) {
   const card = CARDS.get(id);
   if (!isAttendable(card)) return;
@@ -4774,8 +4920,8 @@ function toggleAttend(id) {
   else attendedCards.add(id);
   saveAttention();
   refreshAttendVisuals();
-  const ov = document.getElementById('attentionOverlay');
-  if (ov && ov.classList.contains('open')) renderAttentionView();
+  const dd = document.getElementById('attentionDropdown');
+  if (dd && dd.classList.contains('open')) renderAttentionDropdown();
 }
 function attachAttendButton(el, card) {
   if (!isAttendable(card)) return el;
@@ -4808,70 +4954,143 @@ function refreshAttendVisuals() {
       btn.title = attended ? 'Held in mind — click to release' : 'Hold in mind';
     }
   });
-  updateAttentionCount();
+  updateAttentionBadge();
 }
-function updateAttentionCount() {
-  const el = document.getElementById('attentionCount');
-  if (el) el.textContent = String(attendedCards.size);
-  const btn = document.getElementById('attentionTrigger');
-  if (btn) btn.classList.toggle('has-attention', attendedCards.size > 0);
+function updateAttentionBadge() {
+  const badge = document.getElementById('attentionBadge');
+  if (!badge) return;
+  const count = attendedCards.size;
+  badge.textContent = String(count);
+  badge.classList.toggle('hidden', count === 0);
 }
-function renderAttentionView() {
-  const grid = document.getElementById('attentionGrid');
-  if (!grid) return;
-  grid.innerHTML = '';
+function renderAttentionDropdown() {
+  const list = document.getElementById('attentionList');
+  const foot = document.getElementById('attentionFoot');
+  const footLabel = document.getElementById('attentionFootLabel');
+  if (!list) return;
   const cards = Array.from(attendedCards)
     .map(id => CARDS.get(id))
     .filter(Boolean)
     .sort((a, b) => (b.provenance.date || '') < (a.provenance.date || '') ? -1 : 1);
 
   if (!cards.length) {
-    const empty = document.createElement('div');
-    empty.className = 'attention-empty';
-    empty.innerHTML = '<p>Your attention span is empty.</p><p class="attention-empty-hint">Tap the circle on any statement to hold it in mind.</p>';
-    grid.appendChild(empty);
+    list.innerHTML = '<div class="dropdown-empty">Nothing saved yet.</div>';
+    if (foot) foot.hidden = true;
     return;
   }
-
+  if (foot) { foot.hidden = false; if (footLabel) footLabel.textContent = cards.length + ' held'; }
+  list.innerHTML = '';
   cards.forEach(card => {
-    const wrap = document.createElement('div');
-    wrap.className = 'g-item';
-    const cardEl = renderGalleryCard(card);
-    wrap.appendChild(cardEl);
-    wireVideo(cardEl);
-    wireGalleryCard(wrap, card);
-    grid.appendChild(wrap);
+    const item = document.createElement('div');
+    item.className = 'attention-item';
+    item.dataset.cardId = card.id;
+    const initials = initialsFromName(card.provenance.author);
+    const variantIdx = (card.title.charCodeAt(0) || 0) % 3;
+    const variant = ['v0','v2','v3'][variantIdx];
+    item.innerHTML =
+      '<div class="item-avatar ' + variant + '">' + escapeHtml(initials) + '</div>' +
+      '<div class="item-info">' +
+        '<span class="item-name">' + escapeHtml(card.title) + '</span>' +
+        '<div class="item-snippet">' + escapeHtml(card.deck.slice(0, 80)) + '</div>' +
+        '<span class="item-type">' + escapeHtml(cardTypeLabel(card.type)) + '</span>' +
+      '</div>' +
+      '<button class="item-dismiss" data-card-id="' + escapeHtml(card.id) + '" aria-label="Dismiss">×</button>';
+    item.addEventListener('click', e => {
+      if (closestSafe(e.target, '.item-dismiss')) return;
+      closeAttentionDropdown();
+      openReader(card.id);
+    });
+    const dismiss = item.querySelector('.item-dismiss');
+    if (dismiss) dismiss.addEventListener('click', e => { e.stopPropagation(); toggleAttend(card.id); renderAttentionDropdown(); });
+    list.appendChild(item);
   });
 }
-function openAttention() {
-  const ov = document.getElementById('attentionOverlay');
-  if (!ov) return;
-  renderAttentionView();
-  ov.hidden = false;
-  requestAnimationFrame(() => ov.classList.add('open'));
-  document.body.style.overflow = 'hidden';
+function openAttentionDropdown() {
+  const dd = document.getElementById('attentionDropdown');
+  const btn = document.getElementById('attentionBtn');
+  if (!dd || !btn) return;
+  renderAttentionDropdown();
+  dd.hidden = false;
+  dd.classList.add('open');
+  const rect = btn.getBoundingClientRect();
+  const ddRect = dd.getBoundingClientRect();
+  let top = rect.bottom + 8;
+  if (top + ddRect.height > window.innerHeight - 10) top = rect.top - ddRect.height - 8;
+  let left = rect.right - ddRect.width;
+  left = Math.max(10, Math.min(left, window.innerWidth - ddRect.width - 10));
+  dd.style.top = top + 'px';
+  dd.style.left = left + 'px';
 }
-function closeAttention() {
-  const ov = document.getElementById('attentionOverlay');
-  if (!ov) return;
-  ov.classList.remove('open');
-  document.body.style.overflow = '';
-  setTimeout(() => { if (!ov.classList.contains('open')) ov.hidden = true; }, 320);
+function closeAttentionDropdown() {
+  const dd = document.getElementById('attentionDropdown');
+  if (dd) { dd.classList.remove('open'); dd.hidden = true; }
 }
-function setupAttention() {
-  loadAttention();
-  updateAttentionCount();
-  const trigger = document.getElementById('attentionTrigger');
-  const closeBtn = document.getElementById('attentionCloseBtn');
-  const clearBtn = document.getElementById('attentionClearBtn');
-  if (trigger) trigger.addEventListener('click', openAttention);
-  if (closeBtn) closeBtn.addEventListener('click', closeAttention);
+function setupAttentionToggle() {
+  const btn = document.getElementById('attentionBtn');
+  const dd = document.getElementById('attentionDropdown');
+  const wrapper = document.getElementById('attentionWrapper');
+  const clearBtn = document.getElementById('attentionClear');
+  if (!btn || !dd || !wrapper) return;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const isOpen = dd.classList.contains('open');
+    closeAttentionDropdown();
+    if (!isOpen) openAttentionDropdown();
+  });
+  document.addEventListener('click', e => { if (!wrapper.contains(e.target)) closeAttentionDropdown(); });
   if (clearBtn) clearBtn.addEventListener('click', () => {
     if (!attendedCards.size) return;
     if (!confirm('Clear everything held in mind?')) return;
-    clearAttention();
-    renderAttentionView();
+    attendedCards.clear();
+    saveAttention();
+    refreshAttendVisuals();
+    renderAttentionDropdown();
   });
+}
+
+/* Eye tracking + wink */
+function setupEyeTracking() {
+  const eyeEl = document.getElementById('attentionEye');
+  const btn = document.getElementById('attentionBtn');
+  if (!eyeEl || !btn) return;
+  const pupil = eyeEl.querySelector('.eye-pupil');
+  if (!pupil) return;
+  const origCx = 20, origCy = 20, maxOffset = 4;
+  function updatePupil(clientX, clientY) {
+    const rect = eyeEl.getBoundingClientRect();
+    const scaleX = 40 / rect.width;
+    const scaleY = 40 / rect.height;
+    const xView = (clientX - rect.left) * scaleX;
+    const yView = (clientY - rect.top) * scaleY;
+    let dx = xView - 20, dy = yView - 20;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) { pupil.setAttribute('cx', origCx); pupil.setAttribute('cy', origCy); return; }
+    const clampedDist = Math.min(dist, maxOffset);
+    const ratio = clampedDist / dist;
+    pupil.setAttribute('cx', origCx + dx * ratio);
+    pupil.setAttribute('cy', origCy + dy * ratio);
+  }
+  function resetPupil() { pupil.setAttribute('cx', origCx); pupil.setAttribute('cy', origCy); }
+  btn.addEventListener('mouseenter', e => updatePupil(e.clientX, e.clientY));
+  btn.addEventListener('mousemove', e => updatePupil(e.clientX, e.clientY));
+  btn.addEventListener('mouseleave', resetPupil);
+}
+function setupWink() {
+  const eyeEl = document.getElementById('attentionEye');
+  if (!eyeEl) return;
+  function triggerWink() {
+    eyeEl.classList.remove('wink');
+    void eyeEl.offsetWidth;
+    eyeEl.classList.add('wink');
+    clearTimeout(eyeEl._winkTimer);
+    eyeEl._winkTimer = setTimeout(() => eyeEl.classList.remove('wink'), 400);
+  }
+  function scheduleNext() {
+    const delay = 3000 + Math.random() * 6000;
+    clearTimeout(eyeEl._scheduleTimer);
+    eyeEl._scheduleTimer = setTimeout(() => { triggerWink(); scheduleNext(); }, delay);
+  }
+  setTimeout(scheduleNext, 4000);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -4879,7 +5098,6 @@ function setupAttention() {
    ═══════════════════════════════════════════════════════════ */
 function openReader(cardId) {
   if (!CARDS.has(cardId)) return;
-  closeAttention();
   navigate({ mode: 'reader', cardId });
 }
 
@@ -7060,7 +7278,7 @@ function setupMobileSheet() {
       const nav = el.dataset.nav;
       if (nav === 'identity') { focusedNodeId = 'identity'; openReader('identity'); }
       else if (nav === 'index') { focusedNodeId = 'index'; openReader('index'); }
-      else if (nav === 'attention') { closeSheet(); openAttention(); return; }
+      else if (nav === 'attention') { closeSheet(); openAttentionDropdown(); return; }
       closeSheet();
     });
   });
@@ -7153,7 +7371,7 @@ function setupViewportBlur() {
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
 
-  ['canvasListWrap', 'list-wrap', 'grid-scroll', 'carouselWrap', 'attentionOverlay'].forEach(id => {
+  ['canvasListWrap', 'list-wrap', 'grid-scroll', 'carouselWrap'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('scroll', onScroll, { passive: true });
   });
@@ -7174,7 +7392,7 @@ function initWriteCursor() {
   const chevron = document.getElementById('writeCursorChevron');
   if (!dot || !ellipse || !chevron) return;
   if (window.matchMedia('(hover: none)').matches) return;
-  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .timeline-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .cluster-reader-tile, .browse-widget, .idx-row, .info-overlay-close, .js-section, .attention-close, .attend-btn';
+  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .timeline-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .browse-widget, .idx-row, .info-overlay-close, .js-section, .attention-btn, .attend-btn, .logo-tile, .breadcrumb-badge';
   const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .letter-card-frame.identity-card-frame, .cluster-collapse-chip, .cluster-peek, .js-section.yellow-card';
   const LIGHT_SURFACE = '.prov-card[data-type="identity"], .letter-card-frame.index-card-frame';
   let px = 0, py = 0, prevX = 0, prevY = 0, init = false;
@@ -7245,8 +7463,10 @@ function closeAnyChrome() {
     document.getElementById('appearanceTrigger').setAttribute('aria-expanded', 'false');
     return true;
   }
-  const att = document.getElementById('attentionOverlay');
-  if (att && att.classList.contains('open')) { closeAttention(); return true; }
+  const att = document.getElementById('attentionDropdown');
+  if (att && att.classList.contains('open')) { closeAttentionDropdown(); return true; }
+  const tile = document.getElementById('logoTile');
+  if (tile && tile.classList.contains('open')) { closeLogoCard(); return true; }
   const m = document.getElementById('canvasContextMenu');
   if (m && m.classList.contains('open')) { closeContextMenu(); return true; }
   const gm = document.getElementById('galleryContextMenu');
@@ -7295,7 +7515,8 @@ function setupKeyboard() {
       e.preventDefault();
     }
     if (e.key === 'a' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      openAttention();
+      const btn = document.getElementById('attentionBtn');
+      if (btn) btn.click();
       e.preventDefault();
     }
   });
@@ -7315,7 +7536,7 @@ function setupCarousel() {
   let isDragging = false, dragStartX = 0, dragStartScroll = 0;
   track.addEventListener('pointerdown', e => {
     if (e.pointerType === 'touch') return;
-    if (closestSafe(e.target, 'button, a, input, video, .letter-accordion-trigger, [data-nav-card], .index-row-link, .idx-row, .post-gallery-track, .letter-mechanism, .letter-details, .reader-attend-btn')) return;
+    if (closestSafe(e.target, 'button, a, input, video, .letter-accordion-trigger, [data-nav-card], .idx-row, .post-gallery-track, .letter-mechanism, .letter-details, .reader-attend-btn')) return;
     isDragging = true;
     dragStartX = e.clientX;
     dragStartScroll = track.scrollLeft;
@@ -7625,6 +7846,7 @@ function initSpiral() {
 function openInfoOverlay() {
   const overlay = document.getElementById('infoOverlay');
   if (!overlay) return;
+  closeLogoCard();
   overlay.classList.add('open');
   document.body.style.overflow = 'hidden';
   requestAnimationFrame(() => { initSpiral(); });
@@ -7642,7 +7864,7 @@ function setupInfoOverlay() {
   const btn = document.getElementById('infoToggleBtn');
   const closeBtn = document.getElementById('infoCloseBtn');
   const overlay = document.getElementById('infoOverlay');
-  if (btn) btn.addEventListener('click', openInfoOverlay);
+  if (btn) btn.addEventListener('click', e => { e.stopPropagation(); openInfoOverlay(); });
   if (closeBtn) closeBtn.addEventListener('click', closeInfoOverlay);
   if (overlay) overlay.addEventListener('click', e => { if (e.target === overlay) closeInfoOverlay(); });
   document.addEventListener('keydown', e => {
@@ -7666,6 +7888,8 @@ function init() {
     if (t === 'light' || t === 'dark') document.body.setAttribute('data-theme', t);
   } catch(e){}
 
+  loadAttention();
+
   setupWidget();
   setupMinimap();
   setupZoomHud();
@@ -7683,8 +7907,13 @@ function init() {
   buildMobileSheet();
   setupMobileSheet();
   setupInfoOverlay();
-  setupAttention();
+  setupAttentionToggle();
+  setupEyeTracking();
+  setupWink();
+  setupLogoCard();
+  setupBreadcrumbDrag();
   initWriteCursor();
+  updateAttentionBadge();
 
   document.getElementById('hudCanvasPrev').addEventListener('click', () => stepMobileHud(-1));
   document.getElementById('hudCanvasNext').addEventListener('click', () => stepMobileHud(1));
@@ -7702,22 +7931,6 @@ function init() {
   });
 
   document.getElementById('mobileBackBtn').addEventListener('click', escCascade);
-  document.getElementById('wordmark').addEventListener('click', () => navigate({ mode: 'canvas' }));
-
-  document.getElementById('topResetBtn').addEventListener('click', () => {
-    if (!confirm('Reset everything?')) return;
-    try { localStorage.removeItem(CANVAS_STORAGE_KEY); } catch(e){}
-    try { localStorage.removeItem(ATTENTION_KEY); } catch(e){}
-    canvasLayout = 'grid';
-    expandedClusters.clear();
-    restPositions.clear();
-    focusedNodeId = 'identity';
-    panOffset.x = 0; panOffset.y = 0; scale = 1;
-    attendedCards.clear();
-    document.body.dataset.layout = 'grid';
-    navigate({ mode: 'canvas' });
-    refreshAttendVisuals();
-  });
 
   const saved = loadCanvasState();
   if (saved) {
