@@ -747,7 +747,7 @@ body[data-reader="open"] #carouselWrap{opacity:1;pointer-events:auto}
 body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:145}
 
 .letters-viewport{position:relative;overflow:hidden;width:100vw;left:50%;margin-left:-50vw}
-.letters-track{display:flex;align-items:flex-start;gap:22px;padding-top:clamp(20px,4vh,60px);padding-bottom:60px;padding-left:max(4vw,calc(50% - 520px));padding-right:max(4vw,calc(50% - 520px));overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
+.letters-track{display:flex;align-items:flex-start;gap:22px;padding-top:clamp(20px,4vh,60px);padding-bottom:60px;padding-left:max(4vw,calc(50% - 520px));padding-right:max(4vw,calc(50% - 520px));overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
 .letters-track.dragging{cursor:grabbing;scroll-snap-type:none;scroll-behavior:auto}
 .letters-track::-webkit-scrollbar{display:none;width:0;height:0}
 .letter-panel{flex:0 0 auto;width:min(92vw,1000px);max-width:1000px;scroll-snap-align:center;box-sizing:border-box;opacity:.35;transition:opacity .3s ease,transform .3s ease;cursor:pointer}
@@ -1026,6 +1026,45 @@ a.index-letter-footer:hover{color:rgba(255,255,255,.75)}
 .letter-cover-kicker{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-light)}
 .letter-cover-name{font-family:var(--font);font-size:clamp(22px,3vw,34px);font-weight:700;letter-spacing:-.02em;color:var(--ink)}
 .letter-cover-deck{font-size:clamp(13px,1vw,16px);line-height:1.5;color:var(--ink-light);max-width:520px}
+.letter-cover-avatar{
+  width:56px;
+  height:56px;
+  border-radius:12px;
+  overflow:hidden;
+  background:var(--bg);
+  border:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  align-self:start;
+  margin-top:8px; /* align top edge with cap-height of the title */
+  cursor:pointer;
+  transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.letter-cover-avatar:hover{
+  border-color:var(--ink-light);
+  transform:translateY(-1px);
+  box-shadow:var(--shadow);
+}
+.letter-cover-avatar img{
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+.letter-cover-monogram{
+  width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent);
+  color:#1c1c1e;
+  font-family:var(--font);
+  font-weight:800;
+  font-size:18px;
+  letter-spacing:-.02em;
+}
+@media (max-width:640px){
+  .letter-cover-avatar{width:48px;height:48px;border-radius:10px;margin-top:5px}
+  .letter-cover-monogram{font-size:16px}
+}
 .letter-provenance{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;padding-top:14px;margin-top:6px;border-top:1px dashed var(--border);font-family:var(--font-mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-light)}
 .letter-provenance-field{display:inline-flex;gap:6px;align-items:baseline}
 .letter-provenance-field strong{font-weight:600;color:var(--ink-mid);letter-spacing:.1em}
@@ -6228,25 +6267,44 @@ function buildReaderCover(card, index, total, opts) {
   opts = opts || {};
   const cover = document.createElement('div');
   cover.className = 'letter-cover';
+
   let label;
   if (card.type === 'cluster') label = 'SECTION';
   else if (card.type === 'profile-title') label = 'PROFILE';
   else if (card.type === 'identity') label = 'TITLE CARD';
   else if (card.type === 'index' || card.type === 'cluster-index' || card.type === 'profile-index') label = 'INDEX';
   else label = 'STATEMENT ' + String(index + 1).padStart(2, '0');
+
   const p = card.provenance;
   const voice = card.voice || 'field';
   const voiceLabel = VOICE_LABELS[voice] || 'FIELD';
   const showVoice = card.type !== 'cluster' && card.type !== 'index' && card.type !== 'cluster-index' && card.type !== 'profile-title' && card.type !== 'profile-index';
+
   const deckHTML = opts.hideDeck
     ? ''
-    : '<p class="swiss-col swiss-col-span-6 swiss-offset-3 letter-cover-deck">' + escapeHtml(card.deck) + '</p>';
+    : '<p class="swiss-col swiss-col-span-8 swiss-offset-1 letter-cover-deck">' + escapeHtml(card.deck) + '</p>';
+
+  // Author avatar — 56px tile, first cell of the swiss grid.
+  const authorSlug = AUTHOR_BY_NAME.get(String(p.author || '').trim());
+  const authorObj = authorSlug ? AUTHORS.get(authorSlug) : null;
+  const avatarInnerHTML = (authorObj && authorObj.photoUrl)
+    ? '<img src="' + escapeHtml(authorObj.photoUrl) + '" alt="" loading="lazy" decoding="async">'
+    : '<span class="letter-cover-monogram">' + escapeHtml(initialsFromName(p.author)) + '</span>';
+  const avatarAttr = authorSlug
+    ? ' data-profile-author="' + escapeHtml(authorSlug) + '" title="' + escapeHtml(p.author) + '"'
+    : '';
+  const avatarHTML =
+    '<div class="swiss-col swiss-col-span-1 letter-cover-avatar"' + avatarAttr + '>' +
+      avatarInnerHTML +
+    '</div>';
+
   cover.innerHTML =
-    '<div class="swiss-grid" style="gap:8px var(--swiss-gap,24px)">' +
+    '<div class="swiss-grid" style="gap:12px var(--swiss-gap,24px)">' +
+      avatarHTML +
+      '<h2 class="swiss-col swiss-col-span-8 swiss-offset-1 letter-cover-name">' + escapeHtml(card.title) + '</h2>' +
       '<span class="swiss-col swiss-col-span-3 letter-cover-kicker">' + label + '</span>' +
-      '<h2 class="swiss-col swiss-col-span-9 letter-cover-name">' + escapeHtml(card.title) + '</h2>' +
       deckHTML +
-      '<div class="swiss-col swiss-col-span-9 swiss-offset-3 letter-provenance">' +
+      '<div class="swiss-col swiss-col-span-8 swiss-offset-1 letter-provenance">' +
         '<span class="letter-provenance-field"><strong>By</strong>' + authorLinkHtml(p.author) + '</span>' +
         '<span class="letter-provenance-field"><strong>On</strong>' + escapeHtml(p.date) + '</span>' +
         '<span class="letter-provenance-field"><strong>From</strong>' + escapeHtml(p.source) + '</span>' +
@@ -6254,6 +6312,7 @@ function buildReaderCover(card, index, total, opts) {
         '<span class="letter-provenance-status" data-status="' + escapeHtml(p.status) + '">' + escapeHtml(p.status) + '</span>' +
       '</div>' +
     '</div>';
+
   return cover;
 }
 
@@ -7018,14 +7077,49 @@ function activatePanel(newIndex, updateHash) {
   }
 }
 
+let programmaticScrollActive = false;
+let programmaticScrollTimer = null;
+
 function scrollToPanel(index, smooth) {
-  const panel = document.querySelectorAll('.letter-panel')[index];
+  const panels = document.querySelectorAll('.letter-panel');
+  const panel = panels[index];
   if (!panel) return;
   const track = document.getElementById('lettersTrack');
-  const tr = track.getBoundingClientRect();
-  const pr = panel.getBoundingClientRect();
-  const delta = pr.left + pr.width / 2 - (tr.left + tr.width / 2);
-  track.scrollTo({ left: track.scrollLeft + delta, behavior: smooth ? 'smooth' : 'auto' });
+  if (!track) return;
+
+  // offsetLeft is a layout value — immune to the opacity/scale transforms
+  // that are mid-flight on the panels.
+  const targetLeft = panel.offsetLeft - (track.clientWidth - panel.offsetWidth) / 2;
+
+  programmaticScrollActive = true;
+  clearTimeout(programmaticScrollTimer);
+
+  // Suspend snap so scroll-snap-type doesn't fight the smooth scroll.
+  track.style.scrollSnapType = 'none';
+
+  track.scrollTo({ left: targetLeft, behavior: smooth ? 'smooth' : 'auto' });
+
+  const release = () => {
+    if (!programmaticScrollActive) return;
+    programmaticScrollActive = false;
+    track.style.scrollSnapType = '';
+    clearTimeout(programmaticScrollTimer);
+  };
+
+  if ('onscrollend' in window) {
+    const onEnd = () => {
+      track.removeEventListener('scrollend', onEnd);
+      release();
+    };
+    track.addEventListener('scrollend', onEnd);
+    // Safety fallback in case scrollend never fires (interrupted scroll).
+    programmaticScrollTimer = setTimeout(() => {
+      track.removeEventListener('scrollend', onEnd);
+      release();
+    }, smooth ? 900 : 100);
+  } else {
+    programmaticScrollTimer = setTimeout(release, smooth ? 650 : 60);
+  }
 }
 
 function bindInteractions(container) {
@@ -8786,6 +8880,7 @@ function setupCarousel() {
 
   let settleTimer = null;
   track.addEventListener('scroll', () => {
+    if (programmaticScrollActive) return;
     clearTimeout(settleTimer);
     settleTimer = setTimeout(() => {
       const rect = track.getBoundingClientRect();
