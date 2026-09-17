@@ -4306,6 +4306,7 @@ function setupLogoCard() {
     attendedCards.clear();
     attendedAuthors.clear();
     profileStack = [];
+    mobileFocusActive = false;
     document.body.dataset.layout = 'grid';
     navigate({ mode:'canvas' });
     refreshAttendVisuals();
@@ -7306,6 +7307,7 @@ function toggleCluster(id) {
     mobileFocusActive = true;
   }
   applyFocus();
+  updateMobileBack();
   saveCanvasState();
 
   if (isMobile()) {
@@ -7332,6 +7334,7 @@ function collapseAllClusters() {
   });
   if (isMobile()) mobileFocusActive = false;
   applyFocus();
+  updateMobileBack();
   saveCanvasState();
   setTimeout(() => { drawCanvasEdges(); queueMinimapLayout(); }, 360);
   return true;
@@ -7347,20 +7350,28 @@ function attachCanvasHandlers() {
   const root = document.getElementById('canvasRoot');
   if (!root || root.dataset.bound === '1') return;
   root.dataset.bound = '1';
+
+  let lastTapTime = 0;
+  let lastTapWasEmptyCanvas = false;
+
   root.addEventListener('pointerdown', e => {
     if (canvasLayout === 'list') return;
     if (closestSafe(e.target, '.canvas-widget, .canvas-context-menu, .canvas-minimap, .canvas-zoomhud, .browse-widget, .attend-btn')) return;
     if (e.pointerType !== 'touch' && closestSafe(e.target, '.canvas-node')) return;
     if (e.button !== 0 && e.button !== 1) return;
+    // On touch, single-finger taps on nodes are handled by the node's own handler.
     if (e.pointerType === 'touch' && closestSafe(e.target, '.canvas-node') && canvasPointers.size === 0) return;
     if (e.target && e.target.closest && e.target.closest('#canvasListWrap')) return;
+
     canvasPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { root.setPointerCapture(e.pointerId); } catch(err){}
+
     if (canvasPointers.size === 1) {
       canvasPanState = {
         startX: e.clientX, startY: e.clientY,
         startPanX: panOffset.x, startPanY: panOffset.y,
-        pointerId: e.pointerId, moved: false, button: e.button
+        pointerId: e.pointerId, moved: false, button: e.button,
+        pointerType: e.pointerType
       };
       root.classList.add('panning');
     } else if (canvasPointers.size === 2) {
@@ -7374,6 +7385,7 @@ function attachCanvasHandlers() {
     }
     e.preventDefault();
   });
+
   root.addEventListener('pointermove', e => {
     if (!canvasPointers.has(e.pointerId)) return;
     canvasPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -7399,9 +7411,11 @@ function attachCanvasHandlers() {
       applyPanTransform();
     }
   });
+
   const endP = e => {
     if (!canvasPointers.has(e.pointerId)) return;
     canvasPointers.delete(e.pointerId);
+
     if (canvasPinchState) {
       if (canvasPointers.size < 2) {
         canvasPinchState = null;
@@ -7409,7 +7423,7 @@ function attachCanvasHandlers() {
           const [id, p] = [...canvasPointers.entries()][0];
           canvasPanState = {
             startX: p.x, startY: p.y, startPanX: panOffset.x, startPanY: panOffset.y,
-            pointerId: id, moved: true, button: 0
+            pointerId: id, moved: true, button: 0, pointerType: 'touch'
           };
         } else {
           root.classList.remove('panning');
@@ -7418,17 +7432,56 @@ function attachCanvasHandlers() {
     } else if (canvasPanState && e.pointerId === canvasPanState.pointerId) {
       root.classList.remove('panning');
       const didMove = canvasPanState.moved;
+      const wasTouch = canvasPanState.pointerType === 'touch';
+
       if (!didMove && canvasPanState.button === 0 && expandedClusters.size > 0 && canvasLayout === 'grid') {
         collapseAllClusters();
       }
-      if (didMove && isMobile() && mobileFocusActive) { mobileFocusActive = false; applyFocus(); }
-      if (didMove) saveCanvasState();
+
+      if (wasTouch) {
+        if (!didMove) {
+          // Touch tap on empty canvas (node taps never reach here).
+          const now = Date.now();
+          if (now - lastTapTime < 320 && lastTapWasEmptyCanvas) {
+            // Double-tap on empty canvas → fit
+            if (isMobile()) fitToFocus({ force: true });
+            else fitCanvasToViewport();
+            saveCanvasState();
+            lastTapTime = 0;
+            lastTapWasEmptyCanvas = false;
+          } else {
+            // Single tap on empty canvas → exit focus
+            if (isMobile() && mobileFocusActive) {
+              mobileFocusActive = false;
+              applyFocus();
+              updateMobileBack();
+              saveCanvasState();
+            }
+            lastTapTime = now;
+            lastTapWasEmptyCanvas = true;
+          }
+        } else {
+          // Touch drag → also exit focus (existing behaviour)
+          if (isMobile() && mobileFocusActive) {
+            mobileFocusActive = false;
+            applyFocus();
+            updateMobileBack();
+          }
+          saveCanvasState();
+          lastTapTime = 0;
+          lastTapWasEmptyCanvas = false;
+        }
+      } else if (didMove) {
+        saveCanvasState();
+      }
       canvasPanState = null;
     }
     try { root.releasePointerCapture(e.pointerId); } catch(err){}
   };
+
   root.addEventListener('pointerup', endP);
   root.addEventListener('pointercancel', endP);
+
   root.addEventListener('wheel', e => {
     if (canvasLayout === 'list') return;
     if (e.target && e.target.closest && e.target.closest('#canvasListWrap')) return;
@@ -7443,29 +7496,6 @@ function attachCanvasHandlers() {
     panOffset.y -= e.deltaY;
     applyPanTransform();
   }, { passive: false });
-  let lastTap = 0;
-  root.addEventListener('pointerup', e => {
-    if (e.pointerType !== 'touch') return;
-    if (canvasLayout === 'list') return;
-    if (closestSafe(e.target, '.canvas-node')) return;
-    const now = Date.now();
-    if (now - lastTap < 300) {
-      // Double-tap on empty canvas → fit
-      if (isMobile()) fitToFocus({ force: true });
-      else fitCanvasToViewport();
-      saveCanvasState();
-      lastTap = 0;
-      return;
-    }
-    // Single tap on empty canvas → exit mobile focus (un-blur everything)
-    if (isMobile() && mobileFocusActive) {
-      mobileFocusActive = false;
-      applyFocus();
-      updateMobileBack();
-      saveCanvasState();
-    }
-    lastTap = now;
-  });
 }
 
 function getFocusRect(id) {
@@ -7486,12 +7516,11 @@ function focusNode(id, opts = {}) {
   focusedNodeId = id;
   if (changed || opts.force) { updateMobileHud(); saveCanvasState(); }
   if (isMobile()) {
-    focusedNodeId = id;
     mobileFocusActive = true;
+    applyFocus();
+    updateMobileBack();
+    if (opts.autoFit !== false) requestAnimationFrame(() => fitToFocus());
   }
-  applyFocus();
-  updateMobileBack();
-  saveCanvasState();
 }
 
 function fitToFocus(opts = {}) {
