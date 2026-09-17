@@ -1043,7 +1043,7 @@ a.index-letter-footer:hover{color:rgba(255,255,255,.75)}
   justify-content:center;
   flex-shrink:0;
   align-self:start;
-  margin-top:8px; /* align top edge with cap-height of the title */
+  margin-top:8px;
   cursor:pointer;
   transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease;
   -webkit-tap-highlight-color:transparent;
@@ -2474,9 +2474,10 @@ const VOICE_LABELS = { founder:'FOUNDER', field:'FIELD', reply:'REPLY', institut
 const PROFILE = {
   id: 'identity', type: 'identity', format: 'cv', voice: 'founder',
   title: 'Maya Okonkwo', monogram: 'MO',
-  role: 'Founder & CEO', org: 'Maya & Company',
-  location: 'Wherever, Whenever', since: '2026', availability: 'Ubiquitous',
-  deck: 'If you have used LLMs to prototype, you likely have met Maya Okonkwo; the a.i. personifcation and virtual embodiment of all hats wearer, despite being a staunch adovcate for not wearing actual hats — robots need not heed a hat.',
+  role: 'Founder & CEO', org: 'intoview.pro',
+  location: 'New York, NY', since: '2024', availability: 'open',
+  deck: 'Building the permanent professional record. Eleven years in ops, two acquisitions, one strong opinion: what you said last year should still be true today.',
+  summary: 'Eleven years in operations. Two acquisitions. Founder & CEO at intoview.pro since 2024. Based in New York — building a professional record where what you said last year is still true today.',
   provenance: { status: 'published', source: 'intoview.pro', author: 'Maya Okonkwo', date: '2026' },
   fullContent: null
 };
@@ -3770,7 +3771,9 @@ function buildAuthors() {
   CARDS.forEach(card => {
     if (!card || !card.provenance || !card.provenance.author) return;
     const t = card.type;
-    if (t === 'cluster' || t === 'index' || t === 'cluster-index') return;
+    // Exclude identity from author statement lists so it never lands in a
+    // profile's carousel. Exclude clusters and indexes for the same reason.
+    if (t === 'cluster' || t === 'index' || t === 'cluster-index' || t === 'identity') return;
     const name = String(card.provenance.author).trim();
     if (!name || name === 'Various') return;
     if (!byName.has(name)) byName.set(name, []);
@@ -4130,13 +4133,10 @@ function updateBreadcrumb() {
     name.textContent = item.label;
     badge.appendChild(name);
 
-    // Non-current crumbs: clicking the badge navigates to that crumb.
     if (!item.current && item.route) {
       badge.addEventListener('click', () => navigate(item.route));
     }
 
-    // Trailing crumb gets an × — pops one level (parent crumb).
-    // The root "Canvas" crumb (idx 0) never gets one: nothing to pop to.
     if (item.current && idx > 0) {
       const parent = items[idx - 1];
       const removeBtn = document.createElement('button');
@@ -5280,7 +5280,6 @@ function planColumn(cards, viewportH) {
   let subCols, colHeights, placed;
 
   if (isMobile()) {
-    // Mobile flow: one column, full-width cards. No sub-packing.
     subCols = 1;
     colHeights = [0];
     placed = laid.map(d => {
@@ -5667,8 +5666,8 @@ function attachAttendButton(el, card) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'attend-btn';
-  btn.setAttribute('aria-label', attended ? 'Release from attention' : 'Keep in mind');
-  btn.title = attended ? 'Held in mind — click to release' : 'Keep in mind';
+  btn.setAttribute('aria-label', attended ? 'Release from attention' : 'Hold in mind');
+  btn.title = attended ? 'Held in mind — click to release' : 'Hold in mind';
   btn.addEventListener('click', e => {
     e.preventDefault();
     e.stopPropagation();
@@ -5686,8 +5685,8 @@ function refreshAttendVisuals() {
     el.classList.toggle('is-attended', attended);
     const btn = el.querySelector('.attend-btn');
     if (btn) {
-      btn.setAttribute('aria-label', attended ? 'Release from attention' : 'keep in mind');
-      btn.title = attended ? 'Held in mind — click to release' : 'keep in mind';
+      btn.setAttribute('aria-label', attended ? 'Release from attention' : 'Hold in mind');
+      btn.title = attended ? 'Held in mind — click to release' : 'Hold in mind';
     }
   });
   updateAttentionBadge();
@@ -6087,7 +6086,7 @@ function openProfileModal(slug) {
     '</div>' +
     '<div class="profile-modal-actions">' +
       '<button class="btn' + (isHeld ? ' held' : '') + '" id="profileModalHold" type="button">' +
-        (isHeld ? '● Held in mind' : '○ keep in mind') +
+        (isHeld ? '● Held in mind' : '○ Hold in mind') +
       '</button>' +
       '<button class="btn primary" id="profileModalVisit" type="button">Visit profile →</button>' +
     '</div>';
@@ -6257,7 +6256,7 @@ function renderIdentityTitleCard(profile) {
       '<div><div class="tc-stat-num">' + sections + '</div><div class="tc-stat-label">Section' + (sections === 1 ? '' : 's') + '</div></div>' +
       '<div><div class="tc-stat-num">' + cards + '</div><div class="tc-stat-label">Statement' + (cards === 1 ? '' : 's') + '</div></div>' +
     '</div></div>' +
-    '<div class="tc-cell span-2"><span class="tc-label">Tagline</span><span class="tc-value-sm">' + escapeHtml(profile.deck) + '</span></div>' +
+    '<div class="tc-cell span-2"><span class="tc-label">Summary</span><span class="tc-value-sm">' + escapeHtml(profile.summary || ((profile.role || '') + ' at ' + (profile.org || '') + '. Based in ' + (profile.location || '') + '. On the record since ' + (profile.since || '') + '.')) + '</span></div>' +
   '</div>';
 }
 
@@ -6828,16 +6827,16 @@ function renderReaderCard(card, index, total) {
     const attendBtn = document.createElement('button');
     attendBtn.type = 'button';
     attendBtn.className = 'btn reader-attend-btn' + (attended ? ' active' : '');
-    attendBtn.textContent = attended ? '● Held in mind' : '○ keep in mind';
-    attendBtn.setAttribute('aria-label', attended ? 'Release from attention' : 'keep in mind');
+    attendBtn.textContent = attended ? '● Held in mind' : '○ Hold in mind';
+    attendBtn.setAttribute('aria-label', attended ? 'Release from attention' : 'Hold in mind');
     attendBtn.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
       toggleAttend(card.id);
       const now = isAttended(card.id);
       attendBtn.classList.toggle('active', now);
-      attendBtn.textContent = now ? '● Held in mind' : '○ keep in mind';
-      attendBtn.setAttribute('aria-label', now ? 'Release from attention' : 'keep in mind');
+      attendBtn.textContent = now ? '● Held in mind' : '○ Hold in mind';
+      attendBtn.setAttribute('aria-label', now ? 'Release from attention' : 'Hold in mind');
     });
     toolbar.appendChild(attendBtn);
   }
@@ -7336,7 +7335,6 @@ function attachCanvasHandlers() {
 
       if (wasTouch) {
         if (!didMove) {
-          // Touch tap on empty canvas (node taps never reach here).
           const now = Date.now();
           if (now - lastTapTime < 320 && lastTapWasEmptyCanvas) {
             if (isMobile()) fitToFocus({ force: true });
@@ -8275,7 +8273,7 @@ function showGalleryContextMenu(x, y, card) {
     const att = document.createElement('button');
     att.type = 'button';
     att.className = 'ctx-item' + (attended ? ' active' : '');
-    att.innerHTML = '<span class="ctx-indicator"></span> ' + (attended ? 'Release from attention' : 'Keep in mind');
+    att.innerHTML = '<span class="ctx-indicator"></span> ' + (attended ? 'Release from attention' : 'Hold in mind');
     att.addEventListener('click', () => { toggleAttend(card.id); closeGalleryContextMenu(); });
     m.appendChild(att);
   }
@@ -8359,7 +8357,7 @@ function showReaderContextMenu(x, y, card) {
     addDivider();
     addLabel('Attention');
     const attended = isAttended(card.id);
-    addItem(attended ? '●' : '○', attended ? 'Release from attention' : 'Keep in mind', { noIndicator: true }, () => {
+    addItem(attended ? '●' : '○', attended ? 'Release from attention' : 'Hold in mind', { noIndicator: true }, () => {
       toggleAttend(card.id);
       renderTrack();
     });
