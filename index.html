@@ -27,7 +27,7 @@
   --topbar-height:56px; --hud-height:64px; --scrollbar-height:0px;
   --swiss-columns:12; --swiss-gap:24px;
   --grid-outline:rgba(0,160,255,.45); --grid-fill:rgba(0,160,255,.06);
-  --card-w:240px; --flow-card-w:300px; --col-pitch:280px; --row-pitch:320px;
+  --card-w:260px; --flow-card-w:320px; --col-pitch:300px; --row-pitch:340px;
   --grid-col-line:rgba(0,0,0,.07); --grid-row-line:rgba(0,0,0,.035);
   --grid-overlay-opacity:0.55;
   --impact-gain:#2F6B4F; --impact-loss:#C63A2A; --impact-accent:#8A7A1F;
@@ -446,8 +446,8 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 /* ═══ PROV CARD ═══ */
 .prov-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:16px 18px 14px;display:flex;flex-direction:column;gap:10px;width:var(--card-w);min-height:260px;cursor:pointer;position:relative;overflow:hidden;transition:box-shadow .2s ease,transform .2s ease,border-color .2s ease;color:var(--ink)}
 @media (hover:hover) and (pointer:fine){.prov-card:hover{box-shadow:var(--shadow-hover)}.canvas-node:not(.dragging):hover .prov-card{transform:translateY(-2px)}} 
-.prov-card-kicker{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:8px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-light)}
-.prov-card-type{display:flex;align-items:center;gap:6px;margin-right:auto;min-width:0}
+.prov-card-kicker{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;font-family:var(--font-mono);font-size:8px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-light)}
+.prov-card-type{display:flex;align-items:center;gap:6px;margin-right:auto;min-width:0;max-width:100%;flex-wrap:wrap;overflow:hidden;text-overflow:ellipsis}
 .prov-card-type::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--ink-lighter);flex-shrink:0}
 .prov-card[data-type="cluster"] .prov-card-type::before,.prov-card[data-type="statement"] .prov-card-type::before{background:var(--ink)}
 .prov-card[data-type="evidence"] .prov-card-type::before{background:var(--impact-gain)}
@@ -1931,7 +1931,7 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   .swiss-grid{grid-template-columns:1fr !important;gap:16px !important}
   .swiss-grid > *{grid-column:1 / -1 !important}
   #gridToggle{display:none !important}
-  :root{--card-w:172px;--flow-card-w:280px;--col-pitch:192px;--row-pitch:212px;--grid-col-line:rgba(0,0,0,.05);--grid-row-line:rgba(0,0,0,.025);--grid-overlay-opacity:0.35;--topbar-height:88px}
+  :root{--card-w:280px;--flow-card-w:340px;--col-pitch:320px;--row-pitch:340px;--grid-col-line:rgba(0,0,0,.05);--grid-row-line:rgba(0,0,0,.025);--grid-overlay-opacity:0.35;--topbar-height:88px}
   body[data-theme='dark']{--grid-col-line:rgba(255,255,255,.06);--grid-row-line:rgba(255,255,255,.03)}
   .prov-card{padding:10px 12px 9px;min-height:176px;gap:5px;border-radius:0.55rem}
   .prov-card-kicker{font-size:7px;letter-spacing:.1em}
@@ -5390,19 +5390,31 @@ function planColumn(cards, viewportH) {
     return { card: c, seed, h };
   });
   const totalH = laid.reduce((a,d) => a + d.h, 0) + (laid.length - 1) * GAP;
-  let subCols = Math.max(1, Math.min(6, Math.min(Math.ceil(totalH / usableH), laid.length)));
-  let colHeights, placed;
-  for (let attempt = subCols; attempt <= 6; attempt++) {
-    colHeights = new Array(attempt).fill(0);
+  let subCols, colHeights, placed;
+
+  if (isMobile()) {
+    // Mobile flow: one column, full-width cards. No sub-packing.
+    subCols = 1;
+    colHeights = [0];
     placed = laid.map(d => {
-      let best = 0;
-      for (let c = 1; c < attempt; c++) if (colHeights[c] < colHeights[best]) best = c;
-      const y = colHeights[best];
-      colHeights[best] = y + d.h + GAP;
-      return Object.assign({ sub: best, y }, d);
+      const y = colHeights[0];
+      colHeights[0] = y + d.h + GAP;
+      return Object.assign({ sub: 0, y }, d);
     });
-    const tallest = Math.max(...colHeights.map(h => h - GAP));
-    if (tallest <= usableH || attempt >= 6) { subCols = attempt; break; }
+  } else {
+    subCols = Math.max(1, Math.min(6, Math.min(Math.ceil(totalH / usableH), laid.length)));
+    for (let attempt = subCols; attempt <= 6; attempt++) {
+      colHeights = new Array(attempt).fill(0);
+      placed = laid.map(d => {
+        let best = 0;
+        for (let c = 1; c < attempt; c++) if (colHeights[c] < colHeights[best]) best = c;
+        const y = colHeights[best];
+        colHeights[best] = y + d.h + GAP;
+        return Object.assign({ sub: best, y }, d);
+      });
+      const tallest = Math.max(...colHeights.map(h => h - GAP));
+      if (tallest <= usableH || attempt >= 6) { subCols = attempt; break; }
+    }
   }
   const colH = colHeights.map(h => Math.max(0, h - GAP));
   placed.forEach(p => { p.topOffset = p.y - colH[p.sub] / 2; });
