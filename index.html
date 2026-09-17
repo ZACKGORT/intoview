@@ -4316,11 +4316,16 @@ function setupLogoCard() {
 function updateMobileBack() {
   const btn = document.getElementById('mobileBackBtn');
   if (!btn) return;
-  if (currentRoute.mode === 'canvas' && browseMode === 'canvas') { btn.hidden = true; return; }
+  const canvasFocusActive = browseMode === 'canvas' && isMobile() && mobileFocusActive;
+  if (currentRoute.mode === 'canvas' && browseMode === 'canvas' && !canvasFocusActive) {
+    btn.hidden = true;
+    return;
+  }
   btn.hidden = false;
   if (currentRoute.mode === 'profile') btn.textContent = profileStack.length > 1 ? '← Back' : '← Canvas';
   else if (currentRoute.mode === 'reader') btn.textContent = '← Back';
   else if (currentRoute.scope) btn.textContent = '← Gallery';
+  else if (canvasFocusActive) btn.textContent = '← Exit focus';
   else btn.textContent = '← Canvas';
 }
 
@@ -7445,11 +7450,21 @@ function attachCanvasHandlers() {
     if (closestSafe(e.target, '.canvas-node')) return;
     const now = Date.now();
     if (now - lastTap < 300) {
+      // Double-tap on empty canvas → fit
       if (isMobile()) fitToFocus({ force: true });
       else fitCanvasToViewport();
       saveCanvasState();
       lastTap = 0;
-    } else lastTap = now;
+      return;
+    }
+    // Single tap on empty canvas → exit mobile focus (un-blur everything)
+    if (isMobile() && mobileFocusActive) {
+      mobileFocusActive = false;
+      applyFocus();
+      updateMobileBack();
+      saveCanvasState();
+    }
+    lastTap = now;
   });
 }
 
@@ -7471,10 +7486,12 @@ function focusNode(id, opts = {}) {
   focusedNodeId = id;
   if (changed || opts.force) { updateMobileHud(); saveCanvasState(); }
   if (isMobile()) {
+    focusedNodeId = id;
     mobileFocusActive = true;
-    applyFocus();
-    if (opts.autoFit !== false) requestAnimationFrame(() => fitToFocus());
   }
+  applyFocus();
+  updateMobileBack();
+  saveCanvasState();
 }
 
 function fitToFocus(opts = {}) {
@@ -8813,6 +8830,12 @@ function escCascade() {
     return;
   }
   if (browseMode === 'gallery') { navigate({ mode: 'canvas' }); return; }
+  if (browseMode === 'canvas' && isMobile() && mobileFocusActive) {
+    mobileFocusActive = false;
+    applyFocus();
+    updateMobileBack();
+    return;
+  }
   if (browseMode === 'canvas' && canvasLayout === 'grid' && expandedClusters.size > 0) {
     collapseAllClusters();
   }
