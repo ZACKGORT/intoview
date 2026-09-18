@@ -584,6 +584,7 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 .index-status[data-status="revised"]{color:var(--impact-accent)}
 .index-status[data-status="draft"]{color:var(--ink-light);border-style:dashed}
 .index-status[data-status="archived"]{color:var(--ink-lighter)}
+.index-status[data-status="held"]{color:var(--accent);border-color:var(--accent)}
 
 .cluster-stack{display:flex;align-items:flex-start;gap:24px;position:relative}
 .cluster-stack[data-expanded="true"]{padding-bottom:40px}
@@ -752,7 +753,7 @@ body[data-reader="open"] #carouselWrap{opacity:1;pointer-events:auto}
 body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:145}
 
 .letters-viewport{position:relative;overflow:hidden;width:100vw;left:50%;margin-left:-50vw}
-.letters-track{display:flex;align-items:flex-start;gap:22px;padding-top:clamp(20px,4vh,60px);padding-bottom:60px;padding-left:max(4vw,calc(50% - 520px));padding-right:max(4vw,calc(50% - 520px));overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
+.letters-track{display:flex;align-items:flex-start;gap:22px;padding-top:clamp(20px,4vh,60px);padding-bottom:60px;padding-left:max(4vw,calc(50% - 520px));padding-right:max(4vw,calc(50% - 520px));overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
 .letters-track.dragging{cursor:grabbing;scroll-snap-type:none;scroll-behavior:auto}
 .letters-track::-webkit-scrollbar{display:none;width:0;height:0}
 .letter-panel{flex:0 0 auto;width:min(92vw,1000px);max-width:1000px;scroll-snap-align:center;box-sizing:border-box;opacity:.35;transition:opacity .3s ease,transform .3s ease;cursor:pointer}
@@ -1829,6 +1830,8 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 .minimap-node[data-kind="identity"]{background:#fff;border-color:rgba(0,0,0,.4)}
 .minimap-node[data-kind="cluster"]{background:var(--accent);border-color:color-mix(in srgb,var(--accent) 60%,#1c1c1e)}
 .minimap-node[data-kind="profile"]{background:color-mix(in srgb,var(--accent) 70%,#1c1c1e);border-color:var(--accent)}
+.minimap-node[data-kind="attention"]{background:var(--accent);border-color:color-mix(in srgb,var(--accent) 60%,#1c1c1e)}
+.minimap-node[data-kind="attention-index"]{background:var(--bg);border-color:var(--border)}
 .minimap-frame{position:absolute;box-sizing:border-box;border:1.5px solid var(--accent);background:rgba(229,229,103,.14);border-radius:2px;pointer-events:none;box-shadow:0 0 0 1px rgba(0,0,0,.14)}
 
 .canvas-zoomhud{position:fixed;z-index:142;top:calc(var(--topbar-height) + 12px);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(16px) saturate(1.1);-webkit-backdrop-filter:blur(16px) saturate(1.1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 6px 4px 4px;box-shadow:var(--shadow-floating);font-family:var(--font-mono);max-width:calc(100vw - 16px);user-select:none;-webkit-user-select:none}
@@ -2172,6 +2175,27 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   color:var(--ink-light);
 }
 
+/* ═══ ATTENTION NODE (canvas) ═══ */
+.canvas-node[data-kind="attention"] .cluster-peek {
+  background: color-mix(in srgb, var(--accent) 22%, var(--peek-bg));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--peek-border));
+}
+.canvas-node[data-kind="attention"] .cluster-title > .prov-card {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent), var(--shadow);
+}
+.canvas-node[data-kind="attention"] .cluster-leaf > .prov-card {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+.canvas-node[data-kind="attention"] .cluster-collapse-chip {
+  background: var(--accent);
+  color: #1c1c1e;
+}
+.canvas-node[data-kind="attention-index"] .prov-card[data-type="index"]{
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent), var(--shadow);
+}
+
 </style>
 </head>
 <body data-theme="dark" data-layout="grid" data-browse="canvas" data-reader="closed">
@@ -2512,10 +2536,17 @@ const ARRAY_START_SCALE_MOBILE = 0.9;
 
 const VOICE_LABELS = { founder:'FOUNDER', field:'FIELD', reply:'REPLY', institutional:'INSTITUTION' };
 
+const ATTENTION_ID = 'attention';
+const ATTENTION_INDEX_ID = 'attention-index';
+
 /* Category filter constants — declared up top so buildAuthors() can reference them at module load. */
 const CATEGORIES_DEFAULT = ['record', 'hiring', 'otw', 'potluck'];
 const FILTERABLE_CATEGORIES = ['record', 'hiring', 'otw', 'potluck'];
 const CATEGORY_LABELS = { record: 'The Record', hiring: 'Hiring', otw: 'Open to Work', potluck: 'Potluck' };
+
+/* Storage keys declared up top (some referenced early). */
+const CATEGORIES_KEY = 'intoview.categories';
+const INDEX_FILTER_KEY = 'intoview.indexFilter';
 
 /* ═══════════════════════════════════════════════════════════
    DATA
@@ -2533,10 +2564,6 @@ const PROFILE = {
 
 /* ═══════════════════════════════════════════════════════════
    AVIF PHOTO LIBRARY
-   All images are Creative Commons (via Unsplash CDN with
-   ?fm=avif for on-the-fly format negotiation). Stand-in for a
-   real upload surface: a statement carries one photo; a
-   letter-details gallery carries a capped strip.
    ═══════════════════════════════════════════════════════════ */
 const AVIF = (id, w, h) => 'https://images.unsplash.com/' + id + '?fm=avif&w=' + (w||400) + '&h=' + (h||400) + '&fit=crop&q=80';
 
@@ -3945,10 +3972,43 @@ let activeCategories = new Set(CATEGORIES_DEFAULT);
 let indexFilter = 'all'; // 'all' | 'originals' | 'replies'
 
 /* ═══════════════════════════════════════════════════════════
+   ATTENTION CLUSTER HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function getAttendedAuthorList() {
+  const authors = Array.from(attendedAuthors)
+    .map(slug => AUTHORS.get(slug))
+    .filter(Boolean);
+  authors.sort((a, b) => a.name.localeCompare(b.name));
+  return authors;
+}
+
+function getAttentionCluster() {
+  const authors = getAttendedAuthorList();
+  return {
+    id: ATTENTION_ID,
+    type: 'attention',
+    num: '★',
+    title: 'Attention',
+    deck: authors.length + ' held in mind.',
+    voice: 'founder',
+    cardIds: [],
+    authorSlugs: authors.map(a => a.slug),
+    provenance: {
+      author: 'You', date: '2026',
+      source: 'intoview.pro / attention', status: 'held'
+    },
+    relationships: { references: [], replies: [], updates: [] },
+    parentId: null, media: null, fullContent: null,
+    bodyParas: null, mechanism: null, images: null, details: null
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════
    NODE ID VALIDATION
    ═══════════════════════════════════════════════════════════ */
 function isValidNodeId(id) {
   if (id === 'identity' || id === 'index') return true;
+  if (id === ATTENTION_ID || id === ATTENTION_INDEX_ID) return attendedAuthors.size > 0;
   if (CLUSTER_ORDER.includes(id)) return true;
   if (typeof id === 'string' && id.startsWith('profile/')) return AUTHORS.has(id.slice(8));
   return false;
@@ -3977,6 +4037,7 @@ function parseHash() {
   }
   if (parts[0] === 'card' || parts[0] === 'c') {
     const id = parts.slice(1).join('/');
+    if (id === ATTENTION_ID) return { mode: 'reader', cardId: ATTENTION_ID };
     if (!CARDS.has(id)) return { mode: 'canvas' };
     return { mode: 'reader', cardId: id };
   }
@@ -4025,7 +4086,8 @@ function handleRoute() {
   closeLogoCard();
 
   if (route.mode === 'reader') {
-    openReaderRoute(route.cardId);
+    if (route.cardId === ATTENTION_ID) openAttentionRoute();
+    else openReaderRoute(route.cardId);
   } else if (route.mode === 'profile') {
     openProfileRoute(route.stack);
   } else {
@@ -4170,18 +4232,22 @@ function updateBreadcrumb() {
     }
   } else if (currentRoute.mode === 'reader') {
     items.push({ label:'Canvas', badge:'◈', variant:'v1', route:{ mode:'canvas' } });
-    const card = CARDS.get(currentRoute.cardId);
-    if (card) {
-      const cid = card.clusterId;
-      if (cid && CLUSTERS.has(cid)) {
-        const cl = CLUSTERS.get(cid);
-        items.push({ label:cl.title, badge:cl.num, variant:'v0', route:{ mode:'reader', cardId:cl.id } });
-      } else {
-        items.push({ label:'Gallery', badge:'G', variant:'v1', route:{ mode:'gallery', scope:null } });
+    if (currentRoute.cardId === ATTENTION_ID) {
+      items.push({ label:'★ Attention', badge:'★', variant:'v0', current:true, route:null });
+    } else {
+      const card = CARDS.get(currentRoute.cardId);
+      if (card) {
+        const cid = card.clusterId;
+        if (cid && CLUSTERS.has(cid)) {
+          const cl = CLUSTERS.get(cid);
+          items.push({ label:cl.title, badge:cl.num, variant:'v0', route:{ mode:'reader', cardId:cl.id } });
+        } else {
+          items.push({ label:'Gallery', badge:'G', variant:'v1', route:{ mode:'gallery', scope:null } });
+        }
+        let label = card.title;
+        if (card.type === 'cluster-index' || card.type === 'index') label = 'Index';
+        items.push({ label, badge:'·', variant:'v1', current:true, route:null });
       }
-      let label = card.title;
-      if (card.type === 'cluster-index' || card.type === 'index') label = 'Index';
-      items.push({ label, badge:'·', variant:'v1', current:true, route:null });
     }
   }
 
@@ -4326,6 +4392,8 @@ function updateStatusText() {
       const top = profileStack[profileStack.length - 1];
       const author = top ? AUTHORS.get(top.slug) : null;
       st.textContent = author ? author.name : (card ? card.title : '');
+    } else if (currentRoute.cardId === ATTENTION_ID) {
+      st.textContent = 'Attention';
     } else {
       st.textContent = card ? card.title : '';
     }
@@ -4353,10 +4421,10 @@ function getCanvasNodes() {
     if (FILTERABLE_CATEGORIES.includes(id) && !activeCategories.has(id)) return;
     nodes.push({ id, kind: 'cluster', card: CLUSTERS.get(id) });
   });
-  attendedAuthors.forEach(slug => {
-    const author = AUTHORS.get(slug);
-    if (author) nodes.push({ id: 'profile/' + slug, kind: 'profile', card: author });
-  });
+  if (attendedAuthors.size > 0) {
+    nodes.push({ id: ATTENTION_INDEX_ID, kind: 'attention-index', card: null });
+    nodes.push({ id: ATTENTION_ID, kind: 'attention', card: null });
+  }
   return nodes;
 }
 
@@ -4366,9 +4434,10 @@ function getNodeOrder() {
     if (FILTERABLE_CATEGORIES.includes(id) && !activeCategories.has(id)) return;
     order.push(id);
   });
-  attendedAuthors.forEach(slug => {
-    if (AUTHORS.has(slug)) order.push('profile/' + slug);
-  });
+  if (attendedAuthors.size > 0) {
+    order.push(ATTENTION_INDEX_ID);
+    order.push(ATTENTION_ID);
+  }
   return order;
 }
 
@@ -4470,6 +4539,11 @@ function renderCanvas() {
     wrap.dataset.kind = spec.kind;
     if (spec.kind === 'identity') wrap.appendChild(renderIdentityCard(spec.card));
     else if (spec.kind === 'index') wrap.appendChild(renderIndexCard(spec.card));
+    else if (spec.kind === 'attention-index') wrap.appendChild(renderAttentionIndexCard());
+    else if (spec.kind === 'attention') {
+      wrap.dataset.clusterId = ATTENTION_ID;
+      renderClusterStack(wrap, getAttentionCluster());
+    }
     else if (spec.kind === 'profile') {
       const profileCluster = getProfileCluster(spec.card);
       wrap.dataset.clusterId = profileCluster.id;
@@ -4532,7 +4606,7 @@ function getCanvasNodeSpecsWithPositions() {
   });
 }
 
-/* ═══ PROFILE AS CLUSTER ═══ */
+/* ═══ PROFILE AS CLUSTER (legacy / reader helper) ═══ */
 function getProfileCluster(author) {
   return {
     id: 'profile/' + author.slug,
@@ -4557,6 +4631,7 @@ function getProfileCluster(author) {
 
 function renderClusterStack(wrap, cluster) {
   const isExpanded = expandedClusters.has(cluster.id);
+  const isAttention = cluster.type === 'attention';
 
   const stack = document.createElement('div');
   stack.className = 'cluster-stack';
@@ -4574,7 +4649,10 @@ function renderClusterStack(wrap, cluster) {
   if (isExpanded) hit.style.display = 'none';
   title.appendChild(hit);
 
-  const peekCount = Math.min(cluster.cardIds.length, 4);
+  const itemCount = isAttention
+    ? (cluster.authorSlugs ? cluster.authorSlugs.length : 0)
+    : cluster.cardIds.length;
+  const peekCount = Math.min(itemCount, 4);
   for (let d = peekCount; d >= 1; d--) {
     const peek = document.createElement('div');
     peek.className = 'cluster-peek';
@@ -4582,7 +4660,7 @@ function renderClusterStack(wrap, cluster) {
     if (isExpanded) peek.style.display = 'none';
     title.appendChild(peek);
   }
-  title.appendChild(renderCompactCard(cluster));
+  title.appendChild(isAttention ? renderAttentionCompactCard(cluster) : renderCompactCard(cluster));
   stackInner.appendChild(title);
   stack.appendChild(stackInner);
 
@@ -4590,41 +4668,76 @@ function renderClusterStack(wrap, cluster) {
   leaves.className = 'cluster-leaves';
 
   const MAX_LEAVES = 6;
-  const visible = cluster.cardIds.slice(0, MAX_LEAVES);
-  const overflow = cluster.cardIds.length - visible.length;
 
-  visible.forEach(cardId => {
-    const card = CARDS.get(cardId);
-    if (!card) return;
-    const leaf = document.createElement('div');
-    leaf.className = 'cluster-leaf';
-    leaf.dataset.cardId = card.id;
-    leaf.dataset.clusterId = card.clusterId;
-    leaf.appendChild(renderCompactCard(card));
-    leaf.addEventListener('click', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      openReader(card.id);
-    });
-    leaves.appendChild(leaf);
-  });
+  if (isAttention) {
+    const slugs = cluster.authorSlugs || [];
+    const visibleSlugs = slugs.slice(0, MAX_LEAVES);
+    const overflowCount = slugs.length - visibleSlugs.length;
 
-  if (overflow > 0) {
-    const isProfile = cluster.type === 'profile';
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.className = 'cluster-browse-all';
-    more.textContent = isProfile
-      ? 'Open profile →'
-      : 'Browse all ' + cluster.cardIds.length + ' →';
-    more.dataset.clusterId = cluster.id;
-    more.addEventListener('click', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (isProfile) pushProfile(cluster.authorSlug);
-      else navigate({ mode: 'gallery', scope: cluster.id });
+    visibleSlugs.forEach(slug => {
+      const author = AUTHORS.get(slug);
+      if (!author) return;
+      const leaf = document.createElement('div');
+      leaf.className = 'cluster-leaf';
+      leaf.dataset.authorSlug = slug;
+      leaf.appendChild(renderProfileCompactCard(getProfileCluster(author)));
+      leaf.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        pushProfile(slug);
+      });
+      leaves.appendChild(leaf);
     });
-    leaves.appendChild(more);
+
+    if (overflowCount > 0) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'cluster-browse-all';
+      more.textContent = 'Browse all ' + slugs.length + ' →';
+      more.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openAttention();
+      });
+      leaves.appendChild(more);
+    }
+  } else {
+    const visible = cluster.cardIds.slice(0, MAX_LEAVES);
+    const overflow = cluster.cardIds.length - visible.length;
+
+    visible.forEach(cardId => {
+      const card = CARDS.get(cardId);
+      if (!card) return;
+      const leaf = document.createElement('div');
+      leaf.className = 'cluster-leaf';
+      leaf.dataset.cardId = card.id;
+      leaf.dataset.clusterId = card.clusterId;
+      leaf.appendChild(renderCompactCard(card));
+      leaf.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openReader(card.id);
+      });
+      leaves.appendChild(leaf);
+    });
+
+    if (overflow > 0) {
+      const isProfile = cluster.type === 'profile';
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'cluster-browse-all';
+      more.textContent = isProfile
+        ? 'Open profile →'
+        : 'Browse all ' + cluster.cardIds.length + ' →';
+      more.dataset.clusterId = cluster.id;
+      more.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isProfile) pushProfile(cluster.authorSlug);
+        else navigate({ mode: 'gallery', scope: cluster.id });
+      });
+      leaves.appendChild(more);
+    }
   }
 
   stack.appendChild(leaves);
@@ -4670,6 +4783,54 @@ function renderCompactCard(card) {
       '<span class="prov-card-relations">' + (relCount > 0 ? '<span class="prov-card-relation"><strong>' + relCount + '</strong> ref</span>' : '') + '</span>' +
     '</div>';
   attachAttendButton(el, card);
+  return el;
+}
+
+function renderAttentionCompactCard(cluster) {
+  const n = (cluster.authorSlugs || []).length;
+  const el = document.createElement('article');
+  el.className = 'prov-card';
+  el.dataset.cardId = ATTENTION_ID;
+  el.dataset.type = 'cluster';
+  el.innerHTML =
+    '<div class="prov-card-kicker">' +
+      '<span class="prov-card-type">★ Attention</span>' +
+      '<span class="prov-card-status" data-status="held">held</span>' +
+    '</div>' +
+    '<h3 class="prov-card-title">Attention</h3>' +
+    '<p class="prov-card-deck">' + escapeHtml(cluster.deck) + '</p>' +
+    '<div class="prov-card-meta">' +
+      '<span class="prov-card-source">intoview.pro / attention</span>' +
+      '<span class="prov-card-relations"><span class="prov-card-relation"><strong>' + n + '</strong> held</span></span>' +
+    '</div>';
+  return el;
+}
+
+function renderAttentionIndexCard() {
+  const authors = getAttendedAuthorList();
+  const el = document.createElement('article');
+  el.className = 'prov-card';
+  el.dataset.cardId = ATTENTION_INDEX_ID;
+  el.dataset.type = 'index';
+
+  const rows = authors.map(author => {
+    const kindLabel = author.kind === 'institution' ? 'Company' : 'Person';
+    const n = author.statements.length;
+    return '<li class="index-row" data-attention-author="' + escapeHtml(author.slug) + '">' +
+      '<span class="index-num">' + escapeHtml(initialsFromName(author.name).slice(0, 2)) + '</span>' +
+      '<span class="index-title">' + escapeHtml(author.name) + '</span>' +
+      '<span class="index-count">' + escapeHtml(kindLabel) + '</span>' +
+      '<span class="index-status" data-status="held">' + n + '</span>' +
+    '</li>';
+  }).join('');
+
+  el.innerHTML =
+    '<div class="prov-card-kicker">' +
+      '<span class="prov-card-type">★ Attention</span>' +
+      '<span class="prov-card-status" data-status="held">held</span>' +
+    '</div>' +
+    '<h3 class="prov-card-title">Held in mind</h3>' +
+    '<ul class="index-list">' + rows + '</ul>';
   return el;
 }
 
@@ -4792,28 +4953,33 @@ function getLayoutPositions(layout, nodes) {
   const colPitch = getColPitch();
   const rowPitch = getRowPitch();
 
-  const profiles = nodes.filter(n => n.kind === 'profile');
   const clusters = nodes.filter(n => n.kind === 'cluster');
+  const hasAttention = nodes.some(n => n.kind === 'attention');
 
   positions.identity = { x: 0, y: 0 };
   positions.index = { x: colPitch, y: 0 };
 
   if (isMobile()) {
     let y = 0;
-    y += rowPitch;
-    y += rowPitch;
+    y += rowPitch;   // identity row
+    y += rowPitch;   // index row
     clusters.forEach(n => { positions[n.id] = { x: 0, y }; y += rowPitch; });
-    profiles.forEach(n => { positions[n.id] = { x: 0, y }; y += rowPitch; });
+    if (hasAttention) {
+      positions[ATTENTION_INDEX_ID] = { x: 0, y }; y += rowPitch;
+      positions[ATTENTION_ID]       = { x: 0, y };
+    }
   } else {
     clusters.forEach((n, i) => {
       const col = i % 3;
       const row = Math.floor(i / 3);
       positions[n.id] = { x: (col + 2) * colPitch, y: row * rowPitch };
     });
-    const profileRow = Math.max(1, Math.ceil(clusters.length / 3)) * rowPitch;
-    profiles.forEach((n, i) => {
-      positions[n.id] = { x: i * colPitch, y: profileRow };
-    });
+    if (hasAttention) {
+      const clusterRows = Math.max(1, Math.ceil(clusters.length / 3));
+      const ay = clusterRows * rowPitch;
+      positions[ATTENTION_INDEX_ID] = { x: 0,        y: ay };
+      positions[ATTENTION_ID]       = { x: colPitch, y: ay };
+    }
   }
   return positions;
 }
@@ -5771,7 +5937,7 @@ function updateBorderProgress() {
    ═══════════════════════════════════════════════════════════ */
 function isAttendable(card) {
   if (!card) return false;
-  return card.type !== 'cluster' && card.type !== 'index' && card.type !== 'cluster-index' && card.type !== 'identity' && card.type !== 'profile';
+  return card.type !== 'cluster' && card.type !== 'index' && card.type !== 'cluster-index' && card.type !== 'identity' && card.type !== 'profile' && card.type !== 'attention';
 }
 function isAttended(id) { return attendedCards.has(id); }
 
@@ -6026,6 +6192,47 @@ function setupWink() {
 function openReader(cardId) {
   if (!CARDS.has(cardId)) return;
   navigate({ mode: 'reader', cardId });
+}
+
+function openAttention() {
+  if (attendedAuthors.size === 0) return;
+  navigate({ mode: 'reader', cardId: ATTENTION_ID });
+}
+
+function openAttentionRoute() {
+  const authors = getAttendedAuthorList();
+  const provenance = {
+    status: 'held', source: 'intoview.pro / attention',
+    author: 'You', date: '2026'
+  };
+
+  const titleCard = {
+    id: ATTENTION_ID,
+    type: 'attention',
+    title: 'Attention',
+    deck: authors.length + ' held in mind.',
+    voice: 'founder',
+    provenance,
+    relationships: { references: [], replies: [], updates: [] }
+  };
+  const indexCard = {
+    id: 'attention-index-reader',
+    type: 'attention-index',
+    title: 'Attention',
+    deck: authors.length + ' held in mind.',
+    voice: 'founder',
+    provenance,
+    relationships: { references: [], replies: [], updates: [] },
+    authors
+  };
+
+  readerCards = [titleCard, indexCard];
+  activeIndex = 0;
+  syncView();
+  renderTrack();
+  requestAnimationFrame(() => scrollToPanel(activeIndex, false));
+  updateBreadcrumb();
+  updateStatusText();
 }
 
 function openReaderRoute(cardId) {
@@ -6335,6 +6542,13 @@ function toggleAttendAuthor(slug) {
   if (browseMode === 'canvas' && currentRoute.mode === 'canvas') {
     renderCanvas();
   }
+  if (currentRoute.mode === 'reader' && currentRoute.cardId === ATTENTION_ID) {
+    if (attendedAuthors.size === 0) {
+      navigate({ mode: 'canvas' }, true);
+    } else {
+      openAttentionRoute();
+    }
+  }
 }
 
 function closeReader() {
@@ -6349,6 +6563,8 @@ function isGeneralLetter(card) {
   if (card.type === 'cluster-index') return false;
   if (card.type === 'profile-title') return false;
   if (card.type === 'profile-index') return false;
+  if (card.type === 'attention') return false;
+  if (card.type === 'attention-index') return false;
   if (card.fullContent) return false;
   return true;
 }
@@ -6363,12 +6579,20 @@ function buildReaderCover(card, index, total, opts) {
   else if (card.type === 'profile-title') label = 'PROFILE';
   else if (card.type === 'identity') label = 'TITLE CARD';
   else if (card.type === 'index' || card.type === 'cluster-index' || card.type === 'profile-index') label = 'INDEX';
+  else if (card.type === 'attention') label = 'ATTENTION';
+  else if (card.type === 'attention-index') label = 'INDEX';
   else label = 'STATEMENT ' + String(index + 1).padStart(2, '0');
 
   const p = card.provenance;
   const voice = card.voice || 'field';
   const voiceLabel = VOICE_LABELS[voice] || 'FIELD';
-  const showVoice = card.type !== 'cluster' && card.type !== 'index' && card.type !== 'cluster-index' && card.type !== 'profile-title' && card.type !== 'profile-index';
+  const showVoice = card.type !== 'cluster'
+    && card.type !== 'index'
+    && card.type !== 'cluster-index'
+    && card.type !== 'profile-title'
+    && card.type !== 'profile-index'
+    && card.type !== 'attention'
+    && card.type !== 'attention-index';
 
   const deckHTML = opts.hideDeck
     ? ''
@@ -6437,6 +6661,42 @@ function renderIdentityTitleCard(profile) {
       '</div>' +
     '</div>' +
   '</div>';
+}
+
+function renderAttentionTitleCard() {
+  const authors = getAttendedAuthorList();
+  return '<div class="title-card-letter">' +
+    '<div class="tc-cell span-2">' +
+      '<span class="tc-label">Working set</span>' +
+      '<span class="tc-value">★ Attention</span>' +
+      '<span class="tc-value-sm">Held in mind</span>' +
+    '</div>' +
+    '<div class="tc-cell"><span class="tc-label">Held</span>' +
+      '<span class="tc-value-sm">' + authors.length + '</span></div>' +
+    '<div class="tc-cell"><span class="tc-label">Filed</span>' +
+      '<span class="tc-value-sm">2026</span></div>' +
+    '<div class="tc-cell span-2"><span class="tc-label">Deck</span>' +
+      '<span class="tc-value-sm">People and companies you are holding in mind. Tap any name to open their record.</span></div>' +
+  '</div>';
+}
+
+function renderAttentionIndexLetter(authors) {
+  if (!authors || !authors.length) {
+    return '<div class="index-letter">' +
+      '<div style="color:rgba(255,255,255,.5);font-style:italic;padding:12px 0;">Nothing held in mind.</div>' +
+    '</div>';
+  }
+  const rows = authors.map((author, i) => {
+    const n = String(i + 1).padStart(2, '0');
+    const kindLabel = author.kind === 'institution' ? 'Company' : 'Person';
+    return '<a class="idx-row" data-attention-author="' + escapeHtml(author.slug) + '" role="button" tabindex="0">' +
+      '<span class="idx-num">' + n + '</span>' +
+      '<span class="idx-title">' + escapeHtml(author.name) + '</span>' +
+      '<span class="idx-meta">' + escapeHtml(kindLabel) + ' · ' + author.statements.length + '</span>' +
+    '</a>';
+  }).join('');
+  return '<div class="index-letter">' + rows + '</div>' +
+    '<div class="index-letter-footer">Click any name to open their record</div>';
 }
 
 function renderClusterTitleCard(card) {
@@ -7012,9 +7272,9 @@ function renderReaderCard(card, index, total) {
 
   const frame = document.createElement('div');
   let frameClass = 'letter-card-frame';
-  if (card.type === 'cluster' || card.type === 'profile-title') frameClass += ' title-card-frame';
+  if (card.type === 'cluster' || card.type === 'profile-title' || card.type === 'attention') frameClass += ' title-card-frame';
   else if (card.type === 'identity') frameClass += ' identity-card-frame';
-  else if (card.type === 'index' || card.type === 'cluster-index' || card.type === 'profile-index') frameClass += ' index-card-frame';
+  else if (card.type === 'index' || card.type === 'cluster-index' || card.type === 'profile-index' || card.type === 'attention-index') frameClass += ' index-card-frame';
   frame.className = frameClass;
 
   const useBento = isGeneralLetter(card);
@@ -7056,6 +7316,8 @@ function renderReaderCard(card, index, total) {
   else if (card.type === 'index') content.innerHTML = renderIndexLetter();
   else if (card.type === 'profile-title') content.innerHTML = renderProfileTitleCard(card);
   else if (card.type === 'profile-index') content.innerHTML = renderProfileIndexCard(card);
+  else if (card.type === 'attention') content.innerHTML = renderAttentionTitleCard();
+  else if (card.type === 'attention-index') content.innerHTML = renderAttentionIndexLetter(card.authors);
   else if (card.fullContent) content.innerHTML = card.fullContent;
   else if (useBento) content.innerHTML = renderLetterBentoBody(card);
   else content.innerHTML = renderStatementBody(card);
@@ -7135,6 +7397,18 @@ function renderReaderCard(card, index, total) {
     });
   });
 
+  content.querySelectorAll('.idx-row[data-attention-author]').forEach(row => {
+    const open = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      pushProfile(row.getAttribute('data-attention-author'));
+    };
+    row.addEventListener('click', open);
+    row.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') open(e);
+    });
+  });
+
   content.querySelectorAll('[data-index-filter]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.preventDefault();
@@ -7173,18 +7447,21 @@ function updateNavCounter(c, t) {
 function activatePanel(newIndex, updateHash) {
   if (newIndex < 0) newIndex = readerCards.length - 1;
   if (newIndex >= readerCards.length) newIndex = 0;
+  const unchanged = newIndex === activeIndex;
   const panels = document.querySelectorAll('.letter-panel');
   panels.forEach(p => p.classList.remove('active'));
   activeIndex = newIndex;
   if (panels[activeIndex]) panels[activeIndex].classList.add('active');
-  scrollToPanel(activeIndex, true);
+  scrollToPanel(activeIndex, !unchanged);
   updateBorderProgress();
   updateNavCounter(activeIndex + 1, readerCards.length);
-  if (updateHash !== false) {
+  if (updateHash !== false && !unchanged) {
     const card = readerCards[activeIndex];
     if (card) {
       if (currentRoute.mode === 'profile') {
         if (profileStack.length) profileStack[profileStack.length - 1].index = activeIndex;
+      } else if (currentRoute.cardId === ATTENTION_ID) {
+        // Attention stays on the same route; do not overwrite with index card id.
       } else {
         navigate({ mode: 'reader', cardId: card.id }, true);
       }
@@ -7192,45 +7469,16 @@ function activatePanel(newIndex, updateHash) {
   }
 }
 
-let programmaticScrollActive = false;
-let programmaticScrollTimer = null;
-
 function scrollToPanel(index, smooth) {
   const panels = document.querySelectorAll('.letter-panel');
   const panel = panels[index];
   if (!panel) return;
   const track = document.getElementById('lettersTrack');
   if (!track) return;
-
-  const targetLeft = panel.offsetLeft - (track.clientWidth - panel.offsetWidth) / 2;
-
-  programmaticScrollActive = true;
-  clearTimeout(programmaticScrollTimer);
-
-  track.style.scrollSnapType = 'none';
-
-  track.scrollTo({ left: targetLeft, behavior: smooth ? 'smooth' : 'auto' });
-
-  const release = () => {
-    if (!programmaticScrollActive) return;
-    programmaticScrollActive = false;
-    track.style.scrollSnapType = '';
-    clearTimeout(programmaticScrollTimer);
-  };
-
-  if ('onscrollend' in window) {
-    const onEnd = () => {
-      track.removeEventListener('scrollend', onEnd);
-      release();
-    };
-    track.addEventListener('scrollend', onEnd);
-    programmaticScrollTimer = setTimeout(() => {
-      track.removeEventListener('scrollend', onEnd);
-      release();
-    }, smooth ? 900 : 100);
-  } else {
-    programmaticScrollTimer = setTimeout(release, smooth ? 650 : 60);
-  }
+  const trackRect = track.getBoundingClientRect();
+  const panelRect = panel.getBoundingClientRect();
+  const delta = panelRect.left + panelRect.width / 2 - (trackRect.left + trackRect.width / 2);
+  track.scrollTo({ left: track.scrollLeft + delta, behavior: smooth ? 'smooth' : 'auto' });
 }
 
 function bindInteractions(container) {
@@ -7273,21 +7521,34 @@ function handleNodeTap(node, target) {
       if (cid && cid.startsWith('profile/')) pushProfile(cid.slice(8));
       return;
     }
-    navigate({ mode: 'gallery', scope: cid });
+    if (!cid && btn.textContent.indexOf('Browse all') === 0 && node.dataset.kind === 'attention') {
+      openAttention();
+      return;
+    }
+    if (cid) navigate({ mode: 'gallery', scope: cid });
     return;
   }
   if (closestSafe(target, '.cluster-collapse-chip')) { toggleCluster(node.dataset.clusterId); return; }
   if (closestSafe(target, '.cluster-peek-hit')) { toggleCluster(node.dataset.clusterId); return; }
   if (closestSafe(target, '.attend-btn')) return;
   const leaf = closestSafe(target, '.cluster-leaf');
-  if (leaf) { focusNode(node.dataset.clusterId); openReader(leaf.dataset.cardId); return; }
+  if (leaf) {
+    if (leaf.dataset.authorSlug) { pushProfile(leaf.dataset.authorSlug); return; }
+    focusNode(node.dataset.clusterId);
+    openReader(leaf.dataset.cardId);
+    return;
+  }
   if (closestSafe(target, '.index-row')) {
-    const cid = closestSafe(target, '.index-row').dataset.clusterId;
+    const row = closestSafe(target, '.index-row');
+    if (row.dataset.attentionAuthor) { pushProfile(row.dataset.attentionAuthor); return; }
+    const cid = row.dataset.clusterId;
     if (cid) { focusNode(cid); openReader(cid); }
     return;
   }
   if (node.dataset.kind === 'identity') { focusNode('identity'); openReader('identity'); return; }
   if (node.dataset.kind === 'index') { focusNode('index'); openReader('index'); return; }
+  if (node.dataset.kind === 'attention') { toggleCluster(ATTENTION_ID); return; }
+  if (node.dataset.kind === 'attention-index') { openAttention(); return; }
   if (node.dataset.kind === 'profile') {
     const nodeId = node.dataset.nodeId || '';
     if (nodeId.startsWith('profile/')) {
@@ -7668,6 +7929,8 @@ function updateMobileHud() {
       let label = id;
       if (id === 'identity') label = 'Title Card';
       else if (id === 'index') label = 'Index';
+      else if (id === ATTENTION_ID) label = '★ Attention';
+      else if (id === ATTENTION_INDEX_ID) label = '★ Attention index';
       else if (id && id.startsWith('profile/')) {
         const author = AUTHORS.get(id.slice(8));
         label = author ? author.name : 'Profile';
@@ -8250,7 +8513,7 @@ function setCanvasLayout(layout) {
   if (layout === 'array') {
     expandedClusters.clear();
     CLUSTER_ORDER.forEach(id => expandedClusters.add(id));
-    attendedAuthors.forEach(slug => expandedClusters.add('profile/' + slug));
+    if (attendedAuthors.size > 0) expandedClusters.add(ATTENTION_ID);
   } else if (layout === 'grid') {
     expandedClusters.clear();
   } else {
@@ -8557,7 +8820,7 @@ function showReaderContextMenu(x, y, card) {
     return b;
   };
 
-  addLabel(cl ? (cl.num + ' · ' + cl.title) : (card.type === 'identity' ? 'Title Card' : card.type === 'index' ? 'Index' : card.type === 'cluster-index' ? 'Section Index' : card.type === 'profile-title' ? 'Profile' : card.type === 'profile-index' ? 'Profile Index' : 'Reader'));
+  addLabel(cl ? (cl.num + ' · ' + cl.title) : (card.type === 'attention' ? '★ Attention' : card.type === 'attention-index' ? 'Attention index' : card.type === 'identity' ? 'Title Card' : card.type === 'index' ? 'Index' : card.type === 'cluster-index' ? 'Section Index' : card.type === 'profile-title' ? 'Profile' : card.type === 'profile-index' ? 'Profile Index' : 'Reader'));
   addItem('‹', 'Previous statement', { disabled: isFirst, noIndicator: true }, () => activatePanel(activeIndex - 1));
   addItem('›', 'Next statement',     { disabled: isLast,  noIndicator: true }, () => activatePanel(activeIndex + 1));
   addItem('⌂', 'Title card',      { disabled: activeIndex === 0, noIndicator: true }, () => activatePanel(0));
@@ -8621,6 +8884,9 @@ function setupReaderContextMenu() {
 
     const panel = closestSafe(e.target, '.letter-panel');
     let card = panel ? CARDS.get(panel.dataset.cardId) : null;
+    if (!card && panel && panel.dataset.cardId === ATTENTION_ID) {
+      card = readerCards[activeIndex];
+    }
     if (!card) card = readerCards[activeIndex];
     if (!card) return;
 
@@ -8743,7 +9009,7 @@ function setupMobileSheet() {
       const nav = el.dataset.nav;
       if (nav === 'identity') { focusedNodeId = 'identity'; openReader('identity'); }
       else if (nav === 'index') { focusedNodeId = 'index'; openReader('index'); }
-      else if (nav === 'attention') { closeSheet(); openAttentionDropdown(); return; }
+      else if (nav === 'attention') { closeSheet(); if (attendedAuthors.size > 0) openAttention(); else openAttentionDropdown(); return; }
       closeSheet();
     });
   });
@@ -9032,7 +9298,6 @@ function setupCarousel() {
 
   let settleTimer = null;
   track.addEventListener('scroll', () => {
-    if (programmaticScrollActive) return;
     clearTimeout(settleTimer);
     settleTimer = setTimeout(() => {
       const rect = track.getBoundingClientRect();
@@ -9055,6 +9320,8 @@ function setupCarousel() {
         if (card) {
           if (currentRoute.mode === 'profile') {
             if (profileStack.length) profileStack[profileStack.length - 1].index = activeIndex;
+          } else if (currentRoute.cardId === ATTENTION_ID) {
+            // stay on attention route
           } else {
             navigate({ mode: 'reader', cardId: card.id }, true);
           }
