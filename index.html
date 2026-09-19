@@ -443,6 +443,7 @@ body[data-reader="open"] #homeRoot{filter:blur(3px) saturate(.8);pointer-events:
 }
 .home-letters-track::-webkit-scrollbar{display:none;width:0;height:0}
 .home-letters-track.dragging{cursor:grabbing;scroll-snap-type:none;scroll-behavior:auto}
+.home-letters-track.dragging.released{cursor:grab}
 
 .home-letter-panel{
   flex:0 0 auto;width:min(92vw,1080px);max-width:1080px;
@@ -450,15 +451,19 @@ body[data-reader="open"] #homeRoot{filter:blur(3px) saturate(.8);pointer-events:
   opacity:.35;transition:opacity .3s ease,transform .3s ease;cursor:pointer;
 }
 .home-letter-panel.active{opacity:1;cursor:auto}
-.home-letter-panel.active:hover .home-letter-card-frame{
-  box-shadow:0 24px 56px rgba(0,0,0,.08),0 8px 20px rgba(0,0,0,.04);
-  transform:translateY(-2px);
-}
+.home-letter-panel.active:hover .home-letter-card-frame{transform:translateY(-2px)}
+.home-letter-panel.active:hover .home-letter-card-frame::after{opacity:1}
 .home-letter-card-frame{
   border:1px solid var(--border);border-radius:var(--radius);
   padding:24px clamp(18px,3vw,36px) 36px;background:var(--card);
-  box-shadow:var(--shadow);transition:box-shadow .3s ease,transform .3s ease;position:relative;
+  box-shadow:var(--shadow);transition:transform .3s ease;position:relative;
 }
+.home-letter-card-frame::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:0 24px 56px rgba(0,0,0,.08),0 8px 20px rgba(0,0,0,.04);
+  opacity:0;transition:opacity .3s ease;
+}
+body.focus-mode .home-letter-card-frame::after{display:none}
 .home-letter-cover{
   display:flex;flex-direction:column;gap:6px;
   padding-bottom:16px;margin-bottom:20px;
@@ -1321,6 +1326,7 @@ body[data-reader="open"] .hud-top,body[data-reader="open"] .hud-bottom{z-index:1
 .letters-viewport{position:relative;overflow:hidden;width:100vw;left:50%;margin-left:-50vw}
 .letters-track{display:flex;align-items:flex-start;gap:22px;padding-top:clamp(20px,4vh,60px);padding-bottom:60px;padding-left:max(4vw,calc(50% - 520px));padding-right:max(4vw,calc(50% - 520px));overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
 .letters-track.dragging{cursor:grabbing;scroll-snap-type:none;scroll-behavior:auto}
+.letters-track.dragging.released{cursor:grab}
 .letters-track::-webkit-scrollbar{display:none;width:0;height:0}
 .letter-panel{flex:0 0 auto;width:min(92vw,1000px);max-width:1000px;scroll-snap-align:center;box-sizing:border-box;opacity:.35;transition:opacity .3s ease,transform .3s ease;cursor:pointer}
 .letter-panel.active{opacity:1;cursor:auto}
@@ -1344,7 +1350,7 @@ body.cursor-chevron-prev .letter-hotspot .hotspot-chevron,
 body.cursor-chevron-next .letter-hotspot .hotspot-chevron{opacity:0 !important;transform:none !important}
 @media (max-width:640px){.letter-hotspot{display:none}}
 
-.letter-card-frame{border:1px solid var(--border);border-radius:var(--radius);padding:28px clamp(20px,3vw,36px) 40px;background:var(--card);box-shadow:var(--shadow);transition:box-shadow .3s ease,transform .3s ease;position:relative}
+.letter-card-frame{border:1px solid var(--border);border-radius:var(--radius);padding:28px clamp(20px,3vw,36px) 40px;background:var(--card);box-shadow:var(--shadow);transition:transform .3s ease;position:relative}
 .letter-panel.active .letter-card-frame{box-shadow:var(--shadow-hover)}
 
 .letter-card-frame.title-card-frame{
@@ -6886,15 +6892,17 @@ function renderHomeView() {
   updateBorderProgress();
 }
 
+function setHomeActive(index) {
+  document.querySelectorAll('.home-letter-panel').forEach((p, i) => p.classList.toggle('active', i === index));
+  homeActiveIndex = index;
+  updateBorderProgress();
+}
+
 function activateHomePanel(newIndex, smooth) {
   if (newIndex < 0) newIndex = HOME_LETTER_SPECS.length - 1;
   if (newIndex >= HOME_LETTER_SPECS.length) newIndex = 0;
-  const panels = document.querySelectorAll('.home-letter-panel');
-  panels.forEach(p => p.classList.remove('active'));
-  homeActiveIndex = newIndex;
-  if (panels[homeActiveIndex]) panels[homeActiveIndex].classList.add('active');
+  setHomeActive(newIndex);
   scrollHomeToPanel(homeActiveIndex, smooth !== false);
-  updateBorderProgress();
 }
 
 function scrollHomeToPanel(index, smooth) {
@@ -6902,10 +6910,169 @@ function scrollHomeToPanel(index, smooth) {
   if (!panel) return;
   const track = document.getElementById('homeLettersTrack');
   if (!track) return;
-  const trackRect = track.getBoundingClientRect();
-  const panelRect = panel.getBoundingClientRect();
-  const delta = panelRect.left + panelRect.width / 2 - (trackRect.left + trackRect.width / 2);
-  track.scrollTo({ left: track.scrollLeft + delta, behavior: smooth ? 'smooth' : 'auto' });
+  scrollTrackBy(track, trackCenterDelta(track, panel), smooth);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CAROUSEL ENGINE — shared by the Home and Reader tracks
+   • active panel follows the scroll (no scrollTo, no re-render while scrolling)
+   • one debounced "settled" hook for anything expensive (route / breadcrumb)
+   • mouse-drag eases into the nearest panel instead of teleporting when snap re-engages
+   ═══════════════════════════════════════════════════════════ */
+function trackCenterDelta(track, panel) {
+  const tr = track.getBoundingClientRect();
+  const pr = panel.getBoundingClientRect();
+  return (pr.left + pr.width / 2) - (tr.left + tr.width / 2);
+}
+
+function nearestPanelIndex(track, from, span) {
+  const kids = track.children;
+  const n = kids.length;
+  if (!n) return 0;
+  const tr = track.getBoundingClientRect();
+  const cx = tr.left + tr.width / 2;
+  const seed = Math.min(Math.max(from, 0), n - 1);
+  const lo = span == null ? 0 : Math.max(0, seed - span);
+  const hi = span == null ? n - 1 : Math.min(n - 1, seed + span);
+  let best = seed, bd = Infinity;
+  for (let i = lo; i <= hi; i++) {
+    const r = kids[i].getBoundingClientRect();
+    const d = Math.abs(r.left + r.width / 2 - cx);
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+
+/* Programmatic moves ease; jumps across the whole strip (wrap-around, re-centering
+   after a re-render) are instant. 'instant' is explicit on purpose: 'auto' inherits
+   the CSS scroll-behavior:smooth and would fly through every panel on open. */
+function scrollTrackBy(track, delta, smooth) {
+  const animate = smooth && Math.abs(delta) <= track.clientWidth * 3;
+  if (animate && track._carousel) track._carousel.expect(delta);
+  track.scrollTo({ left: track.scrollLeft + delta, behavior: animate ? 'smooth' : 'instant' });
+}
+
+function createCarouselEngine(track, cfg) {
+  let programmatic = false, rafId = 0, settleTimer = 0, guardTimer = 0;
+  let afterSettle = [];
+
+  const engine = {
+    expect(distance) {
+      if (Math.abs(distance) < 1) return;
+      engine.hold();
+    },
+    hold() {
+      programmatic = true;
+      clearTimeout(guardTimer);
+      guardTimer = setTimeout(() => { programmatic = false; }, 1600);
+    },
+    afterSettle(fn) { afterSettle.push(fn); }
+  };
+
+  function frame() {
+    rafId = 0;
+    if (programmatic) return;
+    const cur = cfg.getActive();
+    const best = nearestPanelIndex(track, cur, 1);
+    if (best !== cur) cfg.setActive(best);
+  }
+
+  function settle() {
+    const wasProgrammatic = programmatic;
+    programmatic = false;
+    clearTimeout(guardTimer);
+    if (!wasProgrammatic) {
+      const cur = cfg.getActive();
+      const best = nearestPanelIndex(track, cur);
+      if (best !== cur) cfg.setActive(best);
+    }
+    if (cfg.commit) cfg.commit(cfg.getActive());
+    const queue = afterSettle;
+    afterSettle = [];
+    queue.forEach(fn => fn());
+  }
+
+  track.addEventListener('scroll', () => {
+    if (!rafId) rafId = requestAnimationFrame(frame);
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, 120);
+  }, { passive: true });
+
+  // the person taking over always wins over an in-flight programmatic move
+  const takeover = () => { programmatic = false; };
+  track.addEventListener('wheel', takeover, { passive: true });
+  track.addEventListener('touchstart', takeover, { passive: true });
+  track.addEventListener('pointerdown', takeover, { passive: true });
+
+  track._carousel = engine;
+  return engine;
+}
+
+function bindTrackDrag(track, ignoreSelector, engine, cfg) {
+  let drag = false, startX = 0, startScroll = 0, startIndex = 0, moves = [], cleanupTimer = 0;
+
+  track.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'touch' || e.button > 0) return;   // touch keeps native compositor scrolling
+    if (closestSafe(e.target, ignoreSelector)) return;
+    clearTimeout(cleanupTimer);
+    drag = true;
+    startX = e.clientX;
+    startScroll = track.scrollLeft;
+    startIndex = nearestPanelIndex(track, cfg.getActive());
+    moves = [{ t: performance.now(), x: e.clientX }];
+    track.classList.remove('released');
+    track.classList.add('dragging');
+    try { track.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  track.addEventListener('pointermove', e => {
+    if (!drag) return;
+    track.scrollLeft = startScroll - (e.clientX - startX);
+    const now = performance.now();
+    moves.push({ t: now, x: e.clientX });
+    while (moves.length > 2 && now - moves[0].t > 100) moves.shift();
+  });
+
+  function finish() {
+    clearTimeout(cleanupTimer);
+    if (drag) return;
+    track.classList.remove('dragging', 'released');   // snap re-engages on a panel that is already centred
+  }
+
+  function release() {
+    if (!drag) return;
+    drag = false;
+
+    // pointer velocity over the last ~100ms → a short flick turns the page
+    let vx = 0;
+    if (moves.length >= 2) {
+      const a = moves[0], b = moves[moves.length - 1];
+      const dt = b.t - a.t;
+      if (dt > 0 && performance.now() - b.t < 80) vx = (b.x - a.x) / dt;
+    }
+    const cur = track.scrollLeft;
+    const projected = cur - vx * 200;
+
+    // land on the grabbed panel or one of its neighbours
+    const kids = track.children;
+    let target = startIndex, targetLeft = cur, bd = Infinity;
+    for (let i = Math.max(0, startIndex - 1); i <= Math.min(kids.length - 1, startIndex + 1); i++) {
+      const left = cur + trackCenterDelta(track, kids[i]);
+      const d = Math.abs(left - projected);
+      if (d < bd) { bd = d; target = i; targetLeft = left; }
+    }
+
+    track.classList.add('released');
+    if (target !== cfg.getActive()) cfg.setActive(target);
+    const dist = targetLeft - cur;
+    if (Math.abs(dist) < 1) { finish(); return; }
+    engine.expect(dist);
+    engine.afterSettle(finish);
+    cleanupTimer = setTimeout(finish, 1200);
+    track.scrollTo({ left: targetLeft, behavior: 'smooth' });
+  }
+  track.addEventListener('pointerup', release);
+  track.addEventListener('pointercancel', release);
 }
 
 function setupHomeCarousel() {
@@ -6916,37 +7083,9 @@ function setupHomeCarousel() {
   document.getElementById('homeHotspotPrev').addEventListener('click', () => activateHomePanel(homeActiveIndex - 1));
   document.getElementById('homeHotspotNext').addEventListener('click', () => activateHomePanel(homeActiveIndex + 1));
 
-  let drag = false, startX = 0, startScroll = 0;
-  track.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'touch') return;
-    if (closestSafe(e.target, 'button, a, input, textarea, .home-bento-item, .home-list-row, .home-grid-cell')) return;
-    drag = true; startX = e.clientX; startScroll = track.scrollLeft;
-    track.classList.add('dragging');
-    try { track.setPointerCapture(e.pointerId); } catch(err){}
-  });
-  track.addEventListener('pointermove', e => {
-    if (!drag) return;
-    track.scrollLeft = startScroll - (e.clientX - startX);
-  });
-  const endDrag = () => { drag = false; track.classList.remove('dragging'); };
-  track.addEventListener('pointerup', endDrag);
-  track.addEventListener('pointercancel', endDrag);
-
-  let settleTimer = null;
-  track.addEventListener('scroll', () => {
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(() => {
-      const rect = track.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      let best = 0, bestDist = Infinity;
-      Array.from(track.children).forEach((panel, i) => {
-        const r = panel.getBoundingClientRect();
-        const d = Math.abs(r.left + r.width / 2 - cx);
-        if (d < bestDist) { bestDist = d; best = i; }
-      });
-      if (best !== homeActiveIndex) activateHomePanel(best, false);
-    }, 150);
-  }, { passive: true });
+  const cfg = { getActive: () => homeActiveIndex, setActive: setHomeActive };
+  const engine = createCarouselEngine(track, cfg);
+  bindTrackDrag(track, 'button, a, input, textarea, .home-bento-item, .home-list-row, .home-grid-cell', engine, cfg);
 }
 
 function updateHomeHudState() {
@@ -8360,6 +8499,7 @@ function renderTrack() {
   track.innerHTML = '';
   readerCards.forEach((card, i) => track.appendChild(renderReaderCard(card, i, readerCards.length)));
   bindInteractions(track);
+  if (track._carousel) track._carousel.hold();   // a re-centre is coming; don't let a stray scroll event re-route
   updateNavCounter(activeIndex + 1, readerCards.length);
   updateBorderProgress();
 }
@@ -8371,41 +8511,54 @@ function updateNavCounter(c, t) {
   if (tot) tot.textContent = String(t);
 }
 
+function setActivePanel(index) {
+  document.querySelectorAll('.letter-panel').forEach((p, i) => p.classList.toggle('active', i === index));
+  activeIndex = index;
+  updateBorderProgress();
+  updateNavCounter(activeIndex + 1, readerCards.length);
+}
+
+/* Panel changes inside an open reader only need the URL + breadcrumb to follow.
+   They used to go through navigate() → handleRoute() → renderTrack(), which rebuilt
+   every panel (and re-images them) and restarted the scroll after each swipe. */
+function syncReaderRoute(card) {
+  if (!card) return;
+  if (currentRoute.mode === 'profile') {
+    if (profileStack.length) profileStack[profileStack.length - 1].index = activeIndex;
+    return;
+  }
+  if (currentRoute.cardId === ATTENTION_ID) return;
+  if (currentRoute.mode === 'reader' && currentRoute.cardId === card.id) return;
+  const route = { mode: 'reader', cardId: card.id };
+  const hash = routeHash(route);
+  if (hash !== (location.hash || '#/')) { try { history.replaceState(null, '', hash); } catch (e) { } }
+  currentRoute = route;
+  closeContextMenu();
+  closeGalleryContextMenu();
+  closeReaderContextMenu();
+  closeAttentionDropdown();
+  closeLogoCard();
+  updateBreadcrumb();
+  updateMobileBack();
+  updateMobileHud();
+  refreshViewportBlur();
+}
+
 function activatePanel(newIndex, updateHash) {
   if (newIndex < 0) newIndex = readerCards.length - 1;
   if (newIndex >= readerCards.length) newIndex = 0;
   const unchanged = newIndex === activeIndex;
-  const panels = document.querySelectorAll('.letter-panel');
-  panels.forEach(p => p.classList.remove('active'));
-  activeIndex = newIndex;
-  if (panels[activeIndex]) panels[activeIndex].classList.add('active');
+  setActivePanel(newIndex);
   scrollToPanel(activeIndex, !unchanged);
-  updateBorderProgress();
-  updateNavCounter(activeIndex + 1, readerCards.length);
-  if (updateHash !== false && !unchanged) {
-    const card = readerCards[activeIndex];
-    if (card) {
-      if (currentRoute.mode === 'profile') {
-        if (profileStack.length) profileStack[profileStack.length - 1].index = activeIndex;
-      } else if (currentRoute.cardId === ATTENTION_ID) {
-        // stay on attention route
-      } else {
-        navigate({ mode: 'reader', cardId: card.id }, true);
-      }
-    }
-  }
+  if (updateHash !== false && !unchanged) syncReaderRoute(readerCards[activeIndex]);
 }
 
 function scrollToPanel(index, smooth) {
-  const panels = document.querySelectorAll('.letter-panel');
-  const panel = panels[index];
+  const panel = document.querySelectorAll('.letter-panel')[index];
   if (!panel) return;
   const track = document.getElementById('lettersTrack');
   if (!track) return;
-  const trackRect = track.getBoundingClientRect();
-  const panelRect = panel.getBoundingClientRect();
-  const delta = panelRect.left + panelRect.width / 2 - (trackRect.left + trackRect.width / 2);
-  track.scrollTo({ left: track.scrollLeft + delta, behavior: smooth ? 'smooth' : 'auto' });
+  scrollTrackBy(track, trackCenterDelta(track, panel), smooth);
 }
 
 function bindInteractions(container) {
@@ -10863,56 +11016,13 @@ function setupCarousel() {
   document.getElementById('letterHotspotPrev').addEventListener('click', () => activatePanel(activeIndex - 1));
   document.getElementById('letterHotspotNext').addEventListener('click', () => activatePanel(activeIndex + 1));
   const track = document.getElementById('lettersTrack');
-  let isDragging = false, dragStartX = 0, dragStartScroll = 0;
-  track.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'touch') return;
-    if (closestSafe(e.target, 'button, a, input, video, .letter-accordion-trigger, [data-nav-card], .idx-row, .post-gallery-thumbs, .letter-mechanism, .letter-details, .reader-attend-btn, [data-profile-author], [data-profile-back], [data-category-chip], [data-index-filter], [data-collection-mode]')) return;
-    isDragging = true;
-    dragStartX = e.clientX;
-    dragStartScroll = track.scrollLeft;
-    track.classList.add('dragging');
-    try { track.setPointerCapture(e.pointerId); } catch(err){}
-  });
-  track.addEventListener('pointermove', e => {
-    if (!isDragging) return;
-    track.scrollLeft = dragStartScroll - (e.clientX - dragStartX);
-  });
-  const end = () => { isDragging = false; track.classList.remove('dragging'); };
-  track.addEventListener('pointerup', end);
-  track.addEventListener('pointercancel', end);
-  let settleTimer = null;
-  track.addEventListener('scroll', () => {
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(() => {
-      const rect = track.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      let best = 0, bestDist = Infinity;
-      Array.from(track.children).forEach((panel, i) => {
-        const r = panel.getBoundingClientRect();
-        const c = r.left + r.width / 2;
-        const d = Math.abs(c - cx);
-        if (d < bestDist) { bestDist = d; best = i; }
-      });
-      if (best !== activeIndex) {
-        const panels = track.querySelectorAll('.letter-panel');
-        panels.forEach(p => p.classList.remove('active'));
-        activeIndex = best;
-        if (panels[best]) panels[best].classList.add('active');
-        updateBorderProgress();
-        updateNavCounter(activeIndex + 1, readerCards.length);
-        const card = readerCards[activeIndex];
-        if (card) {
-          if (currentRoute.mode === 'profile') {
-            if (profileStack.length) profileStack[profileStack.length - 1].index = activeIndex;
-          } else if (currentRoute.cardId === ATTENTION_ID) {
-            // stay on attention route
-          } else {
-            navigate({ mode: 'reader', cardId: card.id }, true);
-          }
-        }
-      } else updateBorderProgress();
-    }, 150);
-  }, { passive: true });
+  const cfg = {
+    getActive: () => activeIndex,
+    setActive: setActivePanel,
+    commit: i => { const card = readerCards[i]; if (card) syncReaderRoute(card); }
+  };
+  const engine = createCarouselEngine(track, cfg);
+  bindTrackDrag(track, 'button, a, input, video, .letter-accordion-trigger, [data-nav-card], .idx-row, .post-gallery-thumbs, .letter-mechanism, .letter-details, .reader-attend-btn, [data-profile-author], [data-profile-back], [data-category-chip], [data-index-filter], [data-collection-mode]', engine, cfg);
 }
 
 /* ═══════════════════════════════════════════════════════════
