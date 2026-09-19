@@ -367,6 +367,8 @@ body[data-reader="open"]{overflow:hidden}
 .viewport-blur.scrolling{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(10px)}
 .viewport-blur-top{
   top:0;
+  /* always blurred, like the bottom strip (it used to switch on only after scrolling) */
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(10px);
   height:calc(var(--topbar-height) + 44px);
   background:linear-gradient(to bottom,rgba(var(--nav-bg-rgb),.72),rgba(var(--nav-bg-rgb),.28) 55%,rgba(var(--nav-bg-rgb),0));
   mask-image:linear-gradient(to bottom,black 0%,black 55%,transparent 100%);
@@ -422,7 +424,7 @@ body.cursor-chevron-next *{cursor:none !important}
 /* ═══ HOME FRONT PAGE ═══ */
 #homeRoot{
   position:fixed;inset:0;z-index:45;background:var(--bg);
-  overflow:hidden;padding-top:var(--topbar-height);
+  overflow:hidden;
   transition:filter .32s cubic-bezier(.22,1,.36,1);
 }
 body[data-browse="home"] #homeRoot{display:block}
@@ -430,16 +432,24 @@ body[data-browse="home"] #canvasRoot,
 body[data-browse="home"] #galleryRoot{display:none}
 body[data-reader="open"] #homeRoot{filter:blur(3px) saturate(.8);pointer-events:none}
 
-.home-letters-viewport{position:relative;overflow:hidden;width:100%;height:calc(100vh - var(--topbar-height));height:calc(100dvh - var(--topbar-height))}
+.home-letters-viewport{position:relative;overflow:hidden;width:100%;height:100vh;height:100dvh}
+/* Two scrollers, one axis each: this one scrolls up/down, the track inside it slides left/right.
+   (One 2-D scroller let every trackpad swipe drift vertically, and its axis can't be locked safely.) */
+.home-letters-vscroll{
+  height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none;-ms-overflow-style:none;
+}
+.home-letters-vscroll::-webkit-scrollbar{display:none;width:0;height:0}
 .home-letters-track{
   display:flex;align-items:flex-start;gap:24px;
-  padding-top:clamp(12px,3vh,40px);padding-bottom:calc(var(--hud-height) + 60px);
+  /* the track runs full-bleed so letters scroll up under the blurred header (like the reader); the header height is spacing inside it */
+  padding-top:calc(var(--topbar-height) + clamp(12px,3vh,40px));padding-bottom:calc(var(--hud-height) + 60px);
   padding-left:max(4vw,calc(50% - 560px));padding-right:max(4vw,calc(50% - 560px));
-  overflow-x:auto;overflow-y:auto;
+  overflow-x:auto;overflow-y:hidden;
   scroll-snap-type:x mandatory;scroll-behavior:smooth;
   -webkit-overflow-scrolling:touch;
   cursor:grab;user-select:none;box-sizing:border-box;
-  scrollbar-width:none;-ms-overflow-style:none;height:100%;
+  scrollbar-width:none;-ms-overflow-style:none;min-height:100%;
 }
 .home-letters-track::-webkit-scrollbar{display:none;width:0;height:0}
 .home-letters-track.dragging{cursor:grabbing;scroll-snap-type:none;scroll-behavior:auto}
@@ -451,8 +461,10 @@ body[data-reader="open"] #homeRoot{filter:blur(3px) saturate(.8);pointer-events:
   opacity:.35;transition:opacity .3s ease,transform .3s ease;cursor:pointer;
 }
 .home-letter-panel.active{opacity:1;cursor:auto}
-.home-letter-panel.active:hover .home-letter-card-frame{transform:translateY(-2px)}
-.home-letter-panel.active:hover .home-letter-card-frame::after{opacity:1}
+.home-letters-track:not(.is-scrolling) .home-letter-panel.active:hover .home-letter-card-frame{transform:translateY(-2px)}
+.home-letters-track:not(.is-scrolling) .home-letter-panel.active:hover .home-letter-card-frame::after{opacity:1}
+.home-letters-track.is-scrolling .home-letter-card-frame{transition:none}
+.home-letters-track.is-scrolling .home-letter-card-frame::after{transition:none}
 .home-letter-card-frame{
   border:1px solid var(--border);border-radius:var(--radius);
   padding:24px clamp(18px,3vw,36px) 36px;background:var(--card);
@@ -464,6 +476,7 @@ body[data-reader="open"] #homeRoot{filter:blur(3px) saturate(.8);pointer-events:
   opacity:0;transition:opacity .3s ease;
 }
 body.focus-mode .home-letter-card-frame::after{display:none}
+.home-letter-panel.near,.letter-panel.near{will-change:opacity}
 .home-letter-cover{
   display:flex;flex-direction:column;gap:6px;
   padding-bottom:16px;margin-bottom:20px;
@@ -791,7 +804,7 @@ body.focus-mode .breadcrumb-wrap { display:none !important; }
 
 body.focus-mode #homeRoot { padding-top:0; }
 body.focus-mode .home-letters-track {
-  padding:0; cursor:auto; scroll-snap-type:none; overflow-x:hidden; overflow-y:auto;
+  padding:0; cursor:auto; scroll-snap-type:none; overflow:hidden;
 }
 body.focus-mode .home-letter-panel:not(.active) { display:none; }
 body.focus-mode .home-letter-panel.active {
@@ -2890,7 +2903,9 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
 <!-- ═══ HOME (front page / social surface) ═══ -->
 <div id="homeRoot">
   <div class="home-letters-viewport">
-    <div class="home-letters-track" id="homeLettersTrack"></div>
+    <div class="home-letters-vscroll" id="homeVScroll">
+      <div class="home-letters-track" id="homeLettersTrack"></div>
+    </div>
     <div class="home-letter-hotspot home-letter-hotspot-prev" id="homeHotspotPrev" aria-hidden="true">
       <span class="hotspot-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>
     </div>
@@ -6726,7 +6741,7 @@ function getHomeLetterCards(clusterId) {
 
 function renderHomeLetterPanel(spec, index) {
   const panel = document.createElement('div');
-  panel.className = 'home-letter-panel' + (index === homeActiveIndex ? ' active' : '');
+  panel.className = 'home-letter-panel' + (index === homeActiveIndex ? ' active' : '') + (Math.abs(index - homeActiveIndex) <= 1 ? ' near' : '');
   panel.dataset.index = String(index);
   panel.dataset.clusterId = spec.clusterId;
 
@@ -6893,7 +6908,10 @@ function renderHomeView() {
 }
 
 function setHomeActive(index) {
-  document.querySelectorAll('.home-letter-panel').forEach((p, i) => p.classList.toggle('active', i === index));
+  document.querySelectorAll('.home-letter-panel').forEach((p, i) => {
+    p.classList.toggle('active', i === index);
+    p.classList.toggle('near', Math.abs(i - index) <= 1);
+  });
   homeActiveIndex = index;
   updateBorderProgress();
 }
@@ -6943,31 +6961,41 @@ function nearestPanelIndex(track, from, span) {
   return best;
 }
 
-/* Programmatic moves ease; jumps across the whole strip (wrap-around, re-centering
-   after a re-render) are instant. 'instant' is explicit on purpose: 'auto' inherits
-   the CSS scroll-behavior:smooth and would fly through every panel on open. */
+/* Programmatic moves ease; re-centring (open, re-render) is instant. 'instant' is
+   explicit on purpose: 'auto' inherits the CSS scroll-behavior:smooth and would fly
+   through every panel on open. */
 function scrollTrackBy(track, delta, smooth) {
-  const animate = smooth && Math.abs(delta) <= track.clientWidth * 3;
-  if (animate && track._carousel) track._carousel.expect(delta);
+  const eng = track._carousel;
+  // A jump across many panels (first↔last, "title card") would fly past every panel and rasterise each one on the way.
+  // Jump instead — but only from rest: an instant scroll during a running eased one leaves Chrome finishing the old animation.
+  const animate = smooth && (Math.abs(delta) <= track.clientWidth * 2 || (eng && eng.moving()));
+  if (animate && eng) eng.expect(delta);
   track.scrollTo({ left: track.scrollLeft + delta, behavior: animate ? 'smooth' : 'instant' });
 }
 
 function createCarouselEngine(track, cfg) {
-  let programmatic = false, rafId = 0, settleTimer = 0, guardTimer = 0;
+  let programmatic = false, targetLeft = null, rafId = 0, settleTimer = 0, guardTimer = 0;
   let afterSettle = [];
 
+  function begin(target) {
+    programmatic = true;
+    targetLeft = target;
+    clearTimeout(guardTimer);
+    guardTimer = setTimeout(() => { programmatic = false; targetLeft = null; settle(); }, 1600);
+  }
+
   const engine = {
-    expect(distance) {
+    expect(distance) {                       // an eased move to (scrollLeft + distance) is starting
       if (Math.abs(distance) < 1) return;
-      engine.hold();
+      const max = Math.max(0, track.scrollWidth - track.clientWidth);
+      begin(Math.min(Math.max(track.scrollLeft + distance, 0), max));
     },
-    hold() {
-      programmatic = true;
-      clearTimeout(guardTimer);
-      guardTimer = setTimeout(() => { programmatic = false; }, 1600);
-    },
+    hold() { begin(null); },                 // a re-centre is coming; nothing may re-route until it lands
+    moving() { return programmatic && targetLeft != null; },   // an eased move is in flight (not merely held)
     afterSettle(fn) { afterSettle.push(fn); }
   };
+
+  let scrolling = false;
 
   function frame() {
     rafId = 0;
@@ -6978,9 +7006,17 @@ function createCarouselEngine(track, cfg) {
   }
 
   function settle() {
+    clearTimeout(settleTimer);
+    // A long frame can leave >120ms between scroll events mid-flight; that isn't "landed".
+    if (programmatic && (targetLeft == null || Math.abs(track.scrollLeft - targetLeft) > 40)) {
+      settleTimer = setTimeout(settle, 120);
+      return;
+    }
     const wasProgrammatic = programmatic;
     programmatic = false;
+    targetLeft = null;
     clearTimeout(guardTimer);
+    if (scrolling) { scrolling = false; track.classList.remove('is-scrolling'); }
     if (!wasProgrammatic) {
       const cur = cfg.getActive();
       const best = nearestPanelIndex(track, cur);
@@ -6993,13 +7029,39 @@ function createCarouselEngine(track, cfg) {
   }
 
   track.addEventListener('scroll', () => {
+    if (!scrolling) { scrolling = true; track.classList.add('is-scrolling'); }
     if (!rafId) rafId = requestAnimationFrame(frame);
     clearTimeout(settleTimer);
     settleTimer = setTimeout(settle, 120);
   }, { passive: true });
 
+  // Axis lock: a horizontal swipe on a trackpad always carries a little vertical drift, which
+  // used to nudge the letter up and down while it slid. The first few px of a gesture pick the
+  // axis; the other one is switched off until the gesture has been idle for a moment.
+  const vScroller = cfg.vScroller || track;
+  let lockMode = null, lockTimer = 0, accX = 0, accY = 0;
+  function unlockAxis() {
+    lockMode = null; accX = accY = 0;
+    track.style.overflowX = '';
+    vScroller.style.overflowY = '';
+  }
+  track.addEventListener('wheel', e => {
+    if (e.ctrlKey) return;                                  // pinch-zoom
+    clearTimeout(lockTimer);
+    lockTimer = setTimeout(unlockAxis, 160);
+    if (lockMode) return;
+    accX += Math.abs(e.deltaX); accY += Math.abs(e.deltaY);
+    if (accX + accY < 6) return;
+    if (accX > accY * 1.2) { lockMode = 'x'; vScroller.style.overflowY = 'hidden'; }
+    else if (accY > accX * 1.2) {
+      lockMode = 'y';
+      // never restyle the element that is itself doing the vertical scroll mid-gesture (Home): it drops the gesture
+      if (vScroller !== track) track.style.overflowX = 'hidden';
+    }
+  }, { passive: true });
+
   // the person taking over always wins over an in-flight programmatic move
-  const takeover = () => { programmatic = false; };
+  const takeover = () => { programmatic = false; targetLeft = null; };
   track.addEventListener('wheel', takeover, { passive: true });
   track.addEventListener('touchstart', takeover, { passive: true });
   track.addEventListener('pointerdown', takeover, { passive: true });
@@ -7083,7 +7145,7 @@ function setupHomeCarousel() {
   document.getElementById('homeHotspotPrev').addEventListener('click', () => activateHomePanel(homeActiveIndex - 1));
   document.getElementById('homeHotspotNext').addEventListener('click', () => activateHomePanel(homeActiveIndex + 1));
 
-  const cfg = { getActive: () => homeActiveIndex, setActive: setHomeActive };
+  const cfg = { getActive: () => homeActiveIndex, setActive: setHomeActive, vScroller: document.getElementById('homeVScroll') };
   const engine = createCarouselEngine(track, cfg);
   bindTrackDrag(track, 'button, a, input, textarea, .home-bento-item, .home-list-row, .home-grid-cell', engine, cfg);
 }
@@ -8304,7 +8366,7 @@ function wireDetailsBlocks(container) {
 
 function renderReaderCard(card, index, total) {
   const panel = document.createElement('div');
-  panel.className = 'letter-panel' + (index === activeIndex ? ' active' : '');
+  panel.className = 'letter-panel' + (index === activeIndex ? ' active' : '') + (Math.abs(index - activeIndex) <= 1 ? ' near' : '');
   panel.dataset.index = String(index);
   panel.dataset.cardId = card.id;
   panel.dataset.type = card.type;
@@ -8512,7 +8574,10 @@ function updateNavCounter(c, t) {
 }
 
 function setActivePanel(index) {
-  document.querySelectorAll('.letter-panel').forEach((p, i) => p.classList.toggle('active', i === index));
+  document.querySelectorAll('.letter-panel').forEach((p, i) => {
+    p.classList.toggle('active', i === index);
+    p.classList.toggle('near', Math.abs(i - index) <= 1);
+  });
   activeIndex = index;
   updateBorderProgress();
   updateNavCounter(activeIndex + 1, readerCards.length);
@@ -10810,7 +10875,7 @@ function getActiveViewportScroller() {
     return document.getElementById('grid-scroll');
   }
   if (browseMode === 'home') {
-    return document.getElementById('homeLettersTrack');
+    return document.getElementById('homeVScroll');
   }
   if (canvasLayout === 'list') return document.getElementById('canvasListWrap');
   return null;
@@ -10841,7 +10906,7 @@ function setupViewportBlur() {
   }
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
-  ['canvasListWrap', 'list-wrap', 'grid-scroll', 'carouselWrap', 'homeLettersTrack'].forEach(id => {
+  ['canvasListWrap', 'list-wrap', 'grid-scroll', 'carouselWrap', 'homeVScroll'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('scroll', onScroll, { passive: true });
   });
@@ -11019,7 +11084,8 @@ function setupCarousel() {
   const cfg = {
     getActive: () => activeIndex,
     setActive: setActivePanel,
-    commit: i => { const card = readerCards[i]; if (card) syncReaderRoute(card); }
+    commit: i => { const card = readerCards[i]; if (card) syncReaderRoute(card); },
+    vScroller: document.getElementById('carouselWrap')
   };
   const engine = createCarouselEngine(track, cfg);
   bindTrackDrag(track, 'button, a, input, video, .letter-accordion-trigger, [data-nav-card], .idx-row, .post-gallery-thumbs, .letter-mechanism, .letter-details, .reader-attend-btn, [data-profile-author], [data-profile-back], [data-category-chip], [data-index-filter], [data-collection-mode]', engine, cfg);
