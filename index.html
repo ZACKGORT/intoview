@@ -367,7 +367,6 @@ body[data-reader="open"]{overflow:hidden}
 .viewport-blur.scrolling{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(10px)}
 .viewport-blur-top{
   top:0;
-  /* always blurred, like the bottom strip (it used to switch on only after scrolling) */
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(10px);
   height:calc(var(--topbar-height) + 44px);
   background:linear-gradient(to bottom,rgba(var(--nav-bg-rgb),.72),rgba(var(--nav-bg-rgb),.28) 55%,rgba(var(--nav-bg-rgb),0));
@@ -433,8 +432,6 @@ body[data-browse="home"] #galleryRoot{display:none}
 body[data-reader="open"] #homeRoot{filter:blur(3px) saturate(.8);pointer-events:none}
 
 .home-letters-viewport{position:relative;overflow:hidden;width:100%;height:100vh;height:100dvh}
-/* Two scrollers, one axis each: this one scrolls up/down, the track inside it slides left/right.
-   (One 2-D scroller let every trackpad swipe drift vertically, and its axis can't be locked safely.) */
 .home-letters-vscroll{
   height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
   scrollbar-width:none;-ms-overflow-style:none;
@@ -442,7 +439,6 @@ body[data-reader="open"] #homeRoot{filter:blur(3px) saturate(.8);pointer-events:
 .home-letters-vscroll::-webkit-scrollbar{display:none;width:0;height:0}
 .home-letters-track{
   display:flex;align-items:flex-start;gap:24px;
-  /* the track runs full-bleed so letters scroll up under the blurred header (like the reader); the header height is spacing inside it */
   padding-top:calc(var(--topbar-height) + clamp(12px,3vh,40px));padding-bottom:calc(var(--hud-height) + 60px);
   padding-left:max(4vw,calc(50% - 560px));padding-right:max(4vw,calc(50% - 560px));
   overflow-x:auto;overflow-y:hidden;
@@ -976,7 +972,7 @@ body.focus-mode .focus-exit-btn { display:flex; }
 }
 .rapid-respond .rapid-chips .chip:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 
-/* ═══ THEME TOGGLE (single action, light ⇄ dark) ═══ */
+/* ═══ THEME TOGGLE ═══ */
 .theme-toggle{min-width:32px;padding:4px 9px}
 .theme-toggle svg{width:14px;height:14px;display:block;transition:transform .35s cubic-bezier(.22,1,.36,1)}
 [data-theme='light'] .theme-toggle svg{transform:rotate(180deg)}
@@ -1042,6 +1038,8 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 .prov-card-status[data-status="draft"]{color:var(--ink-light);border-style:dashed}
 .prov-card-status[data-status="archived"]{color:var(--ink-lighter)}
 .prov-card-status[data-status="held"]{color:var(--accent);border-color:var(--accent)}
+.prov-card-status[data-status="cancelled"]{color:var(--impact-loss)}
+.prov-card-status[data-status="filled"]{color:var(--impact-gain)}
 .prov-card-title{font-family:var(--font);font-size:17px;font-weight:700;letter-spacing:-.01em;line-height:1.2;color:var(--ink);margin:0}
 .prov-card-deck{font-size:12.5px;line-height:1.5;color:var(--ink-mid);margin:0;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 .prov-card-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:12px;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-light)}
@@ -1169,6 +1167,8 @@ body.has-focus .canvas-node.is-focused{z-index:200 !important}
 .index-status[data-status="draft"]{color:var(--ink-light);border-style:dashed}
 .index-status[data-status="archived"]{color:var(--ink-lighter)}
 .index-status[data-status="held"]{color:var(--accent);border-color:var(--accent)}
+.index-status[data-status="cancelled"]{color:var(--impact-loss)}
+.index-status[data-status="filled"]{color:var(--impact-gain)}
 
 .cluster-stack{display:flex;align-items:flex-start;gap:24px;position:relative}
 .cluster-stack[data-expanded="true"]{padding-bottom:40px}
@@ -1686,6 +1686,8 @@ a.index-letter-footer:hover{color:rgba(255,255,255,.75)}
 .letter-provenance-status[data-status="contested"]{color:var(--impact-loss)}
 .letter-provenance-status[data-status="draft"]{color:var(--ink-light);border-style:dashed}
 .letter-provenance-status[data-status="revised"]{color:var(--impact-accent)}
+.letter-provenance-status[data-status="cancelled"]{color:var(--impact-loss)}
+.letter-provenance-status[data-status="filled"]{color:var(--impact-gain)}
 
 .letter-provenance-voice{
   display:inline-flex;align-items:center;gap:4px;
@@ -1800,6 +1802,8 @@ a.index-letter-footer:hover{color:rgba(255,255,255,.75)}
 .letter-bento-status[data-status="contested"]{color:var(--impact-loss)}
 .letter-bento-status[data-status="draft"]    {color:var(--ink-light);border-style:dashed}
 .letter-bento-status[data-status="archived"] {color:var(--ink-lighter)}
+.letter-bento-status[data-status="cancelled"]{color:var(--impact-loss)}
+.letter-bento-status[data-status="filled"]   {color:var(--impact-gain)}
 
 .letter-bento-cell.letter-bento-media{
   padding:0;
@@ -3365,10 +3369,6 @@ const CATEGORIES_DEFAULT = ['record', 'hiring', 'otw', 'potluck'];
 const FILTERABLE_CATEGORIES = ['record', 'hiring', 'otw', 'potluck'];
 const CATEGORY_LABELS = { record: 'The Record', hiring: 'Hiring', otw: 'Open to Work', potluck: 'Potluck' };
 
-/* Packaging clusters — the five collection letters that get list/grid/bento
-   both on the Home social surface and inside the reader when opened as a
-   cluster letter. Distinct from FILTERABLE_CATEGORIES (which drives the
-   canvas category filter chips). Network is packaging-only. */
 const PACKAGING_CLUSTER_IDS = ['record', 'otw', 'hiring', 'network', 'potluck'];
 function isPackagingCluster(id) {
   return PACKAGING_CLUSTER_IDS.includes(id);
@@ -3455,6 +3455,7 @@ const AUTHOR_PHOTOS = {
   'Ben Carter': AVIF('photo-1500648767791-00dcc994a43e'),
   'Chloe Kim': AVIF('photo-1531123897727-8f129e1688ce'),
   'David Okafor': AVIF('photo-1519345182560-3f2917c472ef'),
+  'David Osei': AVIF('photo-1519345182560-3f2917c472ef'),
   'Hannah Lindgren': AVIF('photo-1487412720507-e7ab37603c6f'),
   'Marcus Williams': AVIF('photo-1507003211169-0a1dd7228f2d'),
   'Sam Rivers': AVIF('photo-1560250097-0b93528c311a'),
@@ -3467,48 +3468,87 @@ const AUTHOR_PHOTOS = {
   'Kevin Zhang': AVIF('photo-1519085360753-af0119f7cbe7'),
   'Amara Diallo': AVIF('photo-1573496359142-b8d87734a5a2'),
   'Fatima Al-Rashid': AVIF('photo-1594744803329-e58b31de8bf5'),
-  'Felix Hoffmann': AVIF('photo-1500648767791-00dcc994a43e')
+  'Felix Hoffmann': AVIF('photo-1500648767791-00dcc994a43e'),
+  'Naomi Feld': AVIF('photo-1573497019940-1c28c88b4f3e'),
+  'Lena Kowalski': AVIF('photo-1573496359142-b8d87734a5a2'),
+  'Zara Patel': AVIF('photo-1580489944761-15a19d654956'),
+  'Theo Okafor': AVIF('photo-1507003211169-0a1dd7228f2d'),
+  'Marguerite Voss': AVIF('photo-1502767089025-6572583495f9'),
+  'Han Wang': AVIF('photo-1519085360753-af0119f7cbe7'),
+  'Jake Harber': AVIF('photo-1560250097-0b93528c311a'),
+  'Yuki Tanaka': AVIF('photo-1502823403499-6ccfcf4fb453'),
+  'Omar Hassan': AVIF('photo-1500648767791-00dcc994a43e'),
+  'Isabelle Fontaine': AVIF('photo-1487412720507-e7ab37603c6f'),
+  'Alexei Fedorov': AVIF('photo-1568602471122-7832951cc4c5'),
+  'Niels Revers': AVIF('photo-1472099645785-5658abf4ff4e'),
+  'Paul Ryding': AVIF('photo-1507003211169-0a1dd7228f2d'),
+  'Dan Haynes': AVIF('photo-1519085360753-af0119f7cbe7'),
+  'Felipe Linares': AVIF('photo-1560250097-0b93528c311a'),
+  'Avinash Kaushik': AVIF('photo-1500648767791-00dcc994a43e'),
+  'Rory Donnelly': AVIF('photo-1472099645785-5658abf4ff4e'),
+  'Gifford Thomas': AVIF('photo-1507003211169-0a1dd7228f2d'),
+  'Nicolas Castro': AVIF('photo-1568602471122-7832951cc4c5'),
+  'Daniel Roos': AVIF('photo-1519085360753-af0119f7cbe7'),
+  'Mira Solberg': AVIF('photo-1487412720507-e7ab37603c6f'),
+  'Devin Marsh': AVIF('photo-1500648767791-00dcc994a43e'),
+  'Oscar Lindgren': AVIF('photo-1472099645785-5658abf4ff4e'),
+  'Mei Lin': AVIF('photo-1494790108377-be9c29b29330'),
+  'Ruby Nakamura': AVIF('photo-1573497019940-1c28c88b4f3e'),
+  'Jake Torres': AVIF('photo-1507003211169-0a1dd7228f2d'),
+  'Lena Kowalski': AVIF('photo-1573496359142-b8d87734a5a2'),
+  'Victor Reyes': AVIF('photo-1568602471122-7832951cc4c5'),
+  'Lucas Moreau': AVIF('photo-1472099645785-5658abf4ff4e'),
+  'Steven V.': AVIF('photo-1519085360753-af0119f7cbe7'),
+  'Omar Hassan': AVIF('photo-1500648767791-00dcc994a43e'),
+  'James Park': AVIF('photo-1560250097-0b93528c311a')
 };
 
 const STATEMENT_PHOTOS = {
   'manifesto/permanence': AVIF('photo-1455390582262-044cdead277a', 1200, 800),
   'manifesto/sixty-seconds': AVIF('photo-1495364141860-b0d03eccd065', 1200, 800),
   'manifesto/window-mock': AVIF('photo-1506784983877-45594efa4cbe', 1200, 800),
-  'record/feature-nobody-asked': AVIF('photo-1552664730-d307ca884978', 1200, 800),
+  'manifesto/correction': AVIF('photo-1454165804606-c3d57bc86b40', 1200, 800),
+  'manifesto/cancellation': AVIF('photo-1521737604893-d14cc237f11d', 1200, 800),
+  'record/spreadsheet-40m': AVIF('photo-1460925895917-afdab827c52f', 1200, 800),
+  'record/spreadsheet-40m-errata': AVIF('photo-1554224155-6726b3ff858f', 1200, 800),
+  'record/kubernetes-not-answer': AVIF('photo-1667372393119-3d4c48d07fc9', 1200, 800),
+  'record/kubernetes-wrong': AVIF('photo-1558494949-ef010cbdcc31', 1200, 800),
+  'record/fired-best-engineer': AVIF('photo-1521737711867-e3b97375f902', 1200, 800),
+  'record/fired-best-engineer-year': AVIF('photo-1552664730-d307ca884978', 1200, 800),
+  'record/two-fridays': AVIF('photo-1521737604893-d14cc237f11d', 1200, 800),
+  'record/two-fridays-correction': AVIF('photo-1454165804606-c3d57bc86b40', 1200, 800),
+  'record/almost-filed': AVIF('photo-1506784983877-45594efa4cbe', 1200, 800),
+  'record/filed-angry': AVIF('photo-1499750310107-5fef28a66643', 1200, 800),
+  'record/what-i-wish-i-said': AVIF('photo-1519389950473-47ba0277781c', 1200, 800),
+  'record/trojan-reel': AVIF('photo-1522869635100-9f4c5e86aa37', 1200, 800),
+  'record/handwritten-offer': AVIF('photo-1516321318423-f06f85e504b3', 1200, 800),
+  'record/ten-minute-note': AVIF('photo-1455390582262-044cdead277a', 1200, 800),
   'record/oncall-design': AVIF('photo-1558494949-ef010cbdcc31', 1200, 800),
   'record/design-system-wrong': AVIF('photo-1561070791-2526d30994b5', 1200, 800),
-  'record/series-a-honest': AVIF('photo-1556761175-5973dc0f32e7', 1200, 800),
-  'record/candidates-want-know': AVIF('photo-1521737604893-d14cc237f11d', 1200, 800),
-  'record/spreadsheet-40m': AVIF('photo-1460925895917-afdab827c52f', 1200, 800),
-  'record/ab-tests-lying': AVIF('photo-1543286386-713bdd548da4', 1200, 800),
-  'record/failed-experiments': AVIF('photo-1532187863486-abf9dbad1b69', 1200, 800),
+  'record/churn-call': AVIF('photo-1552664730-d307ca884978', 1200, 800),
   'record/excited-to-announce': AVIF('photo-1499750310107-5fef28a66643', 1200, 800),
-  'record/fired-best-engineer': AVIF('photo-1521737711867-e3b97375f902', 1200, 800),
-  'record/kubernetes-not-answer': AVIF('photo-1667372393119-3d4c48d07fc9', 1200, 800),
   'record/launch-flopped': AVIF('photo-1552664730-d307ca884978', 1200, 800),
-  'record/deleted-40k-lines': AVIF('photo-1555949963-ff9fe0c870eb', 1200, 800),
-  'record/users-scan': AVIF('photo-1486312338219-ce68d2c6f44d', 1200, 800),
-  'record/css-outlives-me': AVIF('photo-1547658719-da2b51169166', 1200, 800),
+  'record/failed-experiments': AVIF('photo-1532187863486-abf9dbad1b69', 1200, 800),
+  'record/deleted-40k': AVIF('photo-1555949963-ff9fe0c870eb', 1200, 800),
   'record/no-annual-reviews': AVIF('photo-1454165804606-c3d57bc86b40', 1200, 800),
-  'record/docs-not-graveyard': AVIF('photo-1516321318423-f06f85e504b3', 1200, 800),
-  'record/churn-conversation': AVIF('photo-1552664730-d307ca884978', 1200, 800),
-  'record/trojan-reel': AVIF('photo-1522869635100-9f4c5e86aa37', 1200, 800),
-  'record/two-fridays': AVIF('photo-1521737711867-e3b97375f902', 1200, 800),
-  'record/slop-button': AVIF('photo-1535223289827-42f1e9919769', 1200, 800),
-  'record/brand-ai-box': AVIF('photo-1607083206968-13611e3d76db', 1200, 800),
-  'record/forty-options-taste': AVIF('photo-1561070791-2526d30994b5', 1200, 800),
-  'record/one-sku': AVIF('photo-1563013544-824ae1b704d3', 1200, 800),
-  'record/handwritten-offer': AVIF('photo-1516321318423-f06f85e504b3', 1200, 800),
-  'record/density-of-talent': AVIF('photo-1522071820081-009f0129c71c', 1200, 800),
-  'record/buttons-age-ai': AVIF('photo-1552519507-da3b142c6e3d', 1200, 800),
-  'record/artificial-harmony': AVIF('photo-1519389950473-47ba0277781c', 1200, 800),
   'record/solo-event-rig': AVIF('photo-1536240478700-b869070f9279', 1200, 800),
   'record/vanna-position': AVIF('photo-1590283603385-17ffb3a7f29f', 1200, 800),
+  'record/one-sku': AVIF('photo-1563013544-824ae1b704d3', 1200, 800),
+  'record/slop-button': AVIF('photo-1535223289827-42f1e9919769', 1200, 800),
+  'record/brand-ai-box': AVIF('photo-1607083206968-13611e3d76db', 1200, 800),
+  'record/claude-cant-replace': AVIF('photo-1561070791-2526d30994b5', 1200, 800),
+  'record/forty-options': AVIF('photo-1561070791-2526d30994b5', 1200, 800),
+  'record/buttons-age-ai': AVIF('photo-1552519507-da3b142c6e3d', 1200, 800),
+  'record/density-of-talent': AVIF('photo-1522071820081-009f0129c71c', 1200, 800),
+  'record/artificial-harmony': AVIF('photo-1519389950473-47ba0277781c', 1200, 800),
   'otw/hannah-design': AVIF('photo-1558655146-d09347e92766', 1200, 800),
   'otw/kevin-laid-off': AVIF('photo-1499750310107-5fef28a66643', 1200, 800),
+  'otw/kevin-hired': AVIF('photo-1552664730-d307ca884978', 1200, 800),
   'otw/ariel-senior': AVIF('photo-1542744173-8e7e53415bb0', 1200, 800),
   'hiring/almanac-ops': AVIF('photo-1586528116311-ad8dd3c8310d', 1200, 800),
+  'hiring/almanac-ops-cancelled': AVIF('photo-1454165804606-c3d57bc86b40', 1200, 800),
   'hiring/vesper-firmware': AVIF('photo-1563207153-f403bf289096', 1200, 800),
+  'hiring/vesper-firmware-filled': AVIF('photo-1552664730-d307ca884978', 1200, 800),
   'hiring/meridian-research': AVIF('photo-1532187863486-abf9dbad1b69', 1200, 800),
   'hiring/bluepoint-design': AVIF('photo-1542744173-8e7e53415bb0', 1200, 800),
   'hiring/kestrel-security': AVIF('photo-1550751827-4bd374c3f58b', 1200, 800),
@@ -3540,37 +3580,31 @@ const DETAIL_GALLERIES = {
     AVIF('photo-1532187863486-abf9dbad1b69', 600, 450),
     AVIF('photo-1576091160399-112ba8d25d1d', 600, 450),
     AVIF('photo-1582719508461-905c673771fd', 600, 450)
-  ],
-  'hiring/bluepoint-design': [
-    AVIF('photo-1542744173-8e7e53415bb0', 600, 450),
-    AVIF('photo-1558655146-d09347e92766', 600, 450),
-    AVIF('photo-1561070791-2526d30994b5', 600, 450)
-  ],
-  'hiring/kestrel-security': [
-    AVIF('photo-1550751827-4bd374c3f58b', 600, 450),
-    AVIF('photo-1555949963-ff9fe0c870eb', 600, 450),
-    AVIF('photo-1526374965328-7f61d4dc18c5', 600, 450)
-  ],
-  'hiring/waypoint-backend': [
-    AVIF('photo-1494412574643-ff11b0a5c1c3', 600, 450),
-    AVIF('photo-1451187580459-43490279c0fa', 600, 450),
-    AVIF('photo-1558494949-ef010cbdcc31', 600, 450)
-  ],
-  'hiring/fearless-principal': [
-    AVIF('photo-1522071820081-009f0129c71c', 600, 450),
-    AVIF('photo-1454165804606-c3d57bc86b40', 600, 450),
-    AVIF('photo-1552664730-d307ca884978', 600, 450)
   ]
 };
 
 const CLUSTER_SPECS = [
-  { id:'manifesto', num:'01', title:'Manifesto', deck:'Why this exists, what we believe, and the constraints we chose on purpose.', provenance:{ author:'Maya Okonkwo', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'record', num:'02', title:'The Record', deck:'Every statement that has cleared the edit window, in order, unchangeable.', provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'otw', num:'03', title:'Open to Work', deck:'People who are actively looking. No green banner required.', provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'hiring', num:'04', title:'Hiring', deck:'Open roles, with honest briefs attached and salaries posted.', provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'archive', num:'05', title:'Archive', deck:'Older statements, kept for the record. Nothing curated after the fact.', provenance:{ author:'Various', date:'2024 - 2025', source:'intoview.pro', status:'archived' } },
-  { id:'network', num:'06', title:'Network', deck:'People and companies whose records intersect with this one.', provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } },
-  { id:'potluck', num:'07', title:'Potluck', deck:'General posts. Conversations, observations, the social surface that reads from the record.', provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } }
+  { id:'manifesto', num:'01', title:'Manifesto',
+    deck:'Why this exists. The constraints we chose on purpose, and what happens when we break them.',
+    provenance:{ author:'Maya Okonkwo', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'record', num:'02', title:'The Record',
+    deck:'Everything filed in the last thirty days. Nothing edited, nothing deleted, nothing curated.',
+    provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'otw', num:'03', title:'Open to Work',
+    deck:'People looking. Short notes, filed in their own words, still standing when the role changes.',
+    provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'hiring', num:'04', title:'Hiring',
+    deck:'Open roles with posted ranges, named interviewers, and a process that ends in a written answer either way.',
+    provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'archive', num:'05', title:'Archive',
+    deck:'Older statements, kept. The record does not get cleaner with age.',
+    provenance:{ author:'Various', date:'2024 - 2025', source:'intoview.pro', status:'archived' } },
+  { id:'network', num:'06', title:'Network',
+    deck:'People and companies whose records intersect with this one.',
+    provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } },
+  { id:'potluck', num:'07', title:'Potluck',
+    deck:'Smaller notes. The parts of a record that don\'t fit a section.',
+    provenance:{ author:'Various', date:'2026', source:'intoview.pro', status:'published' } }
 ];
 
 const EDITORIAL_SPECS = [
@@ -3580,34 +3614,50 @@ const EDITORIAL_SPECS = [
     provenance:{ author:'Maya Okonkwo', date:'2026-01-04', source:'intoview.pro / manifesto', status:'published' },
     relationships:{ references:[], replies:['manifesto/permanence-r1','manifesto/permanence-r2','manifesto/permanence-r3'], updates:[] },
     bodyParas:[
-      'LinkedIn lets you delete the post where you said you would never work in tech. Twitter lets you delete the tweet that aged badly. We do not.',
-      'The professional record should work like a publication, not a conversation. When you file something here, it is filed. You can correct it - a new statement, dated and linked, saying plainly what changed and why. You cannot rewrite it.',
+      'LinkedIn lets you delete the post where you said you would never work in tech. Twitter lets you delete the tweet that aged badly. The professional world runs on the assumption that the record is editable — that the gap between what you said and what you meant is a feature, not a bug.',
+      'We think that is backwards.',
+      'A professional record should work like a publication, not a conversation. When you file something here, it is filed. You can correct it — a new statement, dated and linked, saying plainly what changed and why. You cannot rewrite it. You cannot delete it. You cannot wait until the moment passes.',
+      'The edit window is sixty seconds. Not ninety. Not five. Sixty is long enough to catch a typo, long enough to reread a sentence and flinch. It is not long enough to sit with the statement long enough to perform. The delete button exists. It just stops existing before the statement becomes canon.',
       'This is not a feature. It is the whole product.'
     ] },
-  { id:'manifesto/say-the-thing', clusterId:'manifesto', type:'statement', format:'editorial',
-    title:'Say the Thing',
-    deck:'On layoffs, restructuring, and the slow death of plain language in professional communication.',
-    provenance:{ author:'Maya Okonkwo', date:'2026-01-11', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/permanence'], replies:['manifesto/say-the-thing-r1','manifesto/say-the-thing-r2'], updates:[] },
-    bodyParas:[
-      'We have built a platform where "excited to announce" is a firing offense.',
-      'Not literally. But the culture we are trying to build is one where you say what you mean. Where a layoff is a layoff, not a restructuring opportunity. Where a product launch is "we shipped this" and not "we are thrilled to share."',
-      'The professional world has a language problem. We are trying to fix it, one statement at a time.'
-    ] },
   { id:'manifesto/sixty-seconds', clusterId:'manifesto', type:'statement', format:'editorial',
-    title:'Sixty Seconds Is Enough',
-    deck:'One minute. Edit it, or kill it. After that it is filed, and filing is permanent.',
-    provenance:{ author:'Maya Okonkwo', date:'2026-01-18', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/permanence','manifesto/say-the-thing'], replies:['manifesto/sixty-seconds-r1'], updates:[] },
+    title:'What Sixty Seconds Is For',
+    deck:'The window is not a courtesy. It is a constraint we chose, and we chose it because the alternative — an editable record — is not a record at all.',
+    provenance:{ author:'Maya Okonkwo', date:'2026-01-11', source:'intoview.pro / manifesto', status:'published' },
+    relationships:{ references:['manifesto/permanence'], replies:['manifesto/sixty-seconds-r1','manifesto/sixty-seconds-r2'], updates:[] },
     bodyParas:[
-      'Every statement gets one minute. Not ninety seconds, not five. Inside that minute you can do two things: edit the text, or abandon the statement entirely before it ever reaches the record.',
-      'We picked sixty seconds because it is long enough to catch a typo, long enough to reread a sentence and flinch, and short enough that you cannot sit with it long enough to start performing. The delete button exists. It just stops existing before the statement becomes canon.',
-      'We did not want a platform where you can quietly remove something two years later. We wanted one where keeping a statement is a choice you actually made, at a moment you can point to.'
+      'The sixty-second window is not a courtesy. It is a constraint we chose, and we chose it because the alternative — an editable record — is not a record at all.',
+      'Inside the window, you can edit or you can abandon. Editing does not reset the clock. There is no draft mode, no scheduled publish, no post-later. If you do nothing, at zero the statement files itself, and the controls disappear.',
+      'We picked sixty seconds because it is the shortest interval that still allows a second thought. Anything shorter and you are just posting. Anything longer and you are drafting. Sixty seconds is the gap between a private thought and a filed statement. It is the only window you get.',
+      'We are not asking you to be certain. We are asking you to be on the record.'
+    ] },
+  { id:'manifesto/correction', clusterId:'manifesto', type:'statement', format:'editorial',
+    title:'How to Correct the Record',
+    deck:'You will get things wrong. We expect it. The record assumes it. The correction is first-class.',
+    provenance:{ author:'Maya Okonkwo', date:'2026-01-18', source:'intoview.pro / manifesto', status:'published' },
+    relationships:{ references:['manifesto/permanence','manifesto/sixty-seconds'], replies:['manifesto/correction-r1','manifesto/correction-r2','manifesto/correction-r3'], updates:[] },
+    bodyParas:[
+      'You will get things wrong. We expect it. The record assumes it.',
+      'When you do, you file a correction. A new statement, dated, attributed, linked to the original. It carries the same weight as the thing it corrects. It sits beside it in the record. It does not replace it.',
+      'This is how errata works in publishing. This is how retractions work in science. This is how commits work in software. The mistake stays visible. The correction is first-class. The trail is the product.',
+      'A record that can be quietly edited is not a record. A record that can only be appended to is.',
+      'We built this so the correction is not an act of shame. It is an act of maintenance. The record is only as good as its willingness to be corrected in public.'
+    ] },
+  { id:'manifesto/cancellation', clusterId:'manifesto', type:'statement', format:'editorial',
+    title:'Why We Cancel',
+    deck:'Every listing on this platform ends. Filled. Cancelled. Paused. Archived. Each ending is a filed statement, and each ending is legitimate.',
+    provenance:{ author:'Maya Okonkwo', date:'2026-01-25', source:'intoview.pro / manifesto', status:'published' },
+    relationships:{ references:['manifesto/sixty-seconds'], replies:['manifesto/cancellation-r1','manifesto/cancellation-r2'], updates:[] },
+    bodyParas:[
+      'Every listing on this platform ends. Filled. Cancelled. Paused. Archived. Each ending is a filed statement, and each ending is legitimate.',
+      'We say this because most hiring platforms pretend otherwise. A listing sits open for eleven months because closing it feels like failure. A role gets filled and the post stays up because someone forgot. A company goes through three rounds and never tells the last candidate no.',
+      'We would rather have a record that closes cleanly than a record that stays open indefinitely. When you cancel a listing here, you say so, in writing, on the record. The candidates who applied can see it. The next person who looks at your company\'s record can see it. The cancellation becomes part of the story.',
+      'A company that cancels honestly builds the right to cancel.'
     ] },
   { id:'manifesto/window-mock', clusterId:'manifesto', type:'statement', format:'demo',
     title:'What Sixty Seconds Looks Like',
-    deck:'A short walk through the posting window: compose, file, and then either edit, abandon, or let the timer expire.',
-    provenance:{ author:'Maya Okonkwo', date:'2026-01-19', source:'intoview.pro / manifesto', status:'published' },
+    deck:'A short walk through the filing window: compose, file, and then either edit, abandon, or let the timer expire.',
+    provenance:{ author:'Maya Okonkwo', date:'2026-02-01', source:'intoview.pro / manifesto', status:'published' },
     relationships:{ references:['manifesto/sixty-seconds'], replies:[], updates:[] },
     fullContent:
       '<div class="letter-body" style="margin-bottom:24px">' +
@@ -3622,43 +3672,154 @@ const EDITORIAL_SPECS = [
         '<div class="mock-post"><div class="avatar">MO</div><div class="post-content"><div class="hold-up">Not yet on the record · 0:43 remaining</div><div>We shipped the thing today. Longer write-up tomorrow — for now, it exists, and it works, and the parts we cut are still cut.</div><div class="meta"><span>Maya Okonkwo</span><span>just now</span><span>pending</span></div></div></div>' +
       '</div>' +
       '<div class="letter-body" style="margin-top:24px"><p>If you edit, the timer keeps running — a revision does not buy you a fresh minute. If you abandon, the statement is discarded and never reaches the record. If you do nothing, at 0:00 it is filed, the controls disappear, and the statement is canon.</p><p>There is no scheduled publish, no draft mode, no "post later." The minute is the entire gap between a private thought and a filed statement. It is the only window you get.</p></div>' },
-  { id:'manifesto/permanence-r1', clusterId:'manifesto', type:'reply', format:'editorial',
+  { id:'manifesto/permanence-r1', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
     title:'Re: The Case for a Permanent Record',
     deck:'This is going to make a lot of people uncomfortable. That is probably the point.',
     provenance:{ author:'Dana Chen', date:'2026-01-04', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/permanence'], replies:[], updates:[] }, parentId:'manifesto/permanence' },
-  { id:'manifesto/permanence-r2', clusterId:'manifesto', type:'reply', format:'editorial',
+    refs:['manifesto/permanence'], parentId:'manifesto/permanence' },
+  { id:'manifesto/permanence-r2', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
     title:'Re: The Case for a Permanent Record',
     deck:'The edit window is the smart part. Sixty seconds is enough to catch a typo, not enough to catch yourself.',
     provenance:{ author:'Marcus Williams', date:'2026-01-05', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/permanence'], replies:[], updates:[] }, parentId:'manifesto/permanence' },
-  { id:'manifesto/permanence-r3', clusterId:'manifesto', type:'reply', format:'editorial',
+    refs:['manifesto/permanence'], parentId:'manifesto/permanence' },
+  { id:'manifesto/permanence-r3', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
     title:'Re: The Case for a Permanent Record',
     deck:'As a recruiter, I would love this. As a person who has posted things I regret, I am terrified.',
     provenance:{ author:'Aisha Bello', date:'2026-01-06', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/permanence'], replies:[], updates:[] }, parentId:'manifesto/permanence' },
-  { id:'manifesto/say-the-thing-r1', clusterId:'manifesto', type:'reply', format:'editorial',
-    title:'Re: Say the Thing',
-    deck:'The number of times I have had to translate "we are thrilled" into what actually happened.',
-    provenance:{ author:'Sam Rivers', date:'2026-01-11', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/say-the-thing'], replies:[], updates:[] }, parentId:'manifesto/say-the-thing' },
-  { id:'manifesto/say-the-thing-r2', clusterId:'manifesto', type:'reply', format:'editorial',
-    title:'Re: Say the Thing',
-    deck:'We changed our launch template last quarter. First line is now "Here is what we shipped." Open rate went up 18 percent.',
-    provenance:{ author:'Rachel Kim', date:'2026-01-12', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/say-the-thing'], replies:[], updates:[] }, parentId:'manifesto/say-the-thing' },
-  { id:'manifesto/sixty-seconds-r1', clusterId:'manifesto', type:'reply', format:'editorial',
-    title:'Re: Sixty Seconds Is Enough',
+    refs:['manifesto/permanence'], parentId:'manifesto/permanence' },
+  { id:'manifesto/sixty-seconds-r1', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
+    title:'Re: What Sixty Seconds Is For',
     deck:'The timer is the honest part. It turns "I stand by this" into something you either do or do not, and you find out which in under a minute.',
-    provenance:{ author:'Tom Lindqvist', date:'2026-01-18', source:'intoview.pro / manifesto', status:'published' },
-    relationships:{ references:['manifesto/sixty-seconds'], replies:[], updates:[] }, parentId:'manifesto/sixty-seconds' }
+    provenance:{ author:'Tom Lindqvist', date:'2026-01-11', source:'intoview.pro / manifesto', status:'published' },
+    refs:['manifesto/sixty-seconds'], parentId:'manifesto/sixty-seconds' },
+  { id:'manifesto/sixty-seconds-r2', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
+    title:'Re: What Sixty Seconds Is For',
+    deck:'We adopted a sixty-second rule internally for Slack. It changed how the team writes. Slower, then faster.',
+    provenance:{ author:'Priya Raman', date:'2026-01-12', source:'intoview.pro / manifesto', status:'published' },
+    refs:['manifesto/sixty-seconds'], parentId:'manifesto/sixty-seconds' },
+  { id:'manifesto/correction-r1', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
+    title:'Re: How to Correct the Record',
+    deck:'I filed my first correction last week. It felt better than the original statement. That is a strange sentence to write.',
+    provenance:{ author:'David Osei', date:'2026-01-19', source:'intoview.pro / manifesto', status:'published' },
+    refs:['manifesto/correction'], parentId:'manifesto/correction' },
+  { id:'manifesto/correction-r2', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
+    title:'Re: How to Correct the Record',
+    deck:'"The correction is first-class" is the line. Most platforms treat the correction as an apology. Here it is a document.',
+    provenance:{ author:'Naomi Feld', date:'2026-01-20', source:'intoview.pro / manifesto', status:'published' },
+    refs:['manifesto/correction'], parentId:'manifesto/correction' },
+  { id:'manifesto/correction-r3', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
+    title:'Re: How to Correct the Record',
+    deck:'This is how journalism should work. It mostly does not.',
+    provenance:{ author:'Rachel Kim', date:'2026-01-21', source:'intoview.pro / manifesto', status:'published' },
+    refs:['manifesto/correction'], parentId:'manifesto/correction' },
+  { id:'manifesto/cancellation-r1', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
+    title:'Re: Why We Cancel',
+    deck:'We just cancelled a role. The filing is below, in Hiring. It was harder than we expected and better than we expected.',
+    provenance:{ author:'Almanac Systems', date:'2026-03-08', source:'intoview.pro / manifesto', status:'published' },
+    refs:['manifesto/cancellation'], parentId:'manifesto/cancellation' },
+  { id:'manifesto/cancellation-r2', clusterId:'manifesto', type:'reply', format:'editorial', status:'published',
+    title:'Re: Why We Cancel',
+    deck:'Every company says it values transparency. Almost none of them post a cancellation notice.',
+    provenance:{ author:'Sam Rivers', date:'2026-01-26', source:'intoview.pro / manifesto', status:'published' },
+    refs:['manifesto/cancellation'], parentId:'manifesto/cancellation' }
 ];
 
 const GALLERY_CARD_SPECS = [
-  { id:'record/feature-nobody-asked', clusterId:'record', section:'product', type:'statement', status:'published',
-    title:'We shipped a feature nobody asked for',
-    deck:'Six months ago we built something no customer requested. It is now our most-used feature. Here is what that taught me about roadmap discipline.',
-    date:'2026-01-15', author:'Dana Chen', source:'intoview.pro / record / almanac-systems' },
+  /* ── ERRATA CHAIN 1: Tom's spreadsheet ── */
+  { id:'record/spreadsheet-40m', clusterId:'record', section:'operations', type:'statement', status:'published',
+    title:'The spreadsheet that ran a $40M company',
+    deck:'For three years, our entire fulfillment operation ran on a Google Sheet with 14 tabs and one very tired formula. I am not proud of it. I am proud of what it taught me.',
+    date:'2026-02-01', author:'Tom Lindqvist', source:'intoview.pro / record / waypoint-logistics',
+    upd:['record/spreadsheet-40m-errata'] },
+  { id:'record/spreadsheet-40m-errata', clusterId:'record', section:'operations', type:'update', status:'published',
+    title:'Correction: the number was 38, not 40',
+    deck:'A reader asked me to check the number. It was $38.2M. I have filed a correction. The point of the statement was not the number. But the number is part of the record.',
+    date:'2026-02-15', author:'Tom Lindqvist', source:'intoview.pro / record / waypoint-logistics',
+    refs:['record/spreadsheet-40m'] },
+
+  /* ── ERRATA CHAIN 2: David's Kubernetes ── */
+  { id:'record/kubernetes-not-answer', clusterId:'record', section:'engineering', type:'statement', status:'published',
+    title:'Kubernetes is not the answer',
+    deck:'It is a powerful tool for a specific problem. If you do not have that problem, it is a very expensive way to run a CRUD app.',
+    date:'2026-02-18', author:'David Osei', source:'intoview.pro / record / kestrel-systems',
+    upd:['record/kubernetes-wrong'] },
+  { id:'record/kubernetes-wrong', clusterId:'record', section:'engineering', type:'update', status:'published',
+    title:'I was wrong about Kubernetes — for us',
+    deck:'I still think it is overkill for most teams. I was wrong about mine. We moved last quarter. Deploy reliability went from 94 to 99.7. I was measuring complexity, not incident frequency.',
+    date:'2026-03-04', author:'David Osei', source:'intoview.pro / record / kestrel-systems',
+    refs:['record/kubernetes-not-answer'] },
+
+  /* ── ERRATA CHAIN 3: Lena's firing ── */
+  { id:'record/fired-best-engineer', clusterId:'record', section:'management', type:'statement', status:'published',
+    title:'I fired my best engineer',
+    deck:'He was brilliant. He was also making everyone else worse. The hardest part was not the decision — it was admitting how long I had known.',
+    date:'2026-02-16', author:'Lena Kowalski', source:'intoview.pro / record / juniper-software',
+    upd:['record/fired-best-engineer-year'] },
+  { id:'record/fired-best-engineer-year', clusterId:'record', section:'management', type:'update', status:'published',
+    title:'The firing, one year later',
+    deck:'I said it was the hardest decision of my career. I have now done it again. It was not the hardest decision. It was the easiest one I avoided for eighteen months.',
+    date:'2026-03-12', author:'Lena Kowalski', source:'intoview.pro / record / juniper-software',
+    refs:['record/fired-best-engineer'] },
+
+  /* ── ERRATA CHAIN 4: Naomi's layoffs ── */
+  { id:'record/two-fridays', clusterId:'record', section:'management', type:'evidence', status:'published',
+    title:'Two layoffs, two Fridays',
+    deck:'Both were layoffs. Only one of them counted as respect. The difference was not the decision — it was how much dignity I got to leave with.',
+    date:'2026-01-30', author:'Naomi Feld', source:'intoview.pro / record', voice:'field',
+    upd:['record/two-fridays-correction'] },
+  { id:'record/two-fridays-correction', clusterId:'record', section:'management', type:'update', status:'published',
+    title:'Correction: it was Wednesday, not Friday',
+    deck:'I said the second company let us work through Friday. I checked my notes. It was Wednesday. The larger point stands; the detail was wrong. This is what the window is for.',
+    date:'2026-02-08', author:'Naomi Feld', source:'intoview.pro / record', voice:'field',
+    refs:['record/two-fridays'] },
+
+  /* ── ALMOST-FILED (the window, from the inside) ── */
+  { id:'record/almost-filed', clusterId:'record', section:'craft', type:'statement', status:'published',
+    title:'Almost didn\'t file this',
+    deck:'I wrote a statement last month about a decision I made that I regret. I let the window close without filing it. This is the statement about not filing the statement. I think that counts.',
+    date:'2026-03-01', author:'Dana Chen', source:'intoview.pro / record / almanac-systems' },
+  { id:'record/filed-angry', clusterId:'record', section:'craft', type:'statement', status:'published',
+    title:'Filed this at 11pm',
+    deck:'I wrote this angry. I almost deleted it. The window was forty seconds from closing. I let it file. I am not sure I meant it. I am leaving it up because the record is the record.',
+    date:'2026-02-28', author:'Sam Rivers', source:'intoview.pro / record / copperline-media' },
+  { id:'record/what-i-wish-i-said', clusterId:'record', section:'management', type:'statement', status:'published',
+    title:'What I wish I had said at the all-hands',
+    deck:'I gave an all-hands last week about the on-call rotation. I said the right things. I did not say the thing I actually meant, which is that I was tired and I was scared and I did not know if the team would hold.',
+    date:'2026-03-05', author:'Marcus Williams', source:'intoview.pro / record / vesper-robotics' },
+
+  /* ── MECHANISM CARDS ── */
+  { id:'record/trojan-reel', clusterId:'record', section:'craft', type:'statement', format:'mechanism', status:'published',
+    title:'Show them something crazier first',
+    deck:'Most clients do not judge a new idea against what their audience watches. They judge it against their last forty ads. You have to reset the frame before you show the work.',
+    date:'2026-02-13', author:'Owen Kessler', source:'intoview.pro / record / studio-apophenia',
+    mechanism:{
+      premise:'Clients evaluate your idea against the wrong corpus — their category norms and their own past work — not against what their audience actually watches.',
+      tactic:'Build a short reel of real content their audience already loves: TikToks, Netflix clips, YouTube chaos, memes. All of it more unhinged than the campaign you are about to present. Play it first, without explanation. Then show your idea.',
+      why:'The reel becomes the new frame of reference. Your "crazy" idea now looks almost conservative next to a raccoon doing laundry and a woman launching an elephant off a ramp. You have not made the work safer — you have made the room calibrate differently.',
+      caveat:'The reel has to be honest. If the clips do not actually map to your audience or your tone, it reads as manipulation and you lose the room. Ten minutes of curation, not ten hours.'
+    } },
+  { id:'record/handwritten-offer', clusterId:'record', section:'hiring', type:'statement', format:'mechanism', status:'published',
+    title:'The handwritten offer',
+    deck:'Every job offer this company has ever sent comes with a note from the interviewers. Not the recruiter. The people who actually want to work with the candidate.',
+    date:'2026-02-10', author:'Han Wang', source:'intoview.pro / record / mintlify', voice:'field',
+    mechanism:{
+      premise:'When someone weighs a job offer, the numbers take over. Salary, equity, title, scope. All of that matters, but it crowds out the thing that actually determines whether you are happy a year later: the people you sit next to every day.',
+      tactic:'Have every interviewer write a short, physical note to the candidate. Mail it with the offer. Not templated, not signed by a committee — one paragraph per person, in their own handwriting.',
+      why:'A note in someone\'s handwriting is hard to put in a spreadsheet. It says: these are real people who want to work with you. Every strong candidate has three offers that look identical on paper. The note is one of the few things in the pile that only we could have sent.',
+      caveat:'Ten minutes and an envelope. That is the whole cost. It only works if the notes are real — a form letter with a signature does more damage than no letter at all.'
+    } },
+  { id:'record/ten-minute-note', clusterId:'record', section:'hiring', type:'statement', format:'mechanism', status:'published',
+    title:'The note we send to everyone we don\'t hire',
+    deck:'Not a rejection letter. A note, handwritten, saying what we saw and what we would want to see if they came back.',
+    date:'2026-03-02', author:'Aisha Bello', source:'intoview.pro / record / freelance', voice:'field',
+    mechanism:{
+      premise:'Most companies interview people they do not hire and then disappear. The candidate is left with a form email and a vague sense of having failed.',
+      tactic:'Send every finalist we do not hire a handwritten note. Not templated. One paragraph: what we saw, what we would want to see if they came back, and the door left actually open.',
+      why:'It costs ten minutes per candidate. It changes how candidates talk about the company. It also changes how we interview — knowing we will have to write something honest afterward makes us pay closer attention in the room.',
+      caveat:'It only works if the note is specific. A generic "we loved meeting you" is worse than silence. If we cannot write something specific, we do not send the note.'
+    } },
+
+  /* ── PERSONAL STATEMENTS ── */
   { id:'record/oncall-design', clusterId:'record', section:'engineering', type:'statement', status:'published',
     title:'On-call is a design problem',
     deck:'If your engineers are getting paged at 3am, you do not have a staffing problem. You have an architecture problem. And a product problem. And possibly a leadership problem.',
@@ -3667,296 +3828,134 @@ const GALLERY_CARD_SPECS = [
     title:'I redesigned our design system and got it wrong',
     deck:'Three months of work, one hard reset, and a lesson about who design systems are actually for.',
     date:'2026-01-22', author:'Priya Raman', source:'intoview.pro / record / bluepoint-studio' },
-  { id:'record/series-a-honest', clusterId:'record', section:'founders', type:'statement', status:'published',
-    title:'We raised a Series A. Here is the honest version.',
-    deck:'We raised $14M. It took 47 meetings, 12 rejections, and one very awkward dinner. The blog post version would be shorter. This is the real one.',
-    date:'2026-01-25', author:'Jake Torres', source:'intoview.pro / record / meridian-labs' },
-  { id:'record/candidates-want-know', clusterId:'record', section:'hiring', type:'statement', status:'published',
-    title:'What candidates actually want to know',
-    deck:'I have asked 200 engineers what they wish recruiters would tell them upfront. The answers were consistent, and almost none of them were about salary.',
-    date:'2026-01-28', author:'Aisha Bello', source:'intoview.pro / record / freelance' },
-  { id:'record/spreadsheet-40m', clusterId:'record', section:'operations', type:'statement', status:'published',
-    title:'The spreadsheet that ran a $40M company',
-    deck:'For three years, our entire fulfillment operation ran on a Google Sheet with 14 tabs and one very tired formula. I am not proud of it. I am proud of what it taught me.',
-    date:'2026-02-01', author:'Tom Lindqvist', source:'intoview.pro / record / waypoint-logistics' },
-  { id:'record/ab-tests-lying', clusterId:'record', section:'data', type:'statement', status:'published',
-    title:'Your A/B tests are lying to you',
-    deck:'Not because the math is wrong. Because the question is. A short post about the difference between "did this work" and "what should we do."',
-    date:'2026-02-04', author:'Nina Petrov', source:'intoview.pro / record / ponderosa-data' },
-  { id:'record/best-call-was-no', clusterId:'record', section:'sales', type:'statement', status:'published',
-    title:'The best sales call I ever had was a no',
-    deck:'She said no in the first four minutes. It was the most respectful thing a prospect has ever done for me. Here is why I still think about it.',
-    date:'2026-02-07', author:'Carlos Mendez', source:'intoview.pro / record / osprey-financial' },
-  { id:'record/failed-experiments', clusterId:'record', section:'research', type:'evidence', status:'verified',
-    title:'We published our failed experiments',
-    deck:'Eleven months of work. Eight experiments. Zero results. We put all of it on the record anyway, because the field needs to know what does not work.',
-    date:'2026-02-10', author:'Yuki Tanaka', source:'intoview.pro / record / northwind-labs' },
+  { id:'record/churn-call', clusterId:'record', section:'cs', type:'statement', status:'published',
+    title:'The churn call nobody wants to have',
+    deck:'I have had 47 of them this year. The pattern is almost always the same, and it almost never starts with the product. The reason is a person who left, or a reorg, or a budget freeze. I am filing this because I keep forgetting it.',
+    date:'2026-03-12', author:'Zara Patel', source:'intoview.pro / record / flintlock-analytics' },
   { id:'record/excited-to-announce', clusterId:'record', section:'comms', type:'statement', status:'published',
     title:'Stop writing "excited to announce"',
     deck:'You are not excited. You are doing your job. There is nothing wrong with that. Just say what you shipped.',
     date:'2026-02-13', author:'Sam Rivers', source:'intoview.pro / record / copperline-media' },
-  { id:'record/fired-best-engineer', clusterId:'record', section:'management', type:'statement', status:'published',
-    title:'I fired my best engineer',
-    deck:'He was brilliant. He was also making everyone else worse. The hardest part was not the decision - it was admitting how long I had known.',
-    date:'2026-02-16', author:'Lena Kowalski', source:'intoview.pro / record / juniper-software' },
-  { id:'record/kubernetes-not-answer', clusterId:'record', section:'engineering', type:'statement', status:'published',
-    title:'Kubernetes is not the answer',
-    deck:'It is a powerful tool for a specific problem. If you do not have that problem, it is a very expensive way to run a CRUD app.',
-    date:'2026-02-18', author:'David Osei', source:'intoview.pro / record / kestrel-systems' },
   { id:'record/launch-flopped', clusterId:'record', section:'marketing', type:'statement', status:'published',
-    title:'Our launch flopped. Here is the post-mortem.',
-    deck:'We spent four months and $80k on a campaign that generated 12 signups. This is what we got wrong, in order.',
+    title:'Our launch flopped. Here is the number.',
+    deck:'$80k. 12 signups. This is the number. We are not going to bury it.',
     date:'2026-02-22', author:'Rachel Kim', source:'intoview.pro / record / flintlock-analytics' },
-  { id:'record/deleted-40k-lines', clusterId:'record', section:'engineering', type:'statement', status:'published',
+  { id:'record/failed-experiments', clusterId:'record', section:'research', type:'evidence', status:'verified',
+    title:'We published our failed experiments',
+    deck:'Eleven months of work. Eight experiments. Zero results. We put all of it on the record anyway, because the field needs to know what does not work.',
+    date:'2026-02-10', author:'Yuki Tanaka', source:'intoview.pro / record / northwind-labs' },
+  { id:'record/deleted-40k', clusterId:'record', section:'engineering', type:'statement', status:'published',
     title:'We deleted 40,000 lines of code',
     deck:'Six weeks of engineering time. One dependency removed. Our deploy time went from 22 minutes to 4.',
     date:'2026-02-25', author:'Omar Hassan', source:'intoview.pro / record / juniper-software' },
-  { id:'record/users-scan', clusterId:'record', section:'design', type:'statement', status:'published',
-    title:'Users do not read. They scan.',
-    deck:'And yet we keep writing onboarding copy like they are going to sit down with a cup of coffee and absorb it. A short reminder.',
-    date:'2026-02-28', author:'Isabelle Fontaine', source:'intoview.pro / record / halcyon-health' },
-  { id:'record/css-outlives-me', clusterId:'record', section:'engineering', type:'statement', status:'published',
-    title:'The CSS I wrote in 2019 is still in production',
-    deck:'I have changed jobs twice. The div is still there. It will outlive me.',
-    date:'2026-03-02', author:'James Park', source:'intoview.pro / record / bluepoint-studio' },
   { id:'record/no-annual-reviews', clusterId:'record', section:'management', type:'statement', status:'published',
     title:'We stopped doing annual reviews',
     deck:'Replaced them with monthly 30-minute conversations and a shared doc. Engagement went up. Attrition went down. Nobody misses the form.',
     date:'2026-03-05', author:'Grace Adeyemi', source:'intoview.pro / record / rowan-health' },
-  { id:'record/customer-not-right', clusterId:'record', section:'sales', type:'statement', status:'published',
-    title:'The customer is not always right',
-    deck:'They are always the customer. Those are different things, and conflating them has cost me more sleep than any outage.',
-    date:'2026-03-10', author:'Victor Reyes', source:'intoview.pro / record / almanac-systems' },
-  { id:'record/docs-not-graveyard', clusterId:'record', section:'docs', type:'statement', status:'published',
-    title:'Your docs are not a graveyard',
-    deck:'They are the first product your users encounter. Write them like it.',
-    date:'2026-03-10', author:'Lucas Moreau', source:'intoview.pro / record / copperline-media' },
-  { id:'record/churn-conversation', clusterId:'record', section:'cs', type:'statement', status:'published',
-    title:'The churn conversation nobody wants to have',
-    deck:'I have had 47 of them this year. The pattern is almost always the same, and it almost never starts with the product.',
-    date:'2026-03-12', author:'Zara Patel', source:'intoview.pro / record / flintlock-analytics' },
-  { id:'record/trojan-reel', clusterId:'record', section:'craft', type:'statement', format:'mechanism', status:'published',
-    title:'Show them something crazier first',
-    deck:'Most clients do not judge a new idea against what their audience watches. They judge it against their last forty ads. You have to reset the frame before you show the work.',
-    date:'2026-02-13', author:'Owen Kessler', source:'intoview.pro / record / studio-apophenia',
-    bodyParas:[
-      'You cannot sell a roller coaster right after a slideshow about folding chairs. That is the whole problem. A client walks into the room with a frame of reference shaped by their category, their last campaign, and the fifty ads their competitors approved in a conference room. Against that backdrop, anything genuinely new reads as a war crime.',
-      'So before I show them the work, I show them something else first.'
-    ],
-    mechanism:{
-      premise:'Clients evaluate your idea against the wrong corpus - their category norms and their own past work - not against what their audience actually watches.',
-      tactic:'Build a short reel of real content their audience already loves: TikToks, Netflix clips, YouTube chaos, memes. All of it more unhinged than the campaign you are about to present. All of it popular with the same target audience. Play it first, without explanation. Then show your idea.',
-      why:'The reel becomes the new frame of reference. Your "crazy" idea now looks almost conservative next to a raccoon doing laundry and a woman launching an elephant off a ramp. You have not made the work safer - you have made the room calibrate differently.',
-      caveat:'The reel has to be honest. If the clips do not actually map to your audience or your tone, it reads as manipulation and you lose the room. Ten minutes of curation, not ten hours.'
-    }
-  },
-  { id:'record/two-fridays', clusterId:'record', section:'management', type:'evidence', status:'published',
-    title:'Two layoffs, two Fridays',
-    deck:'Both were layoffs. Only one of them counted as respect. The difference was not the decision - it was how much dignity I got to leave with.',
-    date:'2026-01-30', author:'Naomi Feld', source:'intoview.pro / record',
-    voice:'field',
-    bodyParas:[
-      'I have been through two layoffs in two years and they could not have been more different. The first came on a Friday morning. I am sure they had a nice script, but all I remember is "we have made the difficult decision." Termination. Effective immediately. I did not get to finish my projects or say goodbye. My access was revoked before I got back to my desk, and I was told not to contact anyone still working there. It felt like they were treating me as a security incident.',
-      'The second came on a Tuesday. The company cut half its staff, including our whole design team. But they let us work through Friday - finish what we could, hand off cleanly, say the things you say when you have spent a year building something together. There were 1-on-1s scheduled with directors and VPs. Everyone personally thanked me for what I had contributed. It was still a layoff. It still hurt. But it felt like a farewell, not a trespass.',
-      'The decision was the same both times. What differed was whether the company treated me as a liability they had to contain, or a person they had to let go of.',
-      'I am not saying there is a good way to do a layoff. I am saying there is a difference between a cold goodbye and a warm one, and the second one is free.'
-    ] },
-  { id:'record/slop-button', clusterId:'record', section:'craft', type:'statement', status:'published',
-    title:'The button I want on every feed',
-    deck:'I do not care what your post is about. If it contains an AI-generated image or illustration, I want a button that says what it is.',
-    date:'2026-02-02', author:'Niels Revers', source:'intoview.pro / record / freelance',
-    voice:'field',
-    bodyParas:[
-      'Just know that I do not care what your post is about. If it contains an AI generated image or illustration, I am done reading it.',
-      'Not because the images are always bad. Because the whole point of posting a picture is to show me something. Something that happened, something someone made, something with a story attached. A generated image is a claim with no event behind it. It is the visual equivalent of "excited to announce."',
-      'Not sure what a "seems like AI slop" button would do algorithmically. But I would click it every time, and at least I would not have to look at your crap in my timeline anymore.'
-    ] },
-  { id:'record/brand-ai-box', clusterId:'record', section:'brand', type:'statement', status:'published',
-    title:'They commissioned the machine',
-    deck:'A limited edition box, and they could not find a human to draw on it. Two years ago maybe. Now? There is no excuse.',
-    date:'2026-02-03', author:'Paul Ryding', source:'intoview.pro / record / freelance',
-    voice:'field',
-    bodyParas:[
-      'The cereal company does not care about their audience. This would have been excusable two or three years ago, when the tools were shinier than the conversation. But blatant AI is now a public talking point - one the audience has already formed opinions about, and mostly negative ones.',
-      'You could have commissioned an illustrator. You could have paid a human being to make something warm and specific and full of small mistakes that are actually the point. You chose not to.',
-      'Instead you shipped cold, mechanical output that alienates the exact people you are asking to buy a collector box. That is not a design mistake. That is a decision about who you think your audience is, and what you think they are worth.',
-      'I despair.'
-    ] },
-  { id:'record/claude-cant-replace', clusterId:'record', section:'craft', type:'statement', status:'published',
-    title:'Claude cannot replace a good designer',
-    deck:'If you think it can, you have not worked with one. That is not a slight - it is just true.',
-    date:'2026-02-05', author:'Dan Haynes', source:'intoview.pro / record / freelance',
-    voice:'field',
-    bodyParas:[
-      'I do not know who needs to hear this, but if you think Claude can one hundred percent replace a good designer, then you have never worked with a good designer.',
-      'A good designer is not the person who produces the artifact. They are the person who decides what the artifact should do, what it should refuse to do, and when the current version is finished. The model gives you forty options. Picking is the whole job.'
-    ] },
-  { id:'record/forty-options-taste', clusterId:'record', section:'craft', type:'statement', status:'published',
-    title:'AI gave me forty options. Picking was the job.',
-    deck:'Watching a model generate forty landing pages in the time it takes to make coffee is terrifying for about three minutes. Then you have to pick one.',
-    date:'2026-02-06', author:'Felipe Linares', source:'intoview.pro / record / flinbu',
-    voice:'field',
-    bodyParas:[
-      'The first time I watched an AI generate forty landing-page variations in the time it takes to make coffee, a small part of me panicked. Fifteen years of craft, matched before the milk hit the cup. Then I tried to pick one, and I stopped worrying.',
-      'Here is the stat that reframed it. In Figma research from 2025, 78 percent of designers said AI significantly speeds up their workflow. Only 58 percent said it improved the quality of their work. Read that again. Speed is solved. Quality still needs a human.',
-      'AI is trained on everything, so it produces the statistical middle of everything: competent, familiar, slightly generic. It generates the options. It cannot tell you which one is right for this user, this brand, this moment, or explain why. That judgment has a name. Taste.',
-      'And taste is not a gift you are born with. It is trained. It is the residue of paying close attention to a lot of work and a lot of outcomes. Opinions are untested. Taste is calibrated against what actually shipped and what users actually did.',
-      'Which means the designers worried about being replaced have it backwards. AI took the tedious part and handed back the part that was always the point.'
-    ] },
-  { id:'record/one-sku', clusterId:'record', section:'ecommerce', type:'evidence', status:'verified',
-    title:'One SKU, four thousand hours',
-    deck:'He runs $50-60k days off a single product. No catalog. No collection page. Just a page that has been rewritten forty times.',
-    date:'2026-02-08', author:'Alexei Fedorov', source:'intoview.pro / record / operator-notes',
-    voice:'field',
-    bodyParas:[
-      'Met a guy last week doing $50-60k days off a single magnesium SKU. One product. No catalog, no collection page. Just a VSL and a checkout.',
-      'I asked him what his edge was. He laughed and said he had watched about four thousand hours of screen recordings of people trying to buy it.',
-      'The mechanism: he runs a session-replay tool on the page and watches until he catches the exact second people rage-quit. Not "the page does two percent." The literal moment the scroll stops and the thumb hovers before they bounce.',
-      'Every objection he spots turns into a new line on the page. The thing has been rewritten over forty times. It is not a landing page anymore - it is a transcript of every reason someone almost did not buy, answered in the order they hit it.',
-      'His subscribe rate at checkout is 44 percent. How? Subscribe is the pre-selected default, priced eight dollars under one-time. Opting out feels like paying more for less.',
-      'Refund rate is two percent. Reinvests almost everything. Does not care if anyone knows his name.',
-      'One product, understood deeper than the customer understands themselves. That is the entire business.'
-    ] },
-  { id:'record/handwritten-offer', clusterId:'record', section:'hiring', type:'statement', format:'mechanism', status:'published',
-    title:'The handwritten offer',
-    deck:'Every job offer this company has ever sent comes with a note from the interviewers. Not the recruiter. The people who actually want to work with the candidate.',
-    date:'2026-02-10', author:'Han Wang', source:'intoview.pro / record / mintlify',
-    voice:'field',
-    bodyParas:[
-      'Every job offer we have ever sent comes with a handwritten note from the interviewers. Not the recruiter - the people who sat across from the candidate, asked them hard questions, and decided they wanted to work with them. We started doing it when there were ten of us. We have kept it up through almost every hire since.'
-    ],
-    mechanism:{
-      premise:'When someone weighs a job offer, the numbers take over. Salary, equity, title, scope. All of that matters, but it crowds out the thing that actually determines whether you are happy a year later: the people you sit next to every day.',
-      tactic:'Have every interviewer write a short, physical note to the candidate. Mail it with the offer. Not templated, not signed by a committee - one paragraph per person, in their own handwriting.',
-      why:'A note in someone handwriting is hard to put in a spreadsheet. It says: these are real people who want to work with you, and they are looking forward to you coming in Monday. Every strong candidate has three offers that look identical on paper. The note is one of the few things in the pile that only we could have sent.',
-      caveat:'Ten minutes and an envelope. That is the whole cost. It only works if the notes are real - a form letter with a signature does more damage than no letter at all.'
-    }
-  },
-  { id:'record/density-of-talent', clusterId:'record', section:'career', type:'statement', status:'published',
-    title:'Find the highest density of talent you can',
-    deck:'The advice I got early in my career, and the advice I would give anyone starting out.',
-    date:'2026-02-12', author:'Rory Donnelly', source:'intoview.pro / record / vagrants',
-    voice:'field',
-    bodyParas:[
-      'Someone told me recently: early in your creative career, find the place with the highest density of ambitious, talented, and creative people you can get into.',
-      'I did not fully understand it when I heard it. I understand it now. You learn more from overhearing good decisions being argued about than from any masterclass. You learn what to tolerate, what to walk away from, what finished work smells like when it is real.',
-      'The pay is not the point. The title is not the point. The density is the point. Everything else is downstream of who you are in the room with.'
-    ] },
-  { id:'record/buttons-age-ai', clusterId:'record', section:'design', type:'statement', status:'published',
-    title:'Buttons. In the age of AI.',
-    deck:'We bought a car and I was irrationally delighted by how many buttons it had.',
-    date:'2026-02-15', author:'Avinash Kaushik', source:'intoview.pro / record / hmm',
-    voice:'field',
-    bodyParas:[
-      'Sometimes more is more.',
-      'Our kid new car. I was irrationally delighted by the number of buttons. Finally, I do not need to fiddle through fourteen screens to change the temperature, or turn off the volume, or do a hundred small things that should take half a second.',
-      'Buttons. In the age of AI.',
-      'The coolest thing.'
-    ] },
-  { id:'record/artificial-harmony', clusterId:'record', section:'culture', type:'statement', status:'published',
-    title:'Artificial harmony is a warning sign',
-    deck:'When the whole room nods in agreement, it rarely means you have achieved alignment. It usually means fear has entered the room.',
-    date:'2026-02-16', author:'Gifford Thomas', source:'intoview.pro / record / leadership-first',
-    voice:'institutional',
-    bodyParas:[
-      'Artificial harmony is one of the most destructive forces in any organization. When an entire room nods along in instant agreement, it rarely means you have achieved strategic alignment. More often, it means fear has entered the room. People are keeping their heads down, swallowing bold ideas, and letting critical flaws slip into production just to avoid rocking the boat.',
-      'Consensus is not the goal. Truth is.',
-      'A healthy team is not where everyone agrees. It is where everyone feels safe enough to disagree. Hard questions are welcomed, not punished. Differing viewpoints are treated as stress tests, not personal attacks. People challenge assumptions vigorously because they know their belonging is never on the line.',
-      'When you silence dissent to preserve peace, you guarantee blind spots. When you create a culture where people can speak candidly, you tap the collective intelligence of the organization.',
-      'True unity is not the absence of conflict. It is the ability to navigate difficult, honest disagreement together and walk out of the room completely committed to the mission.'
-    ] },
   { id:'record/solo-event-rig', clusterId:'record', section:'video', type:'statement', status:'published',
     title:'One operator, three deliverables',
     deck:'I forgot my camera bag, so I covered a whole conference with an ugly bag clipped to my belt loop. Here is what was in it.',
-    date:'2026-02-18', author:'Nicolas Castro', source:'intoview.pro / record / creatorbuzz',
-    voice:'field',
-    bodyParas:[
-      'I forgot my small camera bag at home, so I covered Webflow Conf this year with an ugly one clipped to my belt loop. Inside: two wireless mics, two camera batteries, two lav mics, one extra SD card, and gum.',
-      'The rig was doing three jobs at once. Camera on a gimbal for the horizontal YouTube vlog. A magic arm holding my phone off the rig so vertical recorded the same moments at the same time. Meta glasses running BTS while both of those rolled.',
-      'Three finished formats at once.',
-      'If you are bringing someone in to cover your event, ask how many deliverables they are leaving with. One operator can carry three if the rig is built that way.',
-      'Five years and 500 plus videos in, the camera is the part I think about least. The fun is figuring out new ways to get what you need out of what you are already carrying.'
-    ] },
+    date:'2026-02-18', author:'Nicolas Castro', source:'intoview.pro / record / creatorbuzz' },
   { id:'record/vanna-position', clusterId:'record', section:'markets', type:'evidence', status:'verified',
     title:'Market maker positioning into the Fed',
     deck:'Every number here is built from every SPX option print, with the participant on each side, netted by strike and expiry every session.',
-    date:'2026-02-20', author:'Daniel Roos', source:'intoview.pro / record / volsignals',
-    voice:'field',
-    bodyParas:[
-      'The Fed decides tomorrow at 2pm, and market makers have almost the same vanna position they held into July FOMC. What happened in July is worth a look before tomorrow.',
-      'Vanna is how the delta of an options position changes when vol moves. Positive vanna means the position gains delta as vol rises, so market makers sell futures to stay hedged - and when vol comes back in, they buy. Negative vanna is the opposite.',
-      'At Monday close: the full position was long about plus 1.8 billion dollars of delta per vol point, the 82nd percentile of the last two years. Vega at spot was about negative 190 million per vol point, the 5th percentile - about as short vol as any close in the record.',
-      'The long vanna sits in the expiries around the Fed. September opex and quarter end carry over forty percent of it. The September 16 expiry itself carries next to nothing.',
-      'The sign flips about three percent above the market. On the downside, there is no crossing inside five percent - it is long vanna all the way down.',
-      'In July, SPX fell 1.5 percent on the decision day, closed 117 points under the gamma flip, and VIX went from 18.3 to 20.4. Vol up with long vanna means market makers had futures to sell, and the market moved lower alongside that hedging flow. Over the next four sessions, vol came in, the same position had MMs buying delta on the way back up, and SPX gained 5.9 percent.',
-      'High vanna often acts like shadow gamma. Every number here is built from every SPX option print with the participant on each side, netted by strike and expiry every session.',
-      'Not financial advice.'
-    ] },
-  { id:'record/feature-nobody-asked-r1', clusterId:'record', section:'product', type:'reply', status:'published',
-    title:'Re: We shipped a feature nobody asked for',
-    deck:'This matches my experience. The features users ask for are the ones they have already figured out how to work around. The ones they do not ask for are the ones they cannot imagine yet.',
-    date:'2026-01-16', author:'Marcus Williams', source:'intoview.pro / record / vesper-robotics',
-    refs:['record/feature-nobody-asked'], parentId:'record/feature-nobody-asked' },
-  { id:'record/feature-nobody-asked-r2', clusterId:'record', section:'product', type:'reply', status:'published',
-    title:'Re: We shipped a feature nobody asked for',
-    deck:'Counterpoint: for every feature nobody asked for that works, there are five that nobody asked for and nobody wanted. The discipline is in knowing which is which.',
-    date:'2026-01-17', author:'Priya Raman', source:'intoview.pro / record / bluepoint-studio',
-    refs:['record/feature-nobody-asked'], parentId:'record/feature-nobody-asked' },
-  { id:'record/oncall-design-r1', clusterId:'record', section:'engineering', type:'reply', status:'published',
-    title:'Re: On-call is a design problem',
-    deck:'Preach. I have seen teams double their on-call staff to handle pages that a single architectural decision could have eliminated.',
-    date:'2026-01-19', author:'David Osei', source:'intoview.pro / record / kestrel-systems',
-    refs:['record/oncall-design'], parentId:'record/oncall-design' },
+    date:'2026-02-20', author:'Daniel Roos', source:'intoview.pro / record / volsignals' },
+  { id:'record/one-sku', clusterId:'record', section:'ecommerce', type:'evidence', status:'verified',
+    title:'One SKU, four thousand hours',
+    deck:'He runs $50-60k days off a single product. No catalog. No collection page. Just a page that has been rewritten forty times.',
+    date:'2026-02-08', author:'Alexei Fedorov', source:'intoview.pro / record / operator-notes' },
+  { id:'record/slop-button', clusterId:'record', section:'craft', type:'statement', status:'published',
+    title:'The button I want on every feed',
+    deck:'I do not care what your post is about. If it contains an AI-generated image or illustration, I want a button that says what it is.',
+    date:'2026-02-02', author:'Niels Revers', source:'intoview.pro / record / freelance' },
+  { id:'record/brand-ai-box', clusterId:'record', section:'brand', type:'statement', status:'published',
+    title:'They commissioned the machine',
+    deck:'A limited edition box, and they could not find a human to draw on it. Two years ago maybe. Now? There is no excuse.',
+    date:'2026-02-03', author:'Paul Ryding', source:'intoview.pro / record / freelance' },
+  { id:'record/claude-cant-replace', clusterId:'record', section:'craft', type:'statement', status:'published',
+    title:'Claude cannot replace a good designer',
+    deck:'If you think it can, you have not worked with one. That is not a slight — it is just true.',
+    date:'2026-02-05', author:'Dan Haynes', source:'intoview.pro / record / freelance' },
+  { id:'record/forty-options', clusterId:'record', section:'craft', type:'statement', status:'published',
+    title:'AI gave me forty options. Picking was the job.',
+    deck:'Watching a model generate forty landing pages in the time it takes to make coffee is terrifying for about three minutes. Then you have to pick one.',
+    date:'2026-02-06', author:'Felipe Linares', source:'intoview.pro / record / flinbu' },
+  { id:'record/buttons-age-ai', clusterId:'record', section:'design', type:'statement', status:'published',
+    title:'Buttons. In the age of AI.',
+    deck:'We bought a car and I was irrationally delighted by how many buttons it had.',
+    date:'2026-02-15', author:'Avinash Kaushik', source:'intoview.pro / record / hmm' },
+  { id:'record/density-of-talent', clusterId:'record', section:'career', type:'statement', status:'published',
+    title:'Find the highest density of talent you can',
+    deck:'The advice I got early in my career, and the advice I would give anyone starting out.',
+    date:'2026-02-12', author:'Rory Donnelly', source:'intoview.pro / record / vagrants' },
+  { id:'record/artificial-harmony', clusterId:'record', section:'culture', type:'statement', status:'published',
+    title:'Artificial harmony is a warning sign',
+    deck:'When the whole room nods in agreement, it rarely means you have achieved alignment. It usually means fear has entered the room.',
+    date:'2026-02-16', author:'Gifford Thomas', source:'intoview.pro / record / leadership-first', voice:'institutional' },
+
+  /* ── RECORD REPLIES ── */
+  { id:'record/fired-best-engineer-r1', clusterId:'record', section:'management', type:'reply', status:'published',
+    title:'Re: I fired my best engineer',
+    deck:'Brilliant and corrosive is still corrosive.',
+    date:'2026-02-17', author:'Grace Adeyemi', source:'intoview.pro / record / rowan-health',
+    refs:['record/fired-best-engineer'], parentId:'record/fired-best-engineer' },
   { id:'record/design-system-wrong-r1', clusterId:'record', section:'design', type:'reply', status:'published',
     title:'Re: I redesigned our design system and got it wrong',
-    deck:'The question about who this is actually for is the one every design system team forgets to ask. Good on you for asking it publicly.',
+    deck:'The question about who this is actually for is the one every design system team forgets to ask.',
     date:'2026-01-23', author:'Isabelle Fontaine', source:'intoview.pro / record / halcyon-health',
     refs:['record/design-system-wrong'], parentId:'record/design-system-wrong' },
-  { id:'record/candidates-want-know-r1', clusterId:'record', section:'hiring', type:'reply', status:'published',
-    title:'Re: What candidates actually want to know',
-    deck:'The thing I always want to know: is the team actually stable, or is this a backfill for someone who left six weeks ago? Nobody ever answers that one honestly.',
-    date:'2026-01-29', author:'Hannah Lindgren', source:'intoview.pro / record / freelance',
-    refs:['record/candidates-want-know'], parentId:'record/candidates-want-know' },
-  { id:'record/candidates-want-know-r2', clusterId:'record', section:'hiring', type:'reply', status:'published',
-    title:'Re: What candidates actually want to know',
-    deck:'You are right, and I am going to start answering it. Even when the answer is uncomfortable.',
-    date:'2026-01-30', author:'Aisha Bello', source:'intoview.pro / record / freelance',
-    refs:['record/candidates-want-know'], parentId:'record/candidates-want-know' },
-  { id:'record/ab-tests-lying-r1', clusterId:'record', section:'data', type:'reply', status:'published',
-    title:'Re: Your A/B tests are lying to you',
-    deck:'The number of times I have been asked to just run an A/B test on a question that required a qualitative answer first.',
-    date:'2026-02-05', author:'Felix Hoffmann', source:'intoview.pro / record / ponderosa-data',
-    refs:['record/ab-tests-lying'], parentId:'record/ab-tests-lying' },
+  { id:'record/launch-flopped-r1', clusterId:'record', section:'marketing', type:'reply', status:'published',
+    title:'Re: Our launch flopped. Here is the number.',
+    deck:'Appreciate you posting the real numbers. Most post-mortems are written to make the team look thoughtful.',
+    date:'2026-02-23', author:'Carlos Mendez', source:'intoview.pro / record / osprey-financial',
+    refs:['record/launch-flopped'], parentId:'record/launch-flopped' },
   { id:'record/excited-to-announce-r1', clusterId:'record', section:'comms', type:'reply', status:'published',
     title:'Re: Stop writing "excited to announce"',
     deck:'We banned the phrase in our team docs. First launch after the ban: highest email open rate we have ever had.',
     date:'2026-02-14', author:'Rachel Kim', source:'intoview.pro / record / flintlock-analytics',
     refs:['record/excited-to-announce'], parentId:'record/excited-to-announce' },
-  { id:'record/fired-best-engineer-r1', clusterId:'record', section:'management', type:'reply', status:'published',
-    title:'Re: I fired my best engineer',
-    deck:'This is the hardest lesson in management and nobody teaches it. Brilliant and corrosive is still corrosive.',
-    date:'2026-02-17', author:'Grace Adeyemi', source:'intoview.pro / record / rowan-health',
-    refs:['record/fired-best-engineer'], parentId:'record/fired-best-engineer' },
-  { id:'record/launch-flopped-r1', clusterId:'record', section:'marketing', type:'reply', status:'published',
-    title:'Re: Our launch flopped. Here is the post-mortem.',
-    deck:'Appreciate you posting the real numbers. Most post-mortems are written to make the team look thoughtful, not to actually explain what happened.',
-    date:'2026-02-23', author:'Carlos Mendez', source:'intoview.pro / record / osprey-financial',
-    refs:['record/launch-flopped'], parentId:'record/launch-flopped' },
   { id:'record/trojan-reel-r1', clusterId:'record', section:'craft', type:'reply', status:'published',
     title:'Re: Show them something crazier first',
-    deck:'I have been doing a version of this for years and never had a name for it. The reel does something a deck cannot - it makes the room laugh, and once they have laughed, they are on your side.',
+    deck:'I have been doing a version of this for years and never had a name for it.',
     date:'2026-02-15', author:'Mira Solberg', source:'intoview.pro / record / freelance',
     refs:['record/trojan-reel'], parentId:'record/trojan-reel' },
   { id:'record/two-fridays-r1', clusterId:'record', section:'management', type:'reply', status:'published',
     title:'Re: Two layoffs, two Fridays',
-    deck:'The finish out your work and say your goodbyes thing matters more than HR probably knows. I have had both kinds of Fridays too. The second one is why I would go back to that company.',
+    deck:'The second one is why I would go back to that company.',
     date:'2026-01-31', author:'Devin Marsh', source:'intoview.pro / record / freelance',
     refs:['record/two-fridays'], parentId:'record/two-fridays' },
-  { id:'record/forty-options-taste-r1', clusterId:'record', section:'craft', type:'reply', status:'published',
+  { id:'record/forty-options-r1', clusterId:'record', section:'craft', type:'reply', status:'published',
     title:'Re: AI gave me forty options. Picking was the job.',
     deck:'The 78 / 58 split is the whole story. We solved speed and quietly mistook it for solving quality.',
     date:'2026-02-07', author:'Isabelle Fontaine', source:'intoview.pro / record / halcyon-health',
-    refs:['record/forty-options-taste'], parentId:'record/forty-options-taste' },
+    refs:['record/forty-options'], parentId:'record/forty-options' },
+  { id:'record/kubernetes-wrong-r1', clusterId:'record', section:'engineering', type:'reply', status:'published',
+    title:'Re: I was wrong about Kubernetes — for us',
+    deck:'This is the first correction I have seen on this platform that made me trust the original more, not less.',
+    date:'2026-03-05', author:'Priya Raman', source:'intoview.pro / record / bluepoint-studio',
+    refs:['record/kubernetes-wrong'], parentId:'record/kubernetes-wrong' },
+  { id:'record/spreadsheet-40m-errata-r1', clusterId:'record', section:'operations', type:'reply', status:'published',
+    title:'Re: Correction: the number was 38, not 40',
+    deck:'The correction is the point. The number was never the point.',
+    date:'2026-02-16', author:'Dana Chen', source:'intoview.pro / record / almanac-systems',
+    refs:['record/spreadsheet-40m-errata'], parentId:'record/spreadsheet-40m-errata' },
+  { id:'record/almost-filed-r1', clusterId:'record', section:'craft', type:'reply', status:'published',
+    title:'Re: Almost didn\'t file this',
+    deck:'I have three of these in my drafts. Maybe I should file them.',
+    date:'2026-03-02', author:'Tom Lindqvist', source:'intoview.pro / record / waypoint-logistics',
+    refs:['record/almost-filed'], parentId:'record/almost-filed' },
+  { id:'record/filed-angry-r1', clusterId:'record', section:'craft', type:'reply', status:'published',
+    title:'Re: Filed this at 11pm',
+    deck:'The record is the record. This is the most honest thing I have read this week.',
+    date:'2026-03-01', author:'Naomi Feld', source:'intoview.pro / record',
+    refs:['record/filed-angry'], parentId:'record/filed-angry' },
+  { id:'record/what-i-wish-i-said-r1', clusterId:'record', section:'management', type:'reply', status:'published',
+    title:'Re: What I wish I had said at the all-hands',
+    deck:'Every all-hands is a version of this. We say the right things and mean the other things.',
+    date:'2026-03-06', author:'Lena Kowalski', source:'intoview.pro / record / juniper-software',
+    refs:['record/what-i-wish-i-said'], parentId:'record/what-i-wish-i-said' },
+
+  /* ── OPEN TO WORK ── */
   { id:'otw/hannah-design', clusterId:'otw', section:'design', type:'statement', status:'published',
     title:'I am looking for work',
     deck:'Eight years in brand and visual design, most recently at a Series B fintech. Open to full-time or long-term contract. Portfolio in the comments, but the short version: I make things legible.',
@@ -3980,24 +3979,19 @@ const GALLERY_CARD_SPECS = [
   { id:'otw/ariel-senior', clusterId:'otw', section:'product', type:'statement', status:'published',
     title:'Six years in. Research through delivery.',
     deck:'Usually the first in-house design hire. Embedded with engineering, not handed off to. Looking for senior or lead in fintech, enterprise SaaS, internal tooling, or DTC.',
-    date:'2026-03-08', author:'Ariel Parzynski', source:'intoview.pro / otw / freelance',
-    voice:'field',
-    bodyParas:[
-      'It has been four months, so it is time to shout into the void once more.',
-      'Are you looking to build or improve a platform? Have you done the research to determine if your product actually solves problems for your customers? Is your design system scalable and easy to use? Have you tried building it with AI and realized you are in over your head?',
-      'I am a product and UX designer with six plus years of experience, usually the first in-house design hire on a team. Research through delivery, embedded with engineering, not handed off to. I push for user research even when the room wants to skip it, and I have built an AI-native workflow that has changed how fast I can move without changing what I design for.',
-      'Looking for a senior or lead role in fintech, enterprise SaaS, internal tooling, or DTC eCommerce. Baltimore-based or remote.'
-    ] },
-  { id:'otw/kevin-laid-off-r1', clusterId:'otw', section:'growth', type:'reply', status:'published',
-    title:'Re: Laid off last Tuesday',
-    deck:'Sent this to two people already. One of them is going to be annoying about the growth role. Check your DMs.',
-    date:'2026-02-25', author:'Marguerite Voss', source:'intoview.pro / otw / marguerite-voss',
-    refs:['otw/kevin-laid-off'], parentId:'otw/kevin-laid-off' },
+    date:'2026-03-08', author:'Ariel Parzynski', source:'intoview.pro / otw / freelance', voice:'field' },
+  { id:'otw/kevin-hired', clusterId:'otw', section:'growth', type:'update', status:'filled',
+    title:'Update: I found something',
+    deck:'Four weeks after filing. The role is growth lead at a small climate company. The listing was not on LinkedIn. It was on someone\'s record here. Thank you to everyone who sent a note.',
+    date:'2026-03-22', author:'Kevin Zhang', source:'intoview.pro / otw / freelance',
+    refs:['otw/kevin-laid-off'] },
+
+  /* ── HIRING ── */
   { id:'hiring/almanac-ops', clusterId:'hiring', section:'almanac-systems', type:'statement', status:'published',
     title:'Hiring: Director of Special Projects',
-    deck:'One role, three months of backlog, and a mandate to disagree with the roadmap when it is wrong. We are a 41-person logistics software company. The role is real. The salary is posted. The process is one call and a paid work sample.',
-    date:'2026-02-20', author:'Almanac Systems', source:'intoview.pro / hiring / almanac-systems',
-    voice:'institutional',
+    deck:'One role, three months of backlog, and a mandate to disagree with the roadmap when it is wrong. Salary posted. Process: one call and a paid work sample.',
+    date:'2026-02-20', author:'Almanac Systems', source:'intoview.pro / hiring / almanac-systems', voice:'institutional',
+    upd:['hiring/almanac-ops-cancelled'],
     details:{
       heading:'Full job description',
       sections:[
@@ -4023,44 +4017,17 @@ const GALLERY_CARD_SPECS = [
         { label:'How to apply',
           body:'One call. Then a paid work sample - a real problem from our current backlog, at a real rate, with no expectation that we use it if we do not hire you. Send a note to careers at almanacsys dot example with Director of Special Projects in the subject.' }
       ]
-    }
-  },
-  { id:'hiring/fieldfathom-ops', clusterId:'hiring', section:'field-fathom', type:'statement', status:'draft',
-    title:'Hiring: Ops Generalist, Part-Time',
-    deck:'Four days a week. The fifth day is yours, and we mean that - unlike the last place that said it. Three partners, one shared inbox, a strong opinion about quarterly offsites.',
-    date:'2026-02-22', author:'Field and Fathom', source:'intoview.pro / hiring / field-fathom',
-    voice:'institutional',
-    details:{
-      heading:'Full job description',
-      sections:[
-        { label:'About the role',
-          body:'Field and Fathom is three partners, one shared inbox, and a standing argument about whether quarterly offsites are worth the carbon. We are hiring a part-time ops generalist to own the parts of running a small consultancy that no partner should be doing anymore.' },
-        { label:'What you will do',
-          bullets:[
-            'Own the shared inbox. Triage, route, reply, close.',
-            'Run invoicing and light bookkeeping in coordination with our accountant.',
-            'Keep client project timelines honest - the ones partners are optimistic about, specifically.',
-            'Plan the quarterly offsites you will also get to argue about.'
-          ] },
-        { label:'What we are looking for',
-          bullets:[
-            'Two plus years in an operations, EA, or coordinating role.',
-            'Comfort with the phrase I will just handle that.',
-            'Strong written communication. We are a consultancy; writing is the product.',
-            'Based in US Eastern or Central time zones.'
-          ] },
-        { label:'Compensation',
-          body:'$55K to $68K pro-rated for four days a week, with health and a real vacation policy. The fifth day is genuinely yours - we will not page you.' },
-        { label:'How to apply',
-          body:'Send a short note about a time you fixed an operational mess, and one thing you would fix about ours.' }
-      ]
-    }
-  },
+    } },
+  { id:'hiring/almanac-ops-cancelled', clusterId:'hiring', section:'almanac-systems', type:'update', status:'cancelled',
+    title:'We cancelled the Director of Special Projects role',
+    deck:'We restructured the team last week and the role stopped making sense. All six finalists were told in writing, on the same day, with the reasons. The listing now shows Cancelled and the date. This is what we mean by closure.',
+    date:'2026-03-08', author:'Almanac Systems', source:'intoview.pro / hiring / almanac-systems', voice:'institutional',
+    refs:['hiring/almanac-ops'] },
   { id:'hiring/vesper-firmware', clusterId:'hiring', section:'vesper-robotics', type:'statement', status:'published',
     title:'Hiring: Firmware Engineer',
     deck:'The hardware still ships. The firmware still needs work. We are looking for someone who has shipped firmware before and can prove it.',
-    date:'2026-02-25', author:'Vesper Robotics', source:'intoview.pro / hiring / vesper-robotics',
-    voice:'institutional',
+    date:'2026-02-25', author:'Vesper Robotics', source:'intoview.pro / hiring / vesper-robotics', voice:'institutional',
+    upd:['hiring/vesper-firmware-filled'],
     details:{
       heading:'Full job description',
       sections:[
@@ -4085,13 +4052,16 @@ const GALLERY_CARD_SPECS = [
         { label:'How to apply',
           body:'Send us the firmware you are most proud of, and one you are not.' }
       ]
-    }
-  },
+    } },
+  { id:'hiring/vesper-firmware-filled', clusterId:'hiring', section:'vesper-robotics', type:'update', status:'filled',
+    title:'We filled the firmware role',
+    deck:'Six weeks, forty-one applicants, four onsite loops, one offer. The person we hired came from a referral by someone who found us through the Network section. The listing is now closed. Thank you to everyone who applied.',
+    date:'2026-03-15', author:'Vesper Robotics', source:'intoview.pro / hiring / vesper-robotics', voice:'institutional',
+    refs:['hiring/vesper-firmware'] },
   { id:'hiring/meridian-research', clusterId:'hiring', section:'meridian-labs', type:'statement', status:'published',
     title:'Hiring: Research Scientist, Protein Folding',
     deck:'We are a 12-person lab in Cambridge. We publish everything. We are looking for a scientist who is comfortable with that.',
-    date:'2026-03-01', author:'Meridian Labs', source:'intoview.pro / hiring / meridian-labs',
-    voice:'institutional',
+    date:'2026-03-01', author:'Meridian Labs', source:'intoview.pro / hiring / meridian-labs', voice:'institutional',
     details:{
       heading:'Full job description',
       sections:[
@@ -4116,171 +4086,11 @@ const GALLERY_CARD_SPECS = [
         { label:'How to apply',
           body:'Send your CV and three papers - one you love, one you are proud of, one you would rewrite.' }
       ]
-    }
-  },
-  { id:'hiring/bluepoint-design', clusterId:'hiring', section:'bluepoint-studio', type:'statement', status:'published',
-    title:'Hiring: Senior Product Designer',
-    deck:'Agency work, mostly B2B. Six clients. No pitch decks. We want someone who can think in systems and talk to engineers without a translator.',
-    date:'2026-03-03', author:'Bluepoint Studio', source:'intoview.pro / hiring / bluepoint-studio',
-    voice:'institutional',
-    details:{
-      heading:'Full job description',
-      sections:[
-        { label:'About the role',
-          body:'Bluepoint Studio is a design and brand agency with six long-term B2B clients and no pitch process. We do not do spec work, we do not do decks for the sake of decks, and we are looking for a senior designer who is tired of doing both.' },
-        { label:'What you will do',
-          bullets:[
-            'Lead design on two to three client engagements at a time.',
-            'Work directly with client engineers, not through an account manager.',
-            'Contribute to our internal design system - which is a real system, not a Figma file with 400 components and no logic.',
-            'Push back on briefs that are wrong. We will back you up.'
-          ] },
-        { label:'What we are looking for',
-          bullets:[
-            'Five plus years in product design, ideally with agency or consultancy experience.',
-            'A portfolio that shows decisions, not just outputs.',
-            'Fluency in the engineering constraints behind what you design.',
-            'Strong written communication. Our clients read.'
-          ] },
-        { label:'Compensation',
-          body:'$130K to $160K, plus a profit-share that has paid out for the last three years.' },
-        { label:'How to apply',
-          body:'Portfolio and a short note about a project where the brief was wrong and you said so.' }
-      ]
-    }
-  },
-  { id:'hiring/kestrel-security', clusterId:'hiring', section:'kestrel-systems', type:'statement', status:'published',
-    title:'Hiring: Security Engineer',
-    deck:'We are a security company. We are hiring a security engineer. The irony is not lost on us.',
-    date:'2026-03-06', author:'Kestrel Systems', source:'intoview.pro / hiring / kestrel-systems',
-    voice:'institutional',
-    details:{
-      heading:'Full job description',
-      sections:[
-        { label:'About the role',
-          body:'Kestrel Systems does application security for enterprise clients. We are twelve people. We are hiring one security engineer. Yes, the irony of a security company having a hiring process that is not itself perfectly secure has been noted by our own team, at length, in the internal Slack.' },
-        { label:'What you will do',
-          bullets:[
-            'Lead application security reviews for client engagements - real code, real deadlines, no theoretical threat models that never get actioned.',
-            'Build tooling that makes secure defaults the easy path, not the enforced one.',
-            'Write findings that engineers actually read, in language that engineers actually speak.',
-            'Occasionally get pulled into incident response for a client. That is part of the job.'
-          ] },
-        { label:'What we are looking for',
-          bullets:[
-            'Three plus years in application security or a closely adjacent engineering role.',
-            'The ability to read code in at least two languages and the humility to admit when you cannot.',
-            'Experience shipping a security review, not just a checklist.',
-            'A strong opinion about which security certifications actually matter, and a willingness to change it.'
-          ] },
-        { label:'Compensation',
-          body:'$155K to $195K, plus a training budget of $5K per year. No hedging about whether it is directly relevant to your role.' },
-        { label:'How to apply',
-          body:'Send a write-up of a security issue you found that you are proud of, and the remediation you recommended.' }
-      ]
-    }
-  },
-  { id:'hiring/waypoint-backend', clusterId:'hiring', section:'waypoint-logistics', type:'statement', status:'published',
-    title:'Hiring: Senior Backend Engineer',
-    deck:'Supply chain is unsexy. It is also ten trillion dollars. We are building the rails for it. Go, Postgres, Kafka. Remote-first, but we mean it.',
-    date:'2026-03-09', author:'Waypoint Logistics', source:'intoview.pro / hiring / waypoint-logistics',
-    voice:'institutional',
-    details:{
-      heading:'Full job description',
-      sections:[
-        { label:'About the role',
-          body:'Waypoint Logistics builds backend infrastructure for freight forwarding. It is unglamorous work. It is also the reason your packages arrive. We are hiring a senior backend engineer to own a piece of the routing pipeline that currently handles four hundred thousand shipments a day.' },
-        { label:'What you will do',
-          bullets:[
-            'Own and evolve a set of Go services on a Kafka backbone.',
-            'Design and ship schema migrations on a Postgres database with tens of billions of rows and no maintenance window.',
-            'Work with a team of six other engineers, distributed across three time zones.',
-            'Write the internal RFCs that keep a distributed team pointed the same direction.'
-          ] },
-        { label:'What we are looking for',
-          bullets:[
-            'Five plus years of backend engineering, with production Go or a willingness to learn it fast.',
-            'Real experience with Postgres at scale - not just "used it at a startup."',
-            'Comfort with distributed systems and the debugging that comes with them.',
-            'Remote-first discipline: written communication, async decisions, time zones not treated as an afterthought.'
-          ] },
-        { label:'Compensation',
-          body:'$175K to $210K, fully remote within US and Canada, real equipment budget, and the schedule flexibility to prove it is actually remote-first.' },
-        { label:'How to apply',
-          body:'Send a description of the hardest production problem you have solved. Code is welcome, context is essential.' }
-      ]
-    }
-  },
-  { id:'hiring/juniper-tpm', clusterId:'hiring', section:'juniper-software', type:'statement', status:'published',
-    title:'Hiring: Technical Program Manager',
-    deck:'Enterprise software, regulated industries, the kind of TPM role that actually requires a PM background. We do not need someone to run standups. We need someone who can say no to a VP.',
-    date:'2026-03-11', author:'Juniper Software', source:'intoview.pro / hiring / juniper-software',
-    voice:'institutional',
-    details:{
-      heading:'Full job description',
-      sections:[
-        { label:'About the role',
-          body:'Juniper Software makes enterprise software for industries where the audit trail matters more than the UI. We are hiring a TPM who has actually run programs at a company where the stakeholders were not all in one room and did not all agree.' },
-        { label:'What you will do',
-          bullets:[
-            'Own a multi-quarter program that spans engineering, compliance, and customer success.',
-            'Represent the program to leadership and, more importantly, represent leadership to the program.',
-            'Say no to requests that do not fit the timeline. In writing. With reasons.',
-            'Keep a regulatory audit trail that can survive a real audit.'
-          ] },
-        { label:'What we are looking for',
-          bullets:[
-            'Five plus years as a TPM, PM, or program lead in a regulated or compliance-heavy industry.',
-            'Evidence you have successfully said no to a senior stakeholder.',
-            'Comfort with audits, requirements documents, and the slow parts of enterprise work.',
-            'Experience writing for people who are busy and impatient.'
-          ] },
-        { label:'Compensation',
-          body:'$155K to $185K. Onsite or hybrid in Chicago; we are not pretending to be remote-first for this role.' },
-        { label:'How to apply',
-          body:'Send a one-page description of a program you ran that other people found hard.' }
-      ]
-    }
-  },
-  { id:'hiring/headway-design-systems', clusterId:'hiring', section:'headway', type:'statement', status:'published',
-    title:'Hiring: Senior Product Designer, Design Systems',
-    deck:'Come work with me. NYC, SF, Seattle. We are building the design systems layer at Headway. JD in the comments.',
-    date:'2026-03-12', author:'Steven V.', source:'intoview.pro / hiring / headway',
-    voice:'field',
-    details:{
-      heading:'Full job description',
-      sections:[
-        { label:'About the role',
-          body:'Headway is building the design systems layer that every product team at the company will ship on top of. This is not a maintain-the-component-library role. This is the role where you decide what the component library is for.' },
-        { label:'What you will do',
-          bullets:[
-            'Define and evolve the design system as a product, with real internal customers and a real roadmap.',
-            'Work embedded with two product teams for the first six months, so you see the system being used before you design the next version of it.',
-            'Partner directly with two design engineers and a docs writer.',
-            'Publish the decisions. Write the RFCs. Take the hard feedback.'
-          ] },
-        { label:'What we are looking for',
-          bullets:[
-            'Five plus years in product design, with at least two of those on a systems team.',
-            'Comfort with both Figma and the code - you do not need to ship React, but you need to read it.',
-            'Opinions about tokens, themes, and what a design system should refuse to do.',
-            'Experience being the person product teams complain to, and the resilience to keep shipping anyway.'
-          ] },
-        { label:'Compensation',
-          body:'$170K to $200K, plus equity. NYC, SF, or Seattle - we are hybrid, in-office Tuesdays and Thursdays, and we are not negotiating on that.' },
-        { label:'How to apply',
-          body:'DM me or email steven at headway dot example. Tell me about a design system you built, and one you would rebuild differently.' }
-      ]
-    }
-  },
+    } },
   { id:'hiring/fearless-principal', clusterId:'hiring', section:'fearless', type:'statement', status:'published',
     title:'Hiring: Principal Product Designer, B2B SaaS',
     deck:'Fully remote, US-based. $165K to $289K plus equity. Eight plus years, high-craft, strong B2B SaaS portfolio. The portfolio matters a lot.',
-    date:'2026-03-13', author:'Jake Harber', source:'intoview.pro / hiring / fearless',
-    voice:'field',
-    bodyParas:[
-      'The portfolio matters a lot. I am not looking for a collection of beautiful screens with a case study wrapped around them. I am looking for evidence that you have shipped something hard, at scale, with engineering constraints, and that you can tell me what you got wrong.'
-    ],
+    date:'2026-03-13', author:'Jake Harber', source:'intoview.pro / hiring / fearless', voice:'field',
     details:{
       heading:'Full job description',
       sections:[
@@ -4307,28 +4117,77 @@ const GALLERY_CARD_SPECS = [
         { label:'How to apply',
           body:'DM me your portfolio, CV, and location. Portfolios with strong narrative - what you did, what you were constrained by, what you would do differently - will be read first.' }
       ]
-    }
-  },
+    } },
+  { id:'hiring/kestrel-security', clusterId:'hiring', section:'kestrel-systems', type:'statement', status:'published',
+    title:'Hiring: Security Engineer',
+    deck:'We are a security company. We are hiring a security engineer. The irony is not lost on us.',
+    date:'2026-03-06', author:'Kestrel Systems', source:'intoview.pro / hiring / kestrel-systems', voice:'institutional',
+    details:{
+      heading:'Full job description',
+      sections:[
+        { label:'About the role',
+          body:'Kestrel Systems does application security for enterprise clients. We are twelve people. We are hiring one security engineer. Yes, the irony of a security company having a hiring process that is not itself perfectly secure has been noted by our own team, at length, in the internal Slack.' },
+        { label:'What you will do',
+          bullets:[
+            'Lead application security reviews for client engagements - real code, real deadlines, no theoretical threat models that never get actioned.',
+            'Build tooling that makes secure defaults the easy path, not the enforced one.',
+            'Write findings that engineers actually read, in language that engineers actually speak.',
+            'Occasionally get pulled into incident response for a client. That is part of the job.'
+          ] },
+        { label:'What we are looking for',
+          bullets:[
+            'Three plus years in application security or a closely adjacent engineering role.',
+            'The ability to read code in at least two languages and the humility to admit when you cannot.',
+            'Experience shipping a security review, not just a checklist.',
+            'A strong opinion about which security certifications actually matter, and a willingness to change it.'
+          ] },
+        { label:'Compensation',
+          body:'$155K to $195K, plus a training budget of $5K per year. No hedging about whether it is directly relevant to your role.' },
+        { label:'How to apply',
+          body:'Send a write-up of a security issue you found that you are proud of, and the remediation you recommended.' }
+      ]
+    } },
+  { id:'hiring/fieldfathom-ops', clusterId:'hiring', section:'field-fathom', type:'statement', status:'draft',
+    title:'Hiring: Ops Generalist, Part-Time',
+    deck:'Four days a week. The fifth day is yours, and we mean that.',
+    date:'2026-02-22', author:'Field and Fathom', source:'intoview.pro / hiring / field-fathom', voice:'institutional',
+    details:{
+      heading:'Full job description',
+      sections:[
+        { label:'About the role',
+          body:'Field and Fathom is three partners, one shared inbox, and a standing argument about whether quarterly offsites are worth the carbon. We are hiring a part-time ops generalist to own the parts of running a small consultancy that no partner should be doing anymore.' },
+        { label:'What you will do',
+          bullets:[
+            'Own the shared inbox. Triage, route, reply, close.',
+            'Run invoicing and light bookkeeping in coordination with our accountant.',
+            'Keep client project timelines honest - the ones partners are optimistic about, specifically.',
+            'Plan the quarterly offsites you will also get to argue about.'
+          ] },
+        { label:'What we are looking for',
+          bullets:[
+            'Two plus years in an operations, EA, or coordinating role.',
+            'Comfort with the phrase I will just handle that.',
+            'Strong written communication. We are a consultancy; writing is the product.',
+            'Based in US Eastern or Central time zones.'
+          ] },
+        { label:'Compensation',
+          body:'$55K to $68K pro-rated for four days a week, with health and a real vacation policy. The fifth day is genuinely yours - we will not page you.' },
+        { label:'How to apply',
+          body:'Send a short note about a time you fixed an operational mess, and one thing you would fix about ours.' }
+      ]
+    } },
   { id:'hiring/almanac-ops-r1', clusterId:'hiring', section:'almanac-systems', type:'reply', status:'published',
     title:'Re: Hiring: Director of Special Projects',
     deck:'Can confirm the backlog is real. Slide 14 has been final since October.',
     date:'2026-02-21', author:'Theo Okafor', source:'intoview.pro / hiring / almanac-systems',
     refs:['hiring/almanac-ops'], parentId:'hiring/almanac-ops' },
-  { id:'hiring/almanac-ops-r2', clusterId:'hiring', section:'almanac-systems', type:'reply', status:'published',
-    title:'Re: Hiring: Director of Special Projects',
-    deck:'Applied. The paid work sample is the right call. More companies should do this.',
-    date:'2026-02-23', author:'Amara Diallo', source:'intoview.pro / hiring / freelance',
-    refs:['hiring/almanac-ops'], parentId:'hiring/almanac-ops' },
-  { id:'hiring/fieldfathom-ops-r1', clusterId:'hiring', section:'field-fathom', type:'reply', status:'published',
-    title:'Re: Hiring: Ops Generalist, Part-Time',
-    deck:'The phrase "the fifth day is yours, and we mean that" is the most honest thing I have read on a job posting in months.',
-    date:'2026-02-23', author:'Lucas Moreau', source:'intoview.pro / hiring / copperline-media',
-    refs:['hiring/fieldfathom-ops'], parentId:'hiring/fieldfathom-ops' },
-  { id:'hiring/fearless-principal-r1', clusterId:'hiring', section:'fearless', type:'reply', status:'published',
-    title:'Re: Hiring: Principal Product Designer, B2B SaaS',
-    deck:'"Not a collection of beautiful screens with a case study wrapped around them" should be tattooed on every JD in this industry.',
-    date:'2026-03-14', author:'Hannah Lindgren', source:'intoview.pro / hiring / freelance',
-    refs:['hiring/fearless-principal'], parentId:'hiring/fearless-principal' },
+  { id:'hiring/almanac-ops-cancelled-r1', clusterId:'hiring', section:'almanac-systems', type:'reply', status:'published',
+    title:'Re: We cancelled the Director of Special Projects role',
+    deck:'I was one of the six finalists. They told us on the same day, in writing, with the reasons. I have never had that happen before. I would apply again.',
+    date:'2026-03-09', author:'Amara Diallo', source:'intoview.pro / hiring / freelance',
+    refs:['hiring/almanac-ops-cancelled'], parentId:'hiring/almanac-ops-cancelled' },
+
+  /* ── ARCHIVE ── */
   { id:'archive/oscar-leaving', clusterId:'archive', section:'departures', type:'statement', status:'archived',
     title:'Leaving my job at Bramcott',
     deck:'After four years, I am moving on. Not for a raise. Not for a title. For a different problem.',
@@ -4344,15 +4203,22 @@ const GALLERY_CARD_SPECS = [
   { id:'archive/bramcott-q3', clusterId:'archive', section:'company', type:'statement', status:'archived',
     title:'Q3 update',
     deck:'Revenue up 40 percent year over year. Headcount flat. We are not hiring this quarter, and we are saying so publicly.',
-    date:'2024-10-01', author:'Bramcott Supply', source:'intoview.pro / archive / bramcott-supply',
-    voice:'institutional' },
+    date:'2024-10-01', author:'Bramcott Supply', source:'intoview.pro / archive / bramcott-supply', voice:'institutional',
+    upd:['archive/bramcott-q3-errata'] },
+  { id:'archive/bramcott-q3-errata', clusterId:'archive', section:'company', type:'update', status:'archived',
+    title:'Correction: the Q3 number was 28, not 40',
+    deck:'We filed a Q3 update in October 2024 saying revenue was up 40 percent. It was 28 percent. We caught the error in the next quarter and filed a correction then. The correction is now archived alongside the original. Both are on the record.',
+    date:'2025-01-15', author:'Bramcott Supply', source:'intoview.pro / archive / bramcott-supply', voice:'institutional',
+    refs:['archive/bramcott-q3'] },
   { id:'archive/theo-numbers', clusterId:'archive', section:'craft', type:'statement', status:'archived',
     title:'The numbers nobody wants to run',
     deck:'I have spent three years doing the analysis that nobody asked for. It is the most valuable work I have done.',
     date:'2024-11-02', author:'Theo Okafor', source:'intoview.pro / archive / almanac-systems' },
+
+  /* ── NETWORK ── */
   { id:'network/almanac-systems', clusterId:'network', section:'companies', type:'statement', status:'verified',
     title:'Almanac Systems - Logistics Software, Series C',
-    deck:'41 people. No growth team. Currently hiring one Director of Special Projects.',
+    deck:'41 people. No growth team. Currently cancelled one Director role and told all six finalists why.',
     date:'2026-01-05', author:'Almanac Systems', source:'intoview.pro / network / company',
     voice:'institutional' },
   { id:'network/field-fathom', clusterId:'network', section:'companies', type:'statement', status:'published',
@@ -4366,7 +4232,7 @@ const GALLERY_CARD_SPECS = [
     date:'2026-01-10', author:'Theo Okafor', source:'intoview.pro / network / person' },
   { id:'network/marguerite-voss', clusterId:'network', section:'people', type:'statement', status:'published',
     title:'Marguerite Voss - Talent, Freelance',
-    deck:'Independent recruiter. Reads every statement on the record before the first call.',
+    deck:'Independent recruiter. I read every statement on the record before the first call. It has changed who I put forward and who I do not.',
     date:'2026-01-11', author:'Marguerite Voss', source:'intoview.pro / network / person' },
   { id:'network/meridian-labs', clusterId:'network', section:'companies', type:'statement', status:'published',
     title:'Meridian Labs - Protein Folding Research',
@@ -4425,39 +4291,41 @@ const GALLERY_CARD_SPECS = [
     voice:'institutional' },
   { id:'network/vesper-robotics', clusterId:'network', section:'companies', type:'statement', status:'published',
     title:'Vesper Robotics - Industrial Hardware',
-    deck:'Still shipping hardware. Still hiring firmware engineers.',
+    deck:'Still shipping hardware. Just filled a firmware role from a Network referral.',
     date:'2026-02-11', author:'Vesper Robotics', source:'intoview.pro / network / company',
     voice:'institutional' },
-  { id:'network/flintlock-analytics', clusterId:'network', section:'companies', type:'statement', status:'published',
-    title:'Flintlock Analytics - Series A SaaS',
-    deck:'$12.4M ARR. Eleven people. We deleted eleven onboarding steps last quarter and time-to-value went from six weeks to nine days.',
-    date:'2026-02-13', author:'Flintlock Analytics', source:'intoview.pro / network / company',
-    voice:'institutional' },
+  { id:'network/david-osei', clusterId:'network', section:'people', type:'statement', status:'published',
+    title:'David Osei — Infrastructure, Kestrel Systems',
+    deck:'Filed a correction last week about Kubernetes. The correction is more useful than the original. That is the whole idea.',
+    date:'2026-03-10', author:'David Osei', source:'intoview.pro / network / person',
+    refs:['record/kubernetes-wrong'] },
   { id:'network/mintlify', clusterId:'network', section:'companies', type:'statement', status:'published',
     title:'Mintlify - Documentation Platform',
     deck:'We send every offer with a handwritten note from the interviewers. Hiring across engineering and design.',
     date:'2026-02-15', author:'Mintlify', source:'intoview.pro / network / company',
     voice:'institutional' },
 
+  /* ── POTLUCK ── */
   { id:'potluck/on-showing-work', clusterId:'potluck', section:'craft', type:'statement', status:'published',
     title:'On showing work before it is ready',
     deck:'A short note about why "share the half-built thing" is almost always the right call, and almost always feels wrong in the moment.',
     date:'2026-02-19', author:'Maya Okonkwo', source:'intoview.pro / potluck' },
-
   { id:'potluck/on-saying-no', clusterId:'potluck', section:'craft', type:'statement', status:'published',
     title:'On saying no to good opportunities',
     deck:'The best things I have built came from declining things that looked great on paper. This is me trying to explain the pattern.',
     date:'2026-02-24', author:'Maya Okonkwo', source:'intoview.pro / potluck' },
-
   { id:'potluck/small-tools', clusterId:'potluck', section:'tools', type:'statement', status:'published',
     title:'In praise of small tools',
     deck:'A single-purpose script that does one thing badly is often more useful than a platform that does everything adequately.',
     date:'2026-03-01', author:'Dana Chen', source:'intoview.pro / potluck' },
-
   { id:'potluck/on-quiet', clusterId:'potluck', section:'craft', type:'statement', status:'published',
     title:'On quiet',
     deck:'The most useful thing I did last year was turn off notifications for a month. Nothing broke.',
-    date:'2026-03-08', author:'Marcus Williams', source:'intoview.pro / potluck' }
+    date:'2026-03-08', author:'Marcus Williams', source:'intoview.pro / potluck' },
+  { id:'potluck/the-window', clusterId:'potluck', section:'craft', type:'statement', status:'published',
+    title:'I have started using the window for other things',
+    deck:'Sixty seconds is not enough to write a statement. It is exactly enough to decide whether to write one. I have started applying that to email, to Slack, to the thing I was about to say in the meeting.',
+    date:'2026-03-14', author:'Maya Okonkwo', source:'intoview.pro / potluck' }
 ];
 
 /* ═══════════════════════════════════════════════════════════
@@ -4475,6 +4343,7 @@ function deriveVoice(spec, fallbackType) {
   if (t === 'cluster') return 'institutional';
   if (t === 'identity') return 'founder';
   if (t === 'index') return 'institutional';
+  if (t === 'update') return 'field';
   return 'field';
 }
 
@@ -4748,7 +4617,7 @@ const restPositions = new Map();
 let focusedNodeId = 'identity';
 let mobileFocusActive = false;
 
-const CANVAS_STORAGE_KEY = 'intoview.canvas.v26';
+const CANVAS_STORAGE_KEY = 'intoview.canvas.v27';
 const THEME_STORAGE_KEY = 'intoview.theme';
 const WIDGET_ON_KEY = 'intoview.widget.on';
 const WIDGET_POS_KEY = 'intoview.widget.pos';
@@ -5264,7 +5133,7 @@ function updateStatusText() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   CANVAS RENDER (core preserved)
+   CANVAS RENDER
    ═══════════════════════════════════════════════════════════ */
 function getCanvasNodes() {
   const nodes = [
@@ -6017,7 +5886,7 @@ function tweenCamera(tScale, tPanX, tPanY, dur) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   GALLERY RENDER (core preserved)
+   GALLERY RENDER
    ═══════════════════════════════════════════════════════════ */
 function getScopedCards() {
   if (!currentRoute.scope) return CARD_ORDER.map(id => CARDS.get(id));
@@ -6140,6 +6009,13 @@ function renderGalleryCardBase(card) {
       const parent = CARDS.get(card.parentId);
       backlink = '<a class="prov-card-backlink" data-parent-id="' + escapeHtml(card.parentId) + '" role="button" tabindex="0"><span class="arrow">↩</span><span>Replying to <span class="parent-title">"' + escapeHtml(parent.title) + '"</span></span></a>';
     }
+    if (card.type === 'update' && card.relationships.references && card.relationships.references.length) {
+      const parentId = card.relationships.references[0];
+      if (CARDS.has(parentId)) {
+        const parent = CARDS.get(parentId);
+        backlink = '<a class="prov-card-backlink" data-parent-id="' + escapeHtml(parentId) + '" role="button" tabindex="0"><span class="arrow">↻</span><span>Correction of <span class="parent-title">"' + escapeHtml(parent.title) + '"</span></span></a>';
+      }
+    }
     const meta = refCount > 0 ? '<div class="prov-card-meta"><span class="prov-card-relations"><span class="prov-card-relation"><strong>' + refCount + '</strong> ref</span></span></div>' : '';
     const byline = '<div class="prov-card-monogram">' + avatarInner(card.provenance.author, escapeHtml(initials)) + '</div>';
     el.innerHTML =
@@ -6259,6 +6135,7 @@ function estimateCardHeight(card, cardW) {
   if (!card.media) {
     let h = 24 + 12 + 8 + 32 + 8 + 22 + 8 + 60;
     if (card.type === 'reply' && card.parentId) h += 34;
+    if (card.type === 'update' && card.relationships.references && card.relationships.references.length) h += 34;
     if ((card.relationships.references.length||0) + (card.relationships.replies.length||0) + (card.relationships.updates.length||0) > 0) h += 22;
     if (card.bodyParas && card.bodyParas.length > 1) h += Math.min(60, (card.bodyParas.length - 1) * 16);
     if (card.details) h += 30;
@@ -6933,9 +6810,6 @@ function scrollHomeToPanel(index, smooth) {
 
 /* ═══════════════════════════════════════════════════════════
    CAROUSEL ENGINE — shared by the Home and Reader tracks
-   • active panel follows the scroll (no scrollTo, no re-render while scrolling)
-   • one debounced "settled" hook for anything expensive (route / breadcrumb)
-   • mouse-drag eases into the nearest panel instead of teleporting when snap re-engages
    ═══════════════════════════════════════════════════════════ */
 function trackCenterDelta(track, panel) {
   const tr = track.getBoundingClientRect();
@@ -6961,13 +6835,8 @@ function nearestPanelIndex(track, from, span) {
   return best;
 }
 
-/* Programmatic moves ease; re-centring (open, re-render) is instant. 'instant' is
-   explicit on purpose: 'auto' inherits the CSS scroll-behavior:smooth and would fly
-   through every panel on open. */
 function scrollTrackBy(track, delta, smooth) {
   const eng = track._carousel;
-  // A jump across many panels (first↔last, "title card") would fly past every panel and rasterise each one on the way.
-  // Jump instead — but only from rest: an instant scroll during a running eased one leaves Chrome finishing the old animation.
   const animate = smooth && (Math.abs(delta) <= track.clientWidth * 2 || (eng && eng.moving()));
   if (animate && eng) eng.expect(delta);
   track.scrollTo({ left: track.scrollLeft + delta, behavior: animate ? 'smooth' : 'instant' });
@@ -6985,13 +6854,13 @@ function createCarouselEngine(track, cfg) {
   }
 
   const engine = {
-    expect(distance) {                       // an eased move to (scrollLeft + distance) is starting
+    expect(distance) {
       if (Math.abs(distance) < 1) return;
       const max = Math.max(0, track.scrollWidth - track.clientWidth);
       begin(Math.min(Math.max(track.scrollLeft + distance, 0), max));
     },
-    hold() { begin(null); },                 // a re-centre is coming; nothing may re-route until it lands
-    moving() { return programmatic && targetLeft != null; },   // an eased move is in flight (not merely held)
+    hold() { begin(null); },
+    moving() { return programmatic && targetLeft != null; },
     afterSettle(fn) { afterSettle.push(fn); }
   };
 
@@ -7007,7 +6876,6 @@ function createCarouselEngine(track, cfg) {
 
   function settle() {
     clearTimeout(settleTimer);
-    // A long frame can leave >120ms between scroll events mid-flight; that isn't "landed".
     if (programmatic && (targetLeft == null || Math.abs(track.scrollLeft - targetLeft) > 40)) {
       settleTimer = setTimeout(settle, 120);
       return;
@@ -7035,9 +6903,6 @@ function createCarouselEngine(track, cfg) {
     settleTimer = setTimeout(settle, 120);
   }, { passive: true });
 
-  // Axis lock: a horizontal swipe on a trackpad always carries a little vertical drift, which
-  // used to nudge the letter up and down while it slid. The first few px of a gesture pick the
-  // axis; the other one is switched off until the gesture has been idle for a moment.
   const vScroller = cfg.vScroller || track;
   let lockMode = null, lockTimer = 0, accX = 0, accY = 0;
   function unlockAxis() {
@@ -7046,7 +6911,7 @@ function createCarouselEngine(track, cfg) {
     vScroller.style.overflowY = '';
   }
   track.addEventListener('wheel', e => {
-    if (e.ctrlKey) return;                                  // pinch-zoom
+    if (e.ctrlKey) return;
     clearTimeout(lockTimer);
     lockTimer = setTimeout(unlockAxis, 160);
     if (lockMode) return;
@@ -7055,12 +6920,10 @@ function createCarouselEngine(track, cfg) {
     if (accX > accY * 1.2) { lockMode = 'x'; vScroller.style.overflowY = 'hidden'; }
     else if (accY > accX * 1.2) {
       lockMode = 'y';
-      // never restyle the element that is itself doing the vertical scroll mid-gesture (Home): it drops the gesture
       if (vScroller !== track) track.style.overflowX = 'hidden';
     }
   }, { passive: true });
 
-  // the person taking over always wins over an in-flight programmatic move
   const takeover = () => { programmatic = false; targetLeft = null; };
   track.addEventListener('wheel', takeover, { passive: true });
   track.addEventListener('touchstart', takeover, { passive: true });
@@ -7074,7 +6937,7 @@ function bindTrackDrag(track, ignoreSelector, engine, cfg) {
   let drag = false, startX = 0, startScroll = 0, startIndex = 0, moves = [], cleanupTimer = 0;
 
   track.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'touch' || e.button > 0) return;   // touch keeps native compositor scrolling
+    if (e.pointerType === 'touch' || e.button > 0) return;
     if (closestSafe(e.target, ignoreSelector)) return;
     clearTimeout(cleanupTimer);
     drag = true;
@@ -7098,14 +6961,13 @@ function bindTrackDrag(track, ignoreSelector, engine, cfg) {
   function finish() {
     clearTimeout(cleanupTimer);
     if (drag) return;
-    track.classList.remove('dragging', 'released');   // snap re-engages on a panel that is already centred
+    track.classList.remove('dragging', 'released');
   }
 
   function release() {
     if (!drag) return;
     drag = false;
 
-    // pointer velocity over the last ~100ms → a short flick turns the page
     let vx = 0;
     if (moves.length >= 2) {
       const a = moves[0], b = moves[moves.length - 1];
@@ -7115,7 +6977,6 @@ function bindTrackDrag(track, ignoreSelector, engine, cfg) {
     const cur = track.scrollLeft;
     const projected = cur - vx * 200;
 
-    // land on the grabbed panel or one of its neighbours
     const kids = track.children;
     let target = startIndex, targetLeft = cur, bd = Infinity;
     for (let i = Math.max(0, startIndex - 1); i <= Math.min(kids.length - 1, startIndex + 1); i++) {
@@ -7779,6 +7640,7 @@ function buildReaderCover(card, index, total, opts) {
   else if (card.type === 'index' || card.type === 'cluster-index' || card.type === 'profile-index') label = 'INDEX';
   else if (card.type === 'attention') label = 'ATTENTION';
   else if (card.type === 'attention-index') label = 'INDEX';
+  else if (card.type === 'update') label = 'CORRECTION';
   else label = 'STATEMENT ' + String(index + 1).padStart(2, '0');
 
   const p = card.provenance;
@@ -7887,9 +7749,6 @@ function renderClusterTitleCard(card) {
 
   if (!isPackagingCluster(card.id)) return titleCardHtml;
 
-  /* Packaging clusters also render a collection body (list / grid / bento)
-     inside the reader letter, sharing homeViewModes state with the Home
-     surface so the two agree on shape. */
   const mode = homeViewModes[card.id] || 'list';
   const toolbarHtml =
     '<div class="reader-collection-toolbar" data-collection-toolbar="' + escapeHtml(card.id) + '">' +
@@ -8189,11 +8048,11 @@ function renderLetterBentoBody(card) {
   }
   (rel.references || []).forEach(id => {
     const c = CARDS.get(id);
-    if (c) refItems.push({ label: 'References', id, title: c.title });
+    if (c) refItems.push({ label: card.type === 'update' ? 'Corrects' : 'References', id, title: c.title });
   });
   (rel.updates || []).forEach(id => {
     const c = CARDS.get(id);
-    if (c) refItems.push({ label: 'Updates', id, title: c.title });
+    if (c) refItems.push({ label: 'Updated by', id, title: c.title });
   });
   const relBlock = refItems.length
     ? '<div class="statement-relations" style="margin-top:18px"><h4>Relationships</h4><ul>' + refItems.map(r => '<li>' + escapeHtml(r.label) + ': <a data-nav-card="' + escapeHtml(r.id) + '">' + escapeHtml(r.title) + '</a></li>').join('') + '</ul></div>'
@@ -8421,8 +8280,6 @@ function renderReaderCard(card, index, total) {
   else content.innerHTML = renderStatementBody(card);
   frame.appendChild(content);
 
-  /* Packaging clusters in the reader: populate the collection body and wire
-     the mode toggle. Shares homeViewModes with the Home carousel. */
   const collectionBody = content.querySelector('[data-collection-body]');
   if (collectionBody) {
     const clusterId = collectionBody.getAttribute('data-collection-body');
@@ -8561,7 +8418,7 @@ function renderTrack() {
   track.innerHTML = '';
   readerCards.forEach((card, i) => track.appendChild(renderReaderCard(card, i, readerCards.length)));
   bindInteractions(track);
-  if (track._carousel) track._carousel.hold();   // a re-centre is coming; don't let a stray scroll event re-route
+  if (track._carousel) track._carousel.hold();
   updateNavCounter(activeIndex + 1, readerCards.length);
   updateBorderProgress();
 }
@@ -8583,9 +8440,6 @@ function setActivePanel(index) {
   updateNavCounter(activeIndex + 1, readerCards.length);
 }
 
-/* Panel changes inside an open reader only need the URL + breadcrumb to follow.
-   They used to go through navigate() → handleRoute() → renderTrack(), which rebuilt
-   every panel (and re-images them) and restarted the scroll after each swipe. */
 function syncReaderRoute(card) {
   if (!card) return;
   if (currentRoute.mode === 'profile') {
@@ -11100,15 +10954,15 @@ function initSpiral() {
   const PANELS = [
     { type:'bookend-start', num:'∞', title:'Contents', density:'bookend', lines:[] },
     { num:'01', title:'intoview.pro', density:'sparse', lines:['Statements, not posts.'], yellow:true },
-    { num:'02', title:'The thesis', density:'medium', lines:['If LinkedIn is Whole Foods, this is Trader Joe\'s.','A smaller shelf. A deliberate one.','Every listing here has a name attached, a date filed, and a state you can read.'] },
-    { num:'03', title:'The permanent record', density:'medium', lines:['Nothing filed here disappears.','When plans change, the change is filed too.','A company that cancels honestly builds the right to cancel.'] },
-    { num:'04', title:'A job listing is a statement', density:'medium', lines:['Not a form. A document, authored and dated.','The full brief expands inside the same letter.','Salary posted because that should be basic hygiene.'] },
-    { num:'05', title:'The lifecycle', density:'dense', lines:['Filed · Active · Interviewing · Short-listed','Offer out · Filled · Paused · Cancelled','Archived · stale after 90 days','Every transition is a filed update.'] },
-    { num:'06', title:'The closure', density:'medium', lines:['Every listing ends. That is the point.','"Hired." "Paused, reopening Q3." "Cancelled."','Each is legitimate. Each is filed publicly.'] },
+    { num:'02', title:'The thesis', density:'medium', lines:['A permanent professional record.','Every statement is filed, signed, dated.','Nothing is edited. Nothing is deleted.'] },
+    { num:'03', title:'The 60-second window', density:'medium', lines:['One minute between thought and canon.','Edit it or abandon it inside the window.','At zero, it files itself.'] },
+    { num:'04', title:'Correction is first-class', density:'medium', lines:['You will get things wrong.','When you do, file a correction.','The original stands. The trail is the product.'] },
+    { num:'05', title:'Closure is first-class', density:'medium', lines:['Every listing ends.','Filled. Cancelled. Paused. Archived.','Each ending is a filed statement.'] },
+    { num:'06', title:'The lifecycle', density:'dense', lines:['Filed · Active · Interviewing · Short-listed','Offer out · Filled · Paused · Cancelled','Archived · stale after 90 days','Every transition is a filed update.'] },
     { num:'07', title:'Verified companies', density:'medium', lines:['A human reviewed the company.','The verification is not a badge. It is a gate.','Unverified listings are capped and visually distinct.'] },
     { num:'08', title:'Fewer applicants, better ones', density:'medium', lines:['A senior role on LinkedIn gets 400 applications.','The same role here gets 40.','Eight of those are worth a first call. That is the entire pitch.'] },
     { num:'09', title:'Candidates read the record', density:'medium', lines:['Three years of a company\'s filings, all visible.','Do they close listings? Do they cancel cleanly?','The record answers before the first call.'] },
-    { num:'10', title:'The six sections', density:'dense', lines:['Manifesto · why this exists','The Record · every filed statement','Open to Work · people looking','Hiring · roles with honest briefs','Archive · kept for the record','Network · intersecting records'] },
+    { num:'10', title:'The seven sections', density:'dense', lines:['Manifesto · why this exists','The Record · every filed statement','Open to Work · people looking','Hiring · roles with honest briefs','Archive · kept for the record','Network · intersecting records','Potluck · smaller notes'] },
     { num:'11', title:'Views', density:'medium', lines:['Canvas. Gallery. Flow.','List. Grid. Bento.','Same statements, different density.'] },
     { num:'12', title:'Intended use', density:'medium', lines:['Job seekers — a filed looking statement, not a green banner.','Companies — a listing that stays honest when it closes.','Recruiters — search that reads the record, not the resume.','Readers & writers — statements, letters, replies. No posts, no likes.'] },
     { num:'13', title:'Design principles', density:'medium', lines:['Minimal. Calm. No doomscroll.','No feed to game. No likes. No algorithmic ranking.','Finite loads. Keyboard-first. Mobile-native.'] },
