@@ -1268,17 +1268,6 @@ body[data-reader="open"] #galleryRoot{filter:blur(3px) saturate(.8);pointer-even
   .prov-card.gallery-cover-card .prov-card-deck{-webkit-line-clamp:2;font-size:11px}
 }
 
-#list-wrap{overflow-y:auto;height:100%;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto;scrollbar-width:none;-ms-overflow-style:none}
-#list-wrap::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
-
-#grid-scroll{overflow-y:auto;height:100%;padding:0 var(--margin);max-width:var(--max-width);margin:0 auto;scrollbar-width:none;-ms-overflow-style:none}
-#grid-scroll::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
-#grid-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.2rem 1rem;align-items:start;padding-bottom:24px}
-.g-item{cursor:pointer;position:relative;z-index:1}
-.g-item:hover{z-index:30}
-.g-cover-item{grid-column:1 / -1;cursor:default}
-.g-cover-item .prov-card.gallery-cover-card{max-width:640px;margin:0 auto}
-
 #galleryRoot .prov-card{width:100%;min-height:0;padding:0;gap:10px}
 #galleryRoot .prov-card.face-media{padding:16px 18px 14px;min-height:260px}
 #galleryRoot .prov-card.face-letter{padding:16px 18px 14px;min-height:260px}
@@ -2928,14 +2917,6 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
         <div id="flow-items-layer"></div>
       </div>
     </section>
-    <section class="gallery-view" id="view-list" data-gallery-view="list">
-      <div id="list-wrap"></div>
-    </section>
-    <section class="gallery-view" id="view-grid" data-gallery-view="grid">
-      <div id="grid-scroll">
-        <div id="grid-items"></div>
-      </div>
-    </section>
   </div>
 </div>
 
@@ -2985,18 +2966,6 @@ body[data-browse="canvas"] .browse-widget-scope::before{background:var(--ink-lig
   </button>
   <button class="ctx-item ctx-for-canvas" data-canvas-layout="list" role="menuitemradio" type="button" hidden>
     <span class="ctx-indicator"></span> List (timeline)
-  </button>
-
-  <div class="ctx-divider ctx-for-gallery" hidden></div>
-  <div class="ctx-section-label ctx-for-gallery" hidden>Gallery view</div>
-  <button class="ctx-item ctx-for-gallery" data-gallery-view="flow" role="menuitemradio" type="button" hidden>
-    <span class="ctx-indicator"></span> Flow
-  </button>
-  <button class="ctx-item ctx-for-gallery" data-gallery-view="list" role="menuitemradio" type="button" hidden>
-    <span class="ctx-indicator"></span> List
-  </button>
-  <button class="ctx-item ctx-for-gallery" data-gallery-view="grid" role="menuitemradio" type="button" hidden>
-    <span class="ctx-indicator"></span> Grid
   </button>
 
   <div class="ctx-divider ctx-for-node" hidden></div>
@@ -4595,7 +4564,6 @@ buildAuthors();
 let currentRoute = { mode: 'home' };
 let browseMode = 'home';
 let lastBrowseRoute = { mode: 'home' };
-let galleryView = 'flow';
 let readerCards = [];
 let activeIndex = 0;
 
@@ -4717,10 +4685,10 @@ function parseHash() {
     return { mode: 'home' };
   }
   if (parts[0] === 'gallery') {
-    return { mode: 'gallery', scope: null, view: ['flow','list','grid'].includes(parts[1]) ? parts[1] : 'flow' };
+    return { mode: 'gallery', scope: null, view: 'flow' };
   }
   if (parts[0] === 'g') {
-    if (!parts[1]) return { mode: 'gallery', scope: null, view: null };
+    if (!parts[1] || ['flow','list','grid'].includes(parts[1])) return { mode: 'gallery', scope: null, view: null };
     if (!CLUSTERS.has(parts[1])) return { mode: 'home' };
     return { mode: 'gallery', scope: parts[1], section: parts[2] || null, view: null };
   }
@@ -4744,7 +4712,7 @@ function routeHash(route) {
   if (route.mode === 'canvas') return '#/canvas';
   if (route.mode === 'profile') return '#/p/' + route.stack.join('/');
   if (route.mode === 'gallery') {
-    if (!route.scope) return '#/g' + (route.view && route.view !== 'flow' ? '/' + route.view : '');
+    if (!route.scope) return '#/g';
     return '#/g/' + route.scope + (route.section ? '/' + route.section : '');
   }
   if (route.mode === 'reader') return '#/card/' + route.cardId;
@@ -4785,7 +4753,6 @@ function handleRoute() {
     if (route.mode === 'canvas') browseMode = 'canvas';
     else if (route.mode === 'gallery') {
       browseMode = 'gallery';
-      if (route.view) galleryView = route.view;
     } else if (route.mode === 'home') {
       browseMode = 'home';
     } else {
@@ -4865,9 +4832,6 @@ function updateContextMenuBrowseState() {
   menu.querySelectorAll('.ctx-for-canvas').forEach(el => {
     el.hidden = inGallery;
   });
-  menu.querySelectorAll('.ctx-for-gallery').forEach(el => {
-    el.hidden = !inGallery;
-  });
   menu.querySelectorAll('.ctx-for-node').forEach(el => {
     el.hidden = !inNode;
   });
@@ -4881,10 +4845,6 @@ function updateContextMenuBrowseState() {
 
   menu.querySelectorAll('[data-canvas-layout]').forEach(b => {
     b.classList.toggle('active', b.dataset.canvasLayout === canvasLayout);
-  });
-
-  menu.querySelectorAll('[data-gallery-view]').forEach(b => {
-    b.classList.toggle('active', b.dataset.galleryView === galleryView);
   });
 
   const bw = menu.querySelector('[data-action="toggle-browse-widget"]');
@@ -4930,7 +4890,7 @@ function updateBreadcrumb() {
   } else if (browseMode === 'gallery') {
     items.push({ label:'Home', badge:'◈', variant:'v1', route:{ mode:'home' } });
     items.push({ label:'Canvas', badge:'◈', variant:'v1', route:{ mode:'canvas' } });
-    items.push({ label:'Gallery', badge:'G', variant:'v1', current:!currentRoute.scope, route:{ mode:'gallery', scope:null, view:galleryView } });
+    items.push({ label:'Gallery', badge:'G', variant:'v1', current:!currentRoute.scope, route:{ mode:'gallery', scope:null } });
     if (currentRoute.scope) {
       const cl = CLUSTERS.get(currentRoute.scope);
       if (cl) items.push({ label:cl.title, badge:cl.num, variant:'v0', current:!currentRoute.section, route:{ mode:'gallery', scope:currentRoute.scope } });
@@ -5012,20 +4972,46 @@ function updateBreadcrumb() {
 function setupBreadcrumbDrag() {
   const scroll = document.getElementById('breadcrumbScroll');
   if (!scroll) return;
-  let isDragging = false, startX = 0, startScroll = 0;
+  // Only start a "drag" once the pointer has actually moved. Capturing the pointer on
+  // pointerdown (the old behaviour) retargets the click to the scroller, which swallowed
+  // every click on a crumb — including its × button.
+  const DRAG_THRESHOLD = 4;
+  let pending = false, isDragging = false, startX = 0, startScroll = 0, activeId = null, suppressClick = false;
   scroll.addEventListener('pointerdown', e => {
-    isDragging = true;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pending = true;
+    isDragging = false;
     startX = e.clientX;
     startScroll = scroll.scrollLeft;
-    scroll.classList.add('dragging');
-    try { scroll.setPointerCapture(e.pointerId); } catch(err) {}
+    activeId = e.pointerId;
   });
   scroll.addEventListener('pointermove', e => {
-    if (!isDragging) return;
-    scroll.scrollLeft = startScroll + (startX - e.clientX);
+    if (!pending) return;
+    const dx = e.clientX - startX;
+    if (!isDragging) {
+      if (Math.abs(dx) < DRAG_THRESHOLD) return;
+      isDragging = true;
+      scroll.classList.add('dragging');
+      try { scroll.setPointerCapture(activeId); } catch (err) {}
+    }
+    scroll.scrollLeft = startScroll - dx;
   });
-  scroll.addEventListener('pointerup', () => { isDragging = false; scroll.classList.remove('dragging'); });
-  scroll.addEventListener('pointercancel', () => { isDragging = false; scroll.classList.remove('dragging'); });
+  function endDrag() {
+    if (isDragging) {
+      suppressClick = true;
+      setTimeout(() => { suppressClick = false; }, 0);
+    }
+    pending = false;
+    isDragging = false;
+    scroll.classList.remove('dragging');
+  }
+  scroll.addEventListener('pointerup', endDrag);
+  scroll.addEventListener('pointercancel', endDrag);
+  scroll.addEventListener('click', e => {
+    if (!suppressClick) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
 }
 
 function setLogoCardOpen(open) {
@@ -5889,15 +5875,10 @@ function getScopedCards() {
 }
 
 function renderGalleryView() {
-  document.querySelectorAll('.gallery-view').forEach(v => {
-    v.classList.toggle('active', v.dataset.galleryView === galleryView);
-  });
   const cards = getScopedCards();
-  if (galleryView === 'flow') renderGalleryFlow(cards);
-  else if (galleryView === 'list') renderGalleryList(cards);
-  else renderGalleryGrid(cards);
+  renderGalleryFlow(cards);
   requestAnimationFrame(() => {
-    if (galleryView === 'flow') setupFlowInteractions();
+    setupFlowInteractions();
     refreshViewportBlur();
   });
   updateBorderProgress();
@@ -6464,48 +6445,6 @@ function renderCanvasListInto(wrap) {
   }));
 }
 
-function renderGalleryList(cards) {
-  const wrap = document.getElementById('list-wrap');
-  wrap.innerHTML = '';
-  wrap.appendChild(buildTimelineList(cards, {
-    showGlobalCover: !currentRoute.scope,
-    coverCluster: null
-  }));
-}
-
-function renderGalleryGrid(cards) {
-  const wrap = document.getElementById('grid-items');
-  wrap.innerHTML = '';
-  if (!currentRoute.scope) {
-    const coverItem = document.createElement('div');
-    coverItem.className = 'g-item g-cover-item';
-    coverItem.appendChild(renderGalleryCoverCard());
-    wrap.appendChild(coverItem);
-  }
-  const groups = currentRoute.scope
-    ? [{ cluster: CLUSTERS.get(currentRoute.scope), cards }]
-    : CLUSTER_ORDER.map(id => ({
-        cluster: CLUSTERS.get(id),
-        cards: CLUSTERS.get(id).cardIds.map(cid => CARDS.get(cid)).filter(Boolean)
-      }));
-  groups.forEach(group => {
-    if (!group.cluster || !group.cards.length) return;
-    const sectionHeader = document.createElement('div');
-    sectionHeader.className = 'g-item g-cover-item';
-    sectionHeader.appendChild(renderGalleryCoverCard(group.cluster));
-    wrap.appendChild(sectionHeader);
-    group.cards.slice().reverse().forEach(card => {
-      const el = document.createElement('div');
-      el.className = 'g-item';
-      const cardEl = renderGalleryCard(card);
-      el.appendChild(cardEl);
-      wireVideo(cardEl);
-      wireGalleryCard(el, card);
-      wrap.appendChild(el);
-    });
-  });
-}
-
 function updateBorderProgress() {
   const topBar = document.getElementById('scrollBorderTop');
   const botBar = document.getElementById('scrollBorderBottom');
@@ -6515,14 +6454,7 @@ function updateBorderProgress() {
   if (currentRoute.mode === 'reader' || currentRoute.mode === 'profile') {
     progress = readerCards.length > 1 ? activeIndex / (readerCards.length - 1) : 0;
   } else if (browseMode === 'gallery') {
-    if (galleryView === 'flow') progress = flowMaxScroll > 0 ? flowScrollX / flowMaxScroll : 0;
-    else if (galleryView === 'list') {
-      const lw = document.getElementById('list-wrap');
-      if (lw && lw.scrollHeight > lw.clientHeight) progress = lw.scrollTop / (lw.scrollHeight - lw.clientHeight);
-    } else {
-      const gs = document.getElementById('grid-scroll');
-      if (gs && gs.scrollHeight > gs.clientHeight) progress = gs.scrollTop / (gs.scrollHeight - gs.clientHeight);
-    }
+    progress = flowMaxScroll > 0 ? flowScrollX / flowMaxScroll : 0;
   } else if (browseMode === 'home') {
     progress = HOME_LETTER_SPECS.length > 1 ? homeActiveIndex / (HOME_LETTER_SPECS.length - 1) : 0;
   } else if (browseMode === 'canvas') {
@@ -10357,10 +10289,6 @@ function setupContextMenu() {
     setCanvasLayout(b.dataset.canvasLayout);
     closeContextMenu();
   }));
-  m.querySelectorAll('[data-gallery-view]').forEach(b => b.addEventListener('click', () => {
-    goGalleryView(b.dataset.galleryView);
-    closeContextMenu();
-  }));
   const fitBtn = m.querySelector('[data-action="fit"]');
   if (fitBtn) fitBtn.addEventListener('click', () => { fitCanvas(); closeContextMenu(); });
   const wBtn = m.querySelector('[data-action="toggle-widget"]');
@@ -10371,19 +10299,6 @@ function setupContextMenu() {
   if (zBtn) zBtn.addEventListener('click', () => setZoomHudVisible(!zoomHudVisible));
   const bBtn = m.querySelector('[data-action="toggle-browse-widget"]');
   if (bBtn) bBtn.addEventListener('click', () => setBrowseWidgetVisible(!browseWidgetVisible));
-}
-function goGalleryView(viewId) {
-  if (browseMode !== 'gallery') {
-    navigate({ mode: 'gallery', scope: currentRoute.scope || null, view: viewId });
-    return;
-  }
-  galleryView = viewId;
-  if (!currentRoute.scope) {
-    navigate({ mode: 'gallery', scope: null, view: galleryView }, true);
-  } else {
-    renderGalleryView();
-    updateContextMenuBrowseState();
-  }
 }
 function closeGalleryContextMenu() {
   const m = document.getElementById('galleryContextMenu');
@@ -10489,17 +10404,6 @@ function showReaderContextMenu(x, y, card) {
     addItem('↗', 'Open ' + cl.title + ' as gallery', { noIndicator: true }, () => {
       navigate({ mode: 'gallery', scope: cl.id, view: 'flow' });
     });
-    ['flow', 'list', 'grid'].forEach(v => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'ctx-item' + (galleryView === v ? ' active' : '');
-      b.innerHTML = '<span class="ctx-indicator"></span>' + v[0].toUpperCase() + v.slice(1) + ' view';
-      b.addEventListener('click', () => {
-        navigate({ mode: 'gallery', scope: cl.id, view: v });
-        closeReaderContextMenu();
-      });
-      m.appendChild(b);
-    });
   } else {
     addItem('↗', 'Open gallery', { noIndicator: true }, () => {
       navigate({ mode: 'gallery', scope: null, view: 'flow' });
@@ -10590,11 +10494,6 @@ function buildMobileSheet() {
     '<div class="mobile-canvas-controls">' +
       '<button class="btn" type="button" data-action="toggle-gallery" id="mobileGalleryToggle">Gallery ↗</button>' +
     '</div>' +
-    '<div class="mobile-canvas-controls">' +
-      '<button class="btn" type="button" data-gallery-view="flow">Flow</button>' +
-      '<button class="btn" type="button" data-gallery-view="list">List</button>' +
-      '<button class="btn" type="button" data-gallery-view="grid">Grid</button>' +
-    '</div>' +
     '<div class="mobile-section-label">Sections</div>' +
     '<ul class="mobile-sections">' + sectionsHtml + '</ul>' +
     '<div class="mobile-section-label">Canvas</div>' +
@@ -10620,9 +10519,6 @@ function updateMobileSheetActiveStates() {
   if (gt) gt.textContent = browseMode === 'gallery' ? 'Canvas' : 'Gallery ↗';
   const mac = document.getElementById('mobileAttentionCount');
   if (mac) mac.textContent = String(attendedCards.size + attendedAuthors.size);
-  body.querySelectorAll('[data-gallery-view]').forEach(b => {
-    b.classList.toggle('active', b.dataset.galleryView === galleryView && browseMode === 'gallery');
-  });
 }
 function setupMobileSheet() {
   const sheet = document.getElementById('mobileSheet');
@@ -10696,11 +10592,6 @@ function setupMobileSheet() {
     navigate({ mode: 'home' });
     closeSheet();
   }));
-  body.querySelectorAll('[data-gallery-view]').forEach(b => b.addEventListener('click', () => {
-    goGalleryView(b.dataset.galleryView);
-    updateMobileSheetActiveStates();
-    closeSheet();
-  }));
   sheet._openSheet = openSheet;
   sheet._closeSheet = closeSheet;
   sheet._isOpen = () => sheet.classList.contains('open');
@@ -10711,11 +10602,7 @@ function setupMobileSheet() {
    ═══════════════════════════════════════════════════════════ */
 function getActiveViewportScroller() {
   if (currentRoute.mode === 'reader' || currentRoute.mode === 'profile') return document.getElementById('carouselWrap');
-  if (browseMode === 'gallery') {
-    if (galleryView === 'flow') return null;
-    if (galleryView === 'list') return document.getElementById('list-wrap');
-    return document.getElementById('grid-scroll');
-  }
+  if (browseMode === 'gallery') return null;
   if (browseMode === 'home') {
     return document.getElementById('homeVScroll');
   }
@@ -10748,7 +10635,7 @@ function setupViewportBlur() {
   }
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
-  ['canvasListWrap', 'list-wrap', 'grid-scroll', 'carouselWrap', 'homeVScroll'].forEach(id => {
+  ['canvasListWrap', 'carouselWrap', 'homeVScroll'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('scroll', onScroll, { passive: true });
   });
@@ -10765,7 +10652,7 @@ function initWriteCursor() {
   const chevron = document.getElementById('writeCursorChevron');
   if (!dot || !ellipse || !chevron) return;
   if (window.matchMedia('(hover: none)').matches) return;
-  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .timeline-card, .g-item, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .browse-widget, .idx-row, .info-overlay-close, .js-section, .attention-btn, .attend-btn, .logo-tile, .breadcrumb-badge, .author-link, .profile-modal-backdrop, [data-category-chip], [data-index-filter], .home-bento-item, .home-list-row, .home-grid-cell, .topbar-avatar, .avatar-menu-item, .chip';
+  const NATIVE = 'button, a, input, textarea, select, [role="button"], .canvas-node, .canvas-widget, .canvas-context-menu, .prov-card, .cluster-peek-hit, .canvas-minimap, .canvas-zoomhud, .hud-top-grip, .mobile-sheet, .flow-item, .timeline-card, .prov-card-backlink, .cluster-browse-all, .letter-accordion-trigger, .browse-widget, .idx-row, .info-overlay-close, .js-section, .attention-btn, .attend-btn, .logo-tile, .breadcrumb-badge, .author-link, .profile-modal-backdrop, [data-category-chip], [data-index-filter], .home-bento-item, .home-list-row, .home-grid-cell, .topbar-avatar, .avatar-menu-item, .chip';
   const ACCENT_SURFACE = '.prov-card[data-type="cluster"], .letter-card-frame.title-card-frame, .letter-card-frame.identity-card-frame, .cluster-collapse-chip, .cluster-peek, .js-section.yellow-card, .home-bento-item.is-cluster';
   const LIGHT_SURFACE = '.prov-card[data-type="identity"], .letter-card-frame.index-card-frame';
   let px = 0, py = 0, prevX = 0, prevY = 0, init = false;
@@ -10864,7 +10751,7 @@ function escCascade() {
   }
   if (currentRoute.mode === 'reader') { closeReader(); return; }
   if (browseMode === 'gallery' && currentRoute.scope) {
-    navigate({ mode: 'gallery', scope: null, view: galleryView });
+    navigate({ mode: 'gallery', scope: null, view: 'flow' });
     return;
   }
   if (browseMode === 'gallery') { navigate({ mode: 'canvas' }); return; }
